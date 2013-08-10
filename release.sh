@@ -46,5 +46,7 @@ require_clean_work_tree "make"
 source make.sh
 
 mv $BUILD_DIR/* $TEMP_DIR
-git checkout $GH_PAGES && git rm -rf * && mv $TEMP_DIR/* . && git add . && git commit -s -m "Docs update" && git checkout master
+echo "Files staged in $TEMP_DIR"
+
+git checkout $GH_PAGES && mv $TEMP_DIR/* . && git add . && git commit -s -m "Docs update" && git push origin $GH_PAGES && git checkout master
 rm -rf $TEMP_DIR
