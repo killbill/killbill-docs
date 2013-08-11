@@ -398,8 +398,8 @@ pre .comment .conum { left: -20px; }
 <li><a href="#components-invoicing">Invoicing</a></li>
 <li>
 <ol type="none" class="sectlevel3">
-<li><a href="#_overview_2">Overview</a></li>
-<li><a href="#_invoice_items">Invoice items</a></li>
+<li><a href="#components-invoicing">Overview</a></li>
+<li><a href="#components-invoice-items">Invoice items</a></li>
 <li>
 <ol type="none" class="sectlevel4">
 <li><a href="#_fixed_item">Fixed item</a></li>
@@ -410,7 +410,7 @@ pre .comment .conum { left: -20px; }
 <li><a href="#_credit">Credit</a></li>
 </ol>
 </li>
-<li><a href="#_invoice_payments">Invoice payments</a></li>
+<li><a href="#components-invoice-payments">Invoice payments</a></li>
 <li>
 <ol type="none" class="sectlevel4">
 <li><a href="#_refund">Refund</a></li>
@@ -419,7 +419,14 @@ pre .comment .conum { left: -20px; }
 </li>
 </ol>
 </li>
-<li><a href="#_payment">Payment</a></li>
+<li><a href="#components-payment">Payment</a></li>
+<li>
+<ol type="none" class="sectlevel3">
+<li><a href="#components-payment-overview">Overview</a></li>
+<li><a href="#components-payment-states">Payment states</a></li>
+<li><a href="#components-payment-retries">Payment retries</a></li>
+</ol>
+</li>
 <li><a href="#_analytics">Analytics</a></li>
 <li><a href="#_tenant">Tenant</a></li>
 </ol>
@@ -1896,7 +1903,7 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect2">
 <h3 id="components-invoicing">Invoicing</h3>
 <div class="sect3">
-<h4 id="_overview_2">Overview</h4>
+<h4 id="components-invoicing">Overview</h4>
 <div class="paragraph">
 <p>Kill Bill works by triggers (as opposed to batch-oriented systems). Invoices are generated automatically, when:</p>
 </div>
@@ -1955,7 +1962,7 @@ Besides the main use case described above, there are other possible options if o
 
 </div>
 <div class="sect3">
-<h4 id="_invoice_items">Invoice items</h4>
+<h4 id="components-invoice-items">Invoice items</h4>
 <div class="sect4">
 <h5 id="_fixed_item">Fixed item</h5>
 <div class="paragraph">
@@ -2268,7 +2275,7 @@ Besides the main use case described above, there are other possible options if o
 
 </div>
 <div class="sect3">
-<h4 id="_invoice_payments">Invoice payments</h4>
+<h4 id="components-invoice-payments">Invoice payments</h4>
 <div class="paragraph">
 <p>The invoice payment table is the bridge between the invoice and payment subsystems, and is used to compute invoice balances. It will contain the payments, refunds and chargebacks made against an invoice.</p>
 </div>
@@ -2381,7 +2388,102 @@ Besides the main use case described above, there are other possible options if o
 
 </div>
 <div class="sect2">
-<h3 id="_payment">Payment</h3>
+<h3 id="components-payment">Payment</h3>
+<div class="sect3">
+<h4 id="components-payment-overview">Overview</h4>
+<div class="paragraph">
+<p>Kill Bill provides a framework to register payment plugins. Those payment plugins must be OSGI compliant plugins. They can be written either in:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p>java; in which case there are just a standard OSGI java plugin which must register a service implementing the PaymentPluginApi.</p>
+</li>
+<li>
+<p>ruby; in which case they must use the Killbill gem which provides a jruby bridge between java and ruby so that plugins can be written purely in ruby. Those plugins must inherit the Payment class to provide the specific plugin code functionality.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The main reason to provide a way to write ruby payment plugin is to be able to reuse the <a href="http://activemerchant.org/">Active Merchant</a> gem. There are examples of payment plugin codes written in ruby:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-litle-plugin">Litle plugin</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-paypal-express-plugin">Paypal plugin</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, &#8230; operation needs to happen. The dispatching is based on the payment methods associated with each account. Each account should have one default payment method active at a given time, and that payment method will have a link that points to a specific plugin to use. For instance one account could have a Paypal payment method that would point to the paypal plugin.</p>
+</div>
+<div class="paragraph">
+<p>By default Kill Bill does not come configured with any payment plugins per say except for the built-in <em>EXTERNAL_PAYMENT</em>, which is used for when we want to enter into the system that a payment occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check.</p>
+</div>
+<div class="paragraph">
+<p>The choice of which payment plugin to use is configured per payment method. That is, when one adds a new payment method to an existing account, for e.g a new credit card, the call made to Kill Bill requires to specify which payment plugin to use. Therefore each payment method in the system is associated to one and exactly one payment plugin. There is one default payment method that is associated to an existing account, and that payment method will be the one used at the time a payment is made. Therefore at the time of payment, Kill Bill will delegate the payment call to the payment plugin associated to the default payment method associated with the account.</p>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-payment-states">Payment states</h4>
+<div class="paragraph">
+<p>A payment is represented in Kill Bill with a payment row in the <strong>payments</strong> table; each time a payment is made the code will create a record in the <strong>payment_attempts</strong> table and update the <strong>payment</strong> record. Both the payment and the payment_attempt have a status. The payment status is the payment_attempt status of the last attempt except when the last payment_attempt is in an UNKNOWN state, in which case the payment status is the status of the last payment_attempt status not in UNKNOWN state; if there is only one attempt and it is in an UNKNOWN state, the payment status also shows an UNKNOWN state. The various state are:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p><strong>SUCCESS</strong>: The payment attempt succeeded. This is a terminal state.</p>
+</li>
+<li>
+<p><strong>UNKNOWN</strong>: The payment attempt did not complete; for instance the system crashed while we were making the call; we are left in an unknown state. There is no automatic retry for that case, but if we issue another attempt manually, the system may heal itself.</p>
+</li>
+<li>
+<p><strong>AUTO_PAY_OFF</strong>: The account associated with the payment is in AUTO_PAY_OFF and so any payment attempt made on that account will result in AUTO_PAY_OFF state.</p>
+</li>
+<li>
+<p><strong>PAYMENT_FAILURE</strong>: The payment completed but failed because the payment method used to issue that payment is not valid.</p>
+</li>
+<li>
+<p><strong>PAYMENT_FAILURE_ABORTED</strong>: The payment completed but failed because the payment method used to issue that payment is not valid. This case is similar to the previous one except it is a terminal state which occurs after we issued all the retries for that payment.</p>
+</li>
+<li>
+<p><strong>PLUGIN_FAILURE</strong>: There was some exception coming back from the payment plugin. This state is similar to UNKNOWN in the sense we are left in an unknown state.</p>
+</li>
+<li>
+<p><strong>PLUGIN_FAILURE_ABORTED</strong>: This state is similar to the previous one except this is terminal state, and there will be no more retries.</p>
+</li>
+</ul>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-payment-retries">Payment retries</h4>
+<div class="paragraph">
+<p>The Kill Bill payment code is responsible for retrying the failed payments in the following states:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p><strong>PAYMENT_FAILURE</strong>: There is a configuration parameter which specifies how many retries should happen for that state and what is the delay between each retry. The property <strong>killbill.payment.retry.days</strong> specifies a comma separated list of days specifying the delay between each retry. Note that if there is a configuration file specifying overdue states, one should arrange to align those payment retries with the overdue states. If after all the retries were made and the payment is still not successful both the last attempt and payment status transition to PAYMENT_FAILURE_ABORTED.</p>
+</li>
+<li>
+<p><strong>PLUGIN_FAILURE</strong>: There are 3 configuration parameters which specify the retry strategy for that state. The property <strong>killbill.payment.failure.retry.start.sec</strong> specifies the number of seconds that should elapse before we do the first retry. The property <strong>killbill.payment.failure.retry.multiplier</strong> specifies the multiplier that should be applied in between each attempt to implement some exponential retry strategy. Finally the property <strong>killbill.payment.failure.retry.max.attempts</strong> specifies how many attempts should be retried in that state. If the payment keep stays in that state after we reached the maximum number of attempts, both the last attempt and payment status transition to PLUGIN_FAILURE_ABORTED.</p>
+</li>
+<li>
+<p><strong>AUTO_PAY_OFF</strong>: All the attempts that were in AUTO_PAY_OFF will be retried when we remove the AUTO_PAY_OFF on the account.</p>
+</li>
+</ul>
+</div>
+
+</div>
 
 </div>
 <div class="sect2">
@@ -2631,7 +2733,7 @@ com.ning.jetty.jdbi.password=killbil</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2013-08-11 16:50:43 EDT
+Last updated 2013-08-11 17:21:05 EDT
 </div>
 </div>
 </body>
