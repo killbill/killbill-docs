@@ -1,0 +1,101 @@
+Run the following in a terminal prompt:
+
+[source,ruby]
+----
+ruby -e "$(curl -fsSL http://kill-bill.org/go)"
+----
+
+The only pre-requisite is MySQL. The installer will:
+
+* Create a killbill database and user, and apply the correct schema
+* Download the latest version of killbill
+* Show you how to start killbill
+
+After the system has started you can experiment by following the simple scenario below. Note that each call creating an object in the system returns its URI, and so the curls below are using the UUID that was returned at the time the demo was created. You would need to replace the UUID with the one returned in each call if you were to follow that demo
+
+[[five-minutes-create-tenant]]
+==== Create your own tenant
+
+The default behavior of Kill Bill is to run with multi-tenancy enabled. In that mode, one needs to first create a tenant and specify the credentials that will be required subsequently on each call:
+
+[source,bash]
+----
+curl -X POST \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"apiKey": "bob", "apiSecret": "lazar"}' \
+     http://127.0.0.1:8080/1.0/kb/tenants
+----
+
+At this point one can retrieve a simple version of the default catalog shipped with the demo:
+
+[source,bash]
+----
+curl -ubob:lazar \
+     -H "Content-Type: application/json" \
+     http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog
+----
+
+[[five-minutes-create-account]]
+==== Create an account
+
+The next step will be to create an account:
+
+[source,bash]
+----
+curl -ubob:lazar \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
+     http://127.0.0.1:8080/1.0/kb/accounts
+----
+
+Now we can attach a payment method. Since that demo does not have any real payment plugin attached to it, we will chose the default external payment method plugin that comes up configured in the system. That default payment plugin does not require and payment method details such as CC info, and so the pluginInfo parameter is an empty map:
+
+[source,bash]
+----
+curl -ubob:lazar \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122/paymentMethods?isDefault=true"
+----
+
+[[five-minutes-create-subscription]]
+==== Create a subscription
+
+Now we will create a SubscriptionBundle on that account. This is required in oder to create the Subscription:
+
+[source,bash]
+----
+curl -ubob:lazar \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"accountId":"8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122","externalKey":"myBundleName"}' \
+     "http://127.0.0.1:8080/1.0/kb/bundles"
+----
+
+The last step will be to create a subscription based on the default demo catalog:
+
+[source,bash]
+----
+curl -ubob:lazar \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"bundleId":"ddd1879c-0e43-45e0-bf1c-e3ada6981ad0","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions"
+----
+
+At this point, it is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:
+
+[source,bash]
+----
+curl -ubob:lazar \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     "http://127.0.0.1:8080/1.0/kb/invoices?accountId=8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122"
+----
