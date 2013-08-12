@@ -7,6 +7,8 @@ To generate the documentation locally, run ```make.sh``` (generated html files a
 
 To update the GitHub site, run ```release.sh``` (the script will take care of switching branches).
 
+To update the JavaDocs, run ```update_javadocs.sh``` (the script will take care of switching branches).
+
 Setup
 -----
 
