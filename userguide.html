@@ -427,8 +427,24 @@ pre .comment .conum { left: -20px; }
 <li><a href="#components-payment-retries">Payment retries</a></li>
 </ol>
 </li>
-<li><a href="#_analytics">Analytics</a></li>
-<li><a href="#_tenant">Tenant</a></li>
+<li><a href="#components-analytics">Analytics</a></li>
+<li>
+<ol type="none" class="sectlevel3">
+<li><a href="#components-analytics-overview">Overview</a></li>
+<li><a href="#components-analytics-accounts">Accounts</a></li>
+<li><a href="#components-analytics-subscriptions">Subscriptions</a></li>
+<li><a href="#components-analytics-invoices">Invoices</a></li>
+<li><a href="#components-analytics-payments">Payments</a></li>
+<li><a href="#components-analytics-overdue">Overdue statuses</a></li>
+<li><a href="#components-analytics-tags-fields">Tags and custom fields</a></li>
+</ol>
+</li>
+<li><a href="#components-tenant">Tenant</a></li>
+<li>
+<ol type="none" class="sectlevel3">
+<li><a href="#components-tenant-overview">Overview</a></li>
+</ol>
+</li>
 </ol>
 </li>
 <li><a href="#deployment">Deployment</a></li>
@@ -469,6 +485,22 @@ pre .comment .conum { left: -20px; }
 <li>
 <ol type="none" class="sectlevel2">
 <li><a href="#_system_properties">System properties</a></li>
+<li>
+<ol type="none" class="sectlevel3">
+<li><a href="#configuration-overview">Overview</a></li>
+<li><a href="#configuration-cache">Cache config</a></li>
+<li><a href="#configuration-catalog">Catalog config</a></li>
+<li><a href="#configuration-email">Email config</a></li>
+<li><a href="#configuration-invoice">Invoice config</a></li>
+<li><a href="#configuration-jdbc">JDBC config</a></li>
+<li><a href="#configuration-notification">Notification queue config</a></li>
+<li><a href="#configuration-osgi">OSGI config</a></li>
+<li><a href="#configuration-overdue">Overdue config</a></li>
+<li><a href="#configuration-payment">Payment config</a></li>
+<li><a href="#configuration-bus">Persistent bus config</a></li>
+<li><a href="#configuration-translation">Translation config</a></li>
+</ol>
+</li>
 </ol>
 </li>
 <li><a href="#apis">APIs</a></li>
@@ -2487,11 +2519,169 @@ Besides the main use case described above, there are other possible options if o
 
 </div>
 <div class="sect2">
-<h3 id="_analytics">Analytics</h3>
+<h3 id="components-analytics">Analytics</h3>
+<div class="sect3">
+<h4 id="components-analytics-overview">Overview</h4>
+<div class="paragraph">
+<p>Kill Bill maintains a reporting schema that is kept current in realtime for Analytics purposes. In contrary to other tables in the system, this set of tables is stable and potentially changes only between major revisions of Kill Bill. These tables are meant to be used as building blocks for reports and dashboards.</p>
+</div>
+<div class="paragraph">
+<p>To distinguish them with Kill Bill objects, the Analytics objects are prefixed with the term <strong>Business</strong>, e.g. a Kill Bill account will have a representation in the Analytics subsystem by a Business Account object. For ease of tracking, Analytics objects contain id references to the Kill Bill ones but we strongly advise against using them for reporting purposes. Instead, use the external keys as much as possible, as they are tied to your business concepts. For instance, to count the number of accounts in the system, run a query using <strong>count(distinct account_key)</strong>, not <strong>count(distinct account_id)</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Data has been denormalized on purpose to avoid joins as much as possible.</p>
+</div>
+<div class="paragraph">
+<p>All of this information is also available in Kaui (in the analytics section), on a per account basis.</p>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-accounts">Accounts</h4>
+<div class="paragraph">
+<p>The table <strong>bac</strong> (Business Accounts) maintains information about Kill Bill accounts. The table doesn&#8217;t contain historic records (it will contain at most one record per Kill Bill account).</p>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-subscriptions">Subscriptions</h4>
+<div class="paragraph">
+<p>The table <strong>bst</strong> (Business Subscription Transitions) maintains information about Kill Bill bundles and subscriptions. It describes the history of changes (both past and future) on a per subscription basis.</p>
+</div>
+<div class="paragraph">
+<p><strong>bst</strong> will contain all phase transitions for all subscriptions and can be used to build subscription timelines. A few remarks:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p>Given a subscription id, events are sorted chronologically when stored (you can rely on record_id asc)</p>
+</li>
+<li>
+<p>MIGRATE_BILLING, START_BILLING_DISABLED and END_BILLING_DISABLED subscription events are not stored in bst</p>
+</li>
+<li>
+<p>The total_ordering column helps break ties for events with the same effective date</p>
+</li>
+<li>
+<p><strong>prev_</strong> fields will always be NULL for MIGRATE, ADD and TRANSFER events</p>
+</li>
+<li>
+<p><strong>next_</strong> fields will always be NULL for CANCEL events</p>
+</li>
+<li>
+<p>A CHANGE event corresponds to a user initiated change (e.g. upgrade) whereas SYSTEM_CHANGE corresponds to a phase event (e.g. transition from trial to evergreen phase)</p>
+</li>
+<li>
+<p>The <strong>requested_timestamp</strong> field reflects when the transition was requested, the <strong>next_start_date</strong> field reflects the effective transition time</p>
+</li>
+</ul>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-invoices">Invoices</h4>
+<div class="paragraph">
+<p>The tables <strong>bin</strong> (Business Invoices), <strong>bia</strong> (Business Invoice Adjustments), <strong>biia</strong> (Business Invoice Item adjustments), <strong>biic</strong> (Business Invoice Item Credits) and <strong>bii</strong> (Business Invoice Items) maintain information about invoices posted by account.</p>
+</div>
+<div class="paragraph">
+<p>Definitions:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p><strong>invoice_balance</strong>: invoice_amount_charged + invoice_amount_credited + invoice_amount_adjusted_for_account_credit - (invoice_amount_paid + invoice_amount_refunded)</p>
+</li>
+<li>
+<p><strong>invoice_amount_charged</strong>: sum of all bii, bia and biia items for that invoice</p>
+</li>
+<li>
+<p><strong>invoice_amount_credited</strong>: sum of all biic items for that invoice (positive if granted, negative if used)</p>
+</li>
+<li>
+<p><strong>invoice_amount_paid</strong>: sum of all bip items for that invoice</p>
+</li>
+<li>
+<p><strong>invoice_amount_refunded</strong>: sum of all bipc and bipr items for that invoice</p>
+</li>
+<li>
+<p><strong>invoice_original_amount_charged</strong>: sum of all bii items for that invoice at the time of invoice cre</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Note that <strong>invoice_amount_adjusted_for_account_credit</strong> is an internal adjustment that applies for account level credits only (CREDIT_ADJ items on their own invoices) and is not represented in Analytics. The full details of the computations can be found in <a href="https://github.com/killbill/killbill/blob/master/invoice/src/main/java/com/ning/billing/invoice/calculator/InvoiceCalculatorUtils.java">InvoiceCalculatorUtils.java</a>.</p>
+</div>
+<div class="paragraph">
+<p>A few remarks:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p>EXTERNAL_CHARGE, FIXED and RECURRING items are treated as regular line items (stored in bii)</p>
+</li>
+<li>
+<p>ITEM_ADJ items are treated as invoice item adjustments (stored in biia)</p>
+</li>
+<li>
+<p>CBA_ADJ items (gained or consumed) are treated as account credits (stored in biic)</p>
+</li>
+<li>
+<p>REFUND_ADJ items are treated as invoice adjustments (stored in bia)</p>
+</li>
+<li>
+<p>CREDIT_ADJ items that are not on their own invoice are treated as invoice adjustments (stored in bia). The internal name of CREDIT_ADJ is misleading in this case and will probably be renamed to INVOICE_ADJ in a future release. Note that these should not be mixed with account level credits: when an administrator creates an account credit (different from CBA credits generated by the system), a negative CREDIT_ADJ item is added to a new invoice. This triggers a positive CBA_ADJ item (to bring the balance back to zero), which effectively becomes the account credit (and eventually stored in biic). In this case, the CREDIT_ADJ item will not be stored directly in the analytics tables</p>
+</li>
+<li>
+<p>Kill Bill repair items (REPAIR_ADJ) are not stored directly in any of these tables, but are combined with the new reparee item as invoice item adjustments (in biia). For example, if a recurring item of $20 was repaired into a $5 recurring item, bii would contain the original $20 line item and biia would contain a $-15 adjustment item</p>
+</li>
+<li>
+<p>Any invoice item has a revenue recognizable attribute which is used to tell if the item is recognizable from a finance perspective (tied to cash). This is used for credits only today and we assume that any administrator generated credit (CREDIT_ADJ and CBA_ADJ on their own invoice) is not recognizable. All other credit items, including system generated ones, are.</p>
+</li>
+</ul>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-payments">Payments</h4>
+<div class="paragraph">
+<p>The table <strong>bip</strong> (Business Invoice Payments), <strong>bipr</strong> (Business Invoice Payment Refunds) and <strong>bipc</strong> (Business Invoice Payment Chargebacks) maintain information about Kill Bill payments, refunds and chargebacks.</p>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-overdue">Overdue statuses</h4>
+<div class="paragraph">
+<p>The table <strong>bos</strong> (Business Overdue Status) maintains information about Kill Bill overdue statuses. The table contains historic status for a given bundle.</p>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-tags-fields">Tags and custom fields</h4>
+<div class="paragraph">
+<p>Information about tags and custom fields are captured in the tables <strong>bac_tags</strong>, <strong>bac_fields</strong>, <strong>bin_tags</strong>, <strong>bin_fields</strong>, <strong>bip_tags</strong> and <strong>bip_fields</strong>. The tables don&#8217;t contain historic records (they will contain the current state of tags and custom fields).</p>
+</div>
+
+</div>
 
 </div>
 <div class="sect2">
-<h3 id="_tenant">Tenant</h3>
+<h3 id="components-tenant">Tenant</h3>
+<div class="sect3">
+<h4 id="components-tenant-overview">Overview</h4>
+<div class="paragraph">
+<p>Kill Bill supports multi-tenancy, meaning you can run multiple logical instances of Kill Bill with a single server and database. For example, say you own two online stores, each of them having different catalogs, users, etc. You could configure a tenant for each of them, which would make the data from one store invisible to the other.</p>
+</div>
+<div class="paragraph">
+<p>In practice, a tenant is a simple attribute that Kill Bill tracks along each object in the database (accounts, subscriptions, invoices, etc.). When multi-tenancy is enabled, you would create a username/password for each tenant and perform all REST calls using HTTP Basic Auth: Kill Bill would then automatically look up the tenant associated with your username as part of each request.</p>
+</div>
+<div class="paragraph">
+<p>Multi-tenancy is an advanced feature. You can turn it off by removing the shiro.ini file from the Kill Bill war. We suggest though that it you let it enabled and create a tenant even if you have a single use case for Kill Bill. That way, you will be able to add another tenant if need be later on (going from multi-tenancy disabled to multi-tenancy enabled is much harder and will involve manual and error prone data changes).</p>
+</div>
+
+</div>
 
 </div>
 
@@ -2706,6 +2896,521 @@ com.ning.jetty.jdbi.password=killbil</code></pre>
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_system_properties">System properties</h3>
+<div class="sect3">
+<h4 id="configuration-overview">Overview</h4>
+<div class="paragraph">
+<p>Kill Bill configuration is done principally via Java System Properties. These can be set on the command line (e.g. <strong>java -Dkey1=value1 -Dkey2=value2 -jar killbill-server-jetty-console.war</strong>) or in Java Properties files (e.g. <strong>start.ini</strong> if you are using Jetty). Some containers use custom formats (for example, System Properties in GlassFish would be placed in <strong>domains/domain1/config/domain.xml</strong>), please refer to your container documentation for more information.</p>
+</div>
+<div class="paragraph">
+<p>Various specific subcomponents are configured using XML files, including:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p><a href="http://ehcache.org/">EhCache</a></p>
+</li>
+<li>
+<p>Catalog</p>
+</li>
+<li>
+<p>Overdue</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In this case, you would use System Properties to specify the path to the XML file. For example, set <strong>-Dkillbill.catalog.uri=file:///Users/acme/catalog/AcmeCatalog.xml</strong> to specify that the catalog configuration is located at <strong>/Users/acme/catalog/AcmeCatalog.xml</strong>.</p>
+</div>
+<div class="paragraph">
+<p>This page lists all the System Properties you can set in Kill Bill. For component specific configuration (e.g. catalog), see the appropriate sections in the User Manual.</p>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-cache">Cache config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.cache.config.location</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/ehcache.xml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path to Ehcache XML configuration</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-catalog">Catalog config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.catalog.uri</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SpyCarBasic.xml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Catalog location. Either in the classpath (e.g. <strong>jar:///com/acme/catalog/AcmeCatalog.xml</strong>) or in the filesystem (e.g. <strong>file:///Users/acme/catalog/AcmeCatalog.xml</strong>)</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-email">Email config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.mail.smtp.host</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">null</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MTA host used for email notifications</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.mail.smtp.port</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">null</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MTA port used for email notifications</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.mail.smtp.auth</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to authenticate against the MTA</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.mail.smtp.user</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">null</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Username to use to authenticate against the MTA</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.mail.from</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="mailto:support@example.com">support@example.com</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Default From: field for email notifications</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.mail.useSSL</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to use secure SMTP</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.mail.invoiceEmailSubject</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Your invoice</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Default Subject: field for invoice notifications</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-invoice">Invoice config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.invoice.maxNumberOfMonthsInFuture</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">36</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum target date to consider when generating an invoice</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.invoice.emailNotificationsEnabled</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to send email notifications on invoice creation (for configured accounts)</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-jdbc">JDBC config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.url</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">jdbc:mysql://127.0.0.1:3306/information_schema</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc url for the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.user</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">root</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc user name for the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.password</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">root</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc password for the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.minIdle</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The minimum allowed number of idle connections to the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.maxActive</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The maximum allowed number of active connections to the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.connectionTimeout</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10s</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">How long to wait before a connection attempt to the database is considered timed out</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.idleMaxAge</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">60m</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The time for a connection to remain unused before it is closed off</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.maxConnectionAge</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0m</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Any connections older than this setting will be closed off whether it is idle or not. Connections currently in use will not be affected until they are returned to the pool</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.idleConnectionTestPeriod</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5m</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Time for a connection to remain idle before sending a test query to the DB</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.logLevel</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DEBUG</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Log level for SQL queries</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.transactionHandler</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.RestartTransactionRunner</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The TransactionHandler to use for all Handle instances</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.jetty.jdbi.datasource</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">c3p0</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Connection pooling library to use (c3p0 or bonecp)</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-notification">Notification queue config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.billing.util.notificationq.prefetch</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">7</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Number of notifications to fetch from the database at once</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.billing.util.notificationq.sleep</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Time in milliseconds to sleep between runs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.billing.util.notificationq.notification.off</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to turn off the notification queue</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-osgi">OSGI config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.osgi.bundle.property.name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.properties</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name of the properties file for OSGI plugins</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.osgi.root.dir</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/var/tmp/felix</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bundles cache area for the OSGI framework</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.osgi.bundle.cache.name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">osgi-cache</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bundles cache name</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.osgi.bundle.install.dir</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">/var/tmp/bundles</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bundles install directory</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.osgi.system.bundle.export.packages</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">See <strong>com.ning.billing.util.config.OSGIConfig</strong> for the full list</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Packages to export from the system bundle</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.billing.osgi.jdbc.url</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">jdbc:mysql://127.0.0.1:3306/killbill</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc url for the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.billing.osgi.jdbc.user</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">root</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc user name for the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.billing.osgi.jdbc.password</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">root</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc password for the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.billing.osgi.jdbc.minIdle</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The minimum allowed number of idle connections to the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.billing.osgi.jdbc.maxActive</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The maximum allowed number of active connections to the database</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.billing.osgi.jdbc.connectionTimeout</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10s</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">How long to wait before a connection attempt to the database is considered timed out</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-overdue">Overdue config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.overdue.uri</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">NoOverdueConfig.xml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Overdue configuration location. Either in the classpath (e.g. <strong>jar:///com/acme/overdue/AcmeOverdue.xml</strong>) or in the filesystem (e.g. <strong>file:///Users/acme/overdue/AcmeOverdue.xml</strong>)</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-payment">Payment config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.payment.provider.default</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">noop</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Default payment provider to use</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.payment.retry.days</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8,8,8</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Interval in days between payment retries</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.payment.failure.retry.start.sec</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">300</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.payment.failure.retry.multiplier</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.payment.failure.retry.max.attempts</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum number of retries for failed payments</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.payment.off</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Whether the payment subsystem is off</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-bus">Persistent bus config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.billing.util.persistent.bus.sleep</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Time in milliseconds to sleep between runs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.billing.util.persistent.bus.off</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to turn off the persistent bus</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.billing.util.persistent.bus.nbThreads</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Number of threads to use</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect3">
+<h4 id="configuration-translation">Translation config</h4>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:33%;">
+<col style="width:33%;">
+<col style="width:33%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.default.locale</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">en_US</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Default Kill Bill locale</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.catalog.bundlePath</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com/ning/billing/util/template/translation/CatalogTranslation</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the catalog translation bundle</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.template.bundlePath</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com/ning/billing/util/template/translation/InvoiceTranslation</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the invoice template translation bundle</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.template.name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com/ning/billing/util/email/templates/HtmlInvoiceTemplate.mustache</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the HTML invoice template</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.manualPayTemplate.name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com/ning/billing/util/email/templates/HtmlInvoiceTemplate.mustache</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the invoice template for accounts with MANUAL_PAY tag</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.template.invoiceFormatterFactoryClass</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">com.ning.billing.invoice.template.formatters.DefaultInvoiceFormatterFactory</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Invoice formatter class</p></td>
+</tr>
+</tbody>
+</table>
+
+</div>
 
 </div>
 
@@ -2733,7 +3438,7 @@ com.ning.jetty.jdbi.password=killbil</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2013-08-11 17:21:05 EDT
+Last updated 2013-08-11 20:17:56 EDT
 </div>
 </div>
 </body>
