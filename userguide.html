@@ -499,6 +499,7 @@ pre .comment .conum { left: -20px; }
 <li><a href="#configuration-payment">Payment config</a></li>
 <li><a href="#configuration-bus">Persistent bus config</a></li>
 <li><a href="#configuration-translation">Translation config</a></li>
+<li><a href="#configuration-rbac">RBAC config</a></li>
 </ol>
 </li>
 </ol>
@@ -618,6 +619,7 @@ Besides the main use case described above, there are other possible options if o
 
 <div class="content monospaced">
 <pre class="highlight"><code class="bash language-bash">curl -X POST \
+     -u admin:password \
      -H 'Content-Type: application/json' \
      -H 'X-Killbill-CreatedBy: admin' \
      -d '{"apiKey": "bob", "apiSecret": "lazar"}' \
@@ -630,7 +632,9 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -ubob:lazar \
+<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -H "Content-Type: application/json" \
      http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog</code></pre>
 </div>
@@ -645,7 +649,9 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -ubob:lazar \
+<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -X POST \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: creator" \
@@ -659,7 +665,9 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -ubob:lazar \
+<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -X POST \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: creator" \
@@ -677,7 +685,9 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -ubob:lazar \
+<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -X POST \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: creator" \
@@ -691,7 +701,9 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -ubob:lazar \
+<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -X POST \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: creator" \
@@ -705,7 +717,9 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -ubob:lazar \
+<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: creator" \
      "http://127.0.0.1:8080/1.0/kb/invoices?accountId=8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122"</code></pre>
@@ -2675,10 +2689,13 @@ Besides the main use case described above, there are other possible options if o
 <p>Kill Bill supports multi-tenancy, meaning you can run multiple logical instances of Kill Bill with a single server and database. For example, say you own two online stores, each of them having different catalogs, users, etc. You could configure a tenant for each of them, which would make the data from one store invisible to the other.</p>
 </div>
 <div class="paragraph">
-<p>In practice, a tenant is a simple attribute that Kill Bill tracks along each object in the database (accounts, subscriptions, invoices, etc.). When multi-tenancy is enabled, you would create a username/password for each tenant and perform all REST calls using HTTP Basic Auth: Kill Bill would then automatically look up the tenant associated with your username as part of each request.</p>
+<p>In practice, a tenant is a simple attribute that Kill Bill tracks along each object in the database (accounts, subscriptions, invoices, etc.). When multi-tenancy is enabled, you would create an <strong>api key</strong> and <strong>api password</strong> for each tenant and specify them in via the headers <strong>X-Killbill-ApiKey</strong> and <strong>X-Killbill-ApiSecret</strong> respectfully in all REST calls. Kill Bill would then automatically look up the tenant associated with your api key as part of each request.</p>
 </div>
 <div class="paragraph">
-<p>Multi-tenancy is an advanced feature. You can turn it off by removing the shiro.ini file from the Kill Bill war. We suggest though that it you let it enabled and create a tenant even if you have a single use case for Kill Bill. That way, you will be able to add another tenant if need be later on (going from multi-tenancy disabled to multi-tenancy enabled is much harder and will involve manual and error prone data changes).</p>
+<p>Note that the <strong>api key</strong> is unique across tenants, similar to the tenant id. Whereas your tenant id will never change, the <strong>api key</strong> can be updated (if it is compromised for example).</p>
+</div>
+<div class="paragraph">
+<p>Multi-tenancy is an advanced feature. You can turn it off by setting <strong>-Dkillbill.server.multitenant=false</strong>. We suggest though that it you let it enabled and create a tenant even if you have a single use case for Kill Bill. That way, you will be able to add another tenant if need be later on (going from multi-tenancy disabled to multi-tenancy enabled is much harder and will involve manual and error prone data changes).</p>
 </div>
 
 </div>
@@ -3411,6 +3428,40 @@ com.ning.jetty.jdbi.password=killbil</code></pre>
 </table>
 
 </div>
+<div class="sect3">
+<h4 id="configuration-rbac">RBAC config</h4>
+<div class="paragraph">
+<p>Kill Bill implements role-based access control (RBAC) for authentication and authorization. While the concept of users and roles are expected to be managed outside of Kill Bill, a set of permissions are defined and enforced at the library API level. The full set of permissions can be found <a href="https://raw.github.com/killbill/killbill-api/master/src/main/java/com/ning/billing/security/Permission.java">here</a>.</p>
+</div>
+<div class="paragraph">
+<p>Kill Bill expects a Realm to contain the mapping of users and roles, as well as roles and permissions. You can configure these in an ini file, for example:</p>
+</div>
+<div class="listingblock">
+
+<div class="content monospaced">
+<pre class="highlight"><code class="ini language-ini"># Passwords can be encrypted, see http://shiro.apache.org/configuration.html#Configuration-EncryptingPasswords
+[users]
+admin = password, root
+bob = password, finance
+sarah = password, support
+
+[roles]
+root = *:*
+finance = invoice:*, payment:*
+support = entitlement:*, invoice:item_adjust, payment:refund</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Specify the path to this file via <strong>-Dkillbill.security.shiroResourcePath=/var/tmp/security.ini</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, you can connect your LDAP instance to Kill Bill. See <a href="https://raw.github.com/killbill/killbill/master/util/src/main/java/com/ning/billing/util/config/SecurityConfig.java">SecurityConfig.java</a> for configuration options.</p>
+</div>
+<div class="paragraph">
+<p>RBAC is enabled by default, with a single admin user defined (username <strong>admin</strong>, password <strong>password</strong>).</p>
+</div>
+
+</div>
 
 </div>
 
@@ -3452,7 +3503,7 @@ com.ning.jetty.jdbi.password=killbil</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2013-08-11 21:38:45 EDT
+Last updated 2013-08-19 07:14:58 EDT
 </div>
 </div>
 </body>
