@@ -13,10 +13,14 @@ The only pre-requisite is MySQL. The installer will:
 
 After the system has started you can experiment by following the simple scenario below. Note that each call creating an object in the system returns its URI, and so the curls below are using the UUID that was returned at the time the demo was created. You would need to replace the UUID with the one returned in each call if you were to follow that demo
 
+
 [[five-minutes-create-tenant]]
+
+
+
 ==== Create your own tenant
 
-The default behavior of Kill Bill is to run with multi-tenancy enabled. In that mode, one needs to first create a tenant and specify the credentials that will be required subsequently on each call:
+The default behavior of Kill Bill is to run with multi-tenancy enabled. In that mode, one needs to first create a tenant and specify the credentials that will be required subsequently on each call. Each call requires a default username and password that is used in the system for role base access control (RBAC). By default we are using the username 'admin' and its default password 'password'. The first operation is to create the tenant specifying the api key and secret that will need to be provided in each subsequent call:
 
 [source,bash]
 ----
@@ -32,11 +36,13 @@ At this point one can retrieve a simple version of the default catalog shipped w
 
 [source,bash]
 ----
-curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H "Content-Type: application/json" \
-     http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog
+curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -H "Content-Type: application/json" \
+      http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog
+
+{"products":[{"type":"BASE","name":"Standard","plans":[{"name":"standard-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":75.00},{"currency":"USD","value":100.00}]}]}],"included":[],"available":[]},{"type":"BASE","name":"Sports","plans":[{"name":"sports-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":375.00},{"currency":"USD","value":500.00}]}]}],"included":[],"available":[]},{"type":"BASE","name":"Super","plans":[{"name":"super-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":750.00},{"currency":"USD","value":1000.00}]}]}],"included":[],"available":[]}]}
 ----
 
 [[five-minutes-create-account]]
@@ -46,69 +52,64 @@ The next step will be to create an account:
 
 [source,bash]
 ----
-curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
-     http://127.0.0.1:8080/1.0/kb/accounts
+curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
+      http://127.0.0.1:8080/1.0/kb/accounts
+
+{"uri":"/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5"}
 ----
 
 Now we can attach a payment method. Since that demo does not have any real payment plugin attached to it, we will chose the default external payment method plugin that comes up configured in the system. That default payment plugin does not require and payment method details such as CC info, and so the pluginInfo parameter is an empty map:
 
 [source,bash]
 ----
-curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122/paymentMethods?isDefault=true"
+curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+      "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+
+{"uri":"http://127.0.0.1:8080/1.0/kb/paymentMethods/eef35072-f70e-43da-a614-3215dbc1e28a"}
 ----
 
 [[five-minutes-create-subscription]]
 ==== Create a subscription
 
-Now we will create a SubscriptionBundle on that account. This is required in oder to create the Subscription:
-
-[source,bash]
-----
-curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"accountId":"8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122","externalKey":"myBundleName"}' \
-     "http://127.0.0.1:8080/1.0/kb/bundles"
-----
 
 The last step will be to create a subscription based on the default demo catalog:
 
 [source,bash]
 ----
-curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"bundleId":"ddd1879c-0e43-45e0-bf1c-e3ada6981ad0","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
-     "http://127.0.0.1:8080/1.0/kb/subscriptions"
+curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      --data-binary '{"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","externalKey":"myBundleName","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+      "http://127.0.0.1:8080/1.0/kb/entitlements"
+
+{"uri":"/1.0/kb/entitlements/b623e0bd-45fd-4636-b177-6528228c5f35"}
 ----
 
 At this point, it is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:
 
 [source,bash]
 ----
-curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     "http://127.0.0.1:8080/1.0/kb/invoices?accountId=8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122"
+curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      "http://127.0.0.1:8080/1.0/kb/invoices?accountId=268983f2-5443-47e4-a967-b8962fc699c5"
+
+[{"amount":0.00,"currency":"USD","creditAdj":0.00,"refundAdj":0.00,"invoiceId":"15a0abc7-2489-493c-b098-7460afc21203","invoiceDate":"2013-08-25","targetDate":"2013-08-25","invoiceNumber":"1","balance":0.00,"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","auditLogs":null}]
 ----
