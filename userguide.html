@@ -431,11 +431,18 @@ pre .comment .conum { left: -20px; }
 <li>
 <ol type="none" class="sectlevel3">
 <li><a href="#components-analytics-overview">Overview</a></li>
+<li>
+<ol type="none" class="sectlevel4">
+<li><a href="#_internals">Internals</a></li>
+</ol>
+</li>
+<li><a href="#components-analytics-currency">Currency conversion</a></li>
 <li><a href="#components-analytics-accounts">Accounts</a></li>
+<li><a href="#components-analytics-bundles">Bundles</a></li>
 <li><a href="#components-analytics-subscriptions">Subscriptions</a></li>
 <li><a href="#components-analytics-invoices">Invoices</a></li>
 <li><a href="#components-analytics-payments">Payments</a></li>
-<li><a href="#components-analytics-overdue">Overdue statuses</a></li>
+<li><a href="#components-analytics-entitlement">Entitlement states</a></li>
 <li><a href="#components-analytics-tags-fields">Tags and custom fields</a></li>
 </ol>
 </li>
@@ -613,7 +620,7 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect3">
 <h4 id="five-minutes-create-tenant">Create your own tenant</h4>
 <div class="paragraph">
-<p>The default behavior of Kill Bill is to run with multi-tenancy enabled. In that mode, one needs to first create a tenant and specify the credentials that will be required subsequently on each call:</p>
+<p>The default behavior of Kill Bill is to run with multi-tenancy enabled. In that mode, one needs to first create a tenant and specify the credentials that will be required subsequently on each call. Each call requires a default username and password that is used in the system for role base access control (RBAC). By default we are using the username <em>admin</em> and its default password <em>password</em>. The first operation is to create the tenant specifying the api key and secret that will need to be provided in each subsequent call:</p>
 </div>
 <div class="listingblock">
 
@@ -632,11 +639,13 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H "Content-Type: application/json" \
-     http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog</code></pre>
+<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -H "Content-Type: application/json" \
+      http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog
+
+{"products":[{"type":"BASE","name":"Standard","plans":[{"name":"standard-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":75.00},{"currency":"USD","value":100.00}]}]}],"included":[],"available":[]},{"type":"BASE","name":"Sports","plans":[{"name":"sports-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":375.00},{"currency":"USD","value":500.00}]}]}],"included":[],"available":[]},{"type":"BASE","name":"Super","plans":[{"name":"super-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":750.00},{"currency":"USD","value":1000.00}]}]}],"included":[],"available":[]}]}</code></pre>
 </div>
 </div>
 
@@ -649,14 +658,16 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
-     http://127.0.0.1:8080/1.0/kb/accounts</code></pre>
+<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
+      http://127.0.0.1:8080/1.0/kb/accounts
+
+{"uri":"/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5"}</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -665,14 +676,16 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122/paymentMethods?isDefault=true"</code></pre>
+<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+      "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+
+{"uri":"http://127.0.0.1:8080/1.0/kb/paymentMethods/eef35072-f70e-43da-a614-3215dbc1e28a"}</code></pre>
 </div>
 </div>
 
@@ -680,35 +693,21 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect3">
 <h4 id="five-minutes-create-subscription">Create a subscription</h4>
 <div class="paragraph">
-<p>Now we will create a SubscriptionBundle on that account. This is required in oder to create the Subscription:</p>
-</div>
-<div class="listingblock">
-
-<div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"accountId":"8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122","externalKey":"myBundleName"}' \
-     "http://127.0.0.1:8080/1.0/kb/bundles"</code></pre>
-</div>
-</div>
-<div class="paragraph">
 <p>The last step will be to create a subscription based on the default demo catalog:</p>
 </div>
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     --data-binary '{"bundleId":"ddd1879c-0e43-45e0-bf1c-e3ada6981ad0","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
-     "http://127.0.0.1:8080/1.0/kb/subscriptions"</code></pre>
+<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -X POST \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      --data-binary '{"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","externalKey":"myBundleName","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+      "http://127.0.0.1:8080/1.0/kb/entitlements"
+
+{"uri":"/1.0/kb/entitlements/b623e0bd-45fd-4636-b177-6528228c5f35"}</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -717,12 +716,14 @@ Besides the main use case described above, there are other possible options if o
 <div class="listingblock">
 
 <div class="content monospaced">
-<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: creator" \
-     "http://127.0.0.1:8080/1.0/kb/invoices?accountId=8cd1fe2e-33ba-4300-b0bc-bb7b5faa9122"</code></pre>
+<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
+      -H"X-Killbill-ApiKey:bob" \
+      -H"X-Killbill-ApiSecret:lazar" \
+      -H "Content-Type: application/json" \
+      -H "X-Killbill-CreatedBy: creator" \
+      "http://127.0.0.1:8080/1.0/kb/invoices?accountId=268983f2-5443-47e4-a967-b8962fc699c5"
+
+[{"amount":0.00,"currency":"USD","creditAdj":0.00,"refundAdj":0.00,"invoiceId":"15a0abc7-2489-493c-b098-7460afc21203","invoiceDate":"2013-08-25","targetDate":"2013-08-25","invoiceNumber":"1","balance":0.00,"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","auditLogs":null}]</code></pre>
 </div>
 </div>
 
@@ -1911,38 +1912,58 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect2">
 <h3 id="components-entitlement">Subscription and Entitlement</h3>
 <div class="paragraph">
-<p>The Kill Bill entitlement system manages all the subscriptions in the system and allow to answer the question of whether a customer did subscribe to a particular plan and whether or not this is ACTIVE. The entitlement system needs to understand the catalog in its details and it deals with the following abstractions:</p>
+<p>The Kill Bill entitlement system primarily offers an API for users to manage their subscriptions: The API allows a user to subscribe to a new product, change, pause, resume or cancel its existing subscriptions. Upon each of those API calls there are really two distincts set of operations that occur in the system:</p>
 </div>
 <div class="ulist">
 
 <ul>
 <li>
-<p>Subscription: a Subscription is associated with a specific catalog entry, which itself defines the Product, Plan, BillingPeriod, Phase and PriceList-- see the catalog documentation. It is a live representation of where we are in terms of entitlement. At any given time a subscription is either in the ACTIVE or CANCELED state. Since a Subscription is attached to a instance of a Product catalog and since a Product catalog has a Category, each Subscription is therefore of a specific Category, that is either BASE, ADD_ON, or STANDALONE.</p>
+<p>There is an entitlement change that occurs; for instance upon creation, the user gains access to what she subscribed for, or in the case of cancellation she loses its access. The primary goal of that API is to give great flexibility through the use of dates or entitlement policies as to when things should start/stop,&#8230;</p>
 </li>
 <li>
-<p>SubscriptionBundle: Subscriptions must be part of a SubscriptionBundle. This allows to group them together so that specific operations&#8201;&#8212;&#8201;cancellation, change of plan-- on one Subscription may have an impact on the other in the same SubscriptionBundle. There can be at most one Subscription attached to a BASE Category in a SubscriptionBundle but there can be multiple ADD_ON Subscriptions in that same SubscriptionBundle. Typically this is used to make sure that any operation on the BASE Subscription will be reflected on the ADD_ON Susbcriptions in the same SubscriptionBundle.</p>
+<p>As a consequence of the entitlement operation, the system will also calculate the changes that should occur on the billing side. It is important to understand that the entitlement operation has an impact on billing, so the two are connected, but they are not necessarily aligned.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>So typically and assuming there is a valid catalog configured in the system, the flow would be to create a SubscriptionBundle for a specific Account, and then create Subscription(s) in that SubscriptionBundle that match specific entries in the catalog. Once a Subscription has been created, the following operations can be applied:</p>
+<p>The philosophy behind that API is that the user (of the API) should be able to drive the entitlement so that it matches exactly its needs and let the system computes the billing aspect based on the policies that were configured in the system. Example:</p>
 </div>
 <div class="ulist">
 
 <ul>
 <li>
-<p>A Subscription can be cancelled: The catalog Plan associated to that Subscription will define whether that Subscription is cancelled at the requested date, or whether it will be cancelled at the end of its billing period, which would avoid triggering proration in the system.</p>
+<p>First an administrator could configure Kill Bill to never generate credit for a particular product <em>P</em>.</p>
 </li>
 <li>
-<p>A Subscription can be recreated&#8201;&#8212;&#8201;resumed&#8201;&#8212;&#8201;after it has been cancelled: It will restart at the requestedDate which must be greater than the effectiveDate of the cancellation.</p>
+<p>A customer comes in, subscribes to that product, gets invoiced&#8230;</p>
 </li>
 <li>
-<p>The current plan associated to a Subscription can be changed: Again the rules defined in the catalog will decide how/when that Plan change occurs.</p>
+<p>At a later date the customer decides that he no longer wants to use the product <em>P</em> and so he decides to cancel that subscription immediately. From an entitlement point of view, the end date is now and so, as soon as the call returns, the customer loses access to its product <em>P</em>.</p>
 </li>
 <li>
-<p>At last, the current state of the Subscription can be retrieved to answer the entitlement question.</p>
+<p>However from a billing point of view, and because the administrator decided to configure the system that way, the end date will be calculated by the system to match the end date of the last period invoiced, also referred to as charged through date (CTD), and thay way there is no generated credit for that cancellation.</p>
 </li>
 </ul>
+</div>
+<div class="paragraph">
+<p>So, as a general rule, the administrator deals with the billing policies, and the user of the API controls the detail of its entitlement(s). The entitlement system exposes abastractions that reflect that model:</p>
+</div>
+<div class="ulist">
+
+<ul>
+<li>
+<p>Entitlement: An Entitlement encapsulates all the information that pertains to the entitlement question. That is, when does the entitlement starts, stops, which product information is associated with that entitlement at a given time&#8230; A user of the API will be able to create/cancel or make change to its Entitlements.</p>
+</li>
+<li>
+<p>Subscription: A Subscription is a meta abstraction that encapsulate the Entitlement and adds additonal billing information. It can be retrieved using the entitlement API to get additional (than pure entitlement) information.</p>
+</li>
+<li>
+<p>SubscriptionBundle: Subscriptions are always part of a SubscriptionBundle. This allows to group them together so that specific operations&#8201;&#8212;&#8201;cancellation, change of plan-- on one Subscription may have an impact on the other in the same SubscriptionBundle. There can be at most one Subscription attached to a BASE Category in a SubscriptionBundle but there can be multiple ADD_ON Subscriptions in that same SubscriptionBundle. Typically this is used to make sure that any operation on the BASE Subscription will be reflected on the ADD_ON Susbcriptions in the same SubscriptionBundle.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Previoulsy we layed out the general case where the user of the API controls the Entitlement and Kill Bill manages the billing aspect based on configuration policies. Some specific entitlement APIs also allow to override the billing policies if this is ever needed.</p>
 </div>
 
 </div>
@@ -2540,7 +2561,7 @@ Besides the main use case described above, there are other possible options if o
 <p>Kill Bill maintains a reporting schema that is kept current in realtime for Analytics purposes. In contrary to other tables in the system, this set of tables is stable and potentially changes only between major revisions of Kill Bill. These tables are meant to be used as building blocks for reports and dashboards.</p>
 </div>
 <div class="paragraph">
-<p>To distinguish them with Kill Bill objects, the Analytics objects are prefixed with the term <strong>Business</strong>, e.g. a Kill Bill account will have a representation in the Analytics subsystem by a Business Account object. For ease of tracking, Analytics objects contain id references to the Kill Bill ones but we strongly advise against using them for reporting purposes. Instead, use the external keys as much as possible, as they are tied to your business concepts. For instance, to count the number of accounts in the system, run a query using <strong>count(distinct account_key)</strong>, not <strong>count(distinct account_id)</strong>.</p>
+<p>For ease of tracking, Analytics objects contain id references to the Kill Bill ones but we strongly advise against using them for reporting purposes. Instead, use the external keys as much as possible, as they are tied to your business concepts. For instance, to count the number of accounts in the system, run a query using <strong>count(distinct account_key)</strong>, not <strong>count(distinct account_id)</strong>.</p>
 </div>
 <div class="paragraph">
 <p>Data has been denormalized on purpose to avoid joins as much as possible.</p>
@@ -2548,22 +2569,68 @@ Besides the main use case described above, there are other possible options if o
 <div class="paragraph">
 <p>All of this information is also available in Kaui (in the analytics section), on a per account basis.</p>
 </div>
+<div class="sect4">
+<h5 id="_internals">Internals</h5>
+<div class="paragraph">
+<p>This plugin listens to events generated by Kill Bill, and rebuild the complete state of its mirrored data upon receipt. The refresh jobs (one created per event) are kept in a notification queue. By default, it uses the same notification queue tables as the system, but we encourage you to use separate ones. To do so, set the following properties (the tables have been created by the provided ddl script):</p>
+</div>
+<div class="listingblock">
+
+<div class="content monospaced">
+<pre class="highlight"><code class="bash language-bash">killbill.billing.notificationq.analytics.tableName=analytics_notifications
+killbill.billing.notificationq.analytics.historyTableName=analytics_notifications_history</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>These jobs are kept in the <strong>refresh-queue</strong> queue of the <strong>AnalyticsService</strong> service. For debugging purposes, search key 1 is the account record id and search key 2 is the tenant record id.</p>
+</div>
+
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-currency">Currency conversion</h4>
+<div class="paragraph">
+<p>Each table containing monetary columns (e.g. price, mrr, &#8230;) will also contain a currency column, expressing the currency of the monetary values. This can be difficult to work with as tables can contain rows in various currencies: any arithmetic across them won&#8217;t make any sense.</p>
+</div>
+<div class="paragraph">
+<p>To work around this problem, the Analytics plugin has the concept of converted currency, which is a global constant currency of reference. Each monetary column will have a column associated to it with the converted value in this currency.</p>
+</div>
+<div class="paragraph">
+<p>By default, converted values are all <strong>NULL</strong>. To enable this feature, you need to populate the <strong>analytics_currency_conversion</strong> table to contain the rates you&#8217;d like to use for various currencies, for a given period of time. For example, you may choose to populate the new rates at the beginning of each month.</p>
+</div>
+<div class="paragraph">
+<p>By default, the reference currency is USD, but you can change it via:</p>
+</div>
+<div class="listingblock">
+
+<div class="content monospaced">
+<pre class="highlight"><code class="bash language-bash">com.ning.billing.osgi.bundles.analytics.referenceCurrency=EUR</code></pre>
+</div>
+</div>
 
 </div>
 <div class="sect3">
 <h4 id="components-analytics-accounts">Accounts</h4>
 <div class="paragraph">
-<p>The table <strong>bac</strong> (Business Accounts) maintains information about Kill Bill accounts. The table doesn&#8217;t contain historic records (it will contain at most one record per Kill Bill account).</p>
+<p>The table <strong>analytics_accounts</strong> maintains information about Kill Bill accounts. The table doesn&#8217;t contain historic records (it will contain at most one record per Kill Bill account).</p>
+</div>
+
+</div>
+<div class="sect3">
+<h4 id="components-analytics-bundles">Bundles</h4>
+<div class="paragraph">
+<p>The table <strong>analytics_bundles</strong> maintains information about Kill Bill bundles. The table doesn&#8217;t contain historic records (it will contain at most one record per Kill Bill bundle).</p>
 </div>
 
 </div>
 <div class="sect3">
 <h4 id="components-analytics-subscriptions">Subscriptions</h4>
 <div class="paragraph">
-<p>The table <strong>bst</strong> (Business Subscription Transitions) maintains information about Kill Bill bundles and subscriptions. It describes the history of changes (both past and future) on a per subscription basis.</p>
+<p>The table <strong>analytics_subscriptions</strong> maintains information about Kill Bill subscriptions. It describes the history of changes (both past and future) on a per subscription basis.</p>
 </div>
 <div class="paragraph">
-<p><strong>bst</strong> will contain all phase transitions for all subscriptions and can be used to build subscription timelines. A few remarks:</p>
+<p><strong>analytics_subscriptions</strong> will contain all phase transitions for all subscriptions and can be used to build subscription timelines. A few remarks:</p>
 </div>
 <div class="ulist">
 
@@ -2572,16 +2639,10 @@ Besides the main use case described above, there are other possible options if o
 <p>Given a subscription id, events are sorted chronologically when stored (you can rely on record_id asc)</p>
 </li>
 <li>
-<p>MIGRATE_BILLING, START_BILLING_DISABLED and END_BILLING_DISABLED subscription events are not stored in bst</p>
+<p><strong>prev_</strong> fields will always be NULL for creation events</p>
 </li>
 <li>
-<p>The total_ordering column helps break ties for events with the same effective date</p>
-</li>
-<li>
-<p><strong>prev_</strong> fields will always be NULL for MIGRATE, ADD and TRANSFER events</p>
-</li>
-<li>
-<p><strong>next_</strong> fields will always be NULL for CANCEL events</p>
+<p><strong>next_</strong> fields will always be NULL for cancellation events</p>
 </li>
 <li>
 <p>A CHANGE event corresponds to a user initiated change (e.g. upgrade) whereas SYSTEM_CHANGE corresponds to a phase event (e.g. transition from trial to evergreen phase)</p>
@@ -2596,7 +2657,7 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect3">
 <h4 id="components-analytics-invoices">Invoices</h4>
 <div class="paragraph">
-<p>The tables <strong>bin</strong> (Business Invoices), <strong>bia</strong> (Business Invoice Adjustments), <strong>biia</strong> (Business Invoice Item adjustments), <strong>biic</strong> (Business Invoice Item Credits) and <strong>bii</strong> (Business Invoice Items) maintain information about invoices posted by account.</p>
+<p>The tables <strong>analytics_invoices</strong>, <strong>analytics_invoice_adjustments</strong>, <strong>analytics_invoice_item_adjustments</strong>, <strong>analytics_invoice_credits</strong> and <strong>analytics_invoice_items</strong> maintain information about invoices posted by account.</p>
 </div>
 <div class="paragraph">
 <p>Definitions:</p>
@@ -2608,19 +2669,19 @@ Besides the main use case described above, there are other possible options if o
 <p><strong>invoice_balance</strong>: invoice_amount_charged + invoice_amount_credited + invoice_amount_adjusted_for_account_credit - (invoice_amount_paid + invoice_amount_refunded)</p>
 </li>
 <li>
-<p><strong>invoice_amount_charged</strong>: sum of all bii, bia and biia items for that invoice</p>
+<p><strong>invoice_amount_charged</strong>: sum of all <strong>analytics_invoice_items</strong>, <strong>analytics_invoice_adjustments</strong> and <strong>analytics_invoice_item_adjustments</strong> items for that invoice</p>
 </li>
 <li>
-<p><strong>invoice_amount_credited</strong>: sum of all biic items for that invoice (positive if granted, negative if used)</p>
+<p><strong>invoice_amount_credited</strong>: sum of all <strong>analytics_invoice_credits</strong> items for that invoice (positive if granted, negative if used)</p>
 </li>
 <li>
-<p><strong>invoice_amount_paid</strong>: sum of all bip items for that invoice</p>
+<p><strong>invoice_amount_paid</strong>: sum of all <strong>analytics_payments</strong> items for that invoice</p>
 </li>
 <li>
-<p><strong>invoice_amount_refunded</strong>: sum of all bipc and bipr items for that invoice</p>
+<p><strong>invoice_amount_refunded</strong>: sum of all <strong>analytics_chargebacks</strong> and <strong>analytics_refunds</strong> items for that invoice</p>
 </li>
 <li>
-<p><strong>invoice_original_amount_charged</strong>: sum of all bii items for that invoice at the time of invoice cre</p>
+<p><strong>invoice_original_amount_charged</strong>: sum of all <strong>analytics_invoice_items</strong> items for that invoice at the time of invoice creation</p>
 </li>
 </ul>
 </div>
@@ -2634,22 +2695,22 @@ Besides the main use case described above, there are other possible options if o
 
 <ul>
 <li>
-<p>EXTERNAL_CHARGE, FIXED and RECURRING items are treated as regular line items (stored in bii)</p>
+<p>EXTERNAL_CHARGE, FIXED and RECURRING items are treated as regular line items (stored in <strong>analytics_invoice_items</strong>)</p>
 </li>
 <li>
-<p>ITEM_ADJ items are treated as invoice item adjustments (stored in biia)</p>
+<p>ITEM_ADJ items are treated as invoice item adjustments (stored in <strong>analytics_invoice_item_adjustments</strong>)</p>
 </li>
 <li>
-<p>CBA_ADJ items (gained or consumed) are treated as account credits (stored in biic)</p>
+<p>CBA_ADJ items (gained or consumed) are treated as account credits (stored in <strong>analytics_invoice_credits</strong>)</p>
 </li>
 <li>
-<p>REFUND_ADJ items are treated as invoice adjustments (stored in bia)</p>
+<p>REFUND_ADJ items are treated as invoice adjustments (stored in <strong>analytics_invoice_adjustments</strong>)</p>
 </li>
 <li>
-<p>CREDIT_ADJ items that are not on their own invoice are treated as invoice adjustments (stored in bia). The internal name of CREDIT_ADJ is misleading in this case and will probably be renamed to INVOICE_ADJ in a future release. Note that these should not be mixed with account level credits: when an administrator creates an account credit (different from CBA credits generated by the system), a negative CREDIT_ADJ item is added to a new invoice. This triggers a positive CBA_ADJ item (to bring the balance back to zero), which effectively becomes the account credit (and eventually stored in biic). In this case, the CREDIT_ADJ item will not be stored directly in the analytics tables</p>
+<p>CREDIT_ADJ items that are not on their own invoice are treated as invoice adjustments (stored in <strong>analytics_invoice_adjustments</strong>). The internal name of CREDIT_ADJ is misleading in this case and will probably be renamed to INVOICE_ADJ in a future release. Note that these should not be mixed with account level credits: when an administrator creates an account credit (different from CBA credits generated by the system), a negative CREDIT_ADJ item is added to a new invoice. This triggers a positive CBA_ADJ item (to bring the balance back to zero), which effectively becomes the account credit (and eventually stored in <strong>analytics_invoice_credits</strong>). In this case, the CREDIT_ADJ item will not be stored directly in the analytics tables</p>
 </li>
 <li>
-<p>Kill Bill repair items (REPAIR_ADJ) are not stored directly in any of these tables, but are combined with the new reparee item as invoice item adjustments (in biia). For example, if a recurring item of $20 was repaired into a $5 recurring item, bii would contain the original $20 line item and biia would contain a $-15 adjustment item</p>
+<p>Kill Bill repair items (REPAIR_ADJ) are not stored directly in any of these tables, but are combined with the new reparee item as invoice item adjustments (in <strong>analytics_invoice_item_adjustments</strong>). For example, if a recurring item of $20 was repaired into a $5 recurring item, <strong>analytics_invoice_items</strong> would contain the original $20 line item and <strong>analytics_invoice_item_adjustments</strong> would contain a $-15 adjustment item</p>
 </li>
 <li>
 <p>Any invoice item has a revenue recognizable attribute which is used to tell if the item is recognizable from a finance perspective (tied to cash). This is used for credits only today and we assume that any administrator generated credit (CREDIT_ADJ and CBA_ADJ on their own invoice) is not recognizable. All other credit items, including system generated ones, are.</p>
@@ -2661,21 +2722,21 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect3">
 <h4 id="components-analytics-payments">Payments</h4>
 <div class="paragraph">
-<p>The table <strong>bip</strong> (Business Invoice Payments), <strong>bipr</strong> (Business Invoice Payment Refunds) and <strong>bipc</strong> (Business Invoice Payment Chargebacks) maintain information about Kill Bill payments, refunds and chargebacks.</p>
+<p>The table <strong>analytics_payments</strong>, <strong>analytics_refunds</strong> and <strong>analytics_chargebacks</strong> maintain information about Kill Bill payments, refunds and chargebacks.</p>
 </div>
 
 </div>
 <div class="sect3">
-<h4 id="components-analytics-overdue">Overdue statuses</h4>
+<h4 id="components-analytics-entitlement">Entitlement states</h4>
 <div class="paragraph">
-<p>The table <strong>bos</strong> (Business Overdue Status) maintains information about Kill Bill overdue statuses. The table contains historic status for a given bundle.</p>
+<p>The table <strong>analytics_entitlement_states</strong> maintains information about Kill Bill entitlement states, including overdue statuses. The table contains historic status for a given account.</p>
 </div>
 
 </div>
 <div class="sect3">
 <h4 id="components-analytics-tags-fields">Tags and custom fields</h4>
 <div class="paragraph">
-<p>Information about tags and custom fields are captured in the tables <strong>bac_tags</strong>, <strong>bac_fields</strong>, <strong>bin_tags</strong>, <strong>bin_fields</strong>, <strong>bip_tags</strong> and <strong>bip_fields</strong>. The tables don&#8217;t contain historic records (they will contain the current state of tags and custom fields).</p>
+<p>Information about tags and custom fields are captured in the tables <strong>analytics_account_tags</strong>, <strong>analytics_bundle_tags</strong>, <strong>analytics_invoice_tags</strong>, <strong>analytics_payment_tags</strong>, <strong>analytics_account_fields</strong>, <strong>analytics_bundle_fields</strong>, <strong>analytics_invoice_fields</strong> and <strong>analytics_payment_fields</strong>. The tables don&#8217;t contain historic records (they will contain the current state of tags and custom fields).</p>
 </div>
 
 </div>
@@ -3503,7 +3564,7 @@ support = entitlement:*, invoice:item_adjust, payment:refund</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2013-08-19 07:14:58 EDT
+Last updated 2013-08-30 10:13:15 EDT
 </div>
 </div>
 </body>
