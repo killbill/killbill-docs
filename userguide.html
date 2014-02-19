@@ -2886,37 +2886,7 @@ killbill.billing.notificationq.analytics.historyTableName=analytics_notification
 <p>A dashboard is constituted of a number of reports, each of them being numbered, starting from 1. All reports are displayed in a single column, the report number 1 being the top most one. All reports share the same X axis.</p>
 </div>
 <div class="paragraph">
-<p>Each report can contain one or multiple time series, the source data being a table or a view with the following format:</p>
-</div>
-<table class="tableblock frame-all grid-all" style="width:100%; ">
-<colgroup>
-<col style="width:33%;">
-<col style="width:33%;">
-<col style="width:33%;"> 
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">SQL column name</th>
-<th class="tableblock halign-left valign-top">Description</th>
-<th class="tableblock halign-left valign-top">Required?</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">day</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">X values (date or datetime)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">count</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Y values (float)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
-</tr>
-</tbody>
-</table>
-
-<div class="paragraph">
-<p>Additionally, you can have as many other columns as you want: these will be treated as subcategories in your data and you will be able to filter them.</p>
+<p>Currently, we support displaying data as pie charts or time series. For the former, a <strong>label</strong> and <strong>count</strong> columns are required to describe sectors. For the latter, the only required column is <strong>day</strong> (reference time, used for the X axis), you can specify any number of dimensions and metrics. If multiple dimensions are specified, one line graph will be displayed for each dimension value. For example, if your dimensions are <strong>currency</strong> and <strong>country</strong>, one line per combination (and metric) will be drawn: one for USD/USA, USD/Mexico, MEX/USA, MEX/Mexico, etc. If multiple metrics are specified, each one of them (times the cardinality of dimensions) will be on its own line graph.</p>
 </div>
 <div class="sect5">
 <h6 id="_reports_configuration">Reports configuration</h6>
@@ -3076,7 +3046,7 @@ order by 1 asc
 </div>
 </div>
 <div class="paragraph">
-<p>We provide a set of canned reports that can be useful as a starting point. See <a href="https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/reports">https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/reports</a>.</p>
+<p>We provide a set of canned reports that can be useful as a starting point. See <a href="https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/">https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/</a>.</p>
 </div>
 </div>
 <div class="sect5">
@@ -3114,10 +3084,36 @@ order by 1 asc
 </ul>
 </div>
 </li>
-<li>
-<p>To filter subcategories from a report, use <strong>|</strong> to create a filter (think of it as a UNIX pipe) and use <strong>=</strong> and <strong>!=</strong> for inclusions and exclusions respectfully. For example, assuming your report <strong>payments_per_day</strong> includes a <strong>currency</strong> column, report1=payments_per_day|currency=AUD|currency=EUR will graph the payments for AUD and EUR only, whereas report1=payments_per_day|currency!=AUD|currency!=EUR will graph all payments but the ones in AUD and EUR.</p>
-</li>
 </ul>
+</div>
+<div class="paragraph">
+<p>You can narrow down the dimensions and metrics you want to plot for each report, and even specify filters. This is useful if the underlying view is a cube for example, and you want to extract part of the data.</p>
+</div>
+<div class="paragraph">
+<p>The URL format for each report looks like: report1=payments_per_day;dimension:currency;dimension:state;metric:amount;metric:fee</p>
+</div>
+<div class="paragraph">
+<p>You can specify as many dimensions and metrics as you want (each one of them should correspond to a column name in your table or view, and dimensions are expected to be representable by floats).</p>
+</div>
+<div class="paragraph">
+<p>You can also use the <strong>filter</strong> keywork to narrow down your dataset, for example: report1=payments_per_day;dimension:currency;dimension:state;metric:amount;metric:fee;filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)</p>
+</div>
+<div class="paragraph">
+<p>Note that <strong>&amp;</strong> is represented as <strong>%26</strong>, to avoid making the server interpret it as a standalone query parameter.</p>
+</div>
+<div class="paragraph">
+<p>You can have as many filters as you want, they will be ORed as a single filter in the query.</p>
+</div>
+<div class="paragraph">
+<p>For debugging purposes, you can check the SQL generated by appending the <strong>sqlOnly</strong> parameter to the following endpoint:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     'http://127.0.0.1:8080/plugins/killbill-analytics/reports?name=payments_per_day;dimension:currency;dimension:state;metric:amount;metric:fee;filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)&amp;sqlOnly=true'</code></pre>
+</div>
 </div>
 <div class="paragraph">
 <p>To continue with our example above, you can see the report by going to <a href="http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day">http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day</a>.</p>
@@ -5961,7 +5957,7 @@ support = entitlement:*, invoice:item_adjust, payment:refund</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-01-07 08:37:08 EST
+Last updated 2014-02-19 16:10:24 EST
 </div>
 </div>
 </body>
