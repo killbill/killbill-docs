@@ -767,28 +767,18 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect2">
 <h3 id="five-minutes">Kill Bill in 5 minutes</h3>
 <div class="paragraph">
-<p>Run the following in a terminal prompt:</p>
+<p>Download the latest killbill-server jetty-console.war from <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing%22%20AND%20a%3A%22killbill-server%22%20AND%20l%3A%22jetty-console%22%20AND%20p%3A%22war%22">Maven Central</a> (download the <strong>jetty-console.war</strong> artifact).</p>
+</div>
+<div class="paragraph">
+<p>To start Kill Bill, either double click on the war file, or run the following in a terminal (recommended to check logs):</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="ruby language-ruby">ruby -e "$(curl -fsSL http://kill-bill.org/go)"</code></pre>
+<pre class="highlight"><code class="bash language-bash">java -jar killbill-server-*-jetty-console.war</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>The only pre-requisite is MySQL. The installer will:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Create a killbill database and user, and apply the correct schema</p>
-</li>
-<li>
-<p>Download the latest version of killbill</p>
-</li>
-<li>
-<p>Show you how to start killbill</p>
-</li>
-</ul>
+<p>This will start Kill Bill with an embedded H2 database (data is persisted in a local killbill.h2.db file, so changes are preserved across restarts).</p>
 </div>
 <div class="paragraph">
 <p>After the system has started you can experiment by following the simple scenario below. Note that each call creating an object in the system returns its URI, and so the curls below are using the UUID that was returned at the time the demo was created. You would need to replace the UUID with the one returned in each call if you were to follow that demo</p>
@@ -800,7 +790,8 @@ Besides the main use case described above, there are other possible options if o
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="bash language-bash">curl -X POST \
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -X POST \
      -u admin:password \
      -H 'Content-Type: application/json' \
      -H 'X-Killbill-CreatedBy: admin' \
@@ -813,11 +804,12 @@ Besides the main use case described above, there are other possible options if o
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
-      -H"X-Killbill-ApiKey:bob" \
-      -H"X-Killbill-ApiSecret:lazar" \
-      -H "Content-Type: application/json" \
-      http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -H "Content-Type: application/json" \
+     http://127.0.0.1:8080/1.0/kb/catalog/simpleCatalog
 
 {"products":[{"type":"BASE","name":"Standard","plans":[{"name":"standard-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":75.00},{"currency":"USD","value":100.00}]}]}],"included":[],"available":[]},{"type":"BASE","name":"Sports","plans":[{"name":"sports-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":375.00},{"currency":"USD","value":500.00}]}]}],"included":[],"available":[]},{"type":"BASE","name":"Super","plans":[{"name":"super-monthly","phases":[{"type":"TRIAL","prices":[]},{"type":"EVERGREEN","prices":[{"currency":"GBP","value":750.00},{"currency":"USD","value":1000.00}]}]}],"included":[],"available":[]}]}</code></pre>
 </div>
@@ -830,14 +822,15 @@ Besides the main use case described above, there are other possible options if o
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
-      -H"X-Killbill-ApiKey:bob" \
-      -H"X-Killbill-ApiSecret:lazar" \
-      -X POST \
-      -H "Content-Type: application/json" \
-      -H "X-Killbill-CreatedBy: creator" \
-      --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
-      http://127.0.0.1:8080/1.0/kb/accounts
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
+     http://127.0.0.1:8080/1.0/kb/accounts
 
 {"uri":"/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5"}</code></pre>
 </div>
@@ -847,14 +840,15 @@ Besides the main use case described above, there are other possible options if o
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
-      -H"X-Killbill-ApiKey:bob" \
-      -H"X-Killbill-ApiSecret:lazar" \
-      -X POST \
-      -H "Content-Type: application/json" \
-      -H "X-Killbill-CreatedBy: creator" \
-      --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
-      "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
 
 {"uri":"http://127.0.0.1:8080/1.0/kb/paymentMethods/eef35072-f70e-43da-a614-3215dbc1e28a"}</code></pre>
 </div>
@@ -867,14 +861,15 @@ Besides the main use case described above, there are other possible options if o
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
-      -H"X-Killbill-ApiKey:bob" \
-      -H"X-Killbill-ApiSecret:lazar" \
-      -X POST \
-      -H "Content-Type: application/json" \
-      -H "X-Killbill-CreatedBy: creator" \
-      --data-binary '{"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","externalKey":"myBundleName","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
-      "http://127.0.0.1:8080/1.0/kb/subscriptions"
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X POST \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","externalKey":"myBundleName","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions"
 
 {"uri":"/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"}</code></pre>
 </div>
@@ -884,12 +879,13 @@ Besides the main use case described above, there are other possible options if o
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="bash language-bash">curl -uadmin:password \
-      -H"X-Killbill-ApiKey:bob" \
-      -H"X-Killbill-ApiSecret:lazar" \
-      -H "Content-Type: application/json" \
-      -H "X-Killbill-CreatedBy: creator" \
-      "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/invoices"
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/invoices"
 
 [{"amount":0.00,"currency":"USD","creditAdj":0.00,"refundAdj":0.00,"invoiceId":"15a0abc7-2489-493c-b098-7460afc21203","invoiceDate":"2013-08-25","targetDate":"2013-08-25","invoiceNumber":"1","balance":0.00,"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","auditLogs":null}]</code></pre>
 </div>
@@ -3214,18 +3210,16 @@ order by 1 asc
 <div class="sect3">
 <h4 id="_download_the_latest_version_of_kill_bill_server">Download the latest version of Kill Bill server</h4>
 <div class="paragraph">
-<p>Releases are available in Maven Central. Among other packaging formats, we provide a war with all dependencies. You can get the latest version <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22com.ning.billing%22%20AND%20a%3A%22killbill-server%22">here</a> (download the <strong>jar-with-dependencies.war</strong> artifact).</p>
+<p>Releases are available in Maven Central. Among other packaging formats, we provide a war with all dependencies. You can get the latest version <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing%22%20AND%20a%3A%22killbill-server%22%20AND%20l%3A%22jar-with-dependencies%22%20AND%20p%3A%22war%22">here</a> (download the <strong>jar-with-dependencies.war</strong> artifact).</p>
 </div>
 </div>
 <div class="sect3">
 <h4 id="_setup_the_database">Setup the database</h4>
 <div class="paragraph">
-<p>Create the database killbill will use and apply the latest DDL schema, which can be generated via:</p>
+<p>Note: currently, only MySQL is supported for multi-nodes deployments.</p>
 </div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlight"><code class="ruby language-ruby">ruby -e "$(curl -fsSL http://kill-bill.org/schema)" &gt; ddl.sql</code></pre>
-</div>
+<div class="paragraph">
+<p>Create the database killbill will use and apply the latest DDL schema, which can be found <a href="http://docs.kill-bill.org/schema.html">here</a>.</p>
 </div>
 </div>
 <div class="sect3">
@@ -6052,7 +6046,7 @@ support = entitlement:*, invoice:item_adjust, payment:refund</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-03-14 10:48:54 EDT
+Last updated 2014-03-14 12:10:00 EDT
 </div>
 </div>
 </body>
