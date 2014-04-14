@@ -1,0 +1,15 @@
+Kill Bill provides a framework to register payment plugins. Those payment plugins must be OSGI compliant plugins. They can be written either in:
+
+* java; in which case there are just a standard OSGI java plugin which must register a service implementing the PaymentPluginApi.
+* ruby; in which case they must use the Killbill gem which provides a jruby bridge between java and ruby so that plugins can be written purely in ruby. Those plugins must inherit the Payment class to provide the specific plugin code functionality.
+
+The main reason to provide a way to write ruby payment plugin is to be able to reuse the http://activemerchant.org/[Active Merchant] gem. There are examples of payment plugin codes written in ruby:
+
+* https://github.com/killbill/killbill-litle-plugin[Litle plugin]
+* https://github.com/killbill/killbill-paypal-express-plugin[Paypal plugin]
+
+The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, ... operation needs to happen. The dispatching is based on the payment methods associated with each account. Each account should have one default payment method active at a given time, and that payment method will have a link that points to a specific plugin to use. For instance one account could have a Paypal payment method that would point to the paypal plugin.
+
+By default Kill Bill does not come configured with any payment plugins per say except for the built-in __EXTERNAL_PAYMENT__, which is used for when we want to enter into the system that a payment occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check.
+
+The choice of which payment plugin to use is configured per payment method. That is, when one adds a new payment method to an existing account, for e.g a new credit card, the call made to Kill Bill requires to specify which payment plugin to use. Therefore each payment method in the system is associated to one and exactly one payment plugin. There is one default payment method that is associated to an existing account, and that payment method will be the one used at the time a payment is made. Therefore at the time of payment, Kill Bill will delegate the payment call to the payment plugin associated to the default payment method associated with the account.

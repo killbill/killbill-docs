@@ -1,0 +1,177 @@
+In this tutorial we set about creating a catalog to represent the Spy Car products illustrated above. The tutorial will go through the creation of the following:
+
+* Products
+* Plans
+* Rules
+
+Someday Kill Bill will have a slick UI for creating and editing Catalogs, but today, Catalogs are represented as XML documents. As we go through the tutorial we will explain the various settings that need to be configured and then give examples and specifics of the XML syntax for representing them.
+
+The XML example for this tutorial can be https://raw.github.com/killbill/killbill/master/catalog/src/test/resources/SpyCarBasic.xml[downloaded in its entirety]. The XML schema for Kill Bill documents is available at the canonical location http://killbilling.org/schema/1.0 [need to figure out the right canonical location - version number could correspond to KB version number?]
+
+===== Creating the Catalog
+
+In this section we look at getting the top level catalog created and configured.
+
+The XML document starts in a standard way. The main tag is “catalog”. Within the catalog opening tag you can specify the schema location. You can use the standard schema location (above) or you can have the code generate the current schema by executing:
+
+[source,bash]
+----
+java -jar killbill.jar com.ning.billing.catalog.CreateCatalogSchema <filename>
+----
+
+The order of content in the catalog is important. The first tag should be the “effectiveData” (when the catalog becomes effective), then “catalogName” and then “currencies”, as shown below.
+
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CatalogSchema.xsd">
+        <effectiveDate>2013-02-08T00:00:00+00:00</effectiveDate>
+        <catalogName>SpyCarBasic</catalogName>
+        <currencies>
+                <currency>USD</currency>
+                <currency>GBP</currency>
+        </currencies>
+        ...
+</catalog>
+----
+
+
+===== Products
+
+image::catalog_product.png[]
+
+The Product is a representation of the thing the customer is actually buying. Specifying a Product is very straightforward it has the following parameters:
+
+* Name - this is a string that is used to refer to the Product elsewhere in the catalog. For example “Super”
+* Category - The Product Category determines how Kill Bill allows the combining of products within a bundle. Kill Bill supports three categories of product: BASE, ADD_ON and STANDALONE.
+* Inclusion/Exclusion lists (optional) - these determine which addons can be purchased with a given base plan. This is a topic dealt with in the Advanced Tutorial [link]
+
+
+===== Rules
+
+The rules section of the catalog allows the definition of different Kill Bill behaviours for the creation, cancellation and changing  of Plans. For an in-depth description of the rules read the Advanced Tutorial [link]. Here we provide the most simple rule set possible.
+
+Kill Bill requires that there is defined a default rule for each rule type. The rules are applied by matching cases, if there are no cases matching a particular situation then the default rule is applied. It is important to have a default rule even if you don’t expect to use it just to ensure that you cover all possible cases.
+
+In this example we specify the following default for the following rule types:
+
+* Change Policy [IMMEDIATE] - This is the policy used to determine when to apply a plan change. The policy IMMEDIATE, states that all plan changes will be applied exactly at the time the plan change is requested.
+* Change Alignment [START_OF_BUNDLE] - The change alignment determines how the new plan phases should line up against the old plan phases. This policy says that plan phases should always line up with the start of the bundle. This would mean, for example, that if you have a 30 day trial on all your plans, the customer can move back and forth between different plans many times but since the start of the phases always aligns to the start of the bundle all the trial phases will end at the same time, 30 days from the original start.
+* Cancel Policy [IMMEDIATE] - this determines when a plan is cancelled. The policy chosen here means that it is always cancelled at the time Kill Bill receives the request.
+* Create Alignment [START_OF_BUNDLE] - This determines the way phase of a newly created add-on plan should be aligned. Our choice of START_OF_BUNDLE means that any trials associated with the add on plans would align with the trials of the base plans. Of course, in this example we don’t have any add-ons yet so the choice is irrelevant.
+* Billing Alignment [ACCOUNT] - Different plans can be billed on different cycles. The billing alignment ACCOUNT means that the billing will always line up with the Bill Cycle Day of the customer Account.
+* Price List [DEFAULT] - as customers change plan there may be business rules about which Price List should be used to determine the new plan. This rule set allows us to express those rules. In this case we say that every change takes us to the DEFAULT Price List.
+
+[source,xml]
+----
+<rules>
+    <changePolicy>
+        <changePolicyCase>
+            <policy>IMMEDIATE</policy>
+        </changePolicyCase>
+    </changePolicy>
+    <changeAlignment>
+       <changeAlignmentCase>
+            <alignment>START_OF_BUNDLE</alignment>
+        </changeAlignmentCase>
+    </changeAlignment>
+    <cancelPolicy>
+        <cancelPolicyCase>
+            <policy>IMMEDIATE</policy>
+        </cancelPolicyCase>
+    </cancelPolicy>
+    <createAlignment>
+        <createAlignmentCase>
+            <alignment>START_OF_BUNDLE</alignment>
+        </createAlignmentCase>
+    </createAlignment>
+    <billingAlignment>
+        <billingAlignmentCase>
+            <alignment>ACCOUNT</alignment>
+        </billingAlignmentCase>
+    </billingAlignment>
+    <priceList>
+       <priceListCase>
+            <toPriceList>DEFAULT</toPriceList>
+       </priceListCase>
+    </priceList>
+</rules>
+----
+
+==== Plans
+
+image::catalog_plan.png[]
+
+Each Plan has a name and refers to the purchase of a single product. Beyond that the Plans parameters are arranged by phase. In the illustration above we are showing a Plan with a 30 day Trial followed by an unlimited recurring phase. We often use the term “Evergreen” to refer to phase like this. For each phase of the plan we need to specify:
+
+* Phase Type - can be one of TRIAL, DISCOUNT, FIXEDTERM, EVERGREEN
+* Duration - the length of the phase in days, months, years or UNLIMITED
+* Billing Period - how frequently do we want to collect payments for this phase, can be MONTHLY, QUARTERLY, ANNUAL or NO_BILLING_PERIOD
+* Recurring Price - the recurring price that needs to be paid every billing period (unless no billing period was specified). The price needs to specify numeric values for every currency that the catalog supports.
+* Fixed Price - a fixed price charged at the beginning of the period in addition to the recurring price. This is also a multi currency price and must be specified for all currencies.
+
+When durations are specified in days Kill Bill will not allow a recurring price. This is just because months and years do not have fixed numbers of days and attempting to charge a recurring fee over a fixed period of days can lead to strange proration fees at the end of the period.
+
+For our example Spy Car catalog we specify three plans with two phases:
+
+. The first phase is of type Trial has a duration of 30 days a Billing Period set to “NO_BILLING_PERIOD”. There is no recurring price specified, and a Fixed Price of £0/$0.
+. The second phase is of type Evergreen has a Duration of UNLIMITED, a Billing Period of MONTHLY and recurring price of £75/$100 (or whatever is appropriate for the Product).
+
+[source,xml]
+----
+<plans>
+     <plan name="standard-monthly">
+         <product>Standard</product>
+         <initialPhases>
+             <phase type="TRIAL">
+                 <duration>
+                     <unit>DAYS</unit>
+                     <number>30</number>
+                 </duration>
+                 <billingPeriod>NO_BILLING_PERIOD</billingPeriod>
+                 <fixedPrice> <!-- empty price implies $0 -->
+                 </fixedPrice>
+             </phase>
+         </initialPhases>
+         <finalPhase type="EVERGREEN">
+             <duration>
+                 <unit>UNLIMITED</unit>
+             </duration>
+             <billingPeriod>MONTHLY</billingPeriod>
+             <recurringPrice>
+                 <price>
+                      <currency>GBP</currency>
+                      <value>75.00</value>
+                 </price>
+                 <price>
+                      <currency>USD</currency>
+                      <value>100.00</value>
+                  </price>
+             </recurringPrice>
+         </finalPhase>
+     </plan>
+     ...
+</plans>
+----
+
+
+==== Price list
+
+image::catalog_pricelist.png[]
+
+Price Lists are collections of Plans that are grouped for selection or interchange they are used for identifying discount pricing for presentation to a particular customer group. In the example illustrated above we are supposing that MI6 is providing rental Spy Cars at special pricing levels for C.I.A. agents and former K.G.B. agents. The topic of Price Lists will be dealt with in more detail in the Advanced Tutorial [link].
+
+Kill Bill requires at least one special Price List to be defined, called the default price list. In our example, it contains all three example Plans.
+
+[source,xml]
+----
+<priceLists>
+    <defaultPriceList name="DEFAULT">
+        <plans>
+            <plan>standard-monthly</plan>
+            <plan>sports-monthly</plan>
+            <plan>super-monthly</plan>
+        </plans>
+    </defaultPriceList>
+</priceLists>
+----
