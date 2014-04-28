@@ -14,8 +14,6 @@ After the system has started you can experiment by following the simple scenario
 
 [[five-minutes-create-tenant]]
 
-
-
 ==== Create your own tenant
 
 The default behavior of Kill Bill is to run with multi-tenancy enabled. In that mode, one needs to first create a tenant and specify the credentials that will be required subsequently on each call. Each call requires a default username and password that is used in the system for role base access control (RBAC). By default we are using the username 'admin' and its default password 'password'. The first operation is to create the tenant specifying the api key and secret that will need to be provided in each subsequent call:
@@ -86,7 +84,7 @@ curl -v \
 ==== Create a subscription
 
 
-The last step will be to create a subscription based on the default demo catalog:
+At this point we can create a subscription based on the default demo catalog:
 
 [source,bash]
 ----
@@ -103,7 +101,7 @@ curl -v \
 {"uri":"/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"}
 ----
 
-At this point, it is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:
+It is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:
 
 [source,bash]
 ----
@@ -117,3 +115,40 @@ curl -v \
 
 [{"amount":0.00,"currency":"USD","creditAdj":0.00,"refundAdj":0.00,"invoiceId":"15a0abc7-2489-493c-b098-7460afc21203","invoiceDate":"2013-08-25","targetDate":"2013-08-25","invoiceNumber":"1","balance":0.00,"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","auditLogs":null}]
 ----
+
+
+[[five-minutes-change-plan-and-cancel]]
+
+==== Upgrade/Cancel the plan for the subscription
+
+We will now upgrade the plan from the 'Standard' to the 'Sports' product:
+
+[source,bash]
+----
+curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X PUT \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"productName":"Sports","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"
+----
+
+At then finally, we will cancel the subscription.
+
+Retrieving the invoices like we did in the previous step would show that a new invoice was automatically created after each change on the subscription. By default Kill Bill reacts to any change happening in the system automatically, creating invoices to match new state and trigerring payments when needed.
+
+[source,bash]
+----
+curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X DELETE \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"
+----
+
