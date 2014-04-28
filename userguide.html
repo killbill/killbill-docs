@@ -379,6 +379,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li><a href="#five-minutes-create-tenant">Create your own tenant</a></li>
 <li><a href="#five-minutes-create-account">Create an account</a></li>
 <li><a href="#five-minutes-create-subscription">Create a subscription</a></li>
+<li><a href="#five-minutes-change-plan-and-cancel">Upgrade/Cancel the plan for the subscription</a></li>
 </ul>
 </li>
 </ul>
@@ -477,6 +478,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li><a href="#components-payment-overview">Overview</a></li>
 <li><a href="#components-payment-states">Payment states</a></li>
 <li><a href="#components-payment-retries">Payment retries</a></li>
+</ul>
+</li>
+<li><a href="#components-overdue">Overdue</a></li>
+<li>
+<ul class="sectlevel3">
+<li><a href="#components-overdue-overview">Overview</a></li>
 </ul>
 </li>
 <li><a href="#components-analytics">Analytics</a></li>
@@ -698,6 +705,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </ul>
 </li>
 <li><a href="#kaui">Kaui</a></li>
+<li><a href="#_glossary">Glossary</a></li>
 </ul>
 </div>
 </div>
@@ -857,7 +865,7 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect3">
 <h4 id="five-minutes-create-subscription">Create a subscription</h4>
 <div class="paragraph">
-<p>The last step will be to create a subscription based on the default demo catalog:</p>
+<p>At this point we can create a subscription based on the default demo catalog:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -875,7 +883,7 @@ Besides the main use case described above, there are other possible options if o
 </div>
 </div>
 <div class="paragraph">
-<p>At this point, it is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:</p>
+<p>It is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -888,6 +896,43 @@ Besides the main use case described above, there are other possible options if o
      "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/invoices"
 
 [{"amount":0.00,"currency":"USD","creditAdj":0.00,"refundAdj":0.00,"invoiceId":"15a0abc7-2489-493c-b098-7460afc21203","invoiceDate":"2013-08-25","targetDate":"2013-08-25","invoiceNumber":"1","balance":0.00,"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","auditLogs":null}]</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="five-minutes-change-plan-and-cancel">Upgrade/Cancel the plan for the subscription</h4>
+<div class="paragraph">
+<p>We will now upgrade the plan from the <em>Standard</em> to the <em>Sports</em> product:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X PUT \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"productName":"Sports","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>At then finally, we will cancel the subscription.</p>
+</div>
+<div class="paragraph">
+<p>Retrieving the invoices like we did in the previous step would show that a new invoice was automatically created after each change on the subscription. By default Kill Bill reacts to any change happening in the system automatically, creating invoices to match new state and trigerring payments when needed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X DELETE \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"</code></pre>
 </div>
 </div>
 </div>
@@ -908,7 +953,31 @@ Besides the main use case described above, there are other possible options if o
 <p>In practice, the catalog is an XML file (see an example <a href="https://github.com/killbill/killbill/blob/master/catalog/src/test/resources/SpyCarBasic.xml">here</a>). Please refer to the Catalog Configuration documentation to make Kill Bill use your own catalog.</p>
 </div>
 <div class="paragraph">
-<p>The catalog is one of the most complex yet powerful tools provided by Kill Bill. See the links on the left to get you started on writing your own catalog.</p>
+<p>The catalog is one of the most complex yet powerful tools provided by Kill Bill.</p>
+</div>
+<div class="paragraph">
+<p>If you want to validate your catalog, you can use the catalog load-tool (replace 0.10.0 with your Kill Bill version):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -O 'http://search.maven.org/remotecontent?filepath=org/kill-bill/billing/killbill-catalog/0.10.0/killbill-catalog-0.10.0-load-tool.jar'
+java -jar killbill-catalog-0.10.0-load-tool.jar /path/to/catalog.xml</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you see "Success: Catalog loads!", the catalog is valid.</p>
+</div>
+<div class="paragraph">
+<p>Also, if you need an xsd file, you can generate one using the catalog xsd-tool:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -O 'http://search.maven.org/remotecontent?filepath=org/kill-bill/billing/killbill-catalog/0.10.0/killbill-catalog-0.10.0-xsd-tool.jar'
+java -jar killbill-catalog-0.10.0-xsd-tool.jar schema.xsd</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>xsd files are also published on this site, at <a href="http://docs.kill-bill.org/xsd/killbill-0.10.0-catalog.xsd">http://docs.kill-bill.org/xsd/killbill-0.10.0-catalog.xsd</a>.</p>
 </div>
 </div>
 <div class="sect3">
@@ -2716,6 +2785,30 @@ Besides the main use case described above, there are other possible options if o
 </div>
 </div>
 <div class="sect2">
+<h3 id="components-overdue">Overdue</h3>
+<div class="sect3">
+<h4 id="components-overdue-overview">Overview</h4>
+<div class="paragraph">
+<p>The overdue system takes care of dunning.</p>
+</div>
+<div class="paragraph">
+<p>In practice, the overdue behavior is defined in an XML file (see an example <a href="https://raw.githubusercontent.com/killbill/killbill/master/server/src/test/resources/overdue.xml">here</a>). Please refer to the Overdue Configuration documentation to make Kill Bill use your own overdue configuration file.</p>
+</div>
+<div class="paragraph">
+<p>If you need an xsd file, you can generate one using the overdue xsd-tool (replace 0.10.0 with your Kill Bill version):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -O 'http://search.maven.org/remotecontent?filepath=org/kill-bill/billing/killbill-overdue/0.10.0/killbill-overdue-0.10.0-xsd-tool.jar'
+java -jar killbill-overdue-0.10.0-xsd-tool.jar schema.xsd</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>xsd files are also published on this site, at <a href="http://docs.kill-bill.org/xsd/killbill-0.10.0-overdue.xsd">http://docs.kill-bill.org/xsd/killbill-0.10.0-overdue.xsd</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
 <h3 id="components-analytics">Analytics</h3>
 <div class="sect3">
 <h4 id="components-analytics-overview">Overview</h4>
@@ -2723,7 +2816,7 @@ Besides the main use case described above, there are other possible options if o
 <p>Kill Bill maintains a reporting schema that is kept current in realtime for Analytics purposes. In contrary to other tables in the system, this set of tables is stable and potentially changes only between major revisions of Kill Bill. These tables are meant to be used as building blocks for reports and dashboards.</p>
 </div>
 <div class="paragraph">
-<p>This analytics feature is provided as a Kill Bill <a href="https://github.com/killbill/killbill-analytics-plugin">plugin</a>. To install it, simply install the killbill-osgi-bundles-analytics jar to <strong>/var/tmp/bundles/platform/</strong> (or to your custom OSGI bundles directory if you have overridden the default path) and run the following DDL <a href="https://raw.github.com/killbill/killbill-analytics-plugin/master/src/main/resources/com/ning/billing/osgi/bundles/analytics/ddl.sql">script</a>.</p>
+<p>This analytics feature is provided as a Kill Bill <a href="https://github.com/killbill/killbill-analytics-plugin">plugin</a>. To install it, simply install the killbill-osgi-bundles-analytics jar to <strong>/var/tmp/bundles/platform/</strong> (or to your custom OSGI bundles directory if you have overridden the default path) and run the following DDL <a href="https://raw.githubusercontent.com/killbill/killbill-analytics-plugin/master/src/main/resources/org/killbill/billing/plugin/analytics/ddl.sql">script</a>.</p>
 </div>
 <div class="paragraph">
 <p>For ease of tracking, Analytics objects contain id references to the Kill Bill ones but we strongly advise against using them for reporting purposes. Instead, use the external keys as much as possible, as they are tied to your business concepts. For instance, to count the number of accounts in the system, run a query using <strong>count(distinct account_key)</strong>, not <strong>count(distinct account_id)</strong>.</p>
@@ -6144,10 +6237,42 @@ support = entitlement:*, invoice:item_adjust, payment:refund</code></pre>
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_glossary">Glossary</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Account</strong> - An object representing a customer account. It contains details about the customer such as name, address, email address, phone number etc.</p>
+</div>
+<div class="paragraph">
+<p><strong>Bundle</strong> - A bundle is a collection of subscriptions associated with a single service instance. For example, I might have a base subscription for my phone plus an addon that gives me cheap international dialing. Because both Subscriptions are associated with the one phone, they collected into a single bundle. An account may own several Bundles, each with one or more Subscriptions.</p>
+</div>
+<div class="paragraph">
+<p><strong>Catalog</strong> - Catalogs describes the set of Products, Plans, Price Lists and Rules that are being made availabel to customers. A catalog lets Kill Bill know what is being offered for sale and how and how much to charge for it.</p>
+</div>
+<div class="paragraph">
+<p><strong>Payment Method</strong> - Payment methods store the details required for Kill Bill to trigger a payment. They represent things like credit cards, debit cards or Paypal accounts. Each account can have many Payment Methods and at most one Default Payment Method. Note that much of the representation of a Payment Method is plugin-specific and is actually stored by the Payment Plugin itself.</p>
+</div>
+<div class="paragraph">
+<p><strong>Plan</strong> - Plans are Catalog objects that define how a Product is to be paid for. They can have multiple phases (e.g. trial, discount, evergreen). The phase specifies the frequency of payment and the prices in multiple currencies. Each phase can have fixed and recurring prices associated with it. Each Product can have multiple Plans specifying different ways that the Product can be purchased (e.g. a monthly Plan and an annual Plan)</p>
+</div>
+<div class="paragraph">
+<p><strong>Price list</strong> - Price lists are collections of plans that might be associated with a particular program (e.g. an affiliate program or a discount program). A plan can be in many price lists. There must be a default price list that is used when no pricelist is specified. When a subscription changes plan, Catalog rules can be used to determine which Price list the new Plan should use.</p>
+</div>
+<div class="paragraph">
+<p><strong>Product</strong> - Products represent the product or service that the customer buys.</p>
+</div>
+<div class="paragraph">
+<p><strong>Subscription</strong> - A Subscription is a contract that associates an account with a plan and a specific start date. The subscription will trigger automated payments based on the terms of the plan.</p>
+</div>
+<div class="paragraph">
+<p><strong>Tag</strong> - Tag can be added to Accounts, Bundles or Subscriptions. There are two kinds: System Tags can impact the behaviour of the system, User Tags are for information only. System Tags include things like: AUTO_PAY_OFF or AUTO_BILLING_OFF. User Tags can be created through the admin UI and are used to identify collections of Users, Subscriptions or Bundles so that they can easily be found or reported on later.</p>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-04-10 20:12:10 PDT
+Last updated 2014-04-28 15:41:50 PDT
 </div>
 </div>
 </body>
