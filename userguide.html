@@ -379,6 +379,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li><a href="#five-minutes-create-tenant">Create your own tenant</a></li>
 <li><a href="#five-minutes-create-account">Create an account</a></li>
 <li><a href="#five-minutes-create-subscription">Create a subscription</a></li>
+<li><a href="#five-minutes-change-plan-and-cancel">Upgrade/Cancel the plan for the subscription</a></li>
 </ul>
 </li>
 </ul>
@@ -474,7 +475,6 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li><a href="#components-payment">Payment</a></li>
 <li>
 <ul class="sectlevel3">
-<li><a href="#components-payment-overview">Overview</a></li>
 <li><a href="#components-payment-states">Payment states</a></li>
 <li><a href="#components-payment-retries">Payment retries</a></li>
 </ul>
@@ -788,7 +788,27 @@ Besides the main use case described above, there are other possible options if o
 <p>This will start Kill Bill with an embedded H2 database (data is persisted in a local killbill.h2.db file, so changes are preserved across restarts).</p>
 </div>
 <div class="paragraph">
-<p>After the system has started you can experiment by following the simple scenario below. Note that each call creating an object in the system returns its URI, and so the curls below are using the UUID that was returned at the time the demo was created. You would need to replace the UUID with the one returned in each call if you were to follow that demo</p>
+<p>After the system has started you can experiment by following the simple scenario below. Note that each call creating an object in the system returns its URI, and so the curls below are using the UUID that was returned at the time the demo was created. You would need to replace the UUID with the one returned in each call if you were to follow that demo.</p>
+</div>
+<div class="paragraph">
+<p>If you get an error like the following at startup:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">16:12:23,432 |-ERROR in ch.qos.logback.core.util.ContextUtil@7a0c1f5f - Failed to get local hostname java.net.UnknownHostException: HOSTNAME: HOSTNAME: nodename nor servname provided, or not known
+	at java.net.UnknownHostException: HOSTNAME: HOSTNAME: nodename nor servname provided, or not known</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>you may have an invalid hostname set. To work around it, add the following line in /etc/hosts:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">127.0.0.1 HOSTNAME localhost</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>and restart Kill Bill.</p>
 </div>
 <div class="sect3">
 <h4 id="five-minutes-create-tenant">Create your own tenant</h4>
@@ -837,9 +857,7 @@ Besides the main use case described above, there are other possible options if o
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: creator" \
      --data-binary '{"name":"john","email":"john@foo.com","externalKey":"xfgrdsda","currency":"USD"}' \
-     http://127.0.0.1:8080/1.0/kb/accounts
-
-{"uri":"/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5"}</code></pre>
+     http://127.0.0.1:8080/1.0/kb/accounts</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -864,7 +882,7 @@ Besides the main use case described above, there are other possible options if o
 <div class="sect3">
 <h4 id="five-minutes-create-subscription">Create a subscription</h4>
 <div class="paragraph">
-<p>The last step will be to create a subscription based on the default demo catalog:</p>
+<p>At this point we can create a subscription based on the default demo catalog:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -882,7 +900,7 @@ Besides the main use case described above, there are other possible options if o
 </div>
 </div>
 <div class="paragraph">
-<p>At this point, it is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:</p>
+<p>It is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -895,6 +913,43 @@ Besides the main use case described above, there are other possible options if o
      "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/invoices"
 
 [{"amount":0.00,"currency":"USD","creditAdj":0.00,"refundAdj":0.00,"invoiceId":"15a0abc7-2489-493c-b098-7460afc21203","invoiceDate":"2013-08-25","targetDate":"2013-08-25","invoiceNumber":"1","balance":0.00,"accountId":"268983f2-5443-47e4-a967-b8962fc699c5","auditLogs":null}]</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="five-minutes-change-plan-and-cancel">Upgrade/Cancel the plan for the subscription</h4>
+<div class="paragraph">
+<p>We will now upgrade the plan from the <em>Standard</em> to the <em>Sports</em> product:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X PUT \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     --data-binary '{"productName":"Sports","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>At then finally, we will cancel the subscription.</p>
+</div>
+<div class="paragraph">
+<p>Retrieving the invoices like we did in the previous step would show that a new invoice was automatically created after each change on the subscription. By default Kill Bill reacts to any change happening in the system automatically, creating invoices to match new state and trigerring payments when needed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -uadmin:password \
+     -H"X-Killbill-ApiKey:bob" \
+     -H"X-Killbill-ApiSecret:lazar" \
+     -X DELETE \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: creator" \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35"</code></pre>
 </div>
 </div>
 </div>
@@ -2657,43 +2712,8 @@ java -jar killbill-catalog-0.10.0-xsd-tool.jar schema.xsd</code></pre>
 </div>
 <div class="sect2">
 <h3 id="components-payment">Payment</h3>
-<div class="sect3">
-<h4 id="components-payment-overview">Overview</h4>
 <div class="paragraph">
-<p>Kill Bill provides a framework to register payment plugins. Those payment plugins must be OSGI compliant plugins. They can be written either in:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>java; in which case there are just a standard OSGI java plugin which must register a service implementing the PaymentPluginApi.</p>
-</li>
-<li>
-<p>ruby; in which case they must use the Killbill gem which provides a jruby bridge between java and ruby so that plugins can be written purely in ruby. Those plugins must inherit the Payment class to provide the specific plugin code functionality.</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>The main reason to provide a way to write ruby payment plugin is to be able to reuse the <a href="http://activemerchant.org/">Active Merchant</a> gem. There are examples of payment plugin codes written in ruby:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><a href="https://github.com/killbill/killbill-litle-plugin">Litle plugin</a></p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-paypal-express-plugin">Paypal plugin</a></p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, &#8230; operation needs to happen. The dispatching is based on the payment methods associated with each account. Each account should have one default payment method active at a given time, and that payment method will have a link that points to a specific plugin to use. For instance one account could have a Paypal payment method that would point to the paypal plugin.</p>
-</div>
-<div class="paragraph">
-<p>By default Kill Bill does not come configured with any payment plugins per say except for the built-in <em>EXTERNAL_PAYMENT</em>, which is used for when we want to enter into the system that a payment occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check.</p>
-</div>
-<div class="paragraph">
-<p>The choice of which payment plugin to use is configured per payment method. That is, when one adds a new payment method to an existing account, for e.g a new credit card, the call made to Kill Bill requires to specify which payment plugin to use. Therefore each payment method in the system is associated to one and exactly one payment plugin. There is one default payment method that is associated to an existing account, and that payment method will be the one used at the time a payment is made. Therefore at the time of payment, Kill Bill will delegate the payment call to the payment plugin associated to the default payment method associated with the account.</p>
-</div>
+<p>This section describes how payments work in the case of recurring billing only. For an overview of the payment subsystem in Kill Bill, check <a href="http://docs.kill-bill.org/payments.html">this guide</a>.</p>
 </div>
 <div class="sect3">
 <h4 id="components-payment-states">Payment states</h4>
@@ -6234,7 +6254,7 @@ support = entitlement:*, invoice:item_adjust, payment:refund</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-04-24 07:02:50 EDT
+Last updated 2014-05-05 15:56:11 EDT
 </div>
 </div>
 </body>
