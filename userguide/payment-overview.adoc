@@ -19,3 +19,35 @@ Check the wiki page https://github.com/killbill/killbill/wiki/Payment-plugins[Pa
 The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, ... operation needs to happen. The dispatching is based on the payment methods associated with each account. By default, the model is to attach a default payment method to each account and that payment method will have a link that points to a specific plugin to use. For instance one account could have a Paypal payment method that would point to the paypal plugin. In addition to that direct payment apis also allow to override the payment method that should be used for each payment.
 
 By default Kill Bill does not come configured with any payment plugins per se except for the built-in __EXTERNAL_PAYMENT__, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an Account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use when making payments.
+
+=== Payment states
+
+==== Hosted page
+
+For hosted pages, the entry point for any payment is the *buildFormDescriptor* API. This will create the payment id and set the status *SETUP* for the payment, before calling the plugin. Since *buildFormDescriptor* should not trigger any payment on the gateway, the payment at this stage is merely set up when the call returns.
+
+Kill Bill will then start polling the plugin via the *getPaymentInfo* API, to check for payment state changes:
+
+* if the plugin throws an error, the payment moves to the *PLUGIN_FAILURE* state
+* if the plugin returns *UNDEFINED*, the payment stays in *SETUP*
+* if the plugin returns *PENDING*, the payment moves to the *PENDING* state
+* if the plugin returns *PROCESSED*, the payment moves to the *SUCCESS* terminal state, and the polling stops
+* if the plugin returns *ERROR*, the payment moves to the *PAYMENT_FAILURE_ABORTED* terminal state, and the polling stops
+
+Eventually, after a configurable timeout period, Kill Bill forces the payment to move to ones of these following terminal states: *SETUP_ABORTED*, *PAYMENT_FAILURE_ABORTED* or *PLUGIN_FAILURE_ABORTED*.
+
+image::payment_states.svg[Kill Bill payment states, align="center"]
+
+Alternatively, the plugin can also notify Kill Bill of the payment state change via the *notifyPendingPaymentOfStateChanged* API, to move the payment to either the *SUCCESS* or *PAYMENT_FAILURE_ABORTED* terminal state.
+
+==== Gateway integration
+
+For gateway integrations, the entry point for any payment is either the *createAuthorization* or *createPurchase* API. Both calls create a direct payment id before calling the plugin.
+
+All of the payment APIs (*createAuthorization*, *createPurchase*, *createCapture*, *createCredit* and *creditVoid*) will attach transaction records to that original direct payment: for example, a direct payment can have an authorization and two capture transactions associated to it. Each transaction has its own state upon returning from the plugin:
+
+* if the plugin throws an error, the payment moves to the *PLUGIN_FAILURE_ABORTED* terminal state
+* if the plugin returns *UNDEFINED* the payment moves to the *PLUGIN_FAILURE_ABORTED* terminal state
+* if the plugin returns *PROCESSED*, the payment moves to the *SUCCESS* terminal state
+* if the plugin returns *ERROR*, the payment moves to the *PAYMENT_FAILURE_ABORTED* terminal state
+* if the plugin returns *PENDING*, the payment moves to the *PENDING* state. This is used for multi-step calls (e.g. 3D Secure authorization)
