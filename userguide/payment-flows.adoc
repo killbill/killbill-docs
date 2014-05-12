@@ -1,0 +1,54 @@
+=== Payment Flows
+
+In this section we will show some diagrams to show some standard payment flows.
+
+Those various payment flows can be classified in the following way:
+
+* Hosted Pages Flow: The user is redirected to a page (external site or internal site) when he can enter his payment method information.
+* Gateway Integration: The payment method info is passed through Kill Bill and the payment operation is also triggererd through Kill Bill and its plugin towards the payment gateway.  
+
+We considered the following actors:
+
+* Browser: The client/user sits behind a browser and initiates the payment flow
+* iTer/Orders: There is a customer facing web site which receives the client order and also shields the payment system (Kill Bill). The calls received on that first tier need to be encrypted
+* Payments: The payment system (Kill Bill) provides APIs-- described below -- to allow for the various flows/payment operations.
+* Payment Provider:  Also called Payment Gateway or simply Gateway, this is the entity that is used to receive the payment.
+* Access Control Server: In the case of 3Dsecure checkout, the user is redirected to some third party entity to enter custom information that will validate whether he can pursue with the payment flow.
+
+
+==== Hosted Pages
+
+The first flow shows a hosted payment page on the payment provider:
+
+* The user initiates the payment, and the order tier will use the Kill Bill api buildFromDescriptor to return the location of where the browser should be redirected; depending on the varitions, the Kill Bill and its plugin may have contacted the gateway to create the form on the gateway prior the redirect.
+* The browser is then redirected to that location (302 status) where the user can enter his payment method information; the URL also contains enough info to redirect the browser to a landing page on success/failure.
+
+
+image::payments_hostedPages.png[Hosted Payment Page, align="center"]	
+
+
+The flow below shows a 3D secure variation of the previous flow. The main difference is that prior redirecting the browser to the landing page, it is first redirected to the access control server where the user can enter custom information.
+
+image::payments_hostedpages_3ds.png[Hosted Payment Page 3Dsecure variation, align="center"]	
+
+
+==== Gateway Integration
+
+In this section we are showing gateway integration flows; those flows should only be acceptable in an environment where the merchant is PCI compliant since sensitive payment method info will transit through the marchant site and in some cases be kept by the merchant:
+
+* The user initiates the payment, and the order tier will use the Kill Bill api buildFromDescriptor to return the gateway specific info that is later used by the order tier to build the form returned to the browser,
+* The user is prompted with a form to enter its payment method info, and then the payment is initiated; the order tier could use the processPayment API or could use the authorizePayment/capturePayment APIs depending on the use case. Kill Bill will connect to its payment plugin which in turn will contact the gateway to peform the required operation.
+* Upon success/failure, the user is redirected to a landing page.
+
+
+image::payments_gateway.png[Payment Gateway, align="center"]	
+
+
+The flow below shows a 3D secure variation of the previous flow. We are showing an authorization call, that is split in two phases:
+
+* The order tier starts with an authorize call; if enough info is supplied to the gateway and if the payment method is 'registered' as being 3Dsecure, the gateway will return a (gateway) specific status that means the the user should be redirected to the access control server to complete the flow.
+* The user may then enter its specific information on the access control server, and upon success it is then redirected to the order tier that will complete the autorize phase.
+
+
+
+image::payments_gateway_3ds.png[Payment Gateway 3Dsecure variation, align="center"]	
