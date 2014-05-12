@@ -4,7 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta name="generator" content="Asciidoctor 0.1.4">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kill Bill user guide</title>
+<title>Kill Bill payment guide</title>
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
 article, aside, details, figcaption, figure, footer, header, hgroup, main, nav, section, summary { display: block; }
@@ -365,7 +365,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill user guide</h1>
+<h1>Kill Bill payment guide</h1>
 <span id="author" class="author">Kill Bill core team &lt;killbilling-users@googlegroups.com&gt;</span><br>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
@@ -374,13 +374,9 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li><a href="#components-payment-flows">Direct Payment Flows</a></li>
 <li>
 <ul class="sectlevel2">
-<li><a href="#_payment_flows">Payment Flows</a></li>
-<li>
-<ul class="sectlevel3">
-<li><a href="#_hosted_pages">Hosted Pages</a></li>
-<li><a href="#_gateway_integration">Gateway Integration</a></li>
-</ul>
-</li>
+<li><a href="#_payment_flows_overview">Payment Flows Overview</a></li>
+<li><a href="#_hosted_page_flows">Hosted Page Flows</a></li>
+<li><a href="#_gateway_integration_flows">Gateway Integration Flows</a></li>
 </ul>
 </li>
 <li><a href="#components-payment-method-flow">Payment Method APIs</a></li>
@@ -437,7 +433,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <h2 id="components-payment-overview">Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill has a payments subsystem which offers several APIs:</p>
+<p>Kill Bill has a payment subsystem which offers several APIs:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -453,7 +449,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>The former set of APIs is used by the core billing engine to charge for subscriptions, and by Kaui (the Kill Bill Admin UI) to handle refunds, chargebacks, adjustments, etc. for invoices and payments associated with such subscriptions.</p>
 </div>
 <div class="paragraph">
-<p>The later set can be used by your application to trigger payments (auth, capture, credit, refund, etc.) by your e-commerce application (e.g. shopping cart). It offers also helpers to create payment forms and redirect URLs in case of hosted payment pages.</p>
+<p>The latter set can be used by your application to trigger payments (auth, capture, credit, refund, etc.) by your e-commerce application (e.g. shopping cart). It offers also helpers to create payment forms and redirect URLs in case of hosted payment pages.</p>
 </div>
 <div class="paragraph">
 <p>Kill Bill, being a generic platform to build billing and payment infrastructures, is agnostic of payment gateways. Instead, it provides a framework to register payment plugins, which in turn implement gateway specific APIs. Those payment plugins must be OSGI compliant plugins. They can be written either in:</p>
@@ -475,10 +471,10 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>Check the wiki page <a href="https://github.com/killbill/killbill/wiki/Payment-plugins">Payment Plugins</a> for a community-supported list of already written payment plugins.</p>
 </div>
 <div class="paragraph">
-<p>The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, &#8230; operation needs to happen. The dispatching is based on the payment methods associated with each account. By default, the model is to attach a default payment method to each account and that payment method will have a link that points to a specific plugin to use. For instance one account could have a Paypal payment method that would point to the paypal plugin. In addition to that, direct payment apis also allow to override the payment method that should be used for each payment.</p>
+<p>The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, &#8230; operation needs to happen. The dispatching is based on the payment methods associated with each account. By default, the model is to attach a default payment method to each account and that payment method will have a link that points to a specific plugin to use. For instance one account could have a Paypal payment method that would point to the paypal plugin. In addition to that direct payment apis also allow to override the payment method that should be used for each payment.</p>
 </div>
 <div class="paragraph">
-<p>By default Kill Bill does not come configured with any payment plugins per se except for the built-in <em>EXTERNAL_PAYMENT</em>, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use for making payments.</p>
+<p>By default Kill Bill does not come configured with any payment plugins per se except for the built-in <em>EXTERNAL_PAYMENT</em>, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an Account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use when making payments.</p>
 </div>
 </div>
 </div>
@@ -486,12 +482,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <h2 id="components-payment-flows">Direct Payment Flows</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_payment_flows">Payment Flows</h3>
+<h3 id="_payment_flows_overview">Payment Flows Overview</h3>
 <div class="paragraph">
 <p>In this section we will show some diagrams to show some standard payment flows.</p>
 </div>
 <div class="paragraph">
-<p>Those various payment flows can be classified in the following way:</p>
+<p>Those various payment flows can be classified in the following way. note that this is a fairly standard classification that is also used the eCommerce ruby gem <a href="https://github.com/Shopify/active_merchant/wiki/GatewaysVsIntegrations">active-merchant</a>:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -515,7 +511,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>iTer/Orders: There is a customer facing web site which receives the client order and also shields the payment system (Kill Bill). The calls received on that first tier need to be encrypted</p>
 </li>
 <li>
-<p>Payments: The payment system (Kill Bill) provides APIs-- described below&#8201;&#8212;&#8201;to allow for the various flows/payment operations.</p>
+<p>Payments: The payment system (Kill Bill) provides APIs-- described below&#8201;&#8212;&#8201;to allow for the various flows/payment operations. Note that by Kill Bill we mean the core system and its specific payment plugins that interract with the payment gateway.</p>
 </li>
 <li>
 <p>Payment Provider:  Also called Payment Gateway or simply Gateway, this is the entity that is used to receive the payment.</p>
@@ -525,8 +521,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 </ul>
 </div>
-<div class="sect3">
-<h4 id="_hosted_pages">Hosted Pages</h4>
+<div class="paragraph">
+<p>For both the flows (hosted page and gateway integration) we shows a normal flow and a 3Dsecure flow. There could be other types of varations, but the idea would remain the same: The basic flow would be modified and the browser would be reditected to allow for the user to enter extra information, after which the flow would be resumed.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_hosted_page_flows">Hosted Page Flows</h3>
 <div class="paragraph">
 <p>The first flow shows a hosted payment page on the payment provider:</p>
 </div>
@@ -554,8 +554,8 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 </div>
-<div class="sect3">
-<h4 id="_gateway_integration">Gateway Integration</h4>
+<div class="sect2">
+<h3 id="_gateway_integration_flows">Gateway Integration Flows</h3>
 <div class="paragraph">
 <p>In this section we are showing gateway integration flows; those flows should only be acceptable in an environment where the merchant is PCI compliant since sensitive payment method info will transit through the marchant site and in some cases be kept by the merchant:</p>
 </div>
@@ -596,6 +596,9 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 </div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="components-payment-method-flow">Payment Method APIs</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -1055,7 +1058,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-05-12 06:08:41 PDT
+Last updated 2014-05-12 06:48:57 PDT
 </div>
 </div>
 </body>
