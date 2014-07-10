@@ -341,6 +341,7 @@ CREATE TABLE payment_attempts (
     amount numeric(15,9),
     currency char(3),
     plugin_name varchar(50) NOT NULL,
+    plugin_properties blob(8194),
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
     updated_by varchar(50) NOT NULL,
@@ -370,6 +371,7 @@ CREATE TABLE payment_attempt_history (
     amount numeric(15,9),
     currency char(3),
     plugin_name varchar(50) NOT NULL,
+    plugin_properties blob(8194),
     change_type char(6) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -433,6 +435,7 @@ CREATE TABLE payments (
     payment_method_id char(36) NOT NULL,
     external_key varchar(255) NOT NULL,
     state_name varchar(64) DEFAULT NULL,
+    last_success_state_name varchar(64) DEFAULT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
     updated_by varchar(50) NOT NULL,
@@ -456,6 +459,7 @@ CREATE TABLE payment_history (
     payment_method_id char(36) NOT NULL,
     external_key varchar(255) NOT NULL,
     state_name varchar(64) DEFAULT NULL,
+    last_success_state_name varchar(64) DEFAULT NULL,
     change_type char(6) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -525,22 +529,6 @@ CREATE TABLE transaction_history (
 CREATE INDEX transaction_history_target_record_id ON transaction_history(target_record_id);
 CREATE INDEX transaction_history_tenant_account_record_id ON transaction_history(tenant_record_id, account_record_id);
 
-DROP TABLE IF EXISTS payment_plugin_properties;
-CREATE TABLE payment_plugin_properties (
-    record_id int(11) unsigned NOT NULL AUTO_INCREMENT,
-    attempt_id char(36) NOT NULL,
-    payment_external_key varchar(255),
-    transaction_external_key varchar(255),
-    account_id char(36) NOT NULL,
-    plugin_name varchar(50) DEFAULT NULL,
-    prop_key varchar(255),
-    prop_value varchar(255),
-    created_by varchar(50) NOT NULL,
-    created_date datetime NOT NULL,
-    PRIMARY KEY (record_id)
-) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
-CREATE INDEX payment_plugin_properties_attempt_id ON payment_plugin_properties(attempt_id);
-
 
 /*  PaymentControlPlugin lives  here until this becomes a first class citizen plugin */
 DROP TABLE IF EXISTS _invoice_payment_control_plugin_auto_pay_off;
@@ -560,6 +548,27 @@ CREATE TABLE _invoice_payment_control_plugin_auto_pay_off (
     PRIMARY KEY (record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX _invoice_payment_control_plugin_auto_pay_off_account ON _invoice_payment_control_plugin_auto_pay_off(account_id);
+
+/*! SET storage_engine=INNODB */;
+
+DROP TABLE IF EXISTS rolled_up_usage;
+CREATE TABLE rolled_up_usage (
+    record_id int(11) unsigned NOT NULL AUTO_INCREMENT,
+    id char(36) NOT NULL,
+    subscription_id char(36),
+    unit_type varchar(50),
+    start_time datetime NOT NULL,
+    end_time datetime,
+    amount decimal(15,9) NOT NULL,
+    created_by varchar(50) NOT NULL,
+    created_date datetime NOT NULL,
+    account_record_id int(11) unsigned default null,
+    tenant_record_id int(11) unsigned default null,
+    PRIMARY KEY(record_id)
+) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+CREATE UNIQUE INDEX rolled_up_usage_id ON rolled_up_usage(id);
+CREATE INDEX rolled_up_usage_subscription_id ON rolled_up_usage(subscription_id ASC);
+CREATE INDEX rolled_up_usage_tenant_account_record_id ON rolled_up_usage(tenant_record_id, account_record_id);
 
 /*! SET storage_engine=INNODB */;
 
