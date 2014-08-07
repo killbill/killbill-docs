@@ -382,7 +382,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 </ul>
 </li>
-<li><a href="#components-payment-flows">Direct Payment Flows</a></li>
+<li><a href="#components-payment-flows">Payment Flows</a></li>
 <li>
 <ul class="sectlevel2">
 <li><a href="#_payment_flows_overview">Payment Flows Overview</a></li>
@@ -398,7 +398,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </ul>
 </li>
 <li><a href="#components-payment-method-apis">Payment Method APIs</a></li>
-<li><a href="#components-payment-apis">Direct Payment APIs</a></li>
+<li><a href="#components-payment-apis">Payment APIs</a></li>
 <li>
 <ul class="sectlevel2">
 <li><a href="#_direct_payments_apis">Direct Payments APIs</a></li>
@@ -408,6 +408,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li><a href="#_capture">Capture</a></li>
 <li><a href="#_purchase">Purchase</a></li>
 <li><a href="#_void">Void</a></li>
+<li><a href="#_refund">Refund</a></li>
 <li><a href="#_credit">Credit</a></li>
 </ul>
 </li>
@@ -575,7 +576,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect1">
-<h2 id="components-payment-flows">Direct Payment Flows</h2>
+<h2 id="components-payment-flows">Payment Flows</h2>
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_payment_flows_overview">Payment Flows Overview</h3>
@@ -790,6 +791,9 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <h2 id="components-payment-method-apis">Payment Method APIs</h2>
 <div class="sectionbody">
 <div class="paragraph">
+<p>Note: we assume that you already created a tenant (see the <a href="http://docs.kill-bill.org/userguide.html#five-minutes-create-tenant">Kill Bill in 5 minutes</a>).</p>
+</div>
+<div class="paragraph">
 <p>The first step when registering payment methods is to create an account in Kill Bill. This needs to be done once:</p>
 </div>
 <div class="listingblock">
@@ -923,7 +927,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="paragraph">
-<p>You can add as many payment methods as needed to a given account (across one or multiple plugins). For a payment call though, the default one on the account will be used.</p>
+<p>You can add as many payment methods as needed to a given account (across one or multiple plugins). You can specify for each payment call the payment method to use, or leave it blank to use the default.</p>
 </div>
 <div class="paragraph">
 <p>Each payment method in Kill Bill has a unique uuid associate to it. Use this uuid to change the default payment method on the account (in this example, the payment method id a91161b0-d159-11e3-9c1a-0800200c9a66 becomes the default one):</p>
@@ -979,7 +983,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect1">
-<h2 id="components-payment-apis">Direct Payment APIs</h2>
+<h2 id="components-payment-apis">Payment APIs</h2>
 <div class="sectionbody">
 <div class="sect2">
 <h3 id="_direct_payments_apis">Direct Payments APIs</h3>
@@ -993,7 +997,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
      -H 'Content-Type: application/json' \
      -H 'X-Killbill-ApiKey:bob' \
      -H 'X-Killbill-ApiSecret:lazar' \
-     "http://127.0.0.1:8080/1.0/kb/directPayments/078a4500-d15e-11e3-9c1a-0800200c9a66"</code></pre>
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66"</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1020,8 +1024,8 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
      -H 'X-Killbill-ApiKey:bob' \
      -H 'X-Killbill-ApiSecret:lazar' \
      -H 'X-Killbill-CreatedBy: creator' \
-     --data-binary '{"transactionType":"AUTHORIZE","amount":"10","currency":"USD"}' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/directPayments"</code></pre>
+     --data-binary '{"transactionType":"AUTHORIZE","amount":"10","currency":"USD","transactionExternalKey":"INV-001-AUTH"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1038,9 +1042,6 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>You can specify another payment method (other than the default one) via the <strong>kbPaymentMethodId</strong> query parameter</p>
 </li>
-<li>
-<p>You can specify in the body an <strong>externalKey</strong> string (represents a unique identifier in an external system)</p>
-</li>
 </ul>
 </div>
 </div>
@@ -1055,8 +1056,8 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
      -H 'X-Killbill-ApiKey:bob' \
      -H 'X-Killbill-ApiSecret:lazar' \
      -H 'X-Killbill-CreatedBy: creator' \
-     --data-binary '{"amount":"5","currency":"USD"}' \
-     "http://127.0.0.1:8080/1.0/kb/directPayments/078a4500-d15e-11e3-9c1a-0800200c9a66"</code></pre>
+     --data-binary '{"amount":"5","currency":"USD","transactionExternalKey":"INV-001-CAPTURE"}' \
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66"</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1066,9 +1067,6 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <ul>
 <li>
 <p>You can call this endpoint multiple times for partial captures (all of these captures will share the same direct payment id)</p>
-</li>
-<li>
-<p>You can specify in the body an <strong>externalKey</strong> string (represents a unique identifier in an external system)</p>
 </li>
 </ul>
 </div>
@@ -1087,8 +1085,8 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
      -H 'X-Killbill-ApiKey:bob' \
      -H 'X-Killbill-ApiSecret:lazar' \
      -H 'X-Killbill-CreatedBy: creator' \
-     --data-binary '{"transactionType":"PURCHASE","amount":"10","currency":"USD"}' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/directPayments"</code></pre>
+     --data-binary '{"transactionType":"PURCHASE","amount":"10","currency":"USD","transactionExternalKey":"INV-001-PURCHASE"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1098,9 +1096,6 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <ul>
 <li>
 <p>You can specify another payment method (other than the default one) via the <strong>kbPaymentMethodId</strong> query parameter</p>
-</li>
-<li>
-<p>You can specify in the body an <strong>externalKey</strong> string (represents a unique identifier in an external system)</p>
 </li>
 </ul>
 </div>
@@ -1116,24 +1111,31 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
      -H 'X-Killbill-ApiKey:bob' \
      -H 'X-Killbill-ApiSecret:lazar' \
      -H 'X-Killbill-CreatedBy: creator' \
-     "http://127.0.0.1:8080/1.0/kb/directPayments/078a4500-d15e-11e3-9c1a-0800200c9a66"</code></pre>
+     --data-binary '{"transactionExternalKey":"INV-001-VOID"}' \
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66"</code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p>Notes:</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p>You can specify in the body an <strong>externalKey</strong> string (represents a unique identifier in an external system)</p>
-</li>
-</ul>
+<div class="sect3">
+<h4 id="_refund">Refund</h4>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="bash language-bash">curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"amount":"5","currency":"USD","transactionExternalKey":"INV-001-REFUND"}' \
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66/refunds"</code></pre>
+</div>
 </div>
 </div>
 <div class="sect3">
 <h4 id="_credit">Credit</h4>
 <div class="paragraph">
-<p>This call is similar to the capture one:</p>
+<p>This call is similar to the authorization one:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1144,19 +1146,9 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
      -H 'X-Killbill-ApiKey:bob' \
      -H 'X-Killbill-ApiSecret:lazar' \
      -H 'X-Killbill-CreatedBy: creator' \
-     --data-binary '{"amount":"5","currency":"USD"}' \
-     "http://127.0.0.1:8080/1.0/kb/directPayments/078a4500-d15e-11e3-9c1a-0800200c9a66/credits"</code></pre>
+     --data-binary '{"transactionType":"CREDIT","amount":"10","currency":"USD","transactionExternalKey":"INV-001-CREDIT"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"</code></pre>
 </div>
-</div>
-<div class="paragraph">
-<p>Notes:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>You can specify in the body an <strong>externalKey</strong> string (represents a unique identifier in an external system)</p>
-</li>
-</ul>
 </div>
 </div>
 </div>
@@ -1285,7 +1277,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2014-06-15 19:02:19 PDT
+Last updated 2014-08-06 18:29:26 PDT
 </div>
 </div>
 </body>
