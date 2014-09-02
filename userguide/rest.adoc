@@ -7,13 +7,19 @@
 
 |GET
 |+++/1.0/kb/accounts/{accountId}+++
-|accountWithBalance, accountWithBalanceAndCBA
+|accountWithBalance, accountWithBalanceAndCBA, audit
 |Get account
 
 
 |GET
+|+++/1.0/kb/accounts/pagination+++
+|offset, limit, accountWithBalance, accountWithBalanceAndCBA, audit
+|Get accounts
+
+
+|GET
 |+++/1.0/kb/accounts/search/{searchKey}+++
-|accountWithBalance, accountWithBalanceAndCBA
+|offset, limit, accountWithBalance, accountWithBalanceAndCBA, audit
 |Search accounts
 
 
@@ -25,7 +31,7 @@
 
 |GET
 |+++/1.0/kb/accounts+++
-|externalKey, accountWithBalance, accountWithBalanceAndCBA
+|externalKey, accountWithBalance, accountWithBalanceAndCBA, audit
 |Get account by key
 
 
@@ -73,44 +79,50 @@
 
 |GET
 |+++/1.0/kb/accounts/{accountId}/invoices+++
-|withItems, audit
+|withItems, unpaidInvoicesOnly, audit
 |Get invoices
 
 
 |GET
-|+++/1.0/kb/accounts/{accountId}/payments+++
-|-
-|Get payments
+|+++/1.0/kb/accounts/{accountId}/invoicePayments+++
+|audit, withPluginInfo
+|Get invoice payments
+
+
+|POST
+|+++/1.0/kb/accounts/{accountId}/invoicePayments+++
+|externalPayment, paymentAmount, pluginProperty
+|Pay all invoices
 
 
 |POST
 |+++/1.0/kb/accounts/{accountId}/paymentMethods+++
-|isDefault
+|isDefault, payAllUnpaidInvoices, pluginProperty
 |Create payment method
 
 
 |GET
 |+++/1.0/kb/accounts/{accountId}/paymentMethods+++
-|withPluginInfo
+|withPluginInfo, pluginProperty, audit
 |Get payment methods
 
 
 |PUT
 |+++/1.0/kb/accounts/{accountId}/paymentMethods/{paymentMethodId}/setDefault+++
-|-
+|payAllUnpaidInvoices, pluginProperty
 |Set default payment method
 
 
 |GET
-|+++/1.0/kb/accounts/{accountId}/chargebacks+++
-|-
-|Get chargebacks for account
+|+++/1.0/kb/accounts/{accountId}/payments+++
+|audit, pluginProperty, withPluginInfo
+|Get payments
 
 
-|GET
-|+++/1.0/kb/accounts/{accountId}/refunds+++
-|-
-|Get refunds
+|POST
+|+++/1.0/kb/accounts/{accountId}/payments+++
+|paymentMethodId, pluginProperty
+|Process payment
 
 
 |GET
@@ -139,7 +151,7 @@
 
 |GET
 |+++/1.0/kb/accounts/{accountId}/tags+++
-|audit
+|audit, includedDeleted
 |Get tags
 
 
@@ -245,6 +257,62 @@
 |accountCBA
 |true
 |-
+|auditLogs
+|true
+|-
+
+
+|===
+===== Json fields PaymentTransactionJson
+
+|===
+|Attribute |Required |Comments 
+
+|transactionId
+|true
+|-
+|transactionExternalKey
+|true
+|-
+|paymentId
+|true
+|-
+|paymentExternalKey
+|true
+|-
+|transactionType
+|true
+|-
+|amount
+|true
+|-
+|currency
+|true
+|-
+|effectiveDate
+|true
+|-
+|status
+|true
+|-
+|gatewayErrorCode
+|true
+|-
+|gatewayErrorMsg
+|true
+|-
+|firstPaymentReferenceId
+|true
+|-
+|secondPaymentReferenceId
+|true
+|-
+|properties
+|true
+|-
+|auditLogs
+|true
+|-
 
 
 |===
@@ -254,6 +322,9 @@
 |Attribute |Required |Comments 
 
 |paymentMethodId
+|true
+|-
+|externalKey
 |true
 |-
 |accountId
@@ -266,6 +337,9 @@
 |true
 |-
 |pluginInfo
+|true
+|-
+|auditLogs
 |true
 |-
 
@@ -319,9 +393,27 @@
 
 
 |GET
-|+++/1.0/kb/bundles/{bundleId}/subscriptions+++
-|-
-|Get bundle subscriptions
+|+++/1.0/kb/bundles/pagination+++
+|offset, limit, audit
+|Get bundles
+
+
+|GET
+|+++/1.0/kb/bundles/search/{searchKey}+++
+|offset, limit, audit
+|Search bundles
+
+
+|PUT
+|+++/1.0/kb/bundles/{bundleId}/pause+++
+|requestedDate
+|Pause bundle
+
+
+|PUT
+|+++/1.0/kb/bundles/{bundleId}/resume+++
+|requestedDate
+|Resume bundle
 
 
 |GET
@@ -344,13 +436,13 @@
 
 |GET
 |+++/1.0/kb/bundles/{bundleId}/tags+++
-|audit
+|audit, includedDeleted
 |Get tags
 
 
 |PUT
 |+++/1.0/kb/bundles/{bundleId}+++
-|requestedDate, transferAddOn, cancelImmediately
+|requestedDate, billingPolicy
 |Transfer bundle
 
 
@@ -428,58 +520,6 @@
 
 
 |===
-==== ChargebackResource
-
-=====  APIs
-
-|===
-|HTTP VERB |URI |Query Parameters |Description 
-
-|GET
-|+++/1.0/kb/chargebacks/{chargebackId}+++
-|-
-|Get chargeback
-
-
-|POST
-|+++/1.0/kb/chargebacks+++
-|-
-|Create chargeback
-
-
-|===
-===== Json fields ChargebackJson
-
-|===
-|Attribute |Required |Comments 
-
-|chargebackId
-|true
-|-
-|accountId
-|true
-|-
-|requestedDate
-|true
-|-
-|effectiveDate
-|true
-|-
-|amount
-|true
-|-
-|paymentId
-|true
-|-
-|currency
-|true
-|-
-|auditLogs
-|true
-|-
-
-
-|===
 ==== CreditResource
 
 =====  APIs
@@ -526,6 +566,26 @@
 
 
 |===
+==== CustomFieldResource
+
+=====  APIs
+
+|===
+|HTTP VERB |URI |Query Parameters |Description 
+
+|GET
+|+++/1.0/kb/customFields/pagination+++
+|offset, limit, audit
+|Get custom fields
+
+
+|GET
+|+++/1.0/kb/customFields/search/{searchKey}+++
+|offset, limit, audit
+|Search custom fields
+
+
+|===
 ==== ExportResource
 
 =====  APIs
@@ -537,6 +597,127 @@
 |+++/1.0/kb/export/{accountId}+++
 |-
 |Export data for account
+
+
+|===
+==== InvoicePaymentResource
+
+=====  APIs
+
+|===
+|HTTP VERB |URI |Query Parameters |Description 
+
+|GET
+|+++/1.0/kb/invoicePayments/{paymentId}+++
+|withPluginInfo, pluginProperty, audit
+|Get invoice payment
+
+
+|POST
+|+++/1.0/kb/invoicePayments/{paymentId}/refunds+++
+|pluginProperty
+|Create refund with adjustments
+
+
+|POST
+|+++/1.0/kb/invoicePayments/{paymentId}/chargebacks+++
+|-
+|Create chargeback
+
+
+|GET
+|+++/1.0/kb/invoicePayments/{paymentId}/customFields+++
+|audit
+|Get custom fields
+
+
+|POST
+|+++/1.0/kb/invoicePayments/{paymentId}/customFields+++
+|-
+|Create custom fields
+
+
+|DELETE
+|+++/1.0/kb/invoicePayments/{paymentId}/customFields+++
+|customFieldList
+|Delete custom fields
+
+
+|GET
+|+++/1.0/kb/invoicePayments/{paymentId}/tags+++
+|pluginProperty, audit, includedDeleted
+|Get tags
+
+
+|POST
+|+++/1.0/kb/invoicePayments/{paymentId}/tags+++
+|tagList
+|Create tags
+
+
+|DELETE
+|+++/1.0/kb/invoicePayments/{paymentId}/tags+++
+|tagList
+|Delete tags
+
+
+|===
+===== Json fields InvoicePaymentTransactionJson
+
+|===
+|Attribute |Required |Comments 
+
+|transactionId
+|true
+|-
+|transactionExternalKey
+|true
+|-
+|paymentId
+|true
+|-
+|paymentExternalKey
+|true
+|-
+|transactionType
+|true
+|-
+|amount
+|true
+|-
+|currency
+|true
+|-
+|effectiveDate
+|true
+|-
+|status
+|true
+|-
+|gatewayErrorCode
+|true
+|-
+|gatewayErrorMsg
+|true
+|-
+|firstPaymentReferenceId
+|true
+|-
+|secondPaymentReferenceId
+|true
+|-
+|properties
+|true
+|-
+|isAdjusted
+|true
+|-
+|adjustments
+|true
+|-
+|auditLogs
+|true
+|-
 
 
 |===
@@ -565,6 +746,18 @@
 |Get invoice as html
 
 
+|GET
+|+++/1.0/kb/invoices/pagination+++
+|offset, limit, withItems, audit
+|Get invoices
+
+
+|GET
+|+++/1.0/kb/invoices/search/{searchKey}+++
+|offset, limit, withItems, audit
+|Search invoices
+
+
 |POST
 |+++/1.0/kb/invoices+++
 |accountId, targetDate, dryRun
@@ -584,32 +777,20 @@
 
 
 |POST
-|+++/1.0/kb/invoices/charges+++
-|requestedDate
-|Create external charge
-
-
-|POST
-|+++/1.0/kb/invoices/{invoiceId}/charges+++
-|requestedDate
-|Create external charge for invoice
+|+++/1.0/kb/invoices/charges/{accountId}+++
+|requestedDate, payInvoice, pluginProperty
+|Create external charges
 
 
 |GET
 |+++/1.0/kb/invoices/{invoiceId}/payments+++
-|audit
+|audit, withPluginInfo
 |Get payments
 
 
 |POST
-|+++/1.0/kb/invoices/payments+++
-|externalPayment
-|Pay all invoices
-
-
-|POST
 |+++/1.0/kb/invoices/{invoiceId}/payments+++
-|externalPayment
+|externalPayment, pluginProperty
 |Create instant payment
 
 
@@ -639,7 +820,7 @@
 
 |GET
 |+++/1.0/kb/invoices/{invoiceId}/tags+++
-|audit
+|audit, includedDeleted
 |Get tags
 
 
@@ -656,21 +837,15 @@
 
 
 |===
-===== Json fields PaymentJson
+===== Json fields InvoicePaymentJson
 
 |===
 |Attribute |Required |Comments 
 
-|amount
-|true
-|-
-|paidAmount
+|targetInvoiceId
 |true
 |-
 |accountId
-|true
-|-
-|invoiceId
 |true
 |-
 |paymentId
@@ -679,37 +854,31 @@
 |paymentNumber
 |true
 |-
+|paymentExternalKey
+|true
+|-
+|authAmount
+|true
+|-
+|capturedAmount
+|true
+|-
+|purchasedAmount
+|true
+|-
+|refundedAmount
+|true
+|-
+|creditedAmount
+|true
+|-
+|currency
+|true
+|-
 |paymentMethodId
 |true
 |-
-|requestedDate
-|true
-|-
-|effectiveDate
-|true
-|-
-|retryCount
-|true
-|-
-|currency
-|true
-|-
-|status
-|true
-|-
-|gatewayErrorCode
-|true
-|-
-|gatewayErrorMsg
-|true
-|-
-|externalBundleKeys
-|true
-|-
-|refunds
-|true
-|-
-|chargebacks
+|transactions
 |true
 |-
 |auditLogs
@@ -747,6 +916,9 @@
 |phaseName
 |true
 |-
+|usageName
+|true
+|-
 |itemType
 |true
 |-
@@ -771,54 +943,32 @@
 
 
 |===
-===== Json fields InvoiceItemJson
+==== PaymentGatewayResource
+
+=====  APIs
+
+|===
+|HTTP VERB |URI |Query Parameters |Description 
+
+|POST
+|+++/1.0/kb/paymentGateways/hosted/form/{accountId}+++
+|pluginProperty
+|Build form descriptor
+
+
+|POST
+|+++/1.0/kb/paymentGateways/notification/{pluginName}+++
+|pluginProperty
+|Process notification
+
+
+|===
+===== Json fields HostedPaymentPageFieldsJson
 
 |===
 |Attribute |Required |Comments 
 
-|invoiceItemId
-|true
-|-
-|invoiceId
-|true
-|-
-|linkedInvoiceItemId
-|true
-|-
-|accountId
-|true
-|-
-|bundleId
-|true
-|-
-|subscriptionId
-|true
-|-
-|planName
-|true
-|-
-|phaseName
-|true
-|-
-|itemType
-|true
-|-
-|description
-|true
-|-
-|startDate
-|true
-|-
-|endDate
-|true
-|-
-|amount
-|true
-|-
-|currency
-|true
-|-
-|auditLogs
+|formFields
 |true
 |-
 
@@ -833,19 +983,31 @@
 
 |GET
 |+++/1.0/kb/paymentMethods/{paymentMethodId}+++
-|withPluginInfo
+|pluginProperty, audit, withPluginInfo
 |Get payment method
 
 
 |GET
+|+++/1.0/kb/paymentMethods+++
+|externalKey, pluginProperty, audit, withPluginInfo
+|Get payment method by key
+
+
+|GET
+|+++/1.0/kb/paymentMethods/pagination+++
+|offset, limit, pluginName, pluginProperty, audit, withPluginInfo
+|Get payment methods
+
+
+|GET
 |+++/1.0/kb/paymentMethods/search/{searchKey}+++
-|pluginName
+|offset, limit, pluginName, pluginProperty, audit, withPluginInfo
 |Search payment methods
 
 
 |DELETE
 |+++/1.0/kb/paymentMethods/{paymentMethodId}+++
-|deleteDefaultPmWithAutoPayOff
+|deleteDefaultPmWithAutoPayOff, pluginProperty
 |Delete payment method
 
 
@@ -859,80 +1021,65 @@
 
 |GET
 |+++/1.0/kb/payments/{paymentId}+++
-|withRefundsAndChargebacks
+|withPluginInfo, pluginProperty, audit
 |Get payment
 
 
-|PUT
-|+++/1.0/kb/payments/{paymentId}+++
-|-
-|Retry failed payment
+|GET
+|+++/1.0/kb/payments/pagination+++
+|offset, limit, pluginName, pluginProperty, audit, withPluginInfo
+|Get payments
 
 
 |GET
+|+++/1.0/kb/payments/search/{searchKey}+++
+|offset, limit, pluginName, pluginProperty, audit, withPluginInfo
+|Search payments
+
+
+|POST
+|+++/1.0/kb/payments/{paymentId}+++
+|pluginProperty
+|Capture authorization
+
+
+|POST
+|+++/1.0/kb/payments/{paymentId}/refunds+++
+|pluginProperty
+|Refund payment
+
+
+|DELETE
+|+++/1.0/kb/payments/{paymentId}+++
+|pluginProperty
+|Void payment
+
+
+|POST
 |+++/1.0/kb/payments/{paymentId}/chargebacks+++
 |-
-|Get chargebacks for payment
-
-
-|GET
-|+++/1.0/kb/payments/{paymentId}/refunds+++
-|-
-|Get refunds
-
-
-|POST
-|+++/1.0/kb/payments/{paymentId}/refunds+++
-|-
-|Create refund
-
-
-|GET
-|+++/1.0/kb/payments/{paymentId}/customFields+++
-|audit
-|Get custom fields
-
-
-|POST
-|+++/1.0/kb/payments/{paymentId}/customFields+++
-|-
-|Create custom fields
-
-
-|DELETE
-|+++/1.0/kb/payments/{paymentId}/customFields+++
-|customFieldList
-|Delete custom fields
-
-
-|GET
-|+++/1.0/kb/payments/{paymentId}/tags+++
-|audit
-|Get tags
-
-
-|POST
-|+++/1.0/kb/payments/{paymentId}/tags+++
-|tagList
-|Create tags
-
-
-|DELETE
-|+++/1.0/kb/payments/{paymentId}/tags+++
-|tagList
-|Delete tags
+|Chargeback payment
 
 
 |===
-===== Json fields RefundJson
+===== Json fields PaymentTransactionJson
 
 |===
 |Attribute |Required |Comments 
 
-|refundId
+|transactionId
+|true
+|-
+|transactionExternalKey
 |true
 |-
 |paymentId
+|true
+|-
+|paymentExternalKey
+|true
+|-
+|transactionType
 |true
 |-
 |amount
@@ -941,35 +1088,30 @@
 |currency
 |true
 |-
-|adjusted
-|true
-|-
-|requestedDate
-|true
-|-
 |effectiveDate
 |true
 |-
-|adjustments
+|status
+|true
+|-
+|gatewayErrorCode
+|true
+|-
+|gatewayErrorMsg
+|true
+|-
+|firstPaymentReferenceId
+|true
+|-
+|secondPaymentReferenceId
+|true
+|-
+|properties
 |true
 |-
 |auditLogs
 |true
 |-
-
-
-|===
-==== RefundResource
-
-=====  APIs
-
-|===
-|HTTP VERB |URI |Query Parameters |Description 
-
-|GET
-|+++/1.0/kb/refunds/{refundId}+++
-|-
-|Get refund
 
 
 |===
@@ -984,6 +1126,12 @@
 |+++/1.0/kb/security/permissions+++
 |-
 |Get current user permissions
+
+
+|GET
+|+++/1.0/kb/security/subject+++
+|-
+|Get current user subject
 
 
 |===
@@ -1007,15 +1155,15 @@
 
 
 |PUT
-|+++/1.0/kb/subscriptions/{subscriptionId}+++
-|requestedDate, callCompletion, callTimeoutSec, billingPolicy
-|Change entitlement plan
-
-
-|PUT
 |+++/1.0/kb/subscriptions/{subscriptionId}/uncancel+++
 |-
 |Uncancel entitlement plan
+
+
+|PUT
+|+++/1.0/kb/subscriptions/{subscriptionId}+++
+|requestedDate, callCompletion, callTimeoutSec, billingPolicy
+|Change entitlement plan
 
 
 |DELETE
@@ -1044,7 +1192,7 @@
 
 |GET
 |+++/1.0/kb/subscriptions/{subscriptionId}/tags+++
-|audit
+|audit, includedDeleted
 |Get tags
 
 
@@ -1120,7 +1268,7 @@
 
 
 |===
-==== TagResource
+==== TagDefinitionResource
 
 =====  APIs
 
@@ -1129,13 +1277,13 @@
 
 |GET
 |+++/1.0/kb/tagDefinitions+++
-|-
+|audit
 |Get tag definitions
 
 
 |GET
 |+++/1.0/kb/tagDefinitions/{tagDefinitionId}+++
-|-
+|audit
 |Get tag definition
 
 
@@ -1172,6 +1320,29 @@
 |applicableObjectTypes
 |true
 |-
+|auditLogs
+|true
+|-
+
+
+|===
+==== TagResource
+
+=====  APIs
+
+|===
+|HTTP VERB |URI |Query Parameters |Description 
+
+|GET
+|+++/1.0/kb/tags/pagination+++
+|offset, limit, audit
+|Get tags
+
+
+|GET
+|+++/1.0/kb/tags/search/{searchKey}+++
+|offset, limit, audit
+|Search tags
 
 
 |===
@@ -1262,6 +1433,116 @@
 |+++/1.0/kb/test/clock+++
 |days, weeks, months, years, timeZone, timeoutSec
 |Update test clock time
+
+
+|===
+==== TransactionResource
+
+=====  APIs
+
+|===
+|HTTP VERB |URI |Query Parameters |Description 
+
+|POST
+|+++/paymentTransactions/{transactionId}+++
+|-
+|Notify state changed
+
+
+|===
+===== Json fields PaymentTransactionJson
+
+|===
+|Attribute |Required |Comments 
+
+|transactionId
+|true
+|-
+|transactionExternalKey
+|true
+|-
+|paymentId
+|true
+|-
+|paymentExternalKey
+|true
+|-
+|transactionType
+|true
+|-
+|amount
+|true
+|-
+|currency
+|true
+|-
+|effectiveDate
+|true
+|-
+|status
+|true
+|-
+|gatewayErrorCode
+|true
+|-
+|gatewayErrorMsg
+|true
+|-
+|firstPaymentReferenceId
+|true
+|-
+|secondPaymentReferenceId
+|true
+|-
+|properties
+|true
+|-
+|auditLogs
+|true
+|-
+
+
+|===
+==== UsageResource
+
+=====  APIs
+
+|===
+|HTTP VERB |URI |Query Parameters |Description 
+
+|POST
+|+++/1.0/kb/usages+++
+|-
+|Record usage
+
+
+|GET
+|+++/1.0/kb/usages/{subscriptionId}/{unitType}+++
+|startTime, endTime
+|Get usage
+
+
+|===
+===== Json fields UsageJson
+
+|===
+|Attribute |Required |Comments 
+
+|subscriptionId
+|true
+|-
+|unitType
+|true
+|-
+|startTime
+|true
+|-
+|endTime
+|true
+|-
+|amount
+|true
+|-
 
 
 |===
