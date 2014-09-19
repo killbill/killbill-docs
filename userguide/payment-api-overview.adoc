@@ -1,11 +1,11 @@
 === Plugin Properties
 
-In the sections below, we are presenting APIs to manage payment methods and payments operations. Those APIs have been built to be as generic as possible and because each plugin/gateway has its own specificities, they also need to take that into account:
+In the sections below, we are presenting APIs to manage payment methods and payments operations. Those APIs have been built to be as generic as possible. Because each plugin/gateway has its own specificities, you can pass extra data by using plugin properties:
 
 * For each API, one can specify custom properties by using query parameters -- those query parameteres should be URL encoded
 * Kill Bill will deserialize the query parameters and pass them straight to the plugin
 
-This mechanism allows to pass information from the client of the API to the plugin, and all that is opaque to Kill Bill; for instance, in order to specify the following two plugin properties:
+This mechanism allows to pass information from the client of the API to the plugin, while being opaque to Kill Bill; for instance, in order to specify the following two plugin properties:
 
 [source,bash]
 ----
@@ -19,7 +19,7 @@ One would have to add the following query parameters:
 pluginProperty=San%3DFrancisco&pluginProperty=billing_address%3Daddress%5Bpostcode%5D%3D94114
 ----
 
-The mechanism also works for receiving information back from the plugin; the plugin can return a piece of json that will be embedded in the json response; for instance, the plugin could return a spefic key:
+The mechanism also works for receiving information back from the plugin; the plugin can return a piece of json that will be embedded in the json response; for instance, the plugin could return a specific key:
 
 [source,bash]
 ----
@@ -28,39 +28,4 @@ The mechanism also works for receiving information back from the plugin; the plu
            "key": "pluginSpecificKey",
            "value": "9876543210"
          }]
-----
-
-
-
-=== Validation
-
-Plugin APIs support validation checks for all payment method and payment calls. To do so, the payment plugin can throw a *PluginApiException* containing a *PluginValidation* object, which has enough information to inform the client why the call failed.
-
-Kill Bill will return that object in the response body and a return code of 412 (Precondition Failed). If the plugin passes a JSON formatted String in the *PluginValidation* object, it will be serialized as proper JSON in the final response.
-
-As an example, if a credit card is not valid because its expiry date is in the past, the plugin may return:
-
-[source,java]
-----
-throw new PluginValidationException("{\n" +
-                                    "  'type': 'card_error',\n" +
-                                    "  'message': 'Card expiration year is invalid',\n" +
-                                    "  'code': 'invalid_expiry_year'\n" +
-                                    "}\n");
-----
-
-
-Kill Bill will then return:
-
-[source,bash]
-----
-< HTTP/1.1 400 Bad Request
-{
-  "className": "PaymentApiException",
-  "message": {
-               "type": "card_error",
-               "message": "Your card expiration year is invalid",
-               "code": "invalid_expiry_year"
-             }
-}
 ----
