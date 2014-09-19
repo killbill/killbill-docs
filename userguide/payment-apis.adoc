@@ -12,9 +12,7 @@ curl -v \
      "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66"
 ----
 
-Notes:
-
-* You can specify in the body an *externalKey* string (represents a unique identifier in an external system)
+The calls below describe how to create payments. For each call, you can specify in the body a *transactionExternalKey* string to tag your payments (it represents a unique identifier in an external system).
 
 ==== Authorization
 
@@ -37,8 +35,8 @@ This will return a direct payment object. We will assume its uuid is 078a4500-d1
 
 Notes:
 
-* For multi-steps authorization (e.g. 3DS), you can specify a *directPaymentId* field in the body for subsequent calls
-* You can specify another payment method (other than the default one) via the *kbPaymentMethodId* query parameter
+* For multi-steps authorization (e.g. 3DS), you can specify a *paymentId* field in the body for subsequent calls
+* You can specify another payment method (other than the default one) via the *paymentMethodId* query parameter
 
 ==== Capture
 
@@ -78,7 +76,7 @@ curl -v \
 
 Notes:
 
-* You can specify another payment method (other than the default one) via the *kbPaymentMethodId* query parameter
+* You can specify another payment method (other than the default one) via the *paymentMethodId* query parameter
 
 ==== Void
 
@@ -127,13 +125,16 @@ curl -v \
      "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"
 ----
 
+Notes:
+
+* You can specify another payment method (other than the default one) via the *paymentMethodId* query parameter
 
 === Hosted pages helpers
 
 [[build-form-descriptor]]
 ==== Build form descriptor
 
-The *build form descriptor* call is used when you need to prepare a payment form. There are two main scenarii:
+The *buildFormDescriptor* call is used when you need to prepare a payment form. There are two main scenarii:
 
 * The payment form is hosted on your own website, but the gateway requires custom hidden fields and visible fields need special names. In that case, the plugin simply returns the list of fields with their expected name (e.g. *Sum* field for the order amount, hidden *merchantId* field, etc.)
 * The payment form is hosted on the gateway website. In that case, the plugin builds a unique URL to redirect the user to by either:
@@ -152,14 +153,12 @@ curl -v \
      -H 'X-Killbill-ApiSecret:lazar' \
      -H 'X-Killbill-CreatedBy: creator' \
      --data-binary '{ "formFields": [{ "key": "order_id", "value": "1234" }, { "key": "amount", "value": "10" }, { "key": "currency", "value": "USD" }]}' \
-     "http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/268983f2-5443-47e4-a967-b8962fc699c5
+     "http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/268983f2-5443-47e4-a967-b8962fc699c5"
 ----
-
-Kill Bill will lookup the plugin associated with the default payment method for that account, and in turn the plugin will build the fields expected by the gateway.
 
 Notes:
 
-* You can specify another payment method (other than the default one) via the *kbPaymentMethodId* query parameter
+* You can specify another payment method (other than the default one) via the *paymentMethodId* query parameter
 
 [[gateway-notification]]
 ==== Process gateway notifications
@@ -178,6 +177,6 @@ curl -v \
      "http://127.0.0.1:8080/1.0/kb/paymentGateways/notifications/pluginName?customKey=value
 ----
 
-Make sure to replace *pluginName* by your plugin name (e.g. killbill-bitpay).
+Make sure to replace *pluginName* with your plugin name (e.g. killbill-bitpay).
 
 The plugin will deserialize either the request body and/or the url query parameters to process the notification and return a properly formatted HTTP response object for the gateway (some gateways require specific reponse codes or headers to consider the notification processed and prevent retries).
