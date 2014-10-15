@@ -6,8 +6,9 @@ FAQ_INPUT_DIR=$DIR/faq
 BUILD_DIR=$DIR/build
 
 rm -rf $BUILD_DIR && mkdir -p $BUILD_DIR
-asciidoctor -B $USERGUIDE_INPUT_DIR -D $BUILD_DIR $USERGUIDE_INPUT_DIR/userguide.adoc
-asciidoctor -B $USERGUIDE_INPUT_DIR -D $BUILD_DIR $USERGUIDE_INPUT_DIR/payments.adoc
-asciidoctor -B $USERGUIDE_INPUT_DIR -D $BUILD_DIR $USERGUIDE_INPUT_DIR/bitcoin.adoc
+asciidoctor -B $USERGUIDE_INPUT_DIR -D $BUILD_DIR $USERGUIDE_INPUT_DIR/userguide_platform.adoc
+asciidoctor -B $USERGUIDE_INPUT_DIR -D $BUILD_DIR $USERGUIDE_INPUT_DIR/userguide_subscription.adoc
+asciidoctor -B $USERGUIDE_INPUT_DIR -D $BUILD_DIR $USERGUIDE_INPUT_DIR/userguide_payment.adoc
 asciidoctor -B $FAQ_INPUT_DIR -D $BUILD_DIR $FAQ_INPUT_DIR/faq.adoc
-echo "open $BUILD_DIR/userguide.html $BUILD_DIR/faq.html $BUILD_DIR/payments.html"
+#asciidoctor -B $USERGUIDE_INPUT_DIR -D $BUILD_DIR $USERGUIDE_INPUT_DIR/bitcoin.adoc
+echo "open $BUILD_DIR/userguide_payment.html $BUILD_DIR/userguide_platform.html $BUILD_DIR/userguide_subscription.html $BUILD_DIR/faq.html"
