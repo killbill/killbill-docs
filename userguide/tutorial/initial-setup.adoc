@@ -1,0 +1,33 @@
+==== MySQL
+
+As stated in the requirements, we're assuming you already have MySQL installed with a killbill database. You need to populate the database with the tables for Kill Bill, and its plugins.
+
+Assuming the server is located at 127.0.0.1 and the username/password to connect to it are killbill/killbill, run:
+
+[source,java]
+----
+curl http://killbill.io/wp-content/uploads/2014/11/killbill-0.12.0.ddl | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill
+curl https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill
+curl https://raw.githubusercontent.com/killbill/killbill-paypal-express-plugin/master/db/ddl.sql | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill
+----
+
+==== Tomcat
+
+We will use the Tomcat container to run Kill Bill as a Web application. If you are not familiar with Java containers, don't worry, the process is pretty straightforward:
+
+* Download the Tomcat container https://s3.amazonaws.com/kb-binaries/apache-tomcat-7.0.42.tar.gz[here]
+* Un-tar the archive. We will assume it is at /var/tmp/tomcat in the rest of this tutorial
+* Remove all files and directories under webapps/
+* Create a configuration file for Kill Bill: mkdir -p conf/Catalina/localhost && echo '<Context></Context>' > conf/Catalina/localhost/ROOT.xml
+
+The final step is to point it to your MySQL installation. Add this to conf/catalina.properties, updating the parameters as necessary (note that Kill Bill has two JDBC pools, one for the core and one of OSGI plugins):
+
+[source,java]
+----
+org.killbill.billing.osgi.dao.url: jdbc:mysql://127.0.0.1:3306/killbill
+org.killbill.billing.osgi.dao.user: killbill
+org.killbill.billing.osgi.dao.password: killbill
+org.killbill.dao.url: jdbc:mysql://127.0.0.1:3306/killbill
+org.killbill.dao.user: killbill
+org.killbill.dao.password: killbill
+----

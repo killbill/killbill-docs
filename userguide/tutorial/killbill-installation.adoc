@@ -1,0 +1,94 @@
+We will use https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] (the Kill Bill Package Manager) to simplify the installation of Kill Bill and its plugins.
+
+Create a kpm.yml file with the following content:
+
+[source,ruby]
+----
+killbill:
+  version: 0.12.1
+  webapp_path: /var/tmp/tomcat/webapps/ROOT.war
+  plugins_dir: /var/tmp/bundles
+  plugins:
+    ruby:
+      - name: paypal-express-plugin
+        version: 1.7.1
+      - name: stripe-plugin
+        version: 0.2.1
+----
+
+This instructs kpm to install Kill Bill version 0.12.1 in the Tomcat webapps directory, as well as two payment plugins, one for Stripe and one for PayPal. To start the installation, run:
+
+[source,bash]
+----
+kpm install kpm.yml
+----
+
+Once KPM is done, you should see the war at /var/tmp/tomcat/webapps/ROOT.war as well as various files and directories under /var/tmp/bundles.
+
+Plugins are installed under /var/tmp/bundles/plugins. You should see one sub-directory per plugin. If you work with Ruby, the directory structure should be familiar, as it is simply a gem cache. If you don't, don't worry. Just know that each plugin is independent and has all of its dependencies, hence the large number of files and directories.
+
+The /var/tmp/bundles/platform/ directory is used for non Kill Bill specific OSGI plugins. For convenience, it installed a recommended set of useful plugins to interact with OSGI, enhance logging, etc. If you don't know what OSGI is, don't worry about it, these plugins will just make your life easier down the line. There is one important file in that directory however: /var/tmp/bundles/platform/jruby.jar. This file makes it possible for Kill Bill to run Ruby plugins. While you could delete all other files in that directory, without jruby.jar, none of the payment plugins installed will start!
+
+==== Stripe setup
+
+Configure the Stripe plugin by create the configuration file at /var/tmp/bundles/plugins/ruby/killbill-stripe/0.2.1/stripe.yml (replace your credentials accordingly):
+
+[source,ruby]
+----
+:stripe:
+  :api_secret_key: 'sk_test_aaaabbbbccccdddd'
+  :test: true
+
+:database:
+  :adapter: 'jdbcmysql'
+  :jndi: 'killbill/osgi/jdbc'
+  :connection_alive_sql: 'select 1'
+  :pool: 25
+----
+
+==== PayPal setup
+
+Configure the Stripe plugin by create the configuration file at /var/tmp/bundles/plugins/ruby/killbill-paypal-express/1.7.1/paypal_express.yml (replace your credentials accordingly):
+
+[source,ruby]
+----
+:paypal_express:
+  :signature: 'your-paypal-signature'
+  :login: 'your-username-facilitator.something.com'
+  :password: 'your-password'
+  :test: true
+
+:database:
+  :adapter: 'jdbcmysql'
+  :jndi: 'killbill/osgi/jdbc'
+  :connection_alive_sql: 'select 1'
+  :pool: 25
+----
+
+==== Testing
+
+That's it! Kill Bill should be ready to use. Let's try to start Kill Bill:
+
+[source,bash]
+----
+./bin/catalina.sh run
+----
+
+One the startup sequence is done, you should see Kill Bill running at http://127.0.0.1:8080/index.html[http://127.0.0.1:8080/index.html].
+
+Test your installation by creating a tenant:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"apiKey": "bob", "apiSecret": "lazar"}' \
+     "http://127.0.0.1:8080/1.0/kb/tenants"
+----
+
+Tenants lets you namespace accounts and all associated data (subscriptions, invoices, payments, etc.) in Kill Bill. This is especially useful for testing: create a new tenant, try a few things out and when you are done, delete the data associated with this tenant (the rest of the data will be preserved).
+
+At this point, we're ready to integrate Kill Bill with your application.

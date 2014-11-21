@@ -1,0 +1,340 @@
+In your website, we assume you have a shopping cart module: users can add items to their basket and when they are ready, go to the checkout page. This page will present various payment options (credit card form and PayPal button), as well as display their payment methods on file (previously used credit cards or linked PayPal accounts).
+
+=== Creating accounts
+
+For simplicity, we will assume that users going to your site have to create an account in your system (you could work around this limitation using sessions). When they create their account, you will need to create a mirrored account in Kill Bill. This will let you do things like retrieve all payments for a given user, etc.
+
+To create an account:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"name":"John Doe","email":"john@example.com","externalKey":"john-doe-1234","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts"
+----
+
+Notes:
+
+* The externalKey should map to the unique id of the account in your system
+* There are many more fields you can store (phone number, address, etc.), but the above is the minimal set
+
+The call above will return a Location header containing the Kill Bill account id (uuid). In the following curl commands, you'll need to replace the account id with yours.
+
+=== Storing payment methods
+
+At some point, the user will need to store his credit card information and/or his PayPal account. This can happen on a settings section of your website, or during the checkout flow.
+
+This step is probably the most difficult one, as it is payment processor specific.
+
+==== Stripe
+
+Handling credit card information is regulated by the PCI-DSS standard. Fortunately, Stripe lets your work around these requirements by providing a special form. Users will use this form to securely store their card into Stripe servers, while Stripe will give you a token you will use to charge these cards.
+
+For more details on the integration, checkout the https://stripe.com/docs/tutorials/forms[stripe.js] documentation.
+
+When the Javascript call returns from Stripe, it will contain the token that needs to be stored in Kill Bill:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{
+       "pluginName": "killbill-stripe",
+       "pluginInfo": {
+         "properties": [
+           {
+             "key": "token",
+             "value": "t3GER3BP3JHLASZe"
+           }
+         ]
+       }
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+----
+
+This will create a new payment method and set is as the default for the account.
+
+==== PayPal
+
+The PayPal flow is a bit different. You first need to tell PayPal you are going to create a token:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{
+       "kb_account_id": "13d26090-b8d7-11e2-9e96-0800200c9a66",
+       "currency": "USD",
+       "options": {
+         "return_url": "http://www.google.com/?q=SUCCESS",
+         "cancel_return_url": "http://www.google.com/?q=FAILURE",
+         "billing_agreement": {
+           "description": "Your subscription"
+         }
+       }
+     }' \
+     "http://127.0.0.1:8080/plugins/killbill-paypal-express/1.0/setup-checkout"
+----
+
+Kill Bill will return a 302 Found on success. The customer should be redirected to the url specified in the Location header, e.g. https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=EC-20G53990M6953444J.
+
+On the PayPal site, the user will be guided through the approval process to create a recurring token for your website.
+
+Once the customer comes back from the PayPal flow, save the token (also known as BAID, for Billing Agreement ID) in Kill Bill:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{
+       "pluginName": "killbill-paypal-express",
+       "pluginInfo": {
+         "properties": [
+           {
+             "key": "token",
+             "value": "20G53990M6953444J"
+           }
+         ]
+       }
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+----
+
+
+=== Processing payments
+
+While storing a payment method is payment processor specific, triggering payments isn't (Kill Bill is hiding the complexity for you). When the user clicks "buy" on your checkout page, perform the following call (update the amount accordingly):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     --data-binary '{"transactionType":"PURCHASE","amount":"10","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"
+----
+
+That's it! The call will synchronously go to Stripe or PayPal, depending on the default payment method on the account, and perform the payment.
+
+If you want to display payment methods information on the checkout page, you can retrieve them via:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?pluginInfo=true"
+----
+
+This is useful if you want to let the user override the payment method to use during checkout. In that case, you can pass the query parameter paymentMethodId to the purchase call above.
+
+
+== Subscriptions integration
+
+Now that your users are able to purchase their products, we want to offer a buy-up subscription option, and offer free shipping to subscribed users. For simplicity, we will assume that we offer a single Standard plan, at $24.95 per month.
+
+=== Creating the catalog
+
+Plans are defined in an xml configuration file. This file is really powerful and offer various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the http://killbill.io/userguide/subscriptions-userguide/[Subscription Billing] user guide.
+
+For this tutorial, here is what the catalog looks like:
+
+[source,xml]
+----
+<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CatalogSchema.xsd ">
+    <effectiveDate>2014-11-01T00:00:00+00:00</effectiveDate>
+    <catalogName>ShoppiShop</catalogName>
+    <recurringBillingMode>IN_ADVANCE</recurringBillingMode>
+    <currencies>
+        <currency>USD</currency>
+    </currencies>
+    <products>
+        <product name="Standard">
+            <category>BASE</category>
+        </product>
+    </products>
+    <rules>
+        <changePolicy>
+            <changePolicyCase>
+                <policy>IMMEDIATE</policy>
+            </changePolicyCase>
+        </changePolicy>
+        <changeAlignment>
+            <changeAlignmentCase>
+                <alignment>START_OF_BUNDLE</alignment>
+            </changeAlignmentCase>
+        </changeAlignment>
+        <cancelPolicy>
+            <cancelPolicyCase>
+                <policy>IMMEDIATE</policy>
+            </cancelPolicyCase>
+        </cancelPolicy>
+        <createAlignment>
+            <createAlignmentCase>
+                <alignment>START_OF_BUNDLE</alignment>
+            </createAlignmentCase>
+        </createAlignment>
+        <billingAlignment>
+            <billingAlignmentCase>
+                <alignment>ACCOUNT</alignment>
+            </billingAlignmentCase>
+        </billingAlignment>
+        <priceList>
+            <priceListCase>
+                <toPriceList>DEFAULT</toPriceList>
+            </priceListCase>
+        </priceList>
+    </rules>
+    <plans>
+        <plan name="standard-free">
+            <product>Standard</product>
+            <finalPhase type="EVERGREEN">
+                <duration>
+                    <unit>UNLIMITED</unit>
+                </duration>
+                <fixed></fixed>
+            </finalPhase>
+        </plan>
+        <plan name="standard-monthly">
+            <product>Standard</product>
+            <finalPhase type="EVERGREEN">
+                <duration>
+                    <unit>UNLIMITED</unit>
+                </duration>
+                <recurring>
+                    <billingPeriod>MONTHLY</billingPeriod>
+                    <recurringPrice>
+                        <price>
+                            <currency>USD</currency>
+                            <value>24.95</value>
+                        </price>
+                    </recurringPrice>
+                </recurring>
+            </finalPhase>
+        </plan>
+    </plans>
+    <priceLists>
+        <defaultPriceList name="DEFAULT">
+            <plans>
+                <plan>standard-free</plan>
+                <plan>standard-monthly</plan>
+            </plans>
+        </defaultPriceList>
+    </priceLists>
+</catalog>
+----
+
+While each section is described in greater detail in the user guide, here are the important points to notice:
+
+* recurringBillingMode is set to IN_ADVANCE, meaning we will invoice at the beginning of a billing period
+* We have defined a single Standard product. The category is BASE (as opposed to ADD_ON)
+* There are two plans defined: standard-free and standard-monthly. We could have just defined the latter, but we will make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
+* There is no trial period
+
+=== Creating and retrieving subscriptions
+
+Set the following property (in conf/catalina.properties) and restart Kill Bill (make sure to update the path to your catalog):
+
+[source,xml]
+----
+org.killbill.catalog.uri=file:///var/tmp/catalog.xml
+----
+
+Let's try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section otherwise):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"accountId":"0c9548f0-3c8f-41e8-abe2-966510076daf","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions"
+----
+
+Because there is no trial period and billing is performed in advance, Kill Bill will have automatically billed the user for the first month.
+
+To view the invoice:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/0c9548f0-3c8f-41e8-abe2-966510076daf/invoices"
+----
+
+To view the payment:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/0c9548f0-3c8f-41e8-abe2-966510076daf/payments"
+----
+
+Kill Bill will now automatically charge the user on a monthly basis. You can estimate the amount which will be billed at a future date (replace the targetDate parameter with a date in the future):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=0c9548f0-3c8f-41e8-abe2-966510076daf&targetDate=2014-12-21"
+----
+
+=== Premium feature example: applying 10% discount at checkout
+
+We are able to charge customers one a one-time basis, and subscribe them to the premium plan. We now need to bring it together: as an example, we will apply a 10% discount in the shopping cart, when users are premium subscribers.
+
+In the basket view, retrieve the list of bundles the user is subscribed to:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/0c9548f0-3c8f-41e8-abe2-966510076daf/bundles"
+----
+
+The subscription list will show the cancellation status: cancelledDate. If it's null or in the future, the subscriber is still a paying customer, in which case you can apply the 10% discount.
