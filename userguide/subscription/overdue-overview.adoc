@@ -1,11 +1,8 @@
-The overdue system takes care of dunning.
+Kill Bill offers an `Overdue` (or also referred to as Dunning) feature, which is required for when users don't pay their bills. In those cases, the merchant needs to take some action and so the feature must be customizable. Note that the `Entitlement` and `Overdue` modules in Kill Bill are tied to each other and are there to manage the customer experience with regards to her subscription(s):
 
-In practice, the overdue behavior is defined in an XML file (see an example https://raw.githubusercontent.com/killbill/killbill/master/server/src/test/resources/overdue.xml[here]). Please refer to the Overdue Configuration documentation to make Kill Bill use your own overdue configuration file.
+* The `Entitlement` module defines the behavior of the system when the user starts, cancels a subscription or makes some change in an existing subscription. It controls the level of service received by the user (from no service at all to full service) after such an operation occured.
+* The `Overdue` module is in charge of altering the customer experience when payments are not met, and that potentially includes some degradation or even cancelation of the service. The overdue state is defined at the account level, which means that if a user has multiple subscriptions, and an invoice associated with one of them has not been paid, the behavior of the system with regard to the overdue state will be global for all subscriptions.
 
-If you need an xsd file, you can generate one using the overdue xsd-tool (replace 0.10.0 with your Kill Bill version):
 
-[source,bash]
-----
-curl -O 'http://search.maven.org/remotecontent?filepath=org/kill-bill/billing/killbill-overdue/0.10.0/killbill-overdue-0.10.0-xsd-tool.jar'
-java -jar killbill-overdue-0.10.0-xsd-tool.jar schema.xsd
-----
+The Overdue module in Kill Bill relies on a configuration file which drives its behavior. The file is specifed through the use of the `org.killbill.overdue.uri` system property. The Overdue module listens to payment events and then, based on the configuration it transitions the overdue state for an account to the appropriate state. Whether the payment was a failure or not, the Overdue module will recompute the state associated with the account and potentially make the transition to another state.
+
