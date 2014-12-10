@@ -1,0 +1,121 @@
+In this tutorial, we look a little bit deeper into the overdue system. The http://killbill.io/userguide/subscriptions-userguide/[subscription user guide] provides a section explaining the basics about the overdue system and in particular goes through the schema of the `overdue.xml` configuration file. The tutorial will attempt to put the pieces together.
+ 
+=== Scenario
+
+Let's assume you want to build a web site where your customers can subscribe to movies (similar to Netflix). For the sake of simplicity we will assume you only provide one plan where your customers will need to pay $10 per month for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access but are not required to pay yet.
+
+
+We will also assume that we want to configure the overdue system (dunning) to take some actions when users don't pay:
+1. The system should be configured to retry failed payments 3 times: the first two payment retries should happen 1 day after the last attempt, and the last one should happen 8 days after previous attempt
+2. The system should notify the user when an invoice has not been paid after 10 days (and after the system already automatically retried 3 times)
+3. The system should block the entitlements associated with the account after 14 (from the start date where invoice was not paid)
+4. The system should automatically cancel the subscriptions after 21 days
+
+
+== Configuration of the System
+
+=== Catalog Configuration
+
+Your catalog will contain a plan entry that specifies two phases, one for the $0 TRIAL and one for the recurring monthly charge of $10 -- note that we omitted the other parts of the catalog such as alignment rules, ... which is beyond the scope of that tutorial:
+
+[source,xml]
+---
+<plan name="movies-monthly">
+    <product>Movies</product>
+    <initialPhases>
+       <phase type="TRIAL">
+           <duration>
+               <unit>DAYS</unit>
+               <number>10</number>
+           </duration>
+           <fixed>
+               <fixedPrice>
+			   <!-- empty price implies $0 -->
+               </fixedPrice>
+           </fixed>
+       </phase>
+    </initialPhases>	
+    <finalPhase type="EVERGREEN">
+        <duration>
+            <unit>UNLIMITED</unit>
+        </duration>
+        <recurring>
+            <billingPeriod>MONTHLY</billingPeriod>
+            <recurringPrice>
+                <price>
+                    <currency>USD</currency>
+                    <value>10.00</value>
+                </price>
+            </recurringPrice>
+        </recurring>
+    </finalPhase>
+</plan>
+---
+
+=== Overdue Configuration
+
+The configurartion below defines the 3 different states:
+
+* `WARNING`: 
+** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 10 days as specified by the scenario
+** `disableEntitlementAndChangesBlocked` is set to false since we still want the user to have access to the service
+** `autoReevaluationInterval` is set to 4 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `BLOCKED` 4 days later 
+** `blockChanges` is set to true to prevent users from changing plans until they clear their balance (was not specified in the scenario, but probably a good practice to follow)
+* `BLOCKED`:
+** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 14 days as specified by the scenario
+** `disableEntitlementAndChangesBlocked` is set to true since we now want the user to NOT have access to the service
+** `autoReevaluationInterval` is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `CANCELATION` 8 days later 
+* `CANCELATION`:
+** `subscriptionCancellationPolicy` is set to `END_OF_TERM` to indicate that subscriptions should be cancelled in such a way that we do not generate credit for the account (no proration)
+
+
+[source,xml]
+---
+<overdueConfig>
+   <accountOverdueStates>
+       <state name="CANCELATION">
+           <condition>
+               <timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+                   <unit>DAYS</unit><number>21</number>
+               </timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+           </condition>
+           <externalMessage>Reached CANCELATION</externalMessage>
+           <subscriptionCancellationPolicy>END_OF_TERM</subscriptionCancellationPolicy>
+       </state>
+       <state name="BLOCKED">
+           <condition>
+               <timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+                   <unit>DAYS</unit><number>14</number>
+               </timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+           </condition>
+           <externalMessage>Reached BLOCKED</externalMessage>
+           <blockChanges>true</blockChanges>
+           <disableEntitlementAndChangesBlocked>true</disableEntitlementAndChangesBlocked>
+           <autoReevaluationInterval>
+               <unit>DAYS</unit><number>7</number>
+           </autoReevaluationInterval>
+       </state>
+       <state name="WARNING">
+           <condition>
+               <timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+                   <unit>DAYS</unit><number>10</number>
+               </timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+           </condition>
+           <externalMessage>Reached WARNING</externalMessage>
+           <blockChanges>true</blockChanges>
+           <disableEntitlementAndChangesBlocked>false</disableEntitlementAndChangesBlocked>
+           <autoReevaluationInterval>
+               <unit>DAYS</unit><number>4</number>
+           </autoReevaluationInterval>
+       </state>
+   </accountOverdueStates>
+   <initialReevaluationInterval>
+       <unit>DAYS</unit><number>4</number>
+   </initialReevaluationInterval>
+</overdueConfig>
+---
+
+
+=== Payment retries
+
+In addition we need to configure the payment system to retry failed payments; the system property `org.killbill.payment.retry.days` specifies the retry policy associated to payment failures. In our case we need to set it to `1,1,8` to indicate 3 payment retries, the first one after 1 day, and then 1 day after, and the last one 8 days after the previous one (as specified in our scenario)

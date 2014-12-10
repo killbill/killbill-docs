@@ -1,0 +1,42 @@
+== Use of the APIs
+
+When a customer attempts to use the service, the web site *could* verify if the customer is entitled to receive the service:
+
+1. It should first retrieve the overdue status (at the account level) using the `GET /1.0/kb/accounts/{accountId}/overdue` api,
+2. It should then retrieve the subscriptions associated with the account `GET /1.0/kb/accounts/{accountId}/bundles`, or if the subscriptionId was cached it could use `GET /1.0/kb/subscriptions/{subscriptionId}`
+
+The endpoint `GET /1.0/kb/accounts/{accountId}/overdue` will return the following json:
+
+[source,json]
+---
+{ "blockChanges": true,
+"clearState": false,
+"daysBetweenPaymentRetries": 1,
+"disableEntitlementAndChangesBlocked": false,
+"externalMessage": "Reached WARNING",
+"name": "WARNING",
+"reevaluationIntervalDays": 4 }
+---
+
+If the `disableEntitlementAndChangesBlocked` is set to true, it means that the customer is not entitled to the service associated to any subscriptions.
+
+
+
+So, note that retrieving subscriptions through the `GET /1.0/kb/subscriptions/{subscriptionId}` will not directly indicate the overdue status, and so both calls must be made to have a complete picture of the entitlement when the overdue system has been configured.
+
+When retrieving entitlement/overdue status, the web site could be implemented to take all kind of actions such as displaying warning message, degrading experience, emailing customer, ...
+
+
+== Custom Plugins
+
+In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs in for instance). Another pattern, is to create a custom plugin that will listen to Overdue events. Examples of such plugins can be found here:
+
+* https://github.com/killbill/killbill-hello-world-java-plugin/blob/master/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldListener.java[Java plugin]
+* https://github.com/killbill/killbill-hello-world-ruby-plugin/blob/master/lib/helloworld/user_listener.rb[Ruby plugin]
+
+The plugin would need to filter for `OVERDUE_CHANGE` https://github.com/killbill/killbill-plugin-api/blob/master/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[events]
+
+Such plugins can be used for the following purpose:
+
+* Email/Notify user about the new state
+* Take action to modify the experience (based on the state name), for instance to degrade the service, or modify the login flow on a website to prompt for payments, ...
