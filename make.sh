@@ -6,6 +6,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 USERGUIDE_INPUT_DIR=$DIR/userguide
 # WordPress layout, per section
 WP_INPUT_DIR=$USERGUIDE_INPUT_DIR/layout/wp
+WP_TUTORIALS_INPUT_DIR=$WP_INPUT_DIR/tutorials
 SELFCONTAINED_INPUT_DIR=$USERGUIDE_INPUT_DIR/layout/selfcontained
 # Common options
 COMMON_OPTS="-a sourcedir=$USERGUIDE_INPUT_DIR,imagesdir=$USERGUIDE_INPUT_DIR/assets"
@@ -16,15 +17,23 @@ SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -a doctype=book,toc,toclevels=6,data-uri,
 
 BUILD_DIR=$DIR/build
 WP_BUILD_DIR=$BUILD_DIR/wp
+WP_TUTORIALS_BUILD_DIR=$BUILD_DIR/wp/tutorials
 SELFCONTAINED_BUILD_DIR=$BUILD_DIR/selfcontained
 
 WP_BUILD="asciidoctor $WP_EXTRA_OPTS -B $USERGUIDE_INPUT_DIR -D $WP_BUILD_DIR"
+WP_TUTORIALS_BUILD="asciidoctor $WP_EXTRA_OPTS -B $USERGUIDE_INPUT_DIR -D $WP_TUTORIALS_BUILD_DIR"
 SELFCONTAINED_BUILD="asciidoctor $SELFCONTAINED_EXTRA_OPTS -B $USERGUIDE_INPUT_DIR -D $SELFCONTAINED_BUILD_DIR"
 
 # Setup
 rm -rf $BUILD_DIR && mkdir -p $BUILD_DIR
 
 echo "*** Building WordPress sections"
+for doc in `find $WP_TUTORIALS_INPUT_DIR -type d -maxdepth 1`; do
+  for section in `find $doc -type f -maxdepth 1`; do
+    echo "Building $section"
+    $WP_TUTORIALS_BUILD $section
+  done
+done
 for doc in `find $WP_INPUT_DIR -type d -maxdepth 1`; do
   for section in `find $doc -type f -maxdepth 1`; do
     echo "Building $section"
