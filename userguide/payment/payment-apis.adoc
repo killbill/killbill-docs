@@ -136,7 +136,9 @@ Notes:
 
 The *buildFormDescriptor* call is used when you need to prepare a payment form. There are two main scenarii:
 
-* The payment form is hosted on your own website, but the gateway requires custom hidden fields and visible fields need special names. In that case, the plugin simply returns the list of fields with their expected name (e.g. *Sum* field for the order amount, hidden *merchantId* field, etc.)
+* The payment form is hosted on your own website. The exact fields to add in this form are returned by the plugin. These can be:
+** required visible fields, such as the amount of the payment. The plugin will return the name expected by the gateway (e.g. *Sum* instead of *amount*)
+** hidden fields (e.g. *merchantId* value)
 * The payment form is hosted on the gateway website. In that case, the plugin builds a unique URL to redirect the user to by either:
 ** submitting the order information (amount, etc.) to the gateway which returns the location of the hosted payment form
 ** constructing the special URL via query parameters
@@ -158,6 +160,7 @@ curl -v \
 
 Notes:
 
+* Replace _268983f2-5443-47e4-a967-b8962fc699c5_ with the account id
 * You can specify another payment method (other than the default one) via the *paymentMethodId* query parameter
 
 [[gateway-notification]]
@@ -181,9 +184,17 @@ Make sure to replace *pluginName* with your plugin name (e.g. killbill-bitpay).
 
 The plugin will deserialize either the request body and/or the url query parameters to process the notification and return a properly formatted HTTP response object for the gateway (some gateways require specific reponse codes or headers to consider the notification processed and prevent retries).
 
+Because this endpoint needs to be on a public IP (to be accessible from the gateway), we recommend using the https://github.com/killbill/killbill-notifications-proxy[Kill Bill Notifications Proxy] to avoid exposing the entire Kill Bill server.
+
 === Examples of hosted pages flows
 
 The implementation of the *buildFormDescriptor* and *processNotification* APIs described above will vary from gateway to gateway. Here are a couple of example flows.
+
+While the internal mechanics of completing the payment vary for each plugin, the overall steps are usually the same:
+
+. Your website calls *buildFormDescriptor* and interprets the result
+. The customer is then either shown a payment form or redirected to an external page
+. The customer completes the payment
 
 ==== Gateway notifies Kill Bill of the payment
 
