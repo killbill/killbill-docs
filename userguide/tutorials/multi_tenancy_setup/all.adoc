@@ -1,0 +1,448 @@
+== Introduction
+
+=== Scenario
+
+In this tutorial, we will look at how one could leverage the multi-tenancy feature from Kill Bill. The scenario we will describe, is one where we would like to provide 'Subscription As A Service' (SaaS) in the cloud (AWS). The tutorial will skip all the operational good practises such as redundancy of instances, firewalls, load balancers and focus instead on the Kill Bill specifics. Also, note that when deployiong in the cloud where instances can come and go, the https://github.com/killbill/killbill/wiki/Kill-Bill-Notification-Configuration[configuration of the bus and notifications queues] need to be understood.
+
+
+We will assume that we only need one plugin to make the payments, and as an example we will use the stripe plugin.
+
+
+=== Users and Roles
+
+Let's start be defining some users and role:
+
+* The user setting up the `Subscription As A Service` in the cloud, is called *superadmin*, and will have all the privileges to configure the tenants and setup the roles associated with the other users.
+* The admin user associated to each tenant will be called `admin_X` where `X` is the name of the tenant.
+
+Let's take the case of a small yoga studio that wants to use our `Subscription As A Service` to provide subscriptions to its users: The name of the merchant is Shakti, and so we will create a user called *admin_shakti* for the tenant `shakti`.
+The `admin_shakti` user will have full privileges for its Shakti tenant and will not see any of the other tenants.
+
+Of course, for our own purpose of providing the service, we will also create a very first tenant to invoice our merchants (e.g the Shakti business). That tenant will be called `saas` ('Subscription As A Service'), and the associated admin user will be called *admin_saas*.
+
+
+Also, for sake of simplicity, we will setup Kill Bill to use a static http://shiro.apache.org/configuration.html[Shiro configuration file] to configure the various admin users/roles. In real life, it would be more practical to rely on LDAP rather that static configuration, which requires restarting Kill Bill when creating new users/roles. The LDAP configuartion is supported by Shiro but we will not describe the steps in that turorial to keep it simple.
+
+
+== Kill Bill Multi-tenant Deployment
+
+
+=== Overview of AWS Deployment Steps
+
+We already described the lengthy steps required to configure the various EC2 instances in that http://killbill.io/tutorials/aws[tutorial] so we won't go into details here again. Note however, that these instructions have been written after the 0.12.1 release so they will need to be slightly tweaked to change the Kill Bill version, ddl files, ... from 0.12.1 to at least 0.13.5 (The Docker image 0.13.5 has been released). In addition to that, we will need an extra zone to configure the admin UI (KAUI).
+
+The deployment will rely on the 2 Docker images:
+
+* killbill/killbill:0.13.5
+* killbill/kaui:0.1.3
+
+
+For the Kill Bill Deployment, the `killbill` database schema will need to include:
+
+* http://killbill.io/wp-content/uploads/2015/03/killbill-0.13.5.ddl[Kill Bill DDL]
+* https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql[Stripe plugin DDL]
+* https://raw.githubusercontent.com/killbill/killbill-analytics-plugin/master/src/main/resources/org/killbill/billing/plugin/analytics/ddl.sql[Analytrics plugin DDL]
+
+For the KAUI deployment, the `kaui` database will need to include:
+
+* https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[The KAUI DDL]
+
+
+
+=== Configuration Files
+
+Kill Bill and its plugins will rely on a set of configuration files and those will be first uploaded on the docker host (that is, the EC2 instance where the docker container runs), and then we will use the docker `mapping` mechanism to make those configuration files visible into the docker data volume. The configuration files will need to be uploaded under `/home/ubuntu/killbil/etc/<config>`, and then that directory will be mapped to the `/etc/killbill/<config>` by specifying the option `-v` when we `run` the container.
+
+
+The following configurations files will be needed:
+
+
+[source, bash]
+.shiro.ini
+----
+[users]
+superadmin = PWD, root
+admin_shakti = PWD, root_tenant
+admin_saas = PWD, root_tenant
+[roles]
+root = *:*
+root_tenant = account,catalog,entitlement,invoice,overdue,payment,tag
+----
+
+Note: PWD is a specific password for each of those users.
+
+[source, bash]
+.stripe.yml
+----
+:stripe:
+  :api_secret_key: 'INVALID'
+  :api_publishable_key: 'INVALID'
+
+:database:
+  :adapter: 'jdbcmysql'
+  :username: 'RDS_USERNAME'
+  :password: 'RDS_PWD'
+  :driver: 'com.mysql.jdbc.Driver'
+  :url: 'jdbc:mysql://RDS_URL/killbill'
+----
+
+Notes:
+
+* We set the `api_secret_key` and `api_publishable_key` to INVALID explicitly since those settings will be overridden on a per tenant basis in the last section. However the database section is global for all tenant so we need to specify it as a global level here.
+* RDS_USERNAME, RDS_PWD, RDS_URL are respectively the username, password and url of your RDS instance.
+
+
+=== Starting the Kill Bill Instance
+
+Again, here we will be reusing the same instances we configured in the http://killbill.io/tutorials/aws/ [aws tutorial], and start first pull and and then run the docker containers in these EC2 instances:
+
+
+[source, bash]
+.Kill Bill Docker Sequence:
+----
+> sudo docker pull killbill/killbill:0.13.5
+> sudo docker run -tid \
+  -–name killbillsaas \
+  -p 8080:8080 \
+  -v /home/ubuntu/killbil/etc/stripe.yml:/etc/killbill/stripe.yml \
+  -v /home/ubuntu/killbil/etc/shiro.ini:/etc/killbill/shiro.ini \
+  -e KILLBILL_PLUGIN_STRIPE=1 \
+  -e KILLBILL_PLUGIN_ANALYTICS=1 \
+  -e KILLBILL_CONFIG_DAO_URL=jdbc:mysql://RDS_URL/killbill \
+  -e KILLBILL_CONFIG_DAO_USER=RDS_USER \
+  -e KILLBILL_CONFIG_DAO_PASSWORD=RDS_PWD \
+  -e KILLBILL_CONFIG_OSGI_DAO_URL=jdbc:mysql://RDS_URL/killbill \
+  -e KILLBILL_CONFIG_OSGI_DAO_USER=RDS_USER \
+  -e KILLBILL_CONFIG_OSGI_DAO_PASSWORD=RDS_PWD \
+     killbill/killbill:0.13.5
+> sudo docker logs -f killbillsaas  // check for instance to be up and running
+----
+
+
+At this point and after the container is up, there are a few steps that need to be performed. The first step is to change the default `killbill.properties` to include the new property `org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini`.
+Since the `killbill.properties` are not exported outside of the container, we need to first edit the file from within the container and then restart the instance so the new properties take effect:
+
+[source, bash]
+.KAUI Docker Sequence:
+----
+> sudo docker -ti killbillsaas /bin/bash echo "org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini" >> /etc/killbill/killbill.properties
+> sudo docker restart killbillsaas
+> sudo docker logs -f killbillsaas
+----
+
+TODO: Fix adding the property ...
+
+Finally since we run the analytics plugin, we need to configure the analytics table. There is a script that can be run to configure the analytics table with all the existing views and reports:
+
+[source, bash]
+----
+> cd /tmp
+> curl -q -O https://raw.githubusercontent.com/killbill/killbill-analytics-plugin/master/src/main/resources/seed_reports.sh
+> export KILLBILL_HOST=KILLBILL_PUBLIC_IP; export KILLBILL_USER=superadmin; export KILLBILL_PASSWORD=PWD; export MYSQL_HOST=RDS_IP; export MYSQL_HOST=RDS_PORT; export MYSQL_PASSWORD=RDS_PWD ; export MYSQL_USER=RDS_USER;  ./seed_reports.sh
+----
+
+=== Starting the KAUI Instance
+
+[source, bash]
+.For Kaui:
+----
+> sudo docker pull killbill/kaui:0.1.3
+> docker run -tid \
+           --name kaui-saas \
+           -p 3000:8080 \
+           --link killbill-0.13.5:killbill \
+           -e KAUI_CONFIG_DAO_URL=jdbc:mysql://RDS_URL/kaui \
+           -e KAUI_CONFIG_DAO_USER=RDS_USER \
+           -e KAUI_CONFIG_DAO_PASSWORD=RDS_PWD \
+		   -e KAUI_URL=http://KILLBILL_PUBLIC_IP:8080 \
+           killbill/kaui:0.1.3
+> sudo docker logs -f kaui-saas
+----
+
+
+== Saas Setup
+
+=== Creating the tenants and configuring allowed users
+
+KAUI has been enhanced with new `admin screens`, that are described in the Multi-tenancy screens section https://github.com/killbill/killbill-admin-ui[of that doc].
+
+The first step is to login as `superadmin` to have the rights to create new tenants and configure all allowed users.
+
+Starting on the `/admin_tenants` screen, click to `Configure a New Tenant` to create the 2 tenants `saas` and `shakti`; for e.g for `shakti` we would enter:
+
+* Name :  `shakti`
+* API Key: `some_key_fort_shakti`
+* API Secret: `some_secret_for_shakti`
+* Click on the `Create tenant` to also create the tenant in Kill Bill.
+
+At this point the tenant exists in Kill Bill and is known from KAUI as well.
+
+We can then configure the allowed users. KAUI needs to know who can access which tenant, and this information is kept in the KAUI database.
+It really means that any user known from Kill Bill (shiro.ini) will be able to make API calls against any tenant provided the user specifies the correct tenant `api_key` and `api_secret`, so the security resides behind keeping those keys secret.
+On the screen `/admin_allowed_users`, click on `Add a new Allowed User`; for e.g for the shakti administrator we would enter:
+
+* Name : `admin_shakti` # This has to match the `shiro.ini` configuration
+* Description : Admin user for tenant `shakti`
+
+Then you will be prompted to select the tenant this users has access to. In our example of `admin_shakti`, we will select the available tenant `shakti` from the list that we previously configured.
+
+Obviously for the user `superadmin` we would add the two tenants `saas` and `shakti`.
+
+When all the users and tenants have been configured, you can try to logout, and login as a specific user (for e.g `admin_shakti`).
+If the user has only access to one tenant, the process of login-in will directly assign that tenant and all subsequent operations will be made against that tenant.
+If the user has more than one tenant, the user will be prompted to chose which tenant to use right after the login screen.
+
+
+
+=== Configuring each tenant
+
+Both Kill Bill and KAUI have been improved to now support uploading per tenant configuration:
+
+* The UI offers new screens to upload all these new configs
+* The plugins get notified when such config occurs so they can take action if needed
+* In multi-node scenario, there is a mechanism to make sure other nodes, that did not process the per tenant config change will be notified and refresh their view
+
+The following per-tenant configuration can now be uploaded:
+
+* Per Tenant Versioned Catalog: Each new upload will create a new version of the catalog
+* Per Tenant Overdue Config: Each new upload will overwrite the previous version of the overdue.xml associated with this tenant
+* Per Tenant Invoice Template: Each new upload will overwrite the previous version of the invoice template associated with this tenant
+* Per Tenant Invoice Translation: Each new upload will overwrite the previous version of the invoice translation associated with this tenant
+* Per Tenant Catalog Translation: Each new upload will overwrite the previous version of the catalog translation associated with this tenant
+* Per Tenant Plugin Translation: Each new upload will overwrite the previous version of the config associated with this tenant and this specific plugin
+
+Let's do some basic configuration for the tenant 'shakti'. We will upload a catalog and then a specific configuration for the stripe plugin. You can login as `superadmin` or `admin_shakti` since both these users have the right to access that tenant. From the screen `/admin_tenants/` chose the shakti tenant.
+
+Then, let's start with the stripe plugin: Create a valid config and then use the `Plugin Config` section of the page to specify the plugin name `killbill-stripe` and then upload the yml shown below:
+
+.Per tenant stripe.yml:
+----
+:stripe:
+  :api_secret_key: 'YOUR_VALID_TENANT_API_SECRET_KEY'
+  :api_publishable_key: 'YOUR_VALID_TENANT_API_PUBLISHABLE_KEY'
+----
+
+Then let's now upload a catalog for our tenant: Create the following catalog and then use the `Tenant Catalog XML` section to upload the file associated with the tenant.
+
+.Shakti Catalog:
+----
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="CatalogSchema.xsd ">
+
+    <effectiveDate>2013-02-08T00:00:00+00:00</effectiveDate>
+    <catalogName>Shakti</catalogName>
+
+    <recurringBillingMode>IN_ADVANCE</recurringBillingMode>
+
+    <currencies>
+        <currency>USD</currency>
+        <currency>EUR</currency>
+    </currencies>
+
+    <products>
+        <product name="Ashtanga">
+            <category>BASE</category>
+            <included>
+                <addonProduct>Pranayama</addonProduct>
+            </included>
+        </product>
+        <product name="Flow">
+            <category>BASE</category>
+        </product>
+        <product name="Iyengar">
+            <category>BASE</category>
+            <available>
+                <addonProduct>Pranayama</addonProduct>
+            </available>
+        </product>
+        <product name="Pranayama">
+            <category>ADD_ON</category>
+        </product>
+    </products>
+
+    <rules>
+        <changePolicy>
+            <changePolicyCase>
+                <policy>IMMEDIATE</policy>
+            </changePolicyCase>
+        </changePolicy>
+        <changeAlignment>
+            <changeAlignmentCase>
+                <alignment>START_OF_BUNDLE</alignment>
+            </changeAlignmentCase>
+        </changeAlignment>
+        <cancelPolicy>
+            <cancelPolicyCase>
+                <policy>IMMEDIATE</policy>
+            </cancelPolicyCase>
+        </cancelPolicy>
+        <createAlignment>
+            <createAlignmentCase>
+                <alignment>START_OF_BUNDLE</alignment>
+            </createAlignmentCase>
+        </createAlignment>
+        <billingAlignment>
+            <billingAlignmentCase>
+                <alignment>ACCOUNT</alignment>
+            </billingAlignmentCase>
+        </billingAlignment>
+        <priceList>
+            <priceListCase>
+                <toPriceList>DEFAULT</toPriceList>
+            </priceListCase>
+        </priceList>
+    </rules>
+
+    <plans>
+        <plan name="ashtanga-monthly">
+            <product>Ashtanga</product>
+            <initialPhases>
+                <phase type="TRIAL">
+                    <duration>
+                        <unit>DAYS</unit>
+                        <number>30</number>
+                    </duration>
+                    <fixed>
+                        <fixedPrice> <!-- empty price implies $0 -->
+                        </fixedPrice>
+
+                    </fixed>
+                </phase>
+            </initialPhases>
+            <finalPhase type="EVERGREEN">
+                <duration>
+                    <unit>UNLIMITED</unit>
+                </duration>
+                <recurring>
+                    <billingPeriod>MONTHLY</billingPeriod>
+                    <recurringPrice>
+                        <price>
+                            <currency>EUR</currency>
+                            <value>150.00</value>
+                        </price>
+                        <price>
+                            <currency>USD</currency>
+                            <value>175.00</value>
+                        </price>
+                    </recurringPrice>
+                </recurring>
+            </finalPhase>
+        </plan>
+        <plan name="flow-monthly">
+            <product>Flow</product>
+            <initialPhases>
+                <phase type="TRIAL">
+                    <duration>
+                        <unit>DAYS</unit>
+                        <number>30</number>
+                    </duration>
+                    <fixed>
+                        <fixedPrice> <!-- empty price implies $0 -->
+                        </fixedPrice>
+                    </fixed>
+                </phase>
+            </initialPhases>
+            <finalPhase type="EVERGREEN">
+                <duration>
+                    <unit>UNLIMITED</unit>
+                </duration>
+                <recurring>
+                    <billingPeriod>MONTHLY</billingPeriod>
+                    <recurringPrice>
+                        <price>
+                            <currency>EUR</currency>
+                            <value>100.00</value>
+                        </price>
+                        <price>
+                            <currency>USD</currency>
+                            <value>125.00</value>
+                        </price>
+                    </recurringPrice>
+                </recurring>
+            </finalPhase>
+        </plan>
+        <plan name="iyengar-monthly">
+            <product>Iyengar</product>
+            <initialPhases>
+                <phase type="TRIAL">
+                    <duration>
+                        <unit>DAYS</unit>
+                        <number>30</number>
+                    </duration>
+                    <fixed>
+                        <fixedPrice> <!-- empty price implies $0 -->
+                        </fixedPrice>
+
+                    </fixed>
+                </phase>
+            </initialPhases>
+            <finalPhase type="EVERGREEN">
+                <duration>
+                    <unit>UNLIMITED</unit>
+                </duration>
+                <recurring>
+                    <billingPeriod>MONTHLY</billingPeriod>
+                    <recurringPrice>
+                        <price>
+                            <currency>EUR</currency>
+                            <value>115.00</value>
+                        </price>
+                        <price>
+                            <currency>USD</currency>
+                            <value>150.00</value>
+                        </price>
+                    </recurringPrice>
+                </recurring>
+            </finalPhase>
+        </plan>
+        <plan name="pranayama-monthly">
+            <product>Pranayama</product>
+            <initialPhases>
+                <phase type="TRIAL">
+                    <duration>
+                        <unit>DAYS</unit>
+                        <number>30</number>
+                    </duration>
+                    <fixed>
+                        <fixedPrice> <!-- empty price implies $0 -->
+                        </fixedPrice>
+
+                    </fixed>
+                </phase>
+            </initialPhases>
+            <finalPhase type="EVERGREEN">
+                <duration>
+                    <unit>UNLIMITED</unit>
+                </duration>
+                <recurring>
+                    <billingPeriod>MONTHLY</billingPeriod>
+                    <recurringPrice>
+                        <price>
+                            <currency>EUR</currency>
+                            <value>25.00</value>
+                        </price>
+                        <price>
+                            <currency>USD</currency>
+                            <value>35.00</value>
+                        </price>
+                    </recurringPrice>
+                </recurring>
+            </finalPhase>
+        </plan>
+    </plans>
+    <priceLists>
+        <defaultPriceList name="DEFAULT">
+            <plans>
+                <plan>ashtanga-monthly</plan>
+                <plan>flow-monthly</plan>
+                <plan>iyengar-monthly</plan>
+				<plan>pranayama-monthly</plan>
+            </plans>
+        </defaultPriceList>
+    </priceLists>
+</catalog>
+----
+
+You should now do the same kind of configuration for the other `saas` tenant and you are ready to start creating account, subscriptions, invoices and make payments on both tenants in parallel!
+
