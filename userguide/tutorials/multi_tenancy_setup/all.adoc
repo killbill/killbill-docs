@@ -30,6 +30,7 @@ Also, for sake of simplicity, we will setup Kill Bill to use a static http://shi
 === Overview of AWS Deployment Steps
 
 We already described the lengthy steps required to configure the various EC2 instances in that http://killbill.io/tutorials/aws[tutorial] so we won't go into details here again, which means that all the setup related to the VPC, security groups, spawning of the EC2 and RDS instances is considered a prerequisite.
+In particular, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI. In addition with started our EC2 zone with with a special script that configured and started `dockerd` on the zones.
 Notes:
 
 * The instructions from the http://killbill.io/tutorials/aws[tutorial] have been written after the 0.12.1 release so they will need to be slightly tweaked to change the Kill Bill version, ddl files, ... from 0.12.1 to at least 0.13.5 (The Docker image 0.13.5 has been released).
@@ -58,7 +59,6 @@ killbill_ec2> curl -q  http://...ddl | mysql -h RDS_URL -u RDS_USER -pRDS_PWD ki
 For the KAUI deployment, the `kaui` database will need to include:
 
 * https://raw.githubusercontent.com/killbill/killbill-admin-ui/master/db/ddl.sql[The KAUI DDL]
-
 
 
 === Configuration Files
@@ -135,7 +135,6 @@ At this point and after the container is up, there are a few steps that need to 
 Since the `killbill.properties` are not exported outside of the container, we need to first edit the file from within the container and then restart the instance so the new properties take effect:
 
 [source, bash]
-.KAUI Docker Sequence:
 ----
 killbill_ec2> sudo docker exec -ti killbillsaas /bin/bash
 from-container> echo "org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini" >> /etc/killbill/killbill.properties
@@ -165,10 +164,11 @@ laptop> export KILLBILL_HOST=KILLBILL_PUBLIC_IP; export KILLBILL_USER=superadmin
 
 If you look in your RDS instance you should see reports configured in the  `analytics_reports` table and all the views `v_report_*` such as `v_report_accounts_summary` should exist.
 
+
 === Starting the KAUI Instance
 
 [source, bash]
-.For Kaui:
+.Kaui Docker Sequence:
 ----
 kaui_ec2> sudo docker pull killbill/kaui:0.1.3
 kaui_ec2> docker run -tid \
