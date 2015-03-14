@@ -2,15 +2,15 @@
 
 === Scenario
 
-In this tutorial, we will look at how one could leverage the multi-tenancy feature from Kill Bill. The scenario we will describe, is one where we would like to provide 'Subscription As A Service' (SaaS) in the cloud (AWS). The tutorial will skip all the operational good practises such as redundancy of instances, firewalls, load balancers and focus instead on the Kill Bill specifics. Also, note that when deployiong in the cloud where instances can come and go, the https://github.com/killbill/killbill/wiki/Kill-Bill-Notification-Configuration[configuration of the bus and notifications queues] need to be understood.
+In this tutorial, we will look at how one could leverage the multi-tenancy feature from Kill Bill. The scenario we will describe, is one where we would like to provide 'Subscription As A Service' (SaaS) in the cloud (AWS). The tutorial will skip all the operational good practices such as redundancy of instances, firewalls, load balancers and focus instead on the Kill Bill specifics. Also, note that when deploying in the cloud where instances can come and go, the https://github.com/killbill/killbill/wiki/Kill-Bill-Notification-Configuration[configuration of the bus and notifications queues] need to be understood.
 
 
-We will assume that we only need one plugin to make the payments, and as an example we will use the stripe plugin.
+We will assume that we only need one plugin to make the payments, and as an example we will use the Stripe plugin.
 
 
 === Users and Roles
 
-Let's start be defining some users and role:
+Let's start by defining some users and roles:
 
 * The user setting up the `Subscription As A Service` in the cloud, is called *superadmin*, and will have all the privileges to configure the tenants and setup the roles associated with the other users.
 * The admin user associated to each tenant will be called `admin_X` where `X` is the name of the tenant.
@@ -21,7 +21,7 @@ The `admin_shakti` user will have full privileges for its Shakti tenant and will
 Of course, for our own purpose of providing the service, we will also create a very first tenant to invoice our merchants (e.g the Shakti business). That tenant will be called `saas` ('Subscription As A Service'), and the associated admin user will be called *admin_saas*.
 
 
-Also, for sake of simplicity, we will setup Kill Bill to use a static http://shiro.apache.org/configuration.html[Shiro configuration file] to configure the various admin users/roles. In real life, it would be more practical to rely on LDAP rather that static configuration, which requires restarting Kill Bill when creating new users/roles. The LDAP configuartion is supported by Shiro but we will not describe the steps in that turorial to keep it simple.
+Also, for sake of simplicity, we will setup Kill Bill to use a static http://shiro.apache.org/configuration.html[Shiro configuration file] to configure the various admin users/roles. In real life, it would be more practical to rely on LDAP rather than static configuration, which requires restarting Kill Bill when creating new users/roles. The LDAP configuration is supported by Shiro but we will not describe the steps in that tutorial to keep it simple.
 
 
 == Kill Bill Multi-tenant Deployment
@@ -33,7 +33,7 @@ We already described the lengthy steps required to configure the various EC2 ins
 In particular, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI. In addition with started our EC2 zone with with a special script that configured and started `dockerd` on the zones.
 Notes:
 
-* The instructions from the http://killbill.io/tutorials/aws[tutorial] have been written after the 0.12.1 release so they will need to be slightly tweaked to change the Kill Bill version, ddl files, ... from 0.12.1 to at least 0.13.5 (The Docker image 0.13.5 has been released).
+* The instructions from the http://killbill.io/tutorials/aws[tutorial] have been written after the 0.12.1 release so they will need to be slightly tweaked to change the Kill Bill version, ddl files, ... from 0.12.1 to at least 0.13.5 (the Docker image 0.13.5 has been released).
 * In addition to that, we will need an extra zone to configure the admin UI (KAUI) and create a new database called `kaui` in the RDS database instance.
 
 The deployment will rely on the 2 Docker images:
@@ -144,7 +144,7 @@ killbill_ec2> sudo docker logs -f killbillsaas
 ----
 
 
-Finally since we run the analytics plugin, we need to configure the analytics tables.
+Finally, since we run the analytics plugin, we need to configure the analytics tables.
 There is a script that can be run to configure the analytics tables with all the existing views and reports.
 The script needs to be run from the https://github.com/killbill/killbill-analytics-plugin[analytics repo], and it will both hit some endpoints on the running instance of killbill and also create some views through mysql client.
 If your RDS instance is not visible to the public world, you have two options
@@ -198,7 +198,7 @@ Starting on the `/admin_tenants` screen, click to `Configure a New Tenant` to cr
 * API Secret: `some_secret_for_shakti`
 * Click on the `Create tenant` to also create the tenant in Kill Bill.
 
-At this point the tenant exists in Kill Bill and is known from KAUI as well.
+At this point, the tenant exists in Kill Bill and is known from KAUI as well.
 
 We can then configure the allowed users. KAUI needs to know who can access which tenant, and this information is kept in the KAUI database.
 It really means that any user known from Kill Bill (shiro.ini) will be able to make API calls against any tenant provided the user specifies the correct tenant `api_key` and `api_secret`, so the security resides behind keeping those keys secret.
