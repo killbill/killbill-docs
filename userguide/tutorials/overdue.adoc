@@ -1,5 +1,10 @@
+= Overdue System
+
+[[intro]]
+== Introduction
+
 In this tutorial, we look a little bit deeper into the overdue system. The http://killbill.io/userguide/subscriptions-userguide/[subscription user guide] provides a section explaining the basics about the overdue system and in particular goes through the schema of the `overdue.xml` configuration file. The tutorial will attempt to put the pieces together.
- 
+
 === Scenario
 
 Let's assume you want to build a web site where your customers can subscribe to movies (similar to Netflix). For the sake of simplicity we will assume you only provide one plan where your customers will need to pay $10 per month for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access but are not required to pay yet.
@@ -34,7 +39,7 @@ Your catalog will contain a plan entry that specifies two phases, one for the $0
                </fixedPrice>
            </fixed>
        </phase>
-    </initialPhases>	
+    </initialPhases>
     <finalPhase type="EVERGREEN">
         <duration>
             <unit>UNLIMITED</unit>
@@ -56,15 +61,15 @@ Your catalog will contain a plan entry that specifies two phases, one for the $0
 
 The configurartion below defines the 3 different states:
 
-* `WARNING`: 
+* `WARNING`:
 ** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 10 days as specified by the scenario
 ** `disableEntitlementAndChangesBlocked` is set to false since we still want the user to have access to the service
-** `autoReevaluationInterval` is set to 4 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `BLOCKED` 4 days later 
+** `autoReevaluationInterval` is set to 4 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `BLOCKED` 4 days later
 ** `blockChanges` is set to true to prevent users from changing plans until they clear their balance (was not specified in the scenario, but probably a good practice to follow)
 * `BLOCKED`:
 ** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 14 days as specified by the scenario
 ** `disableEntitlementAndChangesBlocked` is set to true since we now want the user to NOT have access to the service
-** `autoReevaluationInterval` is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `CANCELATION` 8 days later 
+** `autoReevaluationInterval` is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `CANCELATION` 8 days later
 * `CANCELATION`:
 ** `subscriptionCancellationPolicy` is set to `END_OF_TERM` to indicate that subscriptions should be cancelled in such a way that we do not generate credit for the account (no proration)
 
@@ -118,4 +123,72 @@ The configurartion below defines the 3 different states:
 
 === Payment retries
 
-In addition we need to configure the payment system to retry failed payments; the system property `org.killbill.payment.retry.days` specifies the retry policy associated to payment failures. In our case we need to set it to `1,1,8` to indicate 3 payment retries, the first one after 1 day, and then 1 day after, and the last one 8 days after the previous one (as specified in our scenario)
+In addition we need to configure the payment system to retry failed payments; the system property `org.killbill.payment.retry.days` specifies the retry policy associated to payment failures. In our case we need to set it to `1,1,8` to indicate 3 payment retries, the first one after 1 day, and then 1 day after, and the last one 8 days after the previous one (as specified in our scenario).
+
+
+[[customers]]
+== Example of Customers
+
+Let's take the case of a customer that subscribed to the service. Immediately after the subscription was created a $0 invoice is created to indicate the customer is in TRIAL. Let's assume his credit card does not have enough funds. 10 days later the customer moves out of TRIAL and the system generates a $10 invoice for the month. At this point, the system attempts to make a payment, but the payment does not go through:
+
+* Day 1: the system will retry the payment one day later and fail again
+* Day 2: the system will retry the payment one day later and fail again
+* Day 10: the system will retry (one last time) the payment 8 days later and fail again; at this point the overdue system will transiton the account into a `WARNING` state
+
+=== Bad Customer
+
+Let's assume this is a bad customer, that will not update his credit card:
+
+* Day 14: the customer moves to a `BLOCKED` state; the system will stop invoicing, and will indicate that the customer is not entititled to receiving service any longer (more details below)
+* Day 21: the system will cancel the subscription (final state)
+
+=== Good Customer
+
+Let's assume this is a good customer, and after the WARNING, he updates his credit card:
+
+* Day 15: customer updates credit card and pays his unpaid invoice(s) (more details below). The system brings back the overdue status to `CLEAR`.
+
+
+[[platform_use]]
+== Use of the Platform
+
+=== Use of the APIs
+
+When a customer attempts to use the service, the web site *could* verify if the customer is entitled to receive the service:
+
+1. It should first retrieve the overdue status (at the account level) using the `GET /1.0/kb/accounts/{accountId}/overdue` api,
+2. It should then retrieve the subscriptions associated with the account `GET /1.0/kb/accounts/{accountId}/bundles`, or if the subscriptionId was cached it could use `GET /1.0/kb/subscriptions/{subscriptionId}`
+
+The endpoint `GET /1.0/kb/accounts/{accountId}/overdue` will return the following json:
+
+[source,json]
+---
+{ "blockChanges": true,
+"clearState": false,
+"daysBetweenPaymentRetries": 1,
+"disableEntitlementAndChangesBlocked": false,
+"externalMessage": "Reached WARNING",
+"name": "WARNING",
+"reevaluationIntervalDays": 4 }
+---
+
+If the `disableEntitlementAndChangesBlocked` is set to true, it means that the customer is not entitled to the service associated to any subscriptions.
+
+So, note that retrieving subscriptions through the `GET /1.0/kb/subscriptions/{subscriptionId}` will not directly indicate the overdue status, and so both calls must be made to have a complete picture of the entitlement when the overdue system has been configured.
+
+When retrieving entitlement/overdue status, the web site could be implemented to take all kind of actions such as displaying warning message, degrading experience, emailing customer, ...
+
+
+=== Custom Plugins
+
+In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs in for instance). Another pattern, is to create a custom plugin that will listen to Overdue events. Examples of such plugins can be found here:
+
+* https://github.com/killbill/killbill-hello-world-java-plugin/blob/master/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldListener.java[Java plugin]
+* https://github.com/killbill/killbill-hello-world-ruby-plugin/blob/master/lib/helloworld/user_listener.rb[Ruby plugin]
+
+The plugin would need to filter for `OVERDUE_CHANGE` https://github.com/killbill/killbill-plugin-api/blob/master/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[events]
+
+Such plugins can be used for the following purpose:
+
+* Email/Notify user about the new state
+* Take action to modify the experience (based on the state name), for instance to degrade the service, or modify the login flow on a website to prompt for payments, ...
