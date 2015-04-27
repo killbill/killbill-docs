@@ -13,7 +13,7 @@ COMMON_OPTS="-a sourcedir=$USERGUIDE_INPUT_DIR,imagesdir=$USERGUIDE_INPUT_DIR/as
 # Special options for WordPress
 WP_EXTRA_OPTS="$COMMON_OPTS -a data-uri,stylesheet! -s"
 # Selfcontained options
-SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -a doctype=book,toc,toclevels=6,data-uri,linkcss!,source-highlighter=highlightjs,homepage=http://killbill.io"
+SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -a doctype=book,toc,toclevels=6,data-uri,linkcss!,source-highlighter=pygments,homepage=http://killbill.io"
 
 BUILD_DIR=$DIR/build
 WP_BUILD_DIR=$BUILD_DIR/wp
