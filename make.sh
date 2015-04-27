@@ -28,25 +28,25 @@ SELFCONTAINED_BUILD="asciidoctor $SELFCONTAINED_EXTRA_OPTS -B $USERGUIDE_INPUT_D
 rm -rf $BUILD_DIR && mkdir -p $BUILD_DIR
 
 echo "*** Building WordPress sections"
-for doc in `find $WP_TUTORIALS_INPUT_DIR -type d -maxdepth 1`; do
-  for section in `find $doc -type f -maxdepth 1`; do
+for doc in `find $WP_TUTORIALS_INPUT_DIR -maxdepth 1 -type d`; do
+  for section in `find $doc -maxdepth 1 -type f`; do
     echo "Building $section"
     $WP_TUTORIALS_BUILD $section
   done
 done
-for doc in `find $WP_INPUT_DIR -type d -maxdepth 1`; do
-  for section in `find $doc -type f -maxdepth 1`; do
+for doc in `find $WP_INPUT_DIR -maxdepth 1 -type d`; do
+  for section in `find $doc -maxdepth 1 -type f`; do
     echo "Building $section"
     $WP_BUILD $section
   done
 done
-for doc in `find $WP_INPUT_DIR -type f -maxdepth 1`; do
+for doc in `find $WP_INPUT_DIR -maxdepth 1 -type f`; do
   echo "Building $doc"
   $WP_BUILD $doc
 done
 
 echo "*** Building standalone guides"
-for doc in `find $SELFCONTAINED_INPUT_DIR -type f -maxdepth 1`; do
+for doc in `find $SELFCONTAINED_INPUT_DIR -maxdepth 1 -type f`; do
   echo "Building $doc"
   $SELFCONTAINED_BUILD $doc
 done
