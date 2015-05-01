@@ -480,9 +480,23 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#components-tenant">Tenant</a>
+<li><a href="#components-overview">Overview</a>
 <ul class="sectlevel2">
-<li><a href="#components-tenant-overview">Overview</a></li>
+<li><a href="#_kill_bill_platform">Kill Bill Platform</a></li>
+<li><a href="#_documentation">Documentation</a></li>
+<li><a href="#_where_to_start">Where To Start?</a></li>
+</ul>
+</li>
+<li><a href="#components-features">Kill Bill Platform Features</a>
+<ul class="sectlevel2">
+<li><a href="#_multi_tenancy">Multi-Tenancy</a></li>
+<li><a href="#_rbac">RBAC</a></li>
+<li><a href="#_plugins">Plugins</a>
+<ul class="sectlevel3">
+<li><a href="#_overview">Overview</a></li>
+<li><a href="#_lifecycle_and_layout_internals">Lifecycle and Layout Internals</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li><a href="#deployment">Deployment</a>
@@ -491,11 +505,6 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <ul class="sectlevel3">
 <li><a href="#_download_the_latest_version_of_kill_bill_server">Download the latest version of Kill Bill server</a></li>
 <li><a href="#_setup_the_database">Setup the database</a></li>
-<li><a href="#deployment-plugins">Install plugins</a>
-<ul class="sectlevel4">
-<li><a href="#_bundles_directory_layout">Bundles directory layout</a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li><a href="#deployment-jetty">Installation in Jetty</a>
@@ -544,116 +553,303 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is a platform for you to build subscriptions and payments infrastructures. As such, it shares between core services a common base layer, that we refer to as <em>the Platform</em>:</p>
-</div>
-<div class="imageblock" style="text-align: center">
-<div class="content">
-<img src="http://killbill.io/wp-content/uploads/2014/01/killbillpluginarchitecture.png" alt="Kill Bill architecture">
-</div>
-</div>
-<div class="paragraph">
-<p>This manual walks you through some of the features that are shared between Kill Bill Subscription Billing and Payments Platform, and how to deploy Kill Bill server, which is a single deployment unit which contains all of Kill Bill features.</p>
-</div>
-</div>
-</div>
 <div class="sect1">
-<h2 id="components-tenant">Tenant</h2>
+<h2 id="components-overview">Overview</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="components-tenant-overview">Overview</h3>
+<h3 id="_kill_bill_platform">Kill Bill Platform</h3>
 <div class="paragraph">
-<p>Kill Bill supports multi-tenancy, meaning you can run multiple logical instances of Kill Bill with a single server and database. For example, say you own two online stores, each of them having different catalogs, users, etc. You could configure a tenant for each of them, which would make the data from one store invisible to the other.</p>
-</div>
-<div class="paragraph">
-<p>In practice, a tenant is a simple attribute that Kill Bill tracks along each object in the database (accounts, subscriptions, invoices, etc.). When multi-tenancy is enabled, you would create an <strong>api key</strong> and <strong>api password</strong> for each tenant and specify them in via the headers <strong>X-Killbill-ApiKey</strong> and <strong>X-Killbill-ApiSecret</strong> respectfully in all REST calls. Kill Bill would then automatically look up the tenant associated with your api key as part of each request.</p>
-</div>
-<div class="paragraph">
-<p>Note that the <strong>api key</strong> is unique across tenants, similar to the tenant id. Whereas your tenant id will never change, the <strong>api key</strong> can be updated (if it is compromised for example).</p>
-</div>
-<div class="paragraph">
-<p>Multi-tenancy is an advanced feature. You can turn it off by setting <strong>-Dkillbill.server.multitenant=false</strong>. We suggest though that it you let it enabled and create a tenant even if you have a single use case for Kill Bill. That way, you will be able to add another tenant if need be later on (going from multi-tenancy disabled to multi-tenancy enabled is much harder and will involve manual and error prone data changes).</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="deployment">Deployment</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>When deploying Kill Bill to a production environment, you&#8217;ll likely want to use your own container and deploy Kill Bill as a war. Below are instructions for various containers. If you&#8217;re unsure which one to use and/or don&#8217;t have any preference, we recommend Jetty.</p>
-</div>
-<div class="sect2">
-<h3 id="_common_steps">Common steps</h3>
-<div class="sect3">
-<h4 id="_download_the_latest_version_of_kill_bill_server">Download the latest version of Kill Bill server</h4>
-<div class="paragraph">
-<p>Releases are available in Maven Central. Among other packaging formats, we provide a war with all dependencies. You can get the latest version <a href="http://killbill.io/downloads/">here</a> (download the <strong>war</strong> artifact).</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_setup_the_database">Setup the database</h4>
-<div class="paragraph">
-<p>Note: currently, only MySQL is supported for multi-nodes deployments.</p>
-</div>
-<div class="paragraph">
-<p>Create the database killbill will use and apply the latest DDL schema, which can be found <a href="http://killbill.io/downloads/">here</a>.</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="deployment-plugins">Install plugins</h4>
-<div class="paragraph">
-<p>One of the most powerful features of Kill Bill is its extensibility via plugins.</p>
-</div>
-<div class="paragraph">
-<p>Here are a few examples of official plugins maintained by the Kill Bill core team:</p>
+<p>At its core, Kill Bill offers a flexible platform on which applications that require a high level of integrity, audit traces, and robustness can be developed. Currently there are two kind of applications that have been developed:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://github.com/killbill/killbill-stripe-plugin">Stripe plugin</a>, to use <a href="https://stripe.com">Stripe</a> as a payment gateway</p>
+<p><a href="http://killbill.io/subscription-billing">Billing Systems</a> to manage recurring/usage based subscriptions</p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-coinbase-plugin">Coinbase plugin</a>, to use <a href="https://coinbase.com">Coinbase</a> as a payment gateway</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-recurly-plugin">Recurly plugin</a>, to use <a href="https://recurly.com">Recurly</a> as a payment gateway</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-paypal-express-plugin">PayPal plugin</a>, to use <a href="https://paypal.com">PayPal</a> as a payment gateway</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-litle-plugin">Litle plugin</a>, to use <a href="https://www.litle.com">Litle &amp; co.</a> as a payment gateway</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-logging-plugin">Logging plugin</a>, to forward Kill Bill events to email, IRC, Syslog, &#8230;&#8203;</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-bitcoin-plugin">Bitcoin plugin</a>, to verify Kill Bill transactions on the block chain</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-analytics-plugin">Analytics plugin</a>, for Business Intelligence and create dashboards</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-zendesk-plugin">Zendesk plugin</a>, for mirroring Kill Bill accounts into <a href="https://zendesk.com">Zendesk</a></p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-meter-plugin">Meter plugin</a>, for metering (usage) billing</p>
+<p><a href="http://killbill.io/payments-platform/">Payment systems</a> that integrate with various payment gateways, payment processors, fraud detection systems, &#8230;&#8203;</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>You can find more on our <a href="https://github.com/killbill">Github</a> project page. If you are interested in writing your own plugin, checkout our <a href="https://github.com/killbill/killbill-hello-world-java-plugin">hello world</a> example.</p>
-</div>
-<div class="sect4">
-<h5 id="_bundles_directory_layout">Bundles directory layout</h5>
-<div class="paragraph">
-<p>Kill Bill looks for all plugins in a bundles directory, by default <strong>/var/tmp/bundles</strong> (you can override it via the system property org.killbill.osgi.bundle.install.dir).</p>
+<p>The <strong>Billing System</strong> relies on the <strong>Payment System</strong> to make payments but the <strong>Payment System</strong> also offers raw payment apis and therefore can also be run as a standalone application.</p>
 </div>
 <div class="paragraph">
-<p>The expected layout is the following:</p>
+<p>Some of the features of the Kill Bill platform include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Core Foundations</p>
+<div class="ulist">
+<ul>
+<li>
+<p>A plugin framework where custom plugins can be added to modify the behavior of the system, and or interact with third party systems,</p>
+</li>
+<li>
+<p>A robust persistent event bus, that is used both internally and externally (events are visible to plugins)</p>
+</li>
+<li>
+<p>An auditing framework that keeps track of all the changes that occurred (who?, when?, what?)</p>
+</li>
+<li>
+<p>Authentication and RBAC support</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Core services (account management, invoicing, entitlement, dunning, &#8230;&#8203;) which are built and packaged as independent jars, each of which with its own api; those core services post a well defined set of events on the persistent bus which are then consumed by other core services or plugins.</p>
+</li>
+<li>
+<p>Plugins</p>
+</li>
+</ul>
+</div>
+<div class="imageblock" style="text-align: center">
+<div class="content">
+<img src="https://docs.google.com/drawings/d/1OCYn6GTrmEbJi9daT8L9xPCgwp7n5FidTWH0nHpCYqE/pub?w=960&amp;h=480" alt="pub?w=960&amp;amp;h=480">
+</div>
+</div>
+<div class="paragraph">
+<p>Contrary to most billing solutions, Kill Bill is <strong>not</strong> a batch oriented system, but instead, it is driven by events occurring in the system (for e.g: the creation of a new subscription will create a new event that the invoicing core service will process and as result a new invoice may be created along with a new event which the payment code service will now process, &#8230;&#8203;)</p>
+</div>
+<div class="paragraph">
+<p>Kill Bill is traditionally packaged as a war and is therefore executed within a web container (for e.g tomcat). It offers REST APIs &lt;TODO LINK&gt; to manage all the state associated to accounts, subscriptions, invoices, payments, &#8230;&#8203; It also provides lower level (java) APIs and can therefore be embedded as a library within a (java) user application.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_documentation">Documentation</h3>
+<div class="paragraph">
+<p>Our documentation is targeted for different types of audience:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Kill Bill Visitors: Technical or Non technical folks interested to know more about what Kill Bill is about.</p>
+</li>
+<li>
+<p>Kill Bill Users: Technical folks that are interested to evaluate the solution or are ready to deploy it.</p>
+</li>
+<li>
+<p>Kill Bill Developers: Technical folks that are interested to contribute to the open-source project (often to enhance the platform to suit their own specific needs).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For the <strong>Kill Bill Visitors</strong>, we provide an overview of the product on our <a href="http://killbill.io">main web site</a>, and also <a href="http://killbill.io/features">some more details about the features</a>.</p>
+</div>
+<div class="paragraph">
+<p>For the <strong>Kill Bill Users</strong>,  we provide a set of</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="http://killbill.io/userguide/platform-userguide">user guides</a>,</p>
+</li>
+<li>
+<p><a href="http://killbill.io/tutorials/">tutorials</a>,</p>
+</li>
+<li>
+<p><a href="https://www.youtube.com/channel/UChXICgGipKvJbtzKfM1SNoQ">screencasts</a>,</p>
+</li>
+<li>
+<p>In addition to that, we also provide documentation for each specific plugin in the github plugin repository using the <code>Readme.rd</code> file. An example of such documentation can be seen for the <a href="https://github.com/killbill/killbill-avatax-plugin">Avatax plugin</a>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The user guides are split into 3 different pages:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="http://killbill.io/userguide/platform-userguide">Platform User Guide</a>, that is, <strong>this very page</strong>, which focuses on generic information about the Kill Bill platform (plugin overview, deployment and configuration),</p>
+</li>
+<li>
+<p><a href="http://killbill.io/userguide/payments-userguide/">Payment System User Guide</a>: Focuses on various payment methods, payment flows, &#8230;&#8203;</p>
+</li>
+<li>
+<p><a href="http://killbill.io/userguide/subscriptions-userguide/">Billing System User Guide</a>: Focuses all the non payment aspects for the billing system.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For the <strong>Kill Bill Developers</strong>, we also provide additional pages on our <a href="https://github.com/killbill/killbill/wiki">github wiki</a>.</p>
+</div>
+<div class="paragraph">
+<p>Also, don&#8217;t forget to check our <a href="http://killbill.io/blog/">blog</a>, which has interesting articles about some of Kill Bill internals, use cases, &#8230;&#8203;</p>
+</div>
+<div class="paragraph">
+<p><strong>Most of our documentation is hosted in a <a href="https://github.com/killbill/killbill-docs">github repository</a>, so please either submit a PR when obvious things are missing or wrong, or let us know so we can improve it!</strong></p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_where_to_start">Where To Start?</h3>
+<div class="paragraph">
+<p>This obviously depends on the type of audience, and also whether you are looking for a Billing System, or a Payment System.
+If your goal is to get a sense of what Kill Bill provides, and assuming you are at least slightly technical, here is a good start:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Read through the user guides (all 3)</p>
+</li>
+<li>
+<p>Follow the &lt;TODO:link section 5' minutes tutorials in the &#8230;&#8203;&gt;</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>TODO: needs some more thinking
+At this stage, you are ready to prototype, and the following section will be especially useful to help you understand how to start, customize a Kill Bill instance for your needs.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="components-features">Kill Bill Platform Features</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_multi_tenancy">Multi-Tenancy</h3>
+<div class="paragraph">
+<p>Kill Bill supports multi-tenancy, meaning you can run multiple logical instances of Kill Bill with a single server and database. This is the default way to deploy Kill Bill.
+We posted a <a href="http://killbill.io/blog/subscription-service-using-kill-bill">blog post</a> which illustrates some of the use cases for running Kill Bill in a multi-tenant fashion.</p>
+</div>
+<div class="paragraph">
+<p>When multi-tenancy is enabled, you first need to create a tenant:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+     -d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The call above will create the tenant and that tenant will be identified with its own <code>tenantId</code>. The supplied <code>apiKey</code> needs to be unique across all the tenants. The <code>tenantId</code> is immutable but the <code>apiKey</code> and <code>apiSecret</code> can be updated in the event they were compromised.</p>
+</div>
+<div class="paragraph">
+<p>Each subsequent (REST) api call will require the following two headers (for Kill Bill to identity which tenant that call is targeted to, and verify the user has the right to access that tenant):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>X-Killbill-ApiKey</strong></p>
+</li>
+<li>
+<p><strong>X-Killbill-ApiSecret</strong></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_rbac">RBAC</h3>
+<div class="paragraph">
+<p>Kill Bill&#8217;s authentication and authorization relies on <a href="http://shiro.apache.org/">Apache Shiro</a>.
+In a nutshell, Shiro allows you to configure a set of <code>Users</code>, where each <code>User</code> is associated with a set of <code>Roles</code>, and each <code>Role</code> contains a set of <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/security/Permission.java"><code>Permissions</code></a>.</p>
+</div>
+<div class="paragraph">
+<p>Kill Bill (through Shiro) supports the following types of configuration:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>File based configuration (<a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/shiro.ini">shiro.ini</a>). This is the default configuration embedded in Kill Bill, which provides you with one <code>admin</code> user having all the rights.</p>
+</li>
+<li>
+<p>Database configuration: Kill Bill offers a <a href="https://github.com/killbill/killbill/blob/master/jaxrs/src/main/java/org/killbill/billing/jaxrs/resources/SecurityResource.java">set of endpoints</a> to add users, roles, and permissions</p>
+</li>
+<li>
+<p>LDAP:  Kill Bill also offers to interact with LDAP to retrieve all the users, roles, permissions. The configuration happens though <a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/SecurityConfig.java">system properties</a>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Note that all those 3 mechanisms can coexist, and often need to coexist to solve the chicken and egg problem of having permissions to add new users, roles, &#8230;&#8203; through APIs.</p>
+</div>
+<div class="paragraph">
+<p>The following <a href="http://killbill.io/blog/multi-tenancy-authorization/">blog post</a> gives an overview of how our <a href="https://github.com/killbill/killbill-admin-ui">admin UI</a> interacts with Kill Bill and takes advantage of the RBAC features.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_plugins">Plugins</h3>
+<div class="sect3">
+<h4 id="_overview">Overview</h4>
+<div class="paragraph">
+<p>Kill Bill supports a powerful plugin framework based on the <a href="http://www.osgi.org/Main/HomePage">OSGI standard</a>.
+The purpose of OSGI based plugin is to ensure that they are isolated from each other and from the core platform, allowing Kill Bill Users to extend the system with minimal knowledge about the system.
+Kill Bill supports writing plugin in various languages to address a wider audience of developers, and also leverage existing libraries in other languages than java. In theory, plugins could be written in all JVM based languages. In practice:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Java based plugin (pure OSGI plugins)</p>
+</li>
+<li>
+<p>Ruby plugins. They rely on a <a href="https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/bundles/jruby/src/main/java/org/killbill/billing/osgi/bundles/jruby/JRubyActivator.java">built-in framework</a> on top of OSGI to make sure ruby code will be fully isolated. In addition to that, each ruby plugin is based on a <a href="https://github.com/killbill/killbill-plugin-framework-ruby">ruby skeleton</a> whose code is partially <a href="https://github.com/killbill/killbill-java-parser">automatically generated</a> and whose purpose if to allow developers to write pure ruby code.</p>
+</li>
+<li>
+<p>Scala (a prototype has been been built showing the feasibility of such plugins)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The purpose of the plugins is manifolds:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Provide hooks to third party system (for e.g: Payment gateways, tax systems, fraud detection systems, CRM, proprietary systems, &#8230;&#8203;)</p>
+</li>
+<li>
+<p>Modify the behavior of the core Kill Bill system to address specific needs (for e.g intercept ongoing payments to route them differently, intercept ongoing invoices to customize the invoice, perform on on the fly currency conversion, &#8230;&#8203;)</p>
+</li>
+<li>
+<p>Add specific business logic when certain types of events occur (Notify customers of upcoming invoices, Perform automatic action for dunning, &#8230;&#8203;)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In order to achieve those goals, Kill Bill supports a mechanism for the plugin to register for any type of events occurring in the system.
+In addition to that, plugins can also implement certain types of <a href="https://github.com/killbill/killbill-plugin-api">plugin apis</a>, and register/unregister in the system during the start/stop sequence.
+The following set of plugin API is currently supported:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java">Payment plugin api</a>: Those apis are used by plugin interacting with third party payment gateways or payment processors.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-plugin-api/blob/master/currency/src/main/java/org/killbill/billing/currency/plugin/api/CurrencyPluginApi.java">Currency plugin api</a>: By implementing this api, the plugin would provide the business logic for all the currency conversion, which is then available to payment plugins for real time currency conversion.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java">Invoice plugin api</a>: Plugins implementing this api would have be called during invoice generation when Kill Bill&#8217;s invoicing code computed the items but prior the invoice was persisted to provide the ability for the plugin to modify the items (and for e.g add extra tax items)</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java">Payment routing plugin api</a>: The purpose of this api is to intercept payments and as a result abort it (fraud case) or reroute it to a different payment plugin (payment gateway downtime, or cost optimization scenario)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Note that some of these apis are still a work in  progress as we understand better the requirements; we are also working on additional plugin apis to provide access to other parts of the system.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_lifecycle_and_layout_internals">Lifecycle and Layout Internals</h4>
+<div class="paragraph">
+<p>Kill Bill Plugins will be started and stopped during the Kill Bill <a href="https://github.com/killbill/killbill-platform/blob/master/platform-api/src/main/java/org/killbill/billing/platform/api/LifecycleHandlerType.java">lifecycle initialization stages</a>.
+Each plugin will need to provide an <a href="https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/killbill/osgi/libs/killbill/KillbillActivatorBase.java">activator</a> with a <code>start</code> and <code>stop</code> method.
+During initialization and when all the foundation and core services have started, Kill Bill will automatically discover the existing plugins (based on the filesystem layout described below) and it will invoke the <code>start</code> method to initialize the plugin.
+During shutdown sequence the plugin will first be stopped and then the rest of the foundation and core services will be stopped.</p>
+</div>
+<div class="paragraph">
+<p>Kill Bill looks for all plugins in a bundle directory, by default <strong>/var/tmp/bundles</strong> (you can override it via the system property <code>org.killbill.osgi.bundle.install.dir</code>).
+The expected layout is the following:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -679,20 +875,44 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p>The bundles/platform/ directory is used for non Kill Bill specific OSGI plugins. For example, you can drop in it the <a href="http://felix.apache.org/site/apache-felix-web-console.html">Apache Felix Web Console</a> jar, and Kill Bill will automatically start it during its initialization sequence. <a href="https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles">Here</a> is a recommended set of convenience plugins to run.</p>
+<p>The <code>bundles/platform</code> directory is used for non Kill Bill specific OSGI plugins. For example, you can drop in it the <a href="http://felix.apache.org/site/apache-felix-web-console.html">Apache Felix Web Console</a> jar, and Kill Bill will automatically start it during its initialization sequence. <a href="https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles">Here</a> is a recommended set of convenience plugins to run.
+Note that in the case of Ruby plugins (see below), you need to copy the correct version of the <code>org.kill-bill.billing:killbill-platform-osgi-bundles-jruby</code> artifact and name it as <code>bundles/platform/jruby.jar</code>.</p>
 </div>
 <div class="paragraph">
-<p>Note that if you want to run Ruby plugins (see below), you need to place the org.kill-bill.billing:killbill-platform-osgi-bundles-jruby artifact as bundles/platform/jruby.jar.</p>
+<p>Also, in the case of java based plugins it is enough to just copy the jar under the correct directory entry, but in the case i=of the ruby plugins, the layout is a bit more complex: It expects a top level <code>killbill.properties</code> file describing the type of plugin and special libraries to load, as well as a <code>gems</code> directory containing all the dependencies.
+Fortunately, if you are using one of the official Ruby plugins, you don&#8217;t need to worry about this. You can download <a href="http://search.maven.org/#search%7Cga%7C1%7Corg.kill-bill.billing.plugin.ruby">tar.gz packages</a> with the correct layout. Simply unpack them and restart Kill Bill.</p>
 </div>
 <div class="paragraph">
-<p>The plugins directory contains Kill Bill specific OSGI plugins, written either in Ruby or Java. Whereas only a jar is needed for Java plugins, the layout of Ruby plugins is a bit more complex. It expects a top level killbill.properties file describing the type of plugin and special libraries to load, as well as a gems/ directory containing all the dependencies.</p>
+<p>If you want to develop your own ruby plugin, check our instructions <a href="https://github.com/killbill/killbill-plugin-framework-ruby/wiki/Build-Release">here</a> and <a href="https://github.com/killbill/killbill-plugin-framework-ruby/wiki/How-to-vendor-a-plugin-gem-for-Killbill-deployment">here</a>.</p>
 </div>
 <div class="paragraph">
-<p>Fortunately, if you are using one of the official Ruby plugins, you don&#8217;t need to worry about this. You can download <a href="http://search.maven.org/#search%7Cga%7C1%7Corg.kill-bill.billing.plugin.ruby">tar.gz packages</a> with the correct layout. Simply unpack them and restart Kill Bill.</p>
+<p>We also provide hello world skeleton of plugins in <a href="https://github.com/killbill/killbill-hello-world-java-plugin">java</a> and <a href="https://github.com/killbill/killbill-hello-world-ruby-plugin">ruby</a> to get started.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="deployment">Deployment</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When deploying Kill Bill to a production environment, you&#8217;ll likely want to use your own container and deploy Kill Bill as a war. Below are instructions for various containers. If you&#8217;re unsure which one to use and/or don&#8217;t have any preference, we recommend Jetty.</p>
+</div>
+<div class="sect2">
+<h3 id="_common_steps">Common steps</h3>
+<div class="sect3">
+<h4 id="_download_the_latest_version_of_kill_bill_server">Download the latest version of Kill Bill server</h4>
+<div class="paragraph">
+<p>Releases are available in Maven Central. Among other packaging formats, we provide a war with all dependencies. You can get the latest version <a href="http://killbill.io/downloads/">here</a> (download the <strong>war</strong> artifact).</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_setup_the_database">Setup the database</h4>
+<div class="paragraph">
+<p>Note: currently, only MySQL is supported for multi-nodes deployments.</p>
 </div>
 <div class="paragraph">
-<p>If you want to develop your own Ruby plugin, check our instructions <a href="https://github.com/killbill/killbill-plugin-framework-ruby/wiki/Build-Release">here</a> and <a href="https://github.com/killbill/killbill-plugin-framework-ruby/wiki/How-to-vendor-a-plugin-gem-for-Killbill-deployment">here</a>.</p>
-</div>
+<p>Create the database killbill will use and apply the latest DDL schema, which can be found <a href="http://killbill.io/downloads/">here</a>.</p>
 </div>
 </div>
 </div>
@@ -1498,7 +1718,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-04-28 16:52:41 UTC
+Last updated 2015-05-01 00:37:23 UTC
 </div>
 </div>
 </body>
