@@ -501,12 +501,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 <li><a href="#deployment">Deployment</a>
 <ul class="sectlevel2">
-<li><a href="#_common_steps">Common steps</a>
-<ul class="sectlevel3">
-<li><a href="#_download_the_latest_version_of_kill_bill_server">Download the latest version of Kill Bill server</a></li>
-<li><a href="#_setup_the_database">Setup the database</a></li>
-</ul>
-</li>
+<li><a href="#_overview_2">Overview</a></li>
 <li><a href="#deployment-jetty">Installation in Jetty</a>
 <ul class="sectlevel3">
 <li><a href="#_download_the_jetty_container">Download the Jetty container</a></li>
@@ -640,7 +635,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>For the <strong>Kill Bill Visitors</strong>, we provide an overview of the product on our <a href="http://killbill.io">main web site</a>, and also <a href="http://killbill.io/features">some more details about the features</a>.</p>
 </div>
 <div class="paragraph">
-<p>For the <strong>Kill Bill Users</strong>,  we provide a set of</p>
+<p>For the <strong>Kill Bill Users</strong>,  we provide a set of:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -670,7 +665,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p><a href="http://killbill.io/userguide/payments-userguide/">Payment System User Guide</a>: Focuses on various payment methods, payment flows, &#8230;&#8203;</p>
 </li>
 <li>
-<p><a href="http://killbill.io/userguide/subscriptions-userguide/">Billing System User Guide</a>: Focuses all the non payment aspects for the billing system.</p>
+<p><a href="http://killbill.io/userguide/subscriptions-userguide/">Billing System User Guide</a>: Focuses on all the non payment aspects for the billing system.</p>
 </li>
 </ul>
 </div>
@@ -826,7 +821,7 @@ In addition to that, plugins can also implement certain types of <a href="https:
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java">Payment plugin api</a>: Those apis are used by plugins interacting with third party payment gateways or payment processors.</p>
+<p><a href="https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java">Payment plugin api</a>: Those APIs are used by plugins interacting with third party payment gateways or payment processors.</p>
 </li>
 <li>
 <p><a href="https://github.com/killbill/killbill-plugin-api/blob/master/currency/src/main/java/org/killbill/billing/currency/plugin/api/CurrencyPluginApi.java">Currency plugin api</a>: By implementing this API, the plugin would provide the business logic for currency conversion, which is then available to payment plugins for real time currency conversion.</p>
@@ -899,25 +894,71 @@ Fortunately, if you are using one of the official Ruby plugins, you don&#8217;t 
 <div class="sect1">
 <h2 id="deployment">Deployment</h2>
 <div class="sectionbody">
-<div class="paragraph">
-<p>When deploying Kill Bill to a production environment, you&#8217;ll likely want to use your own container and deploy Kill Bill as a war. Below are instructions for various containers. If you&#8217;re unsure which one to use and/or don&#8217;t have any preference, we recommend Jetty.</p>
-</div>
 <div class="sect2">
-<h3 id="_common_steps">Common steps</h3>
-<div class="sect3">
-<h4 id="_download_the_latest_version_of_kill_bill_server">Download the latest version of Kill Bill server</h4>
+<h3 id="_overview_2">Overview</h3>
 <div class="paragraph">
-<p>Releases are available in Maven Central. Among other packaging formats, we provide a war with all dependencies. You can get the latest version <a href="http://killbill.io/downloads/">here</a> (download the <strong>war</strong> artifact).</p>
+<p>Kill Bill (whether used as a Billing System or Payment System) is fundamentally a backend system and so the following consideration should apply:</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p>Don&#8217;t make the system visible to the outside world, you should have a front end system, or a reverse proxy in front of it; if you need to handle some IPN (Internal Payment Notification), we also developed an <a href="https://github.com/killbill/killbill-notifications-proxy">app</a> for that specific purpose.</p>
+</li>
+<li>
+<p>Always deploy at least 2 instances (for reliability purpose) in front of a load balancer.</p>
+</li>
+<li>
+<p>Setup your database with a master and a slave instances (or more exotic setup if required), and configure it to take regular snapshot</p>
+</li>
+<li>
+<p>Aggregate your logs (for example using <a href="http://logstash.net/">LogStash</a>, <a href="https://www.graylog.org/">GrayLog2</a>, &#8230;&#8203;) and take a look at our <a href="https://github.com/killbill/killbill/wiki/Logback-recipes">logback recipes</a></p>
+</li>
+<li>
+<p>Look at the all the existing Kill Bill JMX metrics (using VisualVM, jconsole, &#8230;&#8203;) and set some alerts (for instance by using the following <a href="https://github.com/killbill/nagios-jmx-plugin">script</a>)</p>
+</li>
+<li>
+<p>Configure your system properly, especially when it comes to the <a href="https://github.com/killbill/killbill/wiki/Kill-Bill-Notification-Configuration">settings of the bus and notification queue</a>.</p>
+</li>
+</ul>
 </div>
-<div class="sect3">
-<h4 id="_setup_the_database">Setup the database</h4>
 <div class="paragraph">
-<p>Note: currently, only MySQL is supported for multi-nodes deployments.</p>
+<p>When deploying Kill Bill, the following pieces will need to be deployed in addition to your OS, VM, or container (Docker,&#8230;&#8203;):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A web container (jetty, tomcat, &#8230;&#8203;)</p>
+</li>
+<li>
+<p>The killbill war</p>
+</li>
+<li>
+<p>The plugins</p>
+</li>
+<li>
+<p>The configuration files and system properties</p>
+</li>
+<li>
+<p>The database along with the various schemas: The Kill Bill schema is available from our <a href="http://killbill.io/downloads">download page</a> and each stateful plugin will/should expose such a schema (for example, here is the <a href="https://github.com/killbill/killbill-adyen-plugin/blob/master/src/main/resources/ddl.sql">schema</a> for the Adyen plugin)</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>Create the database killbill will use and apply the latest DDL schema, which can be found <a href="http://killbill.io/downloads/">here</a>.</p>
+<p>In order to ease the deployment we first created <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a>, the Kill Bill Package Manager.
+KPM will allow to fetch existing (signed) artifacts for the main killbill war and also for each of the plugins, and deploy them at the right place.
+KPM will <strong>not</strong> take care of deploying the web container and the various configuration files or properties.</p>
 </div>
+<div class="paragraph">
+<p>So, in addition to KPM, we also provide <a href="https://registry.hub.docker.com/u/killbill/killbill">Docker images</a>. Those images internally rely on KPM for fetching the
+various artifacts and install them at the right location on the image. The docker <code>run</code> command allows to override existing Kill Bill system properties and mount
+volumes where configuration files can be accessed.</p>
+</div>
+<div class="paragraph">
+<p>Note that one can decide to only use KPM for fetching and installing artifacts, and bypass docker to deploy on VMs or bare metal.
+Or alternatively one can use other tools, manual steps to fetch those artifacts from <a href="http://search.maven.org/">Maven Central</a>, or by using our convenient <a href="http://killbill.io/downloads">download page</a>.</p>
+</div>
+<div class="paragraph">
+<p>The following sections below will give manual instructions on how to deploy on various containers.</p>
 </div>
 </div>
 <div class="sect2">
@@ -1722,7 +1763,7 @@ Fortunately, if you are using one of the official Ruby plugins, you don&#8217;t 
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-05-01 18:39:41 UTC
+Last updated 2015-05-05 23:39:16 UTC
 </div>
 </div>
 </body>
