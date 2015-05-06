@@ -5,7 +5,7 @@ Kill Bill has a payment subsystem which offers several APIs:
 
 The former set of APIs is used by the core billing engine to charge for subscriptions, and by Kaui (the Kill Bill Admin UI) to handle refunds, chargebacks, adjustments, etc. for invoices and payments associated with such subscriptions.
 
-The latter set can be used to trigger payments (auth, capture, credit, refund, etc.) by your e-commerce application (e.g. shopping cart). It offers also helpers to create payment forms and redirect URLs in case of hosted payment pages. It is independant of any subscriptions or invoices and is used solely to make payments.
+The latter set can be used to trigger payments (auth, capture, credit, refund, etc.) by your e-commerce application (e.g. shopping cart). It also offers helpers to create payment forms and redirect URLs in case of hosted payment pages. It is independent of any subscriptions or invoices and is used solely to make payments.
 
 Kill Bill is a generic platform to build billing and payment infrastructures and as such, it is agnostic of payment gateways. However, it provides a framework to register payment plugins, which in turn implement gateway specific APIs. Those payment plugins must be OSGI compliant plugins. They can be written either in:
 
@@ -16,20 +16,27 @@ The main reason to provide a way to write ruby payment plugins is to be able to 
 
 Check the wiki page https://github.com/killbill/killbill/wiki/Payment-plugins[Payment Plugins] for a community-supported list of already written payment plugins.
 
-The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, ... operation needs to happen. The dispatching is based on the payment methods associated with each account. By default, the model is to attach a default payment method to each account: that payment method will have a link that points to a specific plugin to use. For instance, one account could have a Paypal payment method that would point to the Paypal plugin. Additionally, you can also override the payment method to use on a per payment call.
+The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, ... operation needs to happen. The dispatching is based on the payment methods associated with each account. By default, the model is to attach a default payment method to each account: that payment method will have a link that points to a specific plugin to use. For instance, one account could have a Paypal payment method that would point to the Paypal plugin. Additionally, you can also override the payment method to use on a per payment call. The figure below shows the relashionship between a Kill Bill `Account`, its various `PaymentMethods`, each of which points to a given Kill Bill plugin, which itself is in charge to interact with a third party payment gateway.
 
-By default Kill Bill does not come configured with any payment plugins per se except for the built-in __EXTERNAL_PAYMENT__, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use when making payments.
+image:https://docs.google.com/drawings/d/1ERbfXS0LKSyANT08wnp3zDyoROkhKWSdX2EK0LpwLQ4/pub?w=960&amp;h=480[align=center]
+
+By default Kill Bill does not come configured with any payment plugins except for the built-in __EXTERNAL_PAYMENT__, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use when making payments.
+
 
 === Payment states and abstractions
 
-Initially a client of the api can make either an auth, a purchase, or a credit call. That initial operation will create a *payment* and along with the payment an initial *payment_transaction*. The user can then submit additional requests for the same payment (capture, refund, ...) and each of those calls will result in additional *payment_transaction* attached to the same payment. The payments have a state which will drive the set of possible subsequent operations available. For instance, it is possible to make a capture call against a payment in a state AUTH_SUCCESS but it is not possible to make such operation against a payment in an AUTH_ERRORED state. The set of payment state transitions are configured in an xml file and the Kill Bill payment subsystem is in charge to enforce the transitions:
+Initially a client of the api can make either an *authorization*, a *purchase*, or a *credit* call (all other operations such as refund would require an initial payment to have already existed).
+That initial operation will create a https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/Payment.java[Payment] and an initial https://github.com/killbill/killbill-api/blob/c243233be112165bf04a89a715b79112c6c5d1f7/src/main/java/org/killbill/billing/payment/api/PaymentTransaction.java[PaymentTransaction].
+The user can then submit additional requests for the same payment (capture, refund, ...) and each of those calls will result in additional `PaymentTransaction` attached to the same payment.
+The payments have a state which will drive the set of possible subsequent operations available. For instance, it is possible to make a capture call against a payment in a state `AUTH_SUCCESS` but it is not possible to make such an operation against a payment in an `AUTH_ERRORED` state.
+The set of payment state transitions are configured in an https://github.com/killbill/killbill/blob/master/payment/src/main/resources/org/killbill/billing/payment/PaymentStates.xml[xml file] and the Kill Bill payment subsystem is in charge to enforce the transitions. The following diagram below shows all the possible transitions:
 
 image::payment_states.svg[Kill Bill payment states, align="center"]
 
-In addition to the payment state transitions, each payment_transaction has a status to reflect the result of the operation. The payment_transaction status depends on the plugin result and it can be summarized below:
+In addition to the payment state transitions, each `PaymentTransaction` has a status to reflect the result of the operation. The `PaymentTransaction` status depends on the plugin result and it can be summarized below:
 
 |===
-|plugin result | payment_transaction status | payment_state | description
+|plugin result | payment transaction status | payment state | description
 
 |PROCESSED
 |SUCCESS
@@ -60,8 +67,8 @@ In addition to the payment state transitions, each payment_transaction has a sta
 
 Note that the first 3 cases are normal cases but the last 2 are errors that are unrelated to the user being able to make the payment operation:
 
-* in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction_status* and move the payment to its appropriate state.
-* in the case of a plugin exception, this is probably a bug, and so there is no attempt to fix those. However it advisable to check that those are rare instances and fix code/data appropriately.
+* in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction status* and move the payment to its appropriate state.
+* in the case of a plugin exception, this is probably a bug (either in the plugin, the third part gateway or Kill Bill itself), and so there is no attempt to fix those. However it advisable to check that those are rare instances and fix code/data appropriately.
 
 
 === Payment flows
@@ -76,7 +83,7 @@ The plugin will notify Kill Bill of the payment, often by processing a notificat
 
 ==== Gateway integration
 
-For gateway integrations, the entry point for any payment is either the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createAuthorization*] (to authorize a credit card), https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createPurchase*] (to charge a payment method, for example authorizing and capturing a credit card) or https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createCredit*] (to deposit money on a payment method, without any reference to a previous payment) APIs. All calls create a payment id before calling the plugin.
+For gateway integrations, the entry point for any payment is either the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createAuthorization*] (to authorize a credit card), https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createPurchase*] (to charge a payment method, for example authorizing and capturing a credit card) or https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createCredit*] (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in `*_INIT` state before calling the plugin.
 
 
 Note that contrary to the hosted page scenario, transactions end up in a terminal state right away for most cases. There is no polling needed because the gateway will return the payment status synchronously (there is not asynchronous notification). However, there are a few exceptions:
