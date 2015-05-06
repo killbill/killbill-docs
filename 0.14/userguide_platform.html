@@ -528,18 +528,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_system_properties">System properties</a>
 <ul class="sectlevel3">
 <li><a href="#configuration-overview">Overview</a></li>
-<li><a href="#configuration-cache">Cache config</a></li>
-<li><a href="#configuration-catalog">Catalog config</a></li>
-<li><a href="#configuration-email">Email config</a></li>
-<li><a href="#configuration-invoice">Invoice config</a></li>
-<li><a href="#configuration-jdbc">JDBC config</a></li>
-<li><a href="#configuration-notification">Notification queue config</a></li>
-<li><a href="#configuration-osgi">OSGI config</a></li>
-<li><a href="#configuration-overdue">Overdue config</a></li>
-<li><a href="#configuration-payment">Payment config</a></li>
-<li><a href="#configuration-bus">Persistent bus config</a></li>
-<li><a href="#configuration-translation">Translation config</a></li>
-<li><a href="#configuration-rbac">RBAC config</a></li>
+<li><a href="#_system_properties_2">System Properties</a></li>
 </ul>
 </li>
 </ul>
@@ -1125,636 +1114,101 @@ Or alternatively one can use other tools, manual steps to fetch those artifacts 
 <div class="sect3">
 <h4 id="configuration-overview">Overview</h4>
 <div class="paragraph">
-<p>Kill Bill configuration is done principally via Java System Properties. These can be set on the command line (e.g. <strong>java -Dkey1=value1 -Dkey2=value2 -jar killbill-server-jetty-console.war</strong>) or in Java Properties files (via <strong>-Dorg.killbill.server.properties=file:///path/to/killbill.properties</strong> or <strong>start.ini</strong> if you are using Jetty). Some containers use custom formats (for example, System Properties in GlassFish would be placed in <strong>domains/domain1/config/domain.xml</strong>), please refer to your container documentation for more information.</p>
+<p>Kill Bill configuration is done principally via Java System Properties. These can be set on the command line (e.g. <code>java -Dkey1=value1 -Dkey2=value2 -jar killbill-server-jetty-console.war</code>) or in Java Properties files (via <code>-Dorg.killbill.server.properties=file:///path/to/killbill.properties</code> or <code>start.ini</code> if you are using Jetty). Some containers use custom formats (for example, System Properties in GlassFish would be placed in <code>domains/domain1/config/domain.xml</code>), so please refer to your container documentation for more information.</p>
 </div>
 <div class="paragraph">
-<p>Various specific subcomponents are configured using XML files, including:</p>
+<p>The system properties are global to the system, and therefore will apply to all tenants. Those properties will also be accessible to the various plugins through a <a href="https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/killbill/osgi/libs/killbill/OSGIConfigPropertiesService.java">special interface</a>.
+Some parts of the system also rely on additional xml configuration. Currently, only the caching layer which is based on <a href="http://ehcache.org/">EhCache</a> requires such <a href="https://github.com/killbill/killbill/blob/master/util/src/main/resources/ehcache.xml">xml configuration</a>. The location of the xml itself is specified via a system property <code>org.killbill.cache.config.location</code>.</p>
+</div>
+<div class="paragraph">
+<p>In addition to these global settings, the following is also available on a per tenant basis:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="http://ehcache.org/">EhCache</a></p>
+<p>Catalog configuration</p>
 </li>
 <li>
-<p>Catalog</p>
+<p>Overdue configuration</p>
 </li>
 <li>
-<p>Overdue</p>
+<p>Invoice templates, and language translation resources</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_system_properties_2">System Properties</h4>
+<div class="paragraph">
+<p>Kill Bill relies on <a href="https://github.com/brianm/config-magic"><code>config-magic</code></a> to define, initialize, and make accessible through function calls all its system properties.</p>
+</div>
+<div class="paragraph">
+<p>Some core services in Kill Bill export some properties, whose name is fairly explanatory:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/CatalogConfig.java">Catalog configuration</a> (Only to specify the location of the default catalog if not per-tenant catalog have been uploaded)</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/InvoiceConfig.java">Invoice configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/PaymentConfig.java">Payment configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/RbacConfig.java">Rbac configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/SecurityConfig.java">Shiro configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/CacheConfig.java">Cache configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/email/EmailConfig.java">SMTP and email configuration for notifications</a></p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>In this case, you would use System Properties to specify the path to the XML file. For example, set <strong>-Dorg.killbill.catalog.uri=file:///Users/acme/catalog/AcmeCatalog.xml</strong> to specify that the catalog configuration is located at <strong>/Users/acme/catalog/AcmeCatalog.xml</strong>.</p>
+<p>The properties to configure the database are split between the core Kill Bill services and the plugins to allow plugins to use a different database or configuration (pooling, &#8230;&#8203;):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/jdbi/src/main/java/org/killbill/commons/jdbi/guice/DaoConfig.java">Kill Bill Database configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/glue/OSGIDataSourceConfig.java">Plugin   Database configuration</a></p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>This page lists all the System Properties you can set in Kill Bill. For component specific configuration (e.g. catalog), see the appropriate sections in the User Manual.</p>
+<p>The properties to configure the persistent buses and notification queue are shown below. Those properties are built to be used across multiple instances (we have two persistent buses) which explains the substitution parameter <code>instanceName</code>. For more
+detail on the configuration of the bus and notification queue, check <a href="https://github.com/killbill/killbill/wiki/Kill-Bill-Notification-Configuration">here</a>.</p>
 </div>
-</div>
-<div class="sect3">
-<h4 id="configuration-cache">Cache config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.cache.config.location</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">/ehcache.xml</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Path to Ehcache XML configuration</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-catalog">Catalog config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.catalog.uri</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">SpyCarBasic.xml</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Catalog location. Either in the classpath (e.g. <strong>jar:///com/acme/catalog/AcmeCatalog.xml</strong>) or in the filesystem (e.g. <strong><a href="file:///Users/acme/catalog/AcmeCatalog.xml" class="bare">file:///Users/acme/catalog/AcmeCatalog.xml</a></strong>)</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-email">Email config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.smtp.host</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">null</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">MTA host used for email notifications</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.smtp.port</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">null</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">MTA port used for email notifications</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.smtp.auth</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to authenticate against the MTA</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.smtp.user</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">null</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Username to use to authenticate against the MTA</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.smtp.password</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">null</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Password to use to authenticate against the MTA</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.from</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="mailto:support@example.com">support@example.com</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Default From: field for email notifications</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.useSSL</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to use secure SMTP</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.mail.invoiceEmailSubject</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Your invoice</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Default Subject: field for invoice notifications</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-invoice">Invoice config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.invoice.maxNumberOfMonthsInFuture</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">36</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum target date to consider when generating an invoice</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.invoice.emailNotificationsEnabled</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to send email notifications on invoice creation (for configured accounts)</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-jdbc">JDBC config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.url</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">jdbc:h2:file:killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;MVCC=true;DB_CLOSE_ON_EXIT=FALSE</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc url for the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.user</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">killbill</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc user name for the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.password</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">killbill</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc password for the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.minIdle</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The minimum allowed number of idle connections to the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.maxActive</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">30</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The maximum allowed number of active connections to the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.connectionTimeout</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">10s</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">How long to wait before a connection attempt to the database is considered timed out</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.idleMaxAge</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">60m</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The time for a connection to remain unused before it is closed off</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.maxConnectionAge</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">0m</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Any connections older than this setting will be closed off whether it is idle or not. Connections currently in use will not be affected until they are returned to the pool</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.idleConnectionTestPeriod</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">5m</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Time for a connection to remain idle before sending a test query to the DB</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.logLevel</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">WARN</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Log level for SQL queries</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.transactionHandler</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.commons.jdbi.transaction.RestartTransactionRunner</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The TransactionHandler to use for all Handle instances</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.dao.poolingType</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">C3P0</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Connection pooling library to use (C3P0 or BONECP)</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-notification">Notification queue config</h4>
-<div class="paragraph">
-<p>For the following options, replace <strong>${instanceName}</strong> with either <strong>main</strong> for the main notification queue or <strong>external</strong> for the one used by the plugins.</p>
-</div>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.max.failure.retry</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number retry for a given event when an exception occurs</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.claimed</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">7</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number of notifications to fetch from the database at once</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.claim.time</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">5m</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Claim time</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.sleep</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">3000</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Time in milliseconds to sleep between runs</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.notification.off</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to turn off the notification queue</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.notification.nbThreads</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number of threads to use</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.useInflightQ</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to use the inflight queue</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.queue.capacity</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">0</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum queue capacity</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.prefetch</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">7</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number of notifications to read from the database at once</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.tableName</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">notifications</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Notifications table name</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.notificationq.${instanceName}.historyTableName</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">notifications_history</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Notifications history table name</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-osgi">OSGI config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.osgi.bundle.property.name</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">killbill.properties</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Name of the properties file for OSGI plugins</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.osgi.root.dir</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">/var/tmp/felix</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bundles cache area for the OSGI framework</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.osgi.bundle.cache.name</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">osgi-cache</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bundles cache name</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.osgi.bundle.install.dir</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">/var/tmp/bundles</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bundles install directory</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.osgi.system.bundle.export.packages</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">See <strong>org.killbill.billing.util.config.OSGIConfig</strong> for the full list</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Packages to export from the system bundle</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.billing.osgi.dao.url</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">jdbc:mysql://127.0.0.1:3306/killbill</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc url for the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.billing.osgi.dao.user</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">root</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc user name for the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.billing.osgi.dao.password</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">root</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The jdbc password for the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.billing.osgi.dao.minIdle</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The minimum allowed number of idle connections to the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.billing.osgi.dao.maxActive</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">10</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The maximum allowed number of active connections to the database</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.billing.osgi.dao.connectionTimeout</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">10s</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">How long to wait before a connection attempt to the database is considered timed out</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-overdue">Overdue config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.overdue.uri</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">NoOverdueConfig.xml</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Overdue configuration location. Either in the classpath (e.g. <strong>jar:///com/acme/overdue/AcmeOverdue.xml</strong>) or in the filesystem (e.g. <strong><a href="file:///Users/acme/overdue/AcmeOverdue.xml" class="bare">file:///Users/acme/overdue/AcmeOverdue.xml</a></strong>)</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-payment">Payment config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.provider.default</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">__external_payment__</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Default payment provider to use</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.retry.days</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">8,8,8</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Interval in days between payment retries</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.failure.retry.start.sec</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">300</p></td>
-<td class="tableblock halign-left valign-top"></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.failure.retry.multiplier</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
-<td class="tableblock halign-left valign-top"></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.failure.retry.max.attempts</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">8</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum number of retries for failed payments</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.plugin.timeout</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">5s</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Timeout for each payment attempt</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.plugin.threads.nb</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">10</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number of threads for plugin executor dispatcher</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.payment.off</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether the payment subsystem is off</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-bus">Persistent bus config</h4>
-<div class="paragraph">
-<p>For the following options, replace <strong>${instanceName}</strong> with either <strong>main</strong> for the main bus or <strong>external</strong> for the one used by the plugins.</p>
-</div>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.max.failure.retry</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number retry for a given event when an exception occurs</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.claimed</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">5</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number of bus events to fetch from the database at once</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.claim.time</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">5m</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Claim time</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.sleep</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">3000</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Time in milliseconds to sleep between runs</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.off</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to turn off the persistent bus</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.nbThreads</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number of threads to use</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.useInflightQ</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Whether to use the inflight queue</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.queue.capacity</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">3000</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum queue capacity</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.queue.prefetch</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">7</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Number of bus events to read from the database at once</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.tableName</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">bus_events</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bus events table name</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.persistent.bus.${instanceName}.historyTableName</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">bus_events_history</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bus events history table name</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-translation">Translation config</h4>
-<table class="tableblock frame-all grid-all spread">
-<colgroup>
-<col style="width: 33%;">
-<col style="width: 33%;">
-<col style="width: 33%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Property</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.default.locale</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">en_US</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Default Kill Bill locale</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.catalog.bundlePath</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org/killbill/billing/util/template/translation/CatalogTranslation</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the catalog translation bundle</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.template.bundlePath</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org/killbill/billing/util/template/translation/InvoiceTranslation</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the invoice template translation bundle</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.template.name</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the HTML invoice template</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.manualPayTemplate.name</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the invoice template for accounts with MANUAL_PAY tag</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.template.invoiceFormatterFactoryClass</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">org.killbill.billing.invoice.template.formatters.DefaultInvoiceFormatterFactory</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Invoice formatter class</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="sect3">
-<h4 id="configuration-rbac">RBAC config</h4>
-<div class="paragraph">
-<p>Kill Bill implements role-based access control (RBAC) for authentication and authorization. While the concept of users and roles are expected to be managed outside of Kill Bill, a set of permissions are defined and enforced at the library API level. The full set of permissions can be found <a href="https://raw.github.com/killbill/killbill-api/master/src/main/java/org/killbill/billing/security/Permission.java">here</a>.</p>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/bus/api/PersistentBusConfig.java">Persistent bus configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueConfig.java">Notification queue configuration</a></p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>Kill Bill expects a Realm to contain the mapping of users and roles, as well as roles and permissions. You can configure these in an ini file, for example:</p>
+<p>Finally some high level properties to configure OSGI (where to find the plugins, &#8230;&#8203;), and some Kill Bill web app configuration (multi-tenancy on/off, &#8230;&#8203;):</p>
 </div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ini"><span class="tok-c1"># Passwords can be encrypted, see http://shiro.apache.org/configuration.html#Configuration-EncryptingPasswords</span>
-<span class="tok-k">[users]</span>
-<span class="tok-na">admin</span> <span class="tok-o">=</span> <span class="tok-s">password, root</span>
-<span class="tok-na">bob</span> <span class="tok-o">=</span> <span class="tok-s">password, finance</span>
-<span class="tok-na">sarah</span> <span class="tok-o">=</span> <span class="tok-s">password, support</span>
-
-<span class="tok-k">[roles]</span>
-<span class="tok-na">root</span> <span class="tok-o">=</span> <span class="tok-s">*:*</span>
-<span class="tok-na">finance</span> <span class="tok-o">=</span> <span class="tok-s">invoice:*, payment:*</span>
-<span class="tok-na">support</span> <span class="tok-o">=</span> <span class="tok-s">entitlement:*, invoice:item_adjust, payment:refund</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Specify the path to this file via <strong>-Dorg.killbill.security.shiroResourcePath=/var/tmp/security.ini</strong>.</p>
-</div>
-<div class="paragraph">
-<p>Alternatively, you can connect your LDAP instance to Kill Bill. See <a href="https://raw.github.com/killbill/killbill/master/util/src/main/java/org/killbill/billing/util/config/SecurityConfig.java">SecurityConfig.java</a> for configuration options.</p>
-</div>
-<div class="paragraph">
-<p>RBAC is enabled by default, with a single admin user defined (username <strong>admin</strong>, password <strong>password</strong>).</p>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java">OSGI related configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/KillbillServerConfig.java">Kill Bill Web app configuration</a></p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -1763,7 +1217,7 @@ Or alternatively one can use other tools, manual steps to fetch those artifacts 
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-05-05 23:39:16 UTC
+Last updated 2015-05-06 19:34:51 UTC
 </div>
 </div>
 </body>
