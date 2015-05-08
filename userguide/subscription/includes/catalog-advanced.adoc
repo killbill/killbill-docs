@@ -1,11 +1,11 @@
 ==== Overview
 
-This tutorial builds on the Basic Tutorial to illustrate the more advanced features of the Kill Bill Catalog. The XML example for this tutorial can be https://raw.github.com/killbill/killbill/master/catalog/src/test/resources/SpyCarAdvanced.xml[downloaded in its entirety].
+This tutorial builds on the Basic Tutorial to illustrate the more advanced features of the Kill Bill Catalog. The XML example for this tutorial can be found https://raw.github.com/killbill/killbill/master/catalog/src/test/resources/SpyCarAdvanced.xml[here].
 
 
 ==== Add-ons
 
-Having an explicit representation of Add-On products allows Kill Bill to be configured to only allow purchases of add-ons with particular base plans, and to trigger appropriate cancellations automatically when the base plan changes.
+Having an explicit representation of Add-On products allows Kill Bill to be configured to only allow purchases of add-ons with particular base plans, and to trigger appropriate cancellations automatically when the base plan changes or is cancelled.
 
 Kill Bill supports three categories of products:
 
@@ -21,13 +21,15 @@ Subscription Bundles can either consist of a collection of subscriptions to stan
 
 The Kill Bill catalog allows you to specify the inclusion and availability of Add-On Products with associated Base Products.
 
-For example, suppose that we create some add-on products for our example catalog. Lets add an OilSlick Product and a RemoteControl Product. Now, let discuss the availability and inclusion of these:
+For example, suppose that we create some add-on products for our example catalog. Let's add an `OilSlick` Product and a `RemoteControl` Product. Now, let's discuss the availability and inclusion of these:
 
-* Neither of the products is available in the Standard Plan, meaning that you can’t purchase either of these add-ons if you are on Standard.
-* Both products are available on the Sports Plan.
-* RemoteControl is available on the Super Plan, but as we can see from the original Plan definition, OilSlick is already included in the Super Plan.
+* Neither of the products is available in the `Standard` Plan, meaning that you can’t purchase either of these add-ons if you are on `Standard`.
+* Both products are available on the `Sport` Plan.
+* RemoteControl is available on the `Super` Plan, but as we can see from the original Plan definition, `OilSlick` is already included in the `Super` Plan.
 
-If we have this specified in the catalog then Kill Bill knows to disallow certain purchases, e.g. it will not allow the purchase of an OilSlick add-on in a Bundle with a Standard Base Plan. Similarly if the Base Plan in a Bundle containing Super and RemoteControl is downgraded to Standard, Kill Bill knows to automatically cancel the RemoteControl Add-On since it is no longer available. Finally, if the Base Plan of a Bundle containing Sports and OilSlick is upgraded to Super, Kill Bill knows to cancel the OilSlick Plan because its features are already included, by default, in the new Base Plan.
+If we have this specified in the catalog then Kill Bill knows to disallow certain purchases, e.g. it will not allow the purchase of an `OilSlick` add-on in a Bundle with a `Standard` Base Plan.
+Similarly if the Base Plan in a Bundle containing `Super` and `RemoteControl` is downgraded to `Standard`, Kill Bill knows to automatically cancel the `RemoteControl` Add-On since it is no longer available.
+Finally, if the Base Plan of a Bundle containing `Sports` and `OilSlick` is upgraded to `Super`, Kill Bill knows to cancel the `OilSlick` Plan because its features are already included, by default, in the new Base Plan.
 
 [source,xml]
 ----
@@ -68,7 +70,8 @@ image:https://drive.google.com/uc?&id=0Bw8rymjWckBHTXcwbHNjTXBnYkE&w=960&amp;h=4
 
 Price Lists are collections of Plans, usually associated with a promotion or discount package.
 
-For example, we might offer special rates on our Spy Car rental package for C.I.A. Agents, which offers 33% off for the first 3 months of hire. To do this, we create plans similar to the ones we have already. They should have the same trial phase and the same evergreen phase, but we insert a new discount phase which, for 3 months, charges the appropriate discount
+For example, we might offer special rates on our Spy Car rental package for C.I.A. Agents, which offers 33% off for the first 3 months of hire.
+To do this, we create plans similar to the ones we have already. They should have the same trial phase and the same evergreen phase, but we insert a new discount phase which, for 3 months, charges the appropriate discount.
 
 In this example we consider only the first of the three additional plans.
 
@@ -145,15 +148,22 @@ Once our additional plans have been created, we can add the new pricelist, after
 </priceLists>
 ----
 
-The alignment and price list change rules can be used to specify the behaviour to use when changing pricelists. In the example above, we would expect customers to be able to upgrade and downgrade within the discount phase of the subscription and stay in the discounted price list. We refer to this as a “sticky” price list. Kill Bill can also support “non-sticky” price lists, in which plan changes cause the customer to drop out of the pricelist that the are in and move to a different one (usually the Default). In the section on rules we explain how to configure these properties.
+The alignment and price list change rules can be used to specify the behaviour to use when changing pricelists.
+In the example above, we would expect customers to be able to upgrade and downgrade within the discount phase of the subscription and stay in the discounted price list.
+We refer to this as a “sticky” price list. Kill Bill can also support “non-sticky” price lists, in which plan changes cause the customer to drop out of the pricelist that the are in and move to a different one (usually the Default).
+In the section on rules we explain how to configure these properties.
 
 
 ==== Rules
 
 
-There several different *Rules* that can be configured in the Kill Bill Catalog. Each Rule answers a specific question. For example, one of the Rules answers the question "When should this plan change be applied?". Suppose Kill Bill receives a request for a subscription to have its plan upgraded, Kill Bill will check the rules, and based on the current plan, the phase it is in, the new plan etc. Kill Bill can determine whether the transition should happen immediately, or be deferred until later.
+There several different *Rules* that can be configured in the Kill Bill Catalog. Each Rule answers a specific question.
+For example, one of the Rules answers the question "When should this plan change be applied?".
+Suppose Kill Bill receives a request for a subscription to have its plan upgraded, Kill Bill will check the rules, and based on the current plan, the phase it is in, the new plan etc. Kill Bill can determine whether the transition should happen immediately, or be deferred until later.
 
-Rules consist of a series of Cases, each case is represented by a Predicate and a Result. Rules are evaluated against a Context. Each case is examined in order, and the Predicate for that Case is compared to the Context. If the Predicate is satisfied by the context, then the Result of that Case is applied.
+Rules consist of a series of Cases, each case is represented by a Predicate and a Result.
+Rules are evaluated against a Context. Each case is examined in order, and the Predicate for that Case is compared to the Context.
+If the Predicate is satisfied by the context, then the Result of that Case is applied.
 
 For example, consider the following rule for the timing of applying a plan change:
 
@@ -195,9 +205,13 @@ Consider following Context:
 |DEFAULT
 |===
 
-To evaluate the Rule against this Context, we start by considering Case 1. The predicate in Case 1 requires that PhaseType=TRIAL, but the first line of our context has phaseType set to EVERGREEN, so Case 1 fails. However, when we consider Case 2, all the predicate clauses are satisfied by the above context: phaseType=Evergreen, fromProduct=Sports and toProduct=Standard. So, Case 2 succeeds and the Rule evaluates to "END_OF_TERM".
+To evaluate the Rule against this Context, we start by considering Case 1.
+The predicate in Case 1 requires that PhaseType=TRIAL, but the first line of our context has phaseType set to EVERGREEN, so Case 1 fails.
+However, when we consider Case 2, all the predicate clauses are satisfied by the above context: phaseType=Evergreen, fromProduct=Sports and toProduct=Standard.
+So, Case 2 succeeds and the Rule evaluates to "END_OF_TERM".
 
-Notice that the predicates only need to specify the values of some of the fields in the context. Fields that are omitted in a predicate can take any value. For this reason Case 3 is a catch-all Case. It always succeeds because the predicate has no clauses so it will succeed with any Context.
+Notice that the predicates only need to specify the values of some of the fields in the context. Fields that are omitted in a predicate can take any value. For this reason Case 3 is a catch-all Case.
+It always succeeds because the predicate has no clauses so it will succeed with any Context.
 
 The XML for the above rules is given below:
 
@@ -322,8 +336,8 @@ image:https://drive.google.com/uc?&id=0Bw8rymjWckBHaDN0Y0NIbTFCaU0&w=960&amp;h=4
 
 There are two choices (illustrated above):
 
-* START_OF_BUNDLE - causes the phases of the add on to start on the date when the base plan was first created. This is useful if you want to allow add-on trials during the trial phase of the base plan only. The add on plans must have a trial of the same length as the base plan and then the trials will expire at the same time whenever the add-on is created.
-* START_OF_SUBSCRIPTION - this causes the phases of the add-on to start when the add-on subscription is created. This is useful if you want to allow add-ons to have trials that are occur independently of the base plan.
+* START_OF_BUNDLE - causes the phases of the addon to start on the date when the base plan was first created. This is for instance useful if you want to allow add-on trials during the trial phase of the base plan only. The addon plans must have a trial of the same length as the base plan and then the trials will expire at the same time whenever the add-on is created.
+* START_OF_SUBSCRIPTION - this causes the phases of the add-on to start when the add-on subscription is created. This is for instance useful if you want to allow add-ons to have trials that are occur independently of the base plan.
 
 Example:
 
@@ -331,7 +345,7 @@ Example:
 . Predicate: product=RemoteControl ; Result: START_OF_SUBSCRIPTION
 . Predicate: ; Result: START_OF_BUNDLE
 
-In this example the product “OilSlick” is aligned to the START_OF_BUNDLE and the product “RemoteControl” is aligned to START_OF_SUBSCRIPTION. The default for anything else is START_OF_BUNDLE.
+In this example the product `OilSlick` is aligned to the START_OF_BUNDLE and the product `RemoteControl` is aligned to START_OF_SUBSCRIPTION. The default for anything else is START_OF_BUNDLE.
 
 [source,xml]
 ----
@@ -352,14 +366,14 @@ In this example the product “OilSlick” is aligned to the START_OF_BUNDLE and
 
 ===== Rule: Plan Cancellation Timing
 
-This rule is uses the Phase Context and is used to specify when a cancellation should occur.
+This rule uses the Phase Context and is used to specify when a cancellation should occur.
 
 image:https://drive.google.com/uc?&id=0Bw8rymjWckBHTjRMVkZjbUZ3OFE&w=960&amp;h=480[align=center]
 // https://drive.google.com/file/d/0Bw8rymjWckBHTjRMVkZjbUZ3OFE/view?usp=sharing
 
 There are two options (illustrated above):
 
-* END_OF_TERM - meaning that the cancellation will be applied at the end of the billed period. This is typical in a situation where refunds are not given.
+* END_OF_TERM - meaning that the cancellation will be applied at the end of the billed period. This is typical in a situation where we want to avoid generating credits.
 * IMMEDIATE - meaning that the cancellation will be applied immediately and the customer credited with the balance of the subscription that they have paid for but not yet used.
 
 Example:
@@ -433,12 +447,12 @@ In this example we specify that trials and upgrades occur immediately, anything 
 
 ===== Rule: Plan Change Phase Alignment
 
-In "Plan Creation Add-on Phase Alignment" we specified how to align the phases of an add-on with a base plan. This rule, which uses the Change Context, specifies how the phases of a new plan should align with the phases of the existing plan when a plan is changed.
+In the section "Plan Creation Add-on Phase Alignment" above, we specified how to align the phases of an add-on with a base plan. This rule, which uses the Change Context, specifies how the phases of a new plan should align with the phases of the existing plan when a plan is changed.
 
 There are four options:
 
 * START_OF_SUBSCRIPTION - The plan phases start with the start of the subscription. This is the most common alignment and applies in most situations.
-* START_OF_BUNDLE - The plan phases should align with the start of the base subscription.
+* START_OF_BUNDLE - The plan phases should align with the start of the base subscription. This is only meaningful for addons.
 * CHANGE_OF_PLAN - The plan phases start at the time of the change
 * CHANGE_OF_PRICELIST - The plan phases start at the time of the last change of price list
 
@@ -466,17 +480,19 @@ Example:
 </changeAlignment>
 ----
 
-In this example, addon changes are aligned to the start of the bundle, changes to the SpecialDiscount price list are aligned to that change and everything else aligns to the start of the subscription.
+In this example, addon changes are aligned to the start of the bundle, changes to the `SpecialDiscount` price list are aligned to that change and everything else aligns to the start of the subscription.
 
 ===== Rule: Plan Change Price List Choice
 
 This rule uses the Change Context and specifies which pricelist should be chosen for specific changes. The rule allows us to configure whether a price list is "sticky" or not.
 
-For example, suppose we have affiliate pricelist with special prices for members of the CIA for Spy Car rental. Lets say that this price list offers a 30% discount for the first 3 months of rental.
+For example, suppose we have affiliate pricelist with special prices for members of the CIA for Spy Car rental. Let's say that this price list offers a 30% discount for the first 3 months of rental.
 
-Now, Special Agent Mills from the CIA subscribes to a Sports on that price list. However, 1 month after renting the car his daughter is kidnapped he needs additional capabilities and decides to upgrade to a Super. Since he bought the original subscription on a special offer that still has two months to run we would expect the upgrade to put him into the corresponding 30% off Super plan and give him a further 2 months at that price. This is a “sticky” price list.
+Now, Special Agent Mills from the CIA subscribes to a `Sports` product on that price list. However, 1 month after renting the car his daughter is kidnapped and he needs additional capabilities and decides to upgrade to a `Super`.
+Since he bought the original subscription on a special offer that still has two months to run we would expect the upgrade to put him into the corresponding 30% off `Super` plan and give him a further 2 months at that price. This is a “sticky” price list.
 
-Alternatively, consider long term customer 003 who has been renting the Supr for the last 4 years but decides that she wants to save money and calls to downgrade her plan. our representative offers her a special Rescue Pricing plan that gives her 40% off for the next year and she decides to take it. However, a month later she changes her mind and decides to downgrade anyway. In this situation we want her to downgrade to the default price plan. This is a "non-sticky" price list.
+Alternatively, consider long term customer 003 who has been renting the `Super` for the last 4 years but decides that she wants to save money and calls to downgrade her plan. Our representative offers her a special Rescue Pricing plan that gives her 40% off for the next year and she decides to take it.
+However, a month later she changes her mind and decides to downgrade anyway. In this situation we want her to downgrade to the default price plan. This is a "non-sticky" price list.
 
 Example:
 
@@ -501,15 +517,18 @@ Example:
 </priceList>
 ----
 
-==== Catalog changes
+==== Catalog Versions
 
-This far in the discussion we have been considering single stand-alone catalogs, but Kill Bill allows the catalog to be modified over time. This is done by creating a set of catalogs with effectiveDates through time. Each catalog is superseded by the next. In this way we can change prices, add new Plans, Products, Price Lists etc, retire Plans, Products, Price Lists etc.
+This far in the discussion we have been considering single stand-alone catalogs, but Kill Bill allows the catalog to be modified over time. This is done by creating a set of catalogs with effectiveDates through time.
+Each catalog is superseded by the next. In this way we can change prices, add new Plans, Products, Price Lists etc, retire Plans, Products, Price Lists etc.
 
-Note that the catalog does not allow the removal of objects. Only additions and certain modifications are allowed. Objects can be retired which means that they cannot be applied to new subscriptions. However existing subscriptions will still refer to them.
-
+Note that the catalog does not allow the removal of objects. Only additions and certain modifications are allowed. Objects can be retired which means that they cannot be applied to new subscriptions.
+However existing subscriptions will still refer to them.
 
 ===== Deferred Price Change
 
-Kill Bill supports the ability to make a price change to a plan that applies based on the catalog effective date for new purchases, but which is deferred for existing subscriptions. It is often the case that existing customers will need a notice period before prices are changed but you need to deliver the new prices to new purchases as soon as the change is announced.
+Kill Bill supports the ability to make a price change to a plan that applies based on the catalog effective date for new purchases, but which is deferred for existing subscriptions.
+It is often the case that existing customers will need a notice period before prices are changed but you need to deliver the new prices to new purchases as soon as the change is announced.
 
-This feature uses the field effectiveDateForExistingSubscriptons that is included on Plans. The semantics is simply that the changes to that plan will only take effect for existing subscriptions, after that date.
+This feature uses the field `effectiveDateForExistingSubscriptons` that is included on Plans.
+The semantics is simply that the changes to that plan will only take effect for existing subscriptions, after that date, but new subscription would use the new price immediately.
