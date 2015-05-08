@@ -1,4 +1,4 @@
-==== Fixed item
+==== Fixed Item
 
 An invoice for a subscription on a fixed phase of $0 (trial phase for example) would look like:
 
@@ -19,7 +19,7 @@ An invoice for a subscription on a fixed phase of $0 (trial phase for example) w
 |
 |===
 
-==== Recurring item
+==== Recurring Item
 
 An invoice for a subscription on a recurring phase of $20 would look like:
 
@@ -40,9 +40,13 @@ An invoice for a subscription on a recurring phase of $20 would look like:
 |2013-05-11
 |===
 
-==== Plan changes
+==== Plan Changes
 
-If the user upgrades on 2013-04-26 (halfway through the month), the invoice would be repaired as follow (the CBA_ADJ item assumes the invoice was paid in full):
+In a case where invoicing occurs in advance, a user gets charged for the upcoming period.
+For instance a user that subscribed to a monthly plan on 2013-04-11, would get a first invoice, charging for that month.
+Assuming he paid his invoice, his balance is now 0. Let's assume he decides to upgrade on 2013-04-26:
+
+Previous invoice:
 
 [cols=6, options="header"]
 |===
@@ -59,23 +63,10 @@ If the user upgrades on 2013-04-26 (halfway through the month), the invoice woul
 |$20
 |2013-04-11
 |2013-05-11
-
-|1029
-|REPAIR_ADJ
-|
-|$-20
-|2013-04-11
-|2013-05-11
-
-|1029
-|CBA_ADJ
-|
-|$20
-|2013-04-26
-|2013-04-26
 |===
 
-and a new invoice would be generated reflecting the reality:
+On the new invoice, the system will generate a REPAIR_ADJ item for the part of the subscription on the old plan that was not used, and a new
+RECURRING item for the new plan on the remaining period.
 
 [cols=6, options="header"]
 |===
@@ -85,32 +76,28 @@ and a new invoice would be generated reflecting the reality:
 |Amount
 |Start date
 |End date
-
-|1030
-|RECURRING
-|Silver monthly
-|$10
-|2013-04-11
-|2013-04-26
 
 |1030
 |RECURRING
 |Gold monthly
-|$30
+|$15
 |2013-04-26
 |2013-05-11
 
-|1030
-|CBA_ADJ
-|
-|$-20
+|1029
+|REPAIR_ADJ
+|Silver monthly
+|$-10
 |2013-04-26
-|2013-04-26
+|2013-05-11
+
 |===
 
-The last negative CBA_ADJ is the account credit applied from the payment of the first invoice. The balance of the new invoice is only $20.
 
-==== Invoice item adjustment
+Note that if the absolute value of the amount of the REPAIR_ADJ had been greater than the amount of the new RECURRING item, the system would have generated a CBA_ADJ item
+whose purpose would have been to bring the balance to 0, and provide the customer some credit that would have been used on subsequent invoices.
+
+==== Invoice Item Adjustment
 
 An invoice item adjustment would look like (assuming the invoice wasn't paid, otherwise a CBA_ADJ item would be added):
 
@@ -138,7 +125,7 @@ An invoice item adjustment would look like (assuming the invoice wasn't paid, ot
 |2013-04-20
 |===
 
-==== Invoice adjustment
+==== Invoice Adjustment
 
 An invoice adjustment would look similar (assuming again the invoice wasn't paid, otherwise a CBA_ADJ item would be added):
 
