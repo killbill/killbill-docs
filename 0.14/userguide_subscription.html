@@ -2066,39 +2066,45 @@ The semantics is simply that the changes to that plan will only take effect for 
 <div class="sect2">
 <h3 id="_overview_2">Overview</h3>
 <div class="paragraph">
-<p>The Kill Bill entitlement system primarily offers an API for users to manage their subscriptions: The API allows a user to subscribe to a new product, change, pause, resume or cancel its existing subscriptions. Upon each of those API calls there are really two distincts set of operations that occur in the system:</p>
+<p>The Kill Bill entitlement system primarily offers an API for users to manage their subscriptions.
+The API allows a user to subscribe to a new product, change to a different product, pause, resume or cancel its subscription.
+Upon each of those API calls there are really two distinct set of operations that occur in the system:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>There is an entitlement change that occurs; for instance upon creation, the user gains access to what she subscribed for, or in the case of cancellation she loses its access. The primary goal of that API is to give great flexibility through the use of dates or entitlement policies as to when things should start/stop,&#8230;&#8203;</p>
+<p>When an <strong>entitlement change</strong> occurs, for instance upon creation, the user <strong>gains access</strong> to what she subscribed for
+The primary goal of that API is to give great flexibility through the use of dates or entitlement policies as to when things should start/stop,&#8230;&#8203;</p>
 </li>
 <li>
-<p>As a consequence of the entitlement operation, the system will also calculate the changes that should occur on the billing side. It is important to understand that the entitlement operation has an impact on billing, so the two are connected, but they are not necessarily aligned.</p>
+<p>As a consequence of the entitlement operation, the system will also compute the changes that should occur on the <strong>billing side</strong>.
+It is important to understand that the entitlement operation has an impact on billing, so the two are connected, but they are not necessarily aligned.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>The philosophy behind that API is that the user (of the API) should be able to drive the entitlement so that it matches exactly its needs and let the system computes the billing aspect based on the policies that were configured in the system. Example:</p>
+<p>The philosophy behind that API is that the user (of the API) should be able to drive the entitlement so that it matches exactly its needs and let the system computes the billing aspect based on the policies that were configured in the catalog.
+Example:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>First an administrator could configure Kill Bill to never generate credit for a particular product 'P'.</p>
+<p>First an administrator sets up Kill Bill to always perform the cancellation END_OF_TERM, which will result in never generating a credit for a particular product 'P'.</p>
 </li>
 <li>
-<p>A customer comes in, subscribes to that product, gets invoiced&#8230;&#8203;</p>
+<p>A customer comes in, subscribes to that product 'P', and gets invoiced&#8230;&#8203;</p>
 </li>
 <li>
 <p>At a later date the customer decides that he no longer wants to use the product 'P' and so he decides to cancel that subscription immediately. From an entitlement point of view, the end date is now and so, as soon as the call returns, the customer loses access to its product 'P'.</p>
 </li>
 <li>
-<p>However from a billing point of view, and because the administrator decided to configure the system that way, the end date will be calculated by the system to match the end date of the last period invoiced, also referred to as charged through date (CTD), and that way there is no generated credit for that cancellation.</p>
+<p>However from a billing point of view, and because the administrator decided to configure the system that way, the end date will be computed by the system to match the end date of the last period invoiced, also referred to as charged through date (CTD), and that way there is no generated credit for that cancellation.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>So, as a general rule, the administrator deals with the billing policies, and the user of the API controls the detail of its entitlement(s). The entitlement system exposes abstractions that reflect that model:</p>
+<p>So, as a general rule, the administrator deals with the billing policies, and the user of the API controls the detail of its entitlement(s).
+The entitlement system exposes abstractions that reflect that model:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -2106,7 +2112,7 @@ The semantics is simply that the changes to that plan will only take effect for 
 <p>Entitlement: An entitlement is an abstraction which helps answer the following question: Is the user allowed (entitled) to use this service/product at a given time? So as such, it provides information about the dates where that service started, ended, was paused/resumed along with the specifics about the type of service/product.</p>
 </li>
 <li>
-<p>Subscription: A Subscription is an abstraction that encapsulates the information contained in the Entitlement but also adds additonal billing information, such as the dates at which the billing started, ended. When the system is configured to bill in advance, it also provides the date up to which the customer was invoiced (ChargeThroughDate).</p>
+<p>Subscription: A Subscription is an abstraction that encapsulates the information contained in the Entitlement but also adds additional billing information, such as the dates at which the billing started, ended. When the system is configured to bill in advance, it also provides the date up to which the customer was invoiced (ChargeThroughDate).</p>
 </li>
 <li>
 <p>SubscriptionBundle: Subscriptions are always part of a SubscriptionBundle. This allows Subscriptions to be grouped together so that specific operations&#8201;&#8212;&#8201;cancellation, change of plan-- on one Subscription may have an impact on the other Subscriptions in the same SubscriptionBundle. There can be at most one Subscription attached to a BASE Category in a SubscriptionBundle but there can be multiple ADD_ON Subscriptions in that same SubscriptionBundle. Typically, a BASE Category is used to make sure that any operation on the BASE Subscription will be reflected on the ADD_ON Susbcriptions in the same SubscriptionBundle.</p>
@@ -2114,7 +2120,7 @@ The semantics is simply that the changes to that plan will only take effect for 
 </ul>
 </div>
 <div class="paragraph">
-<p>Previously we laid out the general case where the user of the API controls the Entitlement and Kill Bill manages the billing aspect based on configuration policies. Some specific entitlement APIs also allow you to override the billing policies if this is ever needed.</p>
+<p>Previously we laid out the general case where the user of the API controls the Entitlement and Kill Bill manages the billing aspect based on configuration policies. Some specific entitlement APIs also allow you to override the billing policies on a per call basis.</p>
 </div>
 </div>
 <div class="sect2">
@@ -2126,8 +2132,10 @@ The semantics is simply that the changes to that plan will only take effect for 
 <p>On the horizontal line, we have the various entitlement (ENT) policies or requested cancel date; on the vertical we have the same policies/requested cancel date for the billing side (BILL):</p>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://drive.google.com/uc?&amp;id=0Bw8rymjWckBHR3h5VXpnQXI1YXM&amp;w=960&amp;h=480" alt="Entitlement Matrix Policy"></span>
-The diagrams below summarize what happens when a cancellation occurs on a subscription that was billed in advance:</p>
+<p><span class="image"><img src="https://drive.google.com/uc?&amp;id=0Bw8rymjWckBHR3h5VXpnQXI1YXM&amp;w=960&amp;h=480" alt="Entitlement Matrix Policy"></span></p>
+</div>
+<div class="paragraph">
+<p>The diagrams below summarize what happens when a cancellation occurs on a subscription that was billed <strong>in advance</strong>:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -2140,7 +2148,7 @@ The diagrams below summarize what happens when a cancellation occurs on a subscr
 </ul>
 </div>
 <div class="paragraph">
-<p>While we see that in all cases, cancelling a subscription has both an impact on the entitlement and the billing side, but we also see that those two are not necessarily aligned:</p>
+<p>We can see that in all cases, cancelling a subscription has both an impact on the entitlement and the billing side, but we also see that those two are not necessarily aligned:</p>
 </div>
 <div class="paragraph">
 <p><span class="image"><img src="https://drive.google.com/uc?&amp;id=0Bw8rymjWckBHX2V1N3gzeWxOdkU&amp;w=960&amp;h=480" alt="Entitlement policy scenarii"></span></p>
@@ -3300,7 +3308,7 @@ org.killbill.notificationq.analytics.historyTableName<span class="tok-o">=</span
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-05-08 22:53:21 UTC
+Last updated 2015-05-08 23:11:42 UTC
 </div>
 </div>
 </body>
