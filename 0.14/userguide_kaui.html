@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Usage: consumable in arrear</title>
+<title>Kill Bill Administrative UI</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,221 +476,94 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Usage: consumable in arrear</h1>
+<h1>Kill Bill Administrative UI</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#intro">Introduction</a>
-<ul class="sectlevel2">
-<li><a href="#_scenario">Scenario</a></li>
-</ul>
-</li>
-<li><a href="#configuration">Configuration</a></li>
-<li><a href="#pieces-together">Putting The Pieces Together</a>
-<ul class="sectlevel2">
-<li><a href="#_usage_and_metering">Usage and Metering</a></li>
-<li><a href="#_example_of_a_customer_usage">Example of a Customer Usage</a></li>
-</ul>
-</li>
-<li><a href="#_additional_resources">Additional Resources</a></li>
+<li><a href="#_overview">Overview</a></li>
+<li><a href="#_features">Features</a></li>
+<li><a href="#_extensions">Extensions</a></li>
+<li><a href="#_screenshots">Screenshots</a></li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="intro">Introduction</h2>
+<h2 id="_overview">Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>In this tutorial we will look at the Kill Bill <strong>usage billing</strong> feature. In particular we will see how recurring subscriptions and usage can be configured together. The tutorial will focus on a type of usage that we refer to as <strong>consumable in arrear</strong> and that we explained in that <a href="http://killbill.io/blog/usage-billing/">blog</a>; in short, that is the ability to charge the customer for units he consumed at the end of the billing period.</p>
+<p>Kill Bill itself doesn&#8217;t provide a UI to manage your accounts and subscriptions.
+All interactions with the core platform is expected to be done via the REST API and/or the Java APIs (if you decide to embed Kill Bill).</p>
 </div>
-<div class="sect2">
-<h3 id="_scenario">Scenario</h3>
 <div class="paragraph">
-<p>Let&#8217;s assume you want to build a online store selling artisanal chocolates, and geared towards the chocolate aficionados. The service you provide is based on a monthly subscription, that includes 1 box of your (organic certified local produced) home made chocolates. In addition, you also provide videos on the topic (the history of chocolate, its fabrication, recipes of chocolate based dishes, the economy of chocolate, chocolate health benefits, &#8230;&#8203;) that are accessible online from your website. Customers that subscribed to the base service, can also stream your videos and will be invoiced based on their usage at the end of each period:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>The base service is available for $30/month and includes that ecstatic box of chocolate,</p>
-</li>
-<li>
-<p>The first 5 videos (streamed during the month) will be invoiced at $2/video</p>
-</li>
-<li>
-<p>The next videos (streamed during the month) will be invoiced at $1/video</p>
-</li>
-</ul>
-</div>
+<p><a href="http://github.com/killbill/killbill-admin-ui">Kaui</a> (the Kill Bill Admin UI) is a rails mountable engine that provides most of the functionality required to manage user accounts and their subscriptions, invoices, payments&#8230;&#8203;
+In addition to Kaui, we also provide a <a href="https://github.com/killbill/killbill-admin-ui-standalone">self contained war</a> that can be deployed in a container (tomcat, ..).</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="configuration">Configuration</h2>
+<h2 id="_features">Features</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Your catalog will have to specify the units for the usage section and also define the plan; for the sake of simplicity we omitted other catalog sections, but to see how the pieces fit together you can look at the example provided with the <a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarAdvanced.xml">source code</a>.</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="xml">---
-<span class="tok-nt">&lt;units&gt;</span>
-	<span class="tok-nt">&lt;unit</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly-videos&quot;</span><span class="tok-nt">/&gt;</span>
-<span class="tok-nt">&lt;/units&gt;</span>
-<span class="tok-c">&lt;!--...--&gt;</span>
-<span class="tok-nt">&lt;plan</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly&quot;</span><span class="tok-nt">&gt;</span>
-     <span class="tok-nt">&lt;product&gt;</span>Chocolate<span class="tok-nt">&lt;/product&gt;</span>
-     <span class="tok-nt">&lt;finalPhase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;EVERGREEN&quot;</span><span class="tok-nt">&gt;</span>
-         <span class="tok-nt">&lt;duration&gt;</span>
-             <span class="tok-nt">&lt;unit&gt;</span>UNLIMITED<span class="tok-nt">&lt;/unit&gt;</span>
-         <span class="tok-nt">&lt;/duration&gt;</span>
-         <span class="tok-nt">&lt;recurring&gt;</span>
-             <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
-             <span class="tok-nt">&lt;recurringPrice&gt;</span>
-                 <span class="tok-nt">&lt;price&gt;</span>
-                     <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                     <span class="tok-nt">&lt;value&gt;</span>30.00<span class="tok-nt">&lt;/value&gt;</span>
-                 <span class="tok-nt">&lt;/price&gt;</span>
-             <span class="tok-nt">&lt;/recurringPrice&gt;</span>
-         <span class="tok-nt">&lt;/recurring&gt;</span>
-         <span class="tok-nt">&lt;usages&gt;</span>
-             <span class="tok-nt">&lt;usage</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly-videos&quot;</span> <span class="tok-na">billingMode=</span><span class="tok-s">&quot;IN_ARREAR&quot;</span> <span class="tok-na">usageType=</span><span class="tok-s">&quot;CONSUMABLE&quot;</span><span class="tok-nt">&gt;</span>
-                 <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
-                 <span class="tok-nt">&lt;tiers&gt;</span>
-                     <span class="tok-nt">&lt;tier&gt;</span>
-                         <span class="tok-nt">&lt;blocks&gt;</span>
-                             <span class="tok-nt">&lt;tieredBlock&gt;</span>
-                                 <span class="tok-nt">&lt;unit&gt;</span>chocolate-videos<span class="tok-nt">&lt;/unit&gt;</span>
-                                 <span class="tok-nt">&lt;size&gt;</span>1<span class="tok-nt">&lt;/size&gt;</span>
-                                 <span class="tok-nt">&lt;prices&gt;</span>
-                                     <span class="tok-nt">&lt;price&gt;</span>
-                                         <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                                         <span class="tok-nt">&lt;value&gt;</span>2<span class="tok-nt">&lt;/value&gt;</span>
-                                     <span class="tok-nt">&lt;/price&gt;</span>
-                                 <span class="tok-nt">&lt;/prices&gt;</span>
-                                 <span class="tok-nt">&lt;max&gt;</span>5<span class="tok-nt">&lt;/max&gt;</span>
-                             <span class="tok-nt">&lt;/tieredBlock&gt;</span>
-                         <span class="tok-nt">&lt;/blocks&gt;</span>
-                     <span class="tok-nt">&lt;/tier&gt;</span>
-                     <span class="tok-nt">&lt;tier&gt;</span>
-                         <span class="tok-nt">&lt;blocks&gt;</span>
-                             <span class="tok-nt">&lt;tieredBlock&gt;</span>
-                                 <span class="tok-nt">&lt;unit&gt;</span>chocolate-videos<span class="tok-nt">&lt;/unit&gt;</span>
-                                 <span class="tok-nt">&lt;size&gt;</span>1<span class="tok-nt">&lt;/size&gt;</span>
-                                 <span class="tok-nt">&lt;prices&gt;</span>
-                                     <span class="tok-nt">&lt;price&gt;</span>
-                                         <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                                         <span class="tok-nt">&lt;value&gt;</span>1<span class="tok-nt">&lt;/value&gt;</span>
-                                     <span class="tok-nt">&lt;/price&gt;</span>
-                                 <span class="tok-nt">&lt;/prices&gt;</span>
-                                 <span class="tok-nt">&lt;max&gt;</span>10000<span class="tok-nt">&lt;/max&gt;</span>
-                             <span class="tok-nt">&lt;/tieredBlock&gt;</span>
-                         <span class="tok-nt">&lt;/blocks&gt;</span>
-                     <span class="tok-nt">&lt;/tier&gt;</span>
-                 <span class="tok-nt">&lt;/tiers&gt;</span>
-             <span class="tok-nt">&lt;/usage&gt;</span>
-         <span class="tok-nt">&lt;/usages&gt;</span>
-     <span class="tok-nt">&lt;/finalPhase&gt;</span>
-<span class="tok-nt">&lt;/plan&gt;</span>
----</code></pre>
-</div>
+<p>Kaui has been designed to be fully multi-tenant which means you can deploy one UI to access all your tenants.
+There is a <a href="http://killbill.io/blog/multi-tenancy-authorization/">blog here</a> which explains in a bit more details on how that works.
+Along with the multi-tenancy support, Kaui also leverages the authentication and authorization layer built into Kill Bill to restrict
+certain admin with specific permissions to have access to well defined screens and actions (refund a payment, credit an account, &#8230;&#8203;)</p>
 </div>
 <div class="paragraph">
-<p>The plan description shows the following:</p>
+<p>The core features available in Kaui are:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>There is a recurring section that specifies that customer should be invoiced (in advance) at the begining of each month for $30</p>
+<p>List on a per tenant basis all the accounts, bundles, invoices, payments, and allow to search based on various fields (account name, external key, email,&#8230;&#8203;)</p>
 </li>
 <li>
-<p>There is a section usage that defines two tiers, each of them for a unit of <code>chocolate-videos</code> with a size of 1 (we pay for each video)</p>
+<p>Account management</p>
 <div class="ulist">
 <ul>
 <li>
-<p>The first tier specifies that below 5 videos, the price per video (unit) is set to $2.</p>
+<p>Show contact info</p>
 </li>
 <li>
-<p>The second tier specifies that after 5 videos and below 10000 (arbitrary number large enough that ensures it will not be met), the price per video becomes $1.</p>
+<p>Show account balance, available credits, overdue status</p>
+</li>
+<li>
+<p>Manage existing payment methods</p>
+</li>
+<li>
+<p>List existing subscriptions and allow to create new ones, change plans, cancel subscriptions</p>
+</li>
+<li>
+<p>Tag management</p>
 </li>
 </ul>
 </div>
+</li>
+<li>
+<p>Account Timeline: Visualize all the state (events) through time associated with the account and allow specific filtering (subscription, event type, &#8230;&#8203;)</p>
 </li>
 </ul>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="pieces-together">Putting The Pieces Together</h2>
+<h2 id="_extensions">Extensions</h2>
 <div class="sectionbody">
-<div class="sect2">
-<h3 id="_usage_and_metering">Usage and Metering</h3>
 <div class="paragraph">
-<p>Kill Bill&#8217;s usage module provides an API that can be used to record the per customer&#8217;s usage. For instance, in order to record 1 unit of <code>chocolate-videos</code>, one woud use the API <code>POST /1.0/kb/usages</code> with the following json body:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="json"><span class="tok-err">---</span>
-<span class="tok-p">{</span>
-    <span class="tok-nt">&quot;subscriptionId&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;365987b2-5443-47e4-a467-c8962fc6995c&quot;</span><span class="tok-p">,</span>
-    <span class="tok-nt">&quot;unitUsageRecords&quot;</span><span class="tok-p">:</span> <span class="tok-p">[</span>
-        <span class="tok-p">{</span>
-            <span class="tok-nt">&quot;unitType&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;chocolate-videos&quot;</span><span class="tok-p">,</span>
-            <span class="tok-nt">&quot;usageRecords&quot;</span><span class="tok-p">:</span> <span class="tok-p">[</span>
-                <span class="tok-p">{</span>
-                    <span class="tok-nt">&quot;recordDate&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;2014-03-14T04:32:25+00:00&quot;</span><span class="tok-p">,</span>
-                    <span class="tok-nt">&quot;amount&quot;</span><span class="tok-p">:</span> <span class="tok-mi">1</span>
-                <span class="tok-p">}</span>
-            <span class="tok-p">]</span>
-        <span class="tok-p">}</span>
-    <span class="tok-p">]</span>
-<span class="tok-p">}</span>
-<span class="tok-err">---</span></code></pre>
-</div>
+<p>As mentioned, Kaui is a Rails mountable engine, which means you can mount it into your existing Rails app; it also means that you can add additional Rails mountable engine in the same app, and for instance
+we also offer <a href="https://github.com/killbill/killbill-analytics-ui">an analytics Rails mountable engine</a> which displays analytics graphs when the <a href="https://github.com/killbill/killbill-analytics-plugin">analytics plugin</a> has been deployed.</p>
 </div>
 <div class="paragraph">
-<p>The calls to record usage are made per subscription, but they can include multiple unitTypes (if the catalog had defined them), and for each unit they can specify as many records as desired; the records themselves specify a date of when those units were consumed.</p>
-</div>
-<div class="paragraph">
-<p>In our example, the online store could directly make the call to Kill Bill using that API to record each video as they are consumed.</p>
-</div>
-<div class="paragraph">
-<p>Note that in scenarios where the consumption is much higher (for e.g in the case of a telecom company offering cell-phone minutes), one would need to use a <strong>metering system</strong> that would first <strong>aggregate</strong> the units on a dayly granularity before making the call to Kill Bill. You can check the initial implementation of our <a href="https://github.com/killbill/killbill-meter-plugin">metring module</a> that provides that aggregation functionality.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_example_of_a_customer_usage">Example of a Customer Usage</h3>
-<div class="paragraph">
-<p>Let&#8217;s assume Louis, who is very passionate about chocolate, subscribed to the service on March 13th and watched 13 videos during his first month.</p>
-</div>
-<div class="paragraph">
-<p>On march 13th, the system will trigger an invoice that will cover the billing period march 13th &#8594; april 13th, and it will contain one RECURRING item with a price of $30; in return, he will receive his first box of chocolate.</p>
-</div>
-<div class="paragraph">
-<p>On april 13th, the system will now trigger a new invoice that will cover:
-* A RECURRING item for the billing period from april 13th &#8594; may 13th with a price of $30,
-* A USAGE item for a price of $18 (= 5 * 2 + 8 * 1)</p>
-</div>
-<div class="paragraph">
-<p>So we can see, that each invoice will include an ITEM for the RECURRING piece (charged ahead, i.e in advance), as well as a USAGE item (charged at the end of the billing period when usage is known, i.e in arrear).</p>
-</div>
+<p>When you deploy the <a href="https://github.com/killbill/killbill-admin-ui-standalone">self contained war</a>, both mountable engines are mounted by default.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_additional_resources">Additional Resources</h2>
+<h2 id="_screenshots">Screenshots</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>We have integration tests that can used an example:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarAdvanced.xml">Catalog</a></p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-integration-tests/blob/master/killbill-integration-tests/core/test_usage.rb">Test</a></p>
-</li>
-</ul>
+<p>TODO</p>
 </div>
 </div>
 </div>
