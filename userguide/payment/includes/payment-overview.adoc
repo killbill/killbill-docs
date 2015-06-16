@@ -1,3 +1,5 @@
+=== Payment Abstractions
+
 Kill Bill has a payment subsystem which offers several APIs:
 
 * payment and refund APIs for recurring billing
@@ -23,7 +25,7 @@ image:https://docs.google.com/drawings/d/1ERbfXS0LKSyANT08wnp3zDyoROkhKWSdX2EK0L
 By default Kill Bill does not come configured with any payment plugins except for the built-in __EXTERNAL_PAYMENT__, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use when making payments.
 
 
-=== Payment states and abstractions
+=== Payment States
 
 Initially a client of the api can make either an *authorization*, a *purchase*, or a *credit* call (all other operations such as refund would require an initial payment to have already existed).
 That initial operation will create a https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/Payment.java[Payment] and an initial https://github.com/killbill/killbill-api/blob/c243233be112165bf04a89a715b79112c6c5d1f7/src/main/java/org/killbill/billing/payment/api/PaymentTransaction.java[PaymentTransaction].
@@ -71,23 +73,3 @@ Note that the first 3 cases are normal cases but the last 2 are errors that are 
 * in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction status* and move the payment to its appropriate state.
 * in the case of a plugin exception, this is probably a bug (either in the plugin, the third part gateway or Kill Bill itself), and so there is no attempt to fix those. However it advisable to check that those are rare instances and fix code/data appropriately.
 
-
-=== Payment flows
-
-There are two main payment flows, which we will describe separately. On one hand, customers can be redirected to an external website to complete the payment. We refer to this as *Hosted (payment) pages* (e.g. PayPal). Alternatively, if the customer doesn't leave your website and you process the payment directly by calling a gateway API, this is called a *Gateway integration*.
-
-==== Hosted page
-
-For hosted pages, the entry point for any payment is the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[*buildFormDescriptor*] API, which is used to create the redirect form.
-
-The plugin will notify Kill Bill of the payment, often by processing a notification from the gateway (https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[*processNotification*] API).
-
-==== Gateway integration
-
-For gateway integrations, the entry point for any payment is either the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createAuthorization*] (to authorize a credit card), https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createPurchase*] (to charge a payment method, for example authorizing and capturing a credit card) or https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createCredit*] (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in `*_INIT` state before calling the plugin.
-
-
-Note that contrary to the hosted page scenario, transactions end up in a terminal state right away for most cases. There is no polling needed because the gateway will return the payment status synchronously (there is not asynchronous notification). However, there are a few exceptions:
-
-* when the payment ends up in the *PENDING* state. Plugins set this status when additional steps are required to acknowledge the payment, for example in case of 3D Secure or Bitcoin (while waiting on miners to integrate the transaction deep enough in the blockchain).
-* in the case of the plugin TIMEOUT discussed in the previous section.

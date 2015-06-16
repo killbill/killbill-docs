@@ -1,13 +1,12 @@
 === Payment Flows Overview
 
-In this section we will go over some standard payment flows.
-
-Those various payment flows can be classified in the following way -- note that this is a fairly standard classification that is also used by the eCommerce ruby gem https://github.com/Shopify/active_merchant/wiki/GatewaysVsIntegrations[Active Merchant]:
+There are two main payment flows, which we will describe separately. On one hand, customers can be redirected to an external website to complete the payment. We refer to this as *Hosted (payment) pages* (e.g. PayPal).
+Alternatively, if the customer doesn't leave your website and you process the payment directly by calling a gateway API, this is called a *Gateway integration*. Note that this is a fairly standard classification that is also used by the eCommerce ruby gem https://github.com/Shopify/active_merchant/wiki/GatewaysVsIntegrations[Active Merchant]:
 
 * Hosted Pages Flow: the user is redirected to a page (external site or internal site) where he can enter his payment method information
-* Gateway Integration: the payment method information is passed through Kill Bill and the payment operation is also triggererd through Kill Bill (and its plugin) against the payment gateway
+* Gateway Integration: the payment method information is passed through Kill Bill and the payment operation is also triggered through Kill Bill (and its plugin) against the payment gateway
 
-We consider the following actors:
+In the flow diagrams below, we consider the following actors:
 
 * Browser: the client/user sits behind a browser and initiates the payment flow
 * Merchants Site: there is a customer facing web site which receives the client order and also shields the payment system (Kill Bill). The calls received on that first tier need to be encrypted
@@ -20,13 +19,15 @@ For both flows (hosted page and gateway integration) we show a normal flow and a
 
 === Hosted Page Flow
 
-During a hosted page flow, the customer enters his payment method information and then submits a form containing that information to make the payment. Often, the form is hosted on the payment provider (gateway) so that the payment information is not seen from the merchant.
+During a hosted page flow, the customer enters his payment method information and then submits a form containing that information to make the payment. The information required to build the form (specific fields, or redirect URL, ...) are obtained by calling the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[*buildFormDescriptor*] API.
+Often, the form is hosted on the payment provider (gateway) so that the payment information is not seen from the merchant, but there are many variations and the goal of this API is to support all models.
+The completion of the payment is also subject to many variations but they often translate into either receiving an out of band notification from the gateway through the (https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[*processNotification*] API) or having the plugin polling the gateway.
+
 
 The first flow shows a hosted payment page on the payment provider:
 
 * The user initiates the payment, and the merchant site will use the Kill Bill api <<payment-apis.adoc#build-form-descriptor,buildFormDescriptor>> to return the location of where the browser should be redirected; depending on the variations, Kill Bill and its plugin may have contacted the gateway to create the form on the gateway prior to the redirect.
 * The browser is then redirected to that location (302 status) where the user can enter his payment method information; the URL also contains enough information to redirect the browser to a landing page on success/failure. The redirect from the browser may not complete, so the payment system may either rely on an <<payment-apis.adoc#gateway-notification , out of band notification>> from the gateway if this is supported or it may poll the gateway to fetch the final payment state. This is not shown in the diagrams below for simplicity.
-
 
 
 image::https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHWXhkbmcxUVJnWlU&w=960&amp;h=480[Hosted Payment Page, align="center"]
@@ -38,9 +39,18 @@ image::https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHbW1IQlNFeVBmU
 
 === Gateway Integration Flows
 
-In this section we are showing gateway integration flows, and those flows focus on the payment operations -- authorize, capture, ...
 
-In addition to those, the user must also enter his payment information. In Kill Bill, this translates into <<payments.adoc#components-payment-method-apis, creating a PaymentMethod>>; the api allows to pass plugin specific information which is kept at the plugin level. Also when dealing with credit card information, merchants often have the choice to keep the data into a PCI compliant environment or use a third party PCI compliant environment. The process often requires some tokenization/detokenization, so that the payment system only handles the token. This flow is not described in this document. The creation of the Kill Bill payment method is not represented in the flows below and we should assume this was done in a step that occured previously.
+For gateway integrations, the entry point for any payment is either the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createAuthorization*] (to authorize a credit card), https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createPurchase*] (to charge a payment method, for example authorizing and capturing a credit card) or https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createCredit*] (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in `*_INIT` state before calling the plugin.
+
+
+Note that contrary to the hosted page scenario, transactions end up in a terminal state right away for most cases. There is no polling needed because the gateway will return the payment status synchronously (there is not asynchronous notification). However, there are a few exceptions:
+
+* when the payment ends up in the *PENDING* state. Plugins set this status when additional steps are required to acknowledge the payment, for example in case of 3D Secure or Bitcoin (while waiting on miners to integrate the transaction deep enough in the blockchain).
+* in the case of the plugin TIMEOUT discussed in the previous section.
+
+
+A user must first enter his payment information before any payment operation can occur. In Kill Bill, this translates into <<payments.adoc#components-payment-method-apis, creating a PaymentMethod>>; the api allows to pass plugin specific information which is kept at the plugin level. Also when dealing with credit card information, merchants often have the choice to keep the data into a PCI compliant environment or use a third party PCI compliant environment.
+The process often requires some tokenization/detokenization, so that the payment system only handles the token. This flow is not described in this document. The creation of the Kill Bill payment method is not represented in the flows below and we should assume this was done in a step that occured previously.
 
 
 * The user initiates the payment, and the merchant site will use the Kill Bill api <<payment-apis.adoc#build-form-descriptor,buildFormDescriptor>> to return the gateway specific information that is later used by the merchant site to build the form returned to the browser
