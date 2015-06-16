@@ -494,13 +494,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 <li><a href="#components-payment-overview">Overview</a>
 <ul class="sectlevel2">
-<li><a href="#_payment_states_and_abstractions">Payment states and abstractions</a></li>
-<li><a href="#_payment_flows">Payment flows</a>
-<ul class="sectlevel3">
-<li><a href="#_hosted_page">Hosted page</a></li>
-<li><a href="#_gateway_integration">Gateway integration</a></li>
-</ul>
-</li>
+<li><a href="#_payment_abstractions">Payment Abstractions</a></li>
+<li><a href="#_payment_states">Payment States</a></li>
 </ul>
 </li>
 <li><a href="#components-payment-flows">Payment Flows</a>
@@ -721,6 +716,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect1">
 <h2 id="components-payment-overview">Overview</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="_payment_abstractions">Payment Abstractions</h3>
 <div class="paragraph">
 <p>Kill Bill has a payment subsystem which offers several APIs:</p>
 </div>
@@ -768,8 +765,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>By default Kill Bill does not come configured with any payment plugins except for the built-in <em>EXTERNAL_PAYMENT</em>, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use when making payments.</p>
 </div>
+</div>
 <div class="sect2">
-<h3 id="_payment_states_and_abstractions">Payment states and abstractions</h3>
+<h3 id="_payment_states">Payment States</h3>
 <div class="paragraph">
 <p>Initially a client of the api can make either an <strong>authorization</strong>, a <strong>purchase</strong>, or a <strong>credit</strong> call (all other operations such as refund would require an initial payment to have already existed).
 That initial operation will create a <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/Payment.java">Payment</a> and an initial <a href="https://github.com/killbill/killbill-api/blob/c243233be112165bf04a89a715b79112c6c5d1f7/src/main/java/org/killbill/billing/payment/api/PaymentTransaction.java">PaymentTransaction</a>.
@@ -845,40 +843,6 @@ The set of payment state transitions are configured in an <a href="https://githu
 </ul>
 </div>
 </div>
-<div class="sect2">
-<h3 id="_payment_flows">Payment flows</h3>
-<div class="paragraph">
-<p>There are two main payment flows, which we will describe separately. On one hand, customers can be redirected to an external website to complete the payment. We refer to this as <strong>Hosted (payment) pages</strong> (e.g. PayPal). Alternatively, if the customer doesn&#8217;t leave your website and you process the payment directly by calling a gateway API, this is called a <strong>Gateway integration</strong>.</p>
-</div>
-<div class="sect3">
-<h4 id="_hosted_page">Hosted page</h4>
-<div class="paragraph">
-<p>For hosted pages, the entry point for any payment is the <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java"><strong>buildFormDescriptor</strong></a> API, which is used to create the redirect form.</p>
-</div>
-<div class="paragraph">
-<p>The plugin will notify Kill Bill of the payment, often by processing a notification from the gateway (<a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java"><strong>processNotification</strong></a> API).</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_gateway_integration">Gateway integration</h4>
-<div class="paragraph">
-<p>For gateway integrations, the entry point for any payment is either the <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java"><strong>createAuthorization</strong></a> (to authorize a credit card), <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java"><strong>createPurchase</strong></a> (to charge a payment method, for example authorizing and capturing a credit card) or <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java"><strong>createCredit</strong></a> (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in <code>*_INIT</code> state before calling the plugin.</p>
-</div>
-<div class="paragraph">
-<p>Note that contrary to the hosted page scenario, transactions end up in a terminal state right away for most cases. There is no polling needed because the gateway will return the payment status synchronously (there is not asynchronous notification). However, there are a few exceptions:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>when the payment ends up in the <strong>PENDING</strong> state. Plugins set this status when additional steps are required to acknowledge the payment, for example in case of 3D Secure or Bitcoin (while waiting on miners to integrate the transaction deep enough in the blockchain).</p>
-</li>
-<li>
-<p>in the case of the plugin TIMEOUT discussed in the previous section.</p>
-</li>
-</ul>
-</div>
-</div>
-</div>
 </div>
 </div>
 <div class="sect1">
@@ -887,10 +851,8 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="sect2">
 <h3 id="_payment_flows_overview">Payment Flows Overview</h3>
 <div class="paragraph">
-<p>In this section we will go over some standard payment flows.</p>
-</div>
-<div class="paragraph">
-<p>Those various payment flows can be classified in the following way&#8201;&#8212;&#8201;note that this is a fairly standard classification that is also used by the eCommerce ruby gem <a href="https://github.com/Shopify/active_merchant/wiki/GatewaysVsIntegrations">Active Merchant</a>:</p>
+<p>There are two main payment flows, which we will describe separately. On one hand, customers can be redirected to an external website to complete the payment. We refer to this as <strong>Hosted (payment) pages</strong> (e.g. PayPal).
+Alternatively, if the customer doesn&#8217;t leave your website and you process the payment directly by calling a gateway API, this is called a <strong>Gateway integration</strong>. Note that this is a fairly standard classification that is also used by the eCommerce ruby gem <a href="https://github.com/Shopify/active_merchant/wiki/GatewaysVsIntegrations">Active Merchant</a>:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -898,12 +860,12 @@ The set of payment state transitions are configured in an <a href="https://githu
 <p>Hosted Pages Flow: the user is redirected to a page (external site or internal site) where he can enter his payment method information</p>
 </li>
 <li>
-<p>Gateway Integration: the payment method information is passed through Kill Bill and the payment operation is also triggererd through Kill Bill (and its plugin) against the payment gateway</p>
+<p>Gateway Integration: the payment method information is passed through Kill Bill and the payment operation is also triggered through Kill Bill (and its plugin) against the payment gateway</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>We consider the following actors:</p>
+<p>In the flow diagrams below, we consider the following actors:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -931,7 +893,9 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="sect2">
 <h3 id="_hosted_page_flow">Hosted Page Flow</h3>
 <div class="paragraph">
-<p>During a hosted page flow, the customer enters his payment method information and then submits a form containing that information to make the payment. Often, the form is hosted on the payment provider (gateway) so that the payment information is not seen from the merchant.</p>
+<p>During a hosted page flow, the customer enters his payment method information and then submits a form containing that information to make the payment. The information required to build the form (specific fields, or redirect URL, &#8230;&#8203;) are obtained by calling the <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java"><strong>buildFormDescriptor</strong></a> API.
+Often, the form is hosted on the payment provider (gateway) so that the payment information is not seen from the merchant, but there are many variations and the goal of this API is to support all models.
+The completion of the payment is also subject to many variations but they often translate into either receiving an out of band notification from the gateway through the (<a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java"><strong>processNotification</strong></a> API) or having the plugin polling the gateway.</p>
 </div>
 <div class="paragraph">
 <p>The first flow shows a hosted payment page on the payment provider:</p>
@@ -963,10 +927,24 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="sect2">
 <h3 id="_gateway_integration_flows">Gateway Integration Flows</h3>
 <div class="paragraph">
-<p>In this section we are showing gateway integration flows, and those flows focus on the payment operations&#8201;&#8212;&#8201;authorize, capture, &#8230;&#8203;</p>
+<p>For gateway integrations, the entry point for any payment is either the <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java"><strong>createAuthorization</strong></a> (to authorize a credit card), <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java"><strong>createPurchase</strong></a> (to charge a payment method, for example authorizing and capturing a credit card) or <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java"><strong>createCredit</strong></a> (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in <code>*_INIT</code> state before calling the plugin.</p>
 </div>
 <div class="paragraph">
-<p>In addition to those, the user must also enter his payment information. In Kill Bill, this translates into <a href="payments.html#components-payment-method-apis">creating a PaymentMethod</a>; the api allows to pass plugin specific information which is kept at the plugin level. Also when dealing with credit card information, merchants often have the choice to keep the data into a PCI compliant environment or use a third party PCI compliant environment. The process often requires some tokenization/detokenization, so that the payment system only handles the token. This flow is not described in this document. The creation of the Kill Bill payment method is not represented in the flows below and we should assume this was done in a step that occured previously.</p>
+<p>Note that contrary to the hosted page scenario, transactions end up in a terminal state right away for most cases. There is no polling needed because the gateway will return the payment status synchronously (there is not asynchronous notification). However, there are a few exceptions:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>when the payment ends up in the <strong>PENDING</strong> state. Plugins set this status when additional steps are required to acknowledge the payment, for example in case of 3D Secure or Bitcoin (while waiting on miners to integrate the transaction deep enough in the blockchain).</p>
+</li>
+<li>
+<p>in the case of the plugin TIMEOUT discussed in the previous section.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A user must first enter his payment information before any payment operation can occur. In Kill Bill, this translates into <a href="payments.html#components-payment-method-apis">creating a PaymentMethod</a>; the api allows to pass plugin specific information which is kept at the plugin level. Also when dealing with credit card information, merchants often have the choice to keep the data into a PCI compliant environment or use a third party PCI compliant environment.
+The process often requires some tokenization/detokenization, so that the payment system only handles the token. This flow is not described in this document. The creation of the Kill Bill payment method is not represented in the flows below and we should assume this was done in a step that occured previously.</p>
 </div>
 <div class="ulist">
 <ul>
@@ -1608,7 +1586,7 @@ Some of those calls might not make sense for a given gateway.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-06-04 22:26:14 UTC
+Last updated 2015-06-16 02:27:56 UTC
 </div>
 </div>
 </body>
