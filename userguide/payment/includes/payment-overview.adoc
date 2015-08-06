@@ -44,32 +44,31 @@ In addition to the payment state transitions, each `PaymentTransaction` has a st
 |PROCESSED
 |SUCCESS
 |{AUTH,CAPTURE,..}_SUCCESS
-|Success operation
+|The payment transaction went through and was successful
 
 |PENDING
 |PENDING
 |{AUTH,CAPTURE,..}_PENDING
-|Success asynchronous operation, or multi-step calls (e.g. 3D Secure authorization)
+|Successful asynchronous operation (e.g. ACH transfer) or multi-step call (e.g. 3D-Secure authorization)
 
 |ERROR
 |PAYMENT_FAILURE
-|FAILED
-|The gateway, bank declined the operation
+|{AUTH,CAPTURE,..}_FAILED
+|The payment transaction went through but failed (e.g insufficient funds)
 
-|UNDEFINED, timeout
-|UNKNOWN
-|ERRORED
-|Plugin timed out or returned an UNDEFINED state
-
-|Any exception
+|CANCELED
 |PLUGIN_FAILURE
-|ERRORED
-|The plugin threw an exception
+|{AUTH,CAPTURE,..}_ERRORED
+|The payment transaction did not happen (e.g unable to connect to the provider)
+
+|UNDEFINED, timeout or any exception
+|UNKNOWN
+|{AUTH,CAPTURE,..}_ERRORED
+|The payment transaction may or not have succeeded, manual review needed
 
 |===
 
 Note that the first 3 cases are normal cases but the last 2 are errors that are unrelated to the user being able to make the payment operation:
 
-* in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction status* and move the payment to its appropriate state.
-* in the case of a plugin exception, this is probably a bug (either in the plugin, the third part gateway or Kill Bill itself), and so there is no attempt to fix those. However it advisable to check that those are rare instances and fix code/data appropriately.
-
+* in the case of a hard plugin failure (CANCELED result code), the gateway was probably down and the payment wasn't attempted: there is no attempt to fix those.
+* in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction status* and move the payment to its appropriate state. If the plugin cannot tell if the payment went through, the transaction will stay in an UNKNOWN state. It is advisable to check that those are rare instances and fix the data appropriately (by checking manually the status in the gateway for example).
