@@ -529,12 +529,6 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#gateway-notification">Process gateway notifications</a></li>
 </ul>
 </li>
-<li><a href="#_examples_of_hosted_pages_flows">Examples of hosted pages flows</a>
-<ul class="sectlevel3">
-<li><a href="#_gateway_notifies_kill_bill_of_the_payment">Gateway notifies Kill Bill of the payment</a></li>
-<li><a href="#_kill_bill_polls_the_gateway">Kill Bill polls the gateway</a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li><a href="#components-payment-plugins">Payment plugins</a>
@@ -905,7 +899,10 @@ The set of payment state transitions are configured in an <a href="https://githu
 </ul>
 </div>
 <div class="paragraph">
-<p>After calling <strong>buildFormDescriptor</strong>, the payment may or may not exist in a <strong>PENDING</strong> state in Kill Bill: this will depend on the plugin. Here are a few common scenarii:</p>
+<p>The browser is then redirected to the payment provider to complete the payment before being redirected back to a landing page upon success or failure.</p>
+</div>
+<div class="paragraph">
+<p>Note that after calling <strong>buildFormDescriptor</strong>, the payment may or may not exist in a <strong>PENDING</strong> state in Kill Bill: this will depend on the plugin. Here are a few common scenarii:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -939,7 +936,7 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="ulist">
 <ul>
 <li>
-<p>the HPP provider doesn&#8217;t provide an API to retrieve the state of the payment but does send notifications. In this case, <strong>buildFormDescriptor</strong> can simply return the redirect URL without creating a payment, which will be created when the notification is received. Similarly to the first case above, you could create a <strong>PENDING</strong> payment if you want to track abandoned purchases, just make sure that the plugin has enough metadata to reconcile. When the notification is received, either use the <strong>notifyPendingTransactionOfStateChanged</strong> Kill Bill API to transition the payment, or wait for Kill Bill to poll the plugin via  the <strong>getPaymentInfo</strong> API. Example: any HPP provided by Adyen.</p>
+<p>the HPP provider doesn&#8217;t provide an API to retrieve the state of the payment but does send notifications. In this case, <strong>buildFormDescriptor</strong> can simply return the redirect URL without creating a payment, which will be created when the notification is received. Similarly to the first case above, you could create a <strong>PENDING</strong> payment if you want to track abandoned purchases, just make sure that the plugin has enough metadata to reconcile the notification with the payment. When the notification is received, either use the <strong>notifyPendingTransactionOfStateChanged</strong> Kill Bill API to transition the payment, or wait for Kill Bill to poll the plugin via  the <strong>getPaymentInfo</strong> API. Example: any HPP provided by Adyen.</p>
 </li>
 </ul>
 </div>
@@ -957,29 +954,11 @@ The set of payment state transitions are configured in an <a href="https://githu
 <p>Note that in all cases, Kill Bill will automatically expire old <strong>PENDING</strong> payments after some time (configurable).</p>
 </div>
 <div class="paragraph">
-<p>The first flow shows a hosted payment page on the payment provider:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>The user initiates the payment, and the merchant site will use the Kill Bill api <a href="payment-apis.html#build-form-descriptor">buildFormDescriptor</a> to return the location of where the browser should be redirected; depending on the variations, Kill Bill and its plugin may have contacted the gateway to create the form on the gateway prior to the redirect.</p>
-</li>
-<li>
-<p>The browser is then redirected to that location (302 status) where the user can enter his payment method information; the URL also contains enough information to redirect the browser to a landing page on success/failure. The redirect from the browser may not complete, so the payment system may either rely on an <a href="payment-apis.html#gateway-notification">out of band notification</a> from the gateway if this is supported or it may poll the gateway to fetch the final payment state. This is not shown in the diagrams below for simplicity.</p>
-</li>
-</ul>
+<p>The conceptual flow below shows a 3D-Secure variation of the previous flows. The main difference is that prior redirecting the browser to the landing page, it is first redirected to the access control server where the user can enter custom information.</p>
 </div>
 <div class="imageblock" style="text-align: center">
 <div class="content">
-<img src="https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHWXhkbmcxUVJnWlU&w=960&amp;h=480" alt="Hosted Payment Page">
-</div>
-</div>
-<div class="paragraph">
-<p>The flow below shows a 3D Secure variation of the previous flow. The main difference is that prior redirecting the browser to the landing page, it is first redirected to the access control server where the user can enter custom information.</p>
-</div>
-<div class="imageblock" style="text-align: center">
-<div class="content">
-<img src="https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHbW1IQlNFeVBmUXM&w=960&amp;h=480" alt="Hosted Payment Page 3D Secure variation">
+<img src="https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHbW1IQlNFeVBmUXM&w=960&amp;h=480" alt="Hosted Payment Page 3D-Secure variation">
 </div>
 </div>
 </div>
@@ -992,15 +971,18 @@ The set of payment state transitions are configured in an <a href="https://githu
 <p>Usually, transactions end up in a terminal state right away as most gateways provide synchronous APIs. However, depending on the payment method, the plugin can choose to set the status to <strong>PENDING</strong>. For example, this is the case for 3D-Secure transactions (until the payment is verified by the issuer after redirecting the user), for direct debit transfers (e.g. ACH, which take usually a couple of days to be acknowledged), or for Bitcoin transfers (until the transaction is confirmed by the blockchain). Additionally, some gateways don&#8217;t always provide synchronous responses (e.g. when capturing funds using Adyen), in which case the plugin has to rely on asynchronous notifications to transition the payment into a terminal state.</p>
 </div>
 <div class="paragraph">
-<p>Before any payment operation can occur, the user must first enter his payment information. In Kill Bill, this translates into <a href="payments.html#components-payment-method-apis">creating a PaymentMethod</a>. When dealing with credit card information specifically, merchants have to keep the data into a PCI compliant environment (often handled by the gateway): this process requires tokenization of the PAN, so that the payment system only handles the token (this flow is not described in this document), which are stored at the plugin level and passed to Kill Bill as a plugin property. Note that the creation of the Kill Bill payment method is not represented in the flows below: it can happen either in a prior step or during the payment using one of our combo payment call. Usually, the user is prompted with a form to enter his payment method information, and then the payment is initiated using one of the <strong>createAuthorization</strong> or <strong>createPurchase</strong> APIs. Kill Bill will connect to its payment plugin which in turn will contact the gateway to perform the required operation. Upon success/failure, the user is redirected to a landing page.</p>
+<p>Before any payment operation can occur, the user must first enter his payment information. In Kill Bill, this translates into creating a PaymentMethod. When dealing with credit card information specifically, merchants have to keep the data into a PCI compliant environment (often handled by the gateway): this process requires tokenization of the PAN, so that the payment system only handles the token (this flow is not described in this document), which are stored at the plugin level and passed to Kill Bill as a plugin property.</p>
+</div>
+<div class="paragraph">
+<p>Note that the creation of the Kill Bill payment method is not represented in the flows below: it can happen either in a prior step or during the payment using one of our combo payment call. Usually, the user is prompted with a form to enter his payment method information, and then the payment is initiated using one of the <strong>createAuthorization</strong> or <strong>createPurchase</strong> APIs. Kill Bill will connect to its payment plugin which in turn will contact the gateway to perform the required operation. Upon success/failure, the user is redirected to a landing page.</p>
 </div>
 <div class="imageblock" style="text-align: center">
 <div class="content">
-<img src="https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHV25qNDljU3h4Umc&w=960&amp;h=480" alt="Payment Gateway">
+<img src="https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kR01kaVJta3VJcDQ&w=960&amp;h=480" alt="Gateway integration">
 </div>
 </div>
 <div class="paragraph">
-<p>The flow below shows a 3D Secure variation of the previous flow. We are showing an authorization call, that is split in two phases:</p>
+<p>If 3D-Secure is enabled, the payment (e.g. authorization) is split into two phases:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -1011,11 +993,6 @@ The set of payment state transitions are configured in an <a href="https://githu
 <p>The user may then enter its specific information on the access control server, and upon success it is then redirected to the merchant site that will complete the authorize phase</p>
 </li>
 </ul>
-</div>
-<div class="imageblock" style="text-align: center">
-<div class="content">
-<img src="https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHUmNieHhoRTJVbkE&w=960&amp;h=480" alt="Payment Gateway 3D Secure variation">
-</div>
 </div>
 </div>
 </div>
@@ -1442,51 +1419,48 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="sect3">
 <h4 id="build-form-descriptor">Build form descriptor</h4>
 <div class="paragraph">
-<p>The <code>buildFormDescriptor</code> call is used when you need to prepare a payment form. There are two main scenarii:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>The payment form is hosted on your own website. The exact fields to add in this form are returned by the plugin. These can be:</p>
-<div class="ulist">
-<ul>
-<li>
-<p>required visible fields, such as the amount of the payment. The plugin will return the name expected by the gateway (e.g. <code>Sum</code> instead of <code>amount</code>)</p>
-</li>
-<li>
-<p>hidden fields (e.g. <code>merchantId</code> value)</p>
-</li>
-</ul>
-</div>
-</li>
-<li>
-<p>The payment form is hosted on the gateway website. In that case, the plugin builds a unique URL to redirect the user to by either:</p>
-<div class="ulist">
-<ul>
-<li>
-<p>submitting the order information (amount, etc.) to the gateway which returns the location of the hosted payment form</p>
-</li>
-<li>
-<p>constructing the special URL via query parameters</p>
-</li>
-</ul>
-</div>
-</li>
-</ul>
+<p>The <code>buildFormDescriptor</code> API is used to prepare a Hosted Payment Page (HPP) payment. In the body of the request, you need to pass custom fields that are plugin specific.</p>
 </div>
 <div class="paragraph">
-<p>Given an order of $10, here is how you can get the HTML fields to build the form:</p>
+<p>For example, given an order of $10, here is how you can get the redirect URL using the Adyen plugin:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
      -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
      -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey:bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret:lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{ &quot;formFields&quot;: [{ &quot;key&quot;: &quot;order_id&quot;, &quot;value&quot;: &quot;1234&quot; }, { &quot;key&quot;: &quot;amount&quot;, &quot;value&quot;: &quot;10&quot; }, { &quot;key&quot;: &quot;currency&quot;, &quot;value&quot;: &quot;USD&quot; }]}&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
+     --data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">       &quot;formFields&quot;: [</span>
+<span class="tok-s1">         {</span>
+<span class="tok-s1">           &quot;key&quot;: &quot;country&quot;,</span>
+<span class="tok-s1">           &quot;value&quot;: &quot;DE&quot;</span>
+<span class="tok-s1">         },</span>
+<span class="tok-s1">         {</span>
+<span class="tok-s1">           &quot;key&quot;: &quot;paymentProviderType&quot;,</span>
+<span class="tok-s1">           &quot;value&quot;: &quot;CREDITCARD&quot;</span>
+<span class="tok-s1">         },</span>
+<span class="tok-s1">         {</span>
+<span class="tok-s1">           &quot;key&quot;: &quot;serverUrl&quot;,</span>
+<span class="tok-s1">           &quot;value&quot;: &quot;http://killbill.io&quot;</span>
+<span class="tok-s1">         },</span>
+<span class="tok-s1">         {</span>
+<span class="tok-s1">           &quot;key&quot;: &quot;resultUrl&quot;,</span>
+<span class="tok-s1">           &quot;value&quot;: &quot;?q=test+adyen+redirect+success&quot;</span>
+<span class="tok-s1">         },</span>
+<span class="tok-s1">         {</span>
+<span class="tok-s1">           &quot;key&quot;: &quot;amount&quot;,</span>
+<span class="tok-s1">           &quot;value&quot;: 10</span>
+<span class="tok-s1">         },</span>
+<span class="tok-s1">         {</span>
+<span class="tok-s1">           &quot;key&quot;: &quot;currency&quot;,</span>
+<span class="tok-s1">           &quot;value&quot;: &quot;USD&quot;</span>
+<span class="tok-s1">         }</span>
+<span class="tok-s1">       ]</span>
+<span class="tok-s1">     }&#39;</span> <span class="tok-se">\</span>
      <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/268983f2-5443-47e4-a967-b8962fc699c5&quot;</span></code></pre>
 </div>
 </div>
@@ -1507,78 +1481,64 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="sect3">
 <h4 id="gateway-notification">Process gateway notifications</h4>
 <div class="paragraph">
-<p>Gateway notifications (Recurly push notifications, PayPal or BitPay IPN, etc.) can be processed through this API:</p>
+<p>Gateway notifications (Adyen notifications, Recurly push notifications, PayPal or BitPay IPN, etc.) can be processed through the <code>processNotification</code> API.</p>
+</div>
+<div class="paragraph">
+<p>For example, here is the payload that Adyen would send:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
      -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
      -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey:bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret:lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-err">&quot;</span>http://127.0.0.1:8080/1.0/kb/paymentGateways/notifications/pluginName?customKey<span class="tok-o">=</span>value</code></pre>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
+     --data-binary <span class="tok-s1">&#39;&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span>
+<span class="tok-s1">&lt;soap:Envelope xmlns:soap=&quot;http://schemas.xmlsoap.org/soap/envelope/&quot; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot; xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;&gt;</span>
+<span class="tok-s1">  &lt;soap:Body&gt;</span>
+<span class="tok-s1">    &lt;ns1:sendNotification xmlns:ns1=&quot;http://notification.services.adyen.com&quot;&gt;</span>
+<span class="tok-s1">      &lt;ns1:notification&gt;</span>
+<span class="tok-s1">        &lt;live xmlns=&quot;http://notification.services.adyen.com&quot;&gt;true&lt;/live&gt;</span>
+<span class="tok-s1">        &lt;notificationItems xmlns=&quot;http://notification.services.adyen.com&quot;&gt;</span>
+<span class="tok-s1">          &lt;NotificationRequestItem&gt;</span>
+<span class="tok-s1">            &lt;additionalData xsi:nil=&quot;true&quot;/&gt;</span>
+<span class="tok-s1">            &lt;amount&gt;</span>
+<span class="tok-s1">              &lt;currency xmlns=&quot;http://common.services.adyen.com&quot;&gt;EUR&lt;/currency&gt;</span>
+<span class="tok-s1">              &lt;value xmlns=&quot;http://common.services.adyen.com&quot;&gt;2995&lt;/value&gt;</span>
+<span class="tok-s1">            &lt;/amount&gt;</span>
+<span class="tok-s1">            &lt;eventCode&gt;AUTHORISATION&lt;/eventCode&gt;</span>
+<span class="tok-s1">            &lt;eventDate&gt;2013-04-15T06:59:22.278+02:00&lt;/eventDate&gt;</span>
+<span class="tok-s1">            &lt;merchantAccountCode&gt;TestMerchant&lt;/merchantAccountCode&gt;</span>
+<span class="tok-s1">            &lt;merchantReference&gt;325147059&lt;/merchantReference&gt;</span>
+<span class="tok-s1">            &lt;operations&gt;</span>
+<span class="tok-s1">              &lt;string&gt;CANCEL&lt;/string&gt;</span>
+<span class="tok-s1">              &lt;string&gt;CAPTURE&lt;/string&gt;</span>
+<span class="tok-s1">              &lt;string&gt;REFUND&lt;/string&gt;</span>
+<span class="tok-s1">            &lt;/operations&gt;</span>
+<span class="tok-s1">            &lt;originalReference xsi:nil=&quot;true&quot;/&gt;</span>
+<span class="tok-s1">            &lt;paymentMethod&gt;visa&lt;/paymentMethod&gt;</span>
+<span class="tok-s1">            &lt;pspReference&gt;4823660019473428&lt;/pspReference&gt;</span>
+<span class="tok-s1">            &lt;reason&gt;111647:7629:5/2014&lt;/reason&gt;</span>
+<span class="tok-s1">            &lt;success&gt;true&lt;/success&gt;</span>
+<span class="tok-s1">          &lt;/NotificationRequestItem&gt;</span>
+<span class="tok-s1">        &lt;/notificationItems&gt;</span>
+<span class="tok-s1">      &lt;/ns1:notification&gt;</span>
+<span class="tok-s1">    &lt;/ns1:sendNotification&gt;</span>
+<span class="tok-s1">  &lt;/soap:Body&gt;</span>
+<span class="tok-s1">&lt;/soap:Envelope&gt;&#39;</span> <span class="tok-se">\</span>
+    <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentGateways/notification/killbill-adyen&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Make sure to replace <code>pluginName</code> with your plugin name (e.g. killbill-bitpay).</p>
+<p>Make sure to replace <code>killbill-adyen</code> with your plugin name.</p>
 </div>
 <div class="paragraph">
 <p>The plugin will deserialize either the request body and/or the url query parameters to process the notification and return a properly formatted HTTP response object for the gateway (some gateways require specific response codes or headers to consider the notification processed and prevent retries).</p>
 </div>
 <div class="paragraph">
 <p>Because this endpoint needs to be on a public IP (to be accessible from the gateway), we recommend using the <a href="https://github.com/killbill/killbill-notifications-proxy">Kill Bill Notifications Proxy</a> to avoid exposing the entire Kill Bill server.</p>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_examples_of_hosted_pages_flows">Examples of hosted pages flows</h3>
-<div class="paragraph">
-<p>The implementation of the <code>buildFormDescriptor</code> and <code>processNotification</code> APIs described above will vary from gateway to gateway.
-While the internal mechanics of completing the payment vary for each plugin, the overall steps are usually the same:</p>
-</div>
-<div class="olist arabic">
-<ol class="arabic">
-<li>
-<p>Your website calls <code>buildFormDescriptor</code> and interprets the result</p>
-</li>
-<li>
-<p>The customer is then either shown a payment form or redirected to an external page</p>
-</li>
-<li>
-<p>The customer is then either shown a payment form or redirected to an external page</p>
-</li>
-<li>
-<p>The customer completes the payment</p>
-</li>
-</ol>
-</div>
-<div class="paragraph">
-<p>Here are a couple of example flows:</p>
-</div>
-<div class="sect3">
-<h4 id="_gateway_notifies_kill_bill_of_the_payment">Gateway notifies Kill Bill of the payment</h4>
-<div class="paragraph">
-<p>In this scenario, no payment has been created in Kill Bill after the <code>buildFormDescriptor</code> call. Upon completion of the payment, either the gateway will pass information about the payment in the redirect url parameters or it will send an out-of-band notification.</p>
-</div>
-<div class="paragraph">
-<p>In the first case, you will need to create the payment using the <code>purchase</code> call during the redirect. The plugin will then query the gateway to verify the payment (for security purposes).</p>
-</div>
-<div class="paragraph">
-<p>In the second case, the plugin will create the payment during the <code>processNotification</code> call (see the <a href="https://github.com/killbill/killbill-bitpay-plugin/">BitPay</a> plugin for an example).</p>
-</div>
-<div class="paragraph">
-<p>In both cases, the payment will end up in a terminal state (either succeeded or failed).</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_kill_bill_polls_the_gateway">Kill Bill polls the gateway</h4>
-<div class="paragraph">
-<p>In this scenario, during the <code>buildFormDescriptor</code> call, the plugin will most likely create state in the gateway (e.g. the generated redirect url points to a unique voucher) and will also create a matching payment in Kill Bill (in a pending state).</p>
-</div>
-<div class="paragraph">
-<p>Kill Bill will then automatically start polling the plugin for that payment, which will in turn query the gateway for the latest payment status. See the <a href="https://github.com/killbill/killbill-payu-latam-plugin">PayU Latam</a> plugin for an example.</p>
 </div>
 </div>
 </div>
@@ -1621,7 +1581,7 @@ Some of those calls might not make sense for a given gateway.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-06 19:13:53 UTC
+Last updated 2015-08-06 19:55:37 UTC
 </div>
 </div>
 </body>
