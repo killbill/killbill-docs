@@ -795,31 +795,31 @@ The set of payment state transitions are configured in an <a href="https://githu
 <td class="tableblock halign-left valign-top"><p class="tableblock">PROCESSED</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">SUCCESS</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">{AUTH,CAPTURE,..}_SUCCESS</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Success operation</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The payment transaction went through and was successful</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PENDING</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PENDING</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">{AUTH,CAPTURE,..}_PENDING</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Success asynchronous operation, or multi-step calls (e.g. 3D Secure authorization)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Successful asynchronous operation (e.g. ACH transfer) or multi-step call (e.g. 3D-Secure authorization)</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">ERROR</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PAYMENT_FAILURE</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">FAILED</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The gateway, bank declined the operation</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">{AUTH,CAPTURE,..}_FAILED</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The payment transaction went through but failed (e.g insufficient funds)</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">UNDEFINED, timeout</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">UNKNOWN</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">ERRORED</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Plugin timed out or returned an UNDEFINED state</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Any exception</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CANCELED</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PLUGIN_FAILURE</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">ERRORED</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The plugin threw an exception</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">{AUTH,CAPTURE,..}_ERRORED</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The payment transaction did not happen (e.g unable to connect to the provider)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UNDEFINED, timeout or any exception</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">UNKNOWN</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">{AUTH,CAPTURE,..}_ERRORED</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The payment transaction may or not have succeeded, manual review needed</p></td>
 </tr>
 </tbody>
 </table>
@@ -829,10 +829,10 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="ulist">
 <ul>
 <li>
-<p>in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the <strong>transaction status</strong> and move the payment to its appropriate state.</p>
+<p>in the case of a hard plugin failure (CANCELED result code), the gateway was probably down and the payment wasn&#8217;t attempted: there is no attempt to fix those.</p>
 </li>
 <li>
-<p>in the case of a plugin exception, this is probably a bug (either in the plugin, the third part gateway or Kill Bill itself), and so there is no attempt to fix those. However it advisable to check that those are rare instances and fix code/data appropriately.</p>
+<p>in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the <strong>transaction status</strong> and move the payment to its appropriate state. If the plugin cannot tell if the payment went through, the transaction will stay in an UNKNOWN state. It is advisable to check that those are rare instances and fix the data appropriately (by checking manually the status in the gateway for example).</p>
 </li>
 </ul>
 </div>
@@ -1581,7 +1581,7 @@ Some of those calls might not make sense for a given gateway.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-06 19:55:37 UTC
+Last updated 2015-08-06 20:53:11 UTC
 </div>
 </div>
 </body>
