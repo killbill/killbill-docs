@@ -1,70 +1,71 @@
-=== Payment Flows Overview
+=== Payment flows overview
 
-There are two main payment flows, which we will describe separately. On one hand, customers can be redirected to an external website to complete the payment. We refer to this as *Hosted (payment) pages* (e.g. PayPal).
-Alternatively, if the customer doesn't leave your website and you process the payment directly by calling a gateway API, this is called a *Gateway integration*. Note that this is a fairly standard classification that is also used by the eCommerce ruby gem https://github.com/Shopify/active_merchant/wiki/GatewaysVsIntegrations[Active Merchant]:
+Kill Bill supports two main payment flows, referred to as *Hosted Payment Pages* (or *HPP*) and as *Gateway integration*:
 
-* Hosted Pages Flow: the user is redirected to a page (external site or internal site) where he can enter his payment method information
-* Gateway Integration: the payment method information is passed through Kill Bill and the payment operation is also triggered through Kill Bill (and its plugin) against the payment gateway
+* A *HPP* flow is when the payment is completely outsourced, either by redirecting the user to a third-party website or by hosting a form or an iframe, that submits the information to a third-party website
+* A *Gateway integration* flow is when the customer doesn't leave your website and Kill Bill processes the payment directly by calling a gateway API
 
 In the flow diagrams below, we consider the following actors:
 
-* Browser: the client/user sits behind a browser and initiates the payment flow
-* Merchants Site: there is a customer facing web site which receives the client order and also shields the payment system (Kill Bill). The calls received on that first tier need to be encrypted
-* Payments: the payment system (Kill Bill) provides APIs -- described below -- to allow for the various flows/payment operations. Note that by Kill Bill we mean the core system and its specific payment plugins that interact with the payment gateway
-* Payment Provider:  also called Payment Gateway or simply Gateway, this is the entity that is used to receive the payment
-* Access Control Server (optional): in the case of 3D Secure checkout, the user is redirected to some third party entity to enter custom information that will validate whether he can pursue with the payment flow
+* Browser: user sitting behind a browser and initiating the payment flow
+* Merchants Site: customer facing web site which receives the order and shields the payment system (i.e. Kill Bill)
+* Payments: the payment system (i.e. Kill Bill and its specific payment plugins which interact with the payment providers) offering APIs for the various flows
+* Payment Provider: also called Payment Service Provider (PSP), Payment Gateway or simply Gateway, this is the entity that will process the payment
+* Access Control Server (optional): in the case of 3D-Secure checkout, the user is redirected to some third party entity to enter custom information that will validate whether he can pursue with the payment flow
 
-For both flows (hosted page and gateway integration) we show a normal flow and a 3D Secure flow. There could be other variations, but the idea would remain the same: the basic flow would be modified and the browser would be reditected to allow for the user to enter extra information, after which the flow would be resumed.
+=== Hosted Payment Page flow
 
+During an HPP flow, the customer enters his payment method information (either on the main Merchants Site or a third-party site) and then submits a form containing that information to make the payment. The information required to present the user with a payment form (specific form fields or URL where the form is hosted) is obtained by calling the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[*buildFormDescriptor*] API.
 
-=== Hosted Page Flow
+The result of the API call will depend on the type of HPP integration:
 
-During a hosted page flow, the customer enters his payment method information and then submits a form containing that information to make the payment. The information required to build the form (specific fields, or redirect URL, ...) are obtained by calling the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[*buildFormDescriptor*] API.
-Often, the form is hosted on the payment provider (gateway) so that the payment information is not seen from the merchant, but there are many variations and the goal of this API is to support all models.
-The completion of the payment is also subject to many variations but they often translate into either receiving an out of band notification from the gateway through the (https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[*processNotification*] API) or having the plugin polling the gateway.
+* If the payment form is hosted on your own website (but the form data will be sent to a third-party website), the response will list the exact fields to set, such as required visible fields (the names will vary depending on the gateway, for instance some expect a `Sum` field instead of `amount`) and required hidden fields (e.g. `merchantId` value). For https://developer.paypal.com/docs/classic/paypal-payments-standard/ht_test-pps-buttons/[PayPal Payments Standard Buttons] for example, the API would return the values of the fields *cmd*, *hosted_button_id* and *submit*.
+* If the payment form is completely hosted on a third-party website, the response will contain a URL to redirect the user to. This URL can be generic or unique (generated by the payment plugin either by submitting the order information to the gateway or by constructing the special URL via query parameters). For http://help.dwolla.com/customer/portal/articles/1396664-dwolla-form-builder[Dwolla Forms] for example, the API would return a url like https://forms.dwollalabs.com/john.
 
+After calling *buildFormDescriptor*, the payment may or may not exist in a *PENDING* state in Kill Bill: this will depend on the plugin. Here are a few common scenarii:
+
+* the HPP provider doesn't provide an API to retrieve the state of the payment, nor sends notifications: the only way to record the payment is when the user is redirected to the Merchants Site. In that case, *buildFormDescriptor* can simply return the data to create the form and/or redirect the user without creating any payment. When the user completes the payment and is redirected back to the site, the Merchants Site will need to record the payment explicitely by calling the *createPurchase* API. Alternatively, if you want to keep track of abandoned purchases, the plugin could create a payment in a *PENDING* state during the *buildFormDescriptor* call. After the redirect, the Merchants Site will still call the *createPurchase* API to complete the payment, but will pass the paymentId returned by the previous *buildFormDescriptor* call.
+
+image::https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kbDdEN2xnb1FsNTQ&w=960&amp;h=480[Hosted Payment Page with redirect, align="center"]
+
+image::https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kS1lpdTZ5a2UyS2s&w=960&amp;h=480[Hosted Payment Page with redirect and pending payment, align="center"]
+
+* the HPP provider provides an API to retrieve the state of the payment but does not send notifications. In this case, the URL constructed during the *buildFormDescriptor* call is most likely unique, and contains enough information for the plugin to poll the provider for the payment status. During the  *buildFormDescriptor* call, the plugin will need to create a *PENDING* payment. Kill Bill will automatically poll the plugin calling the *getPaymentInfo* API, which should query the provider for the latest payment status. Example: Boleto with PayU Latam.
+
+image::https://drive.google.com/uc?export=download&id=0B77hl6EwcM8keFo1TlM0YmlMb0U&w=960&amp;h=480[Hosted Payment Page with polling, align="center"]
+
+* the HPP provider doesn't provide an API to retrieve the state of the payment but does send notifications. In this case, *buildFormDescriptor* can simply return the redirect URL without creating a payment, which will be created when the notification is received. Similarly to the first case above, you could create a *PENDING* payment if you want to track abandoned purchases, just make sure that the plugin has enough metadata to reconcile. When the notification is received, either use the *notifyPendingTransactionOfStateChanged* Kill Bill API to transition the payment, or wait for Kill Bill to poll the plugin via  the *getPaymentInfo* API. Example: any HPP provided by Adyen.
+
+image::https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kX2NBR1AzTC1rV0E&w=960&amp;h=480[Hosted Payment Page with notification, align="center"]
+
+image::https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kYzlBclhndkx0V0U&w=960&amp;h=480[Hosted Payment Page with notification and pending payment, align="center"]
+
+Note that in all cases, Kill Bill will automatically expire old *PENDING* payments after some time (configurable).
 
 The first flow shows a hosted payment page on the payment provider:
 
 * The user initiates the payment, and the merchant site will use the Kill Bill api <<payment-apis.adoc#build-form-descriptor,buildFormDescriptor>> to return the location of where the browser should be redirected; depending on the variations, Kill Bill and its plugin may have contacted the gateway to create the form on the gateway prior to the redirect.
 * The browser is then redirected to that location (302 status) where the user can enter his payment method information; the URL also contains enough information to redirect the browser to a landing page on success/failure. The redirect from the browser may not complete, so the payment system may either rely on an <<payment-apis.adoc#gateway-notification , out of band notification>> from the gateway if this is supported or it may poll the gateway to fetch the final payment state. This is not shown in the diagrams below for simplicity.
 
-
 image::https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHWXhkbmcxUVJnWlU&w=960&amp;h=480[Hosted Payment Page, align="center"]
-
 
 The flow below shows a 3D Secure variation of the previous flow. The main difference is that prior redirecting the browser to the landing page, it is first redirected to the access control server where the user can enter custom information.
 
 image::https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHbW1IQlNFeVBmUXM&w=960&amp;h=480[Hosted Payment Page 3D Secure variation, align="center"]
 
-=== Gateway Integration Flows
+=== Gateway Integration flow
 
+For gateway integrations, the entry point for any payment is either the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createAuthorization*] (to authorize a credit card), https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createPurchase*] (to charge a payment method, for example authorizing and capturing a credit card, to initiate an ACH transfer, to withdraw money from a Bitcoin wallet, etc.) or https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createCredit*] (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in `*_INIT` state before calling the plugin.
 
-For gateway integrations, the entry point for any payment is either the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createAuthorization*] (to authorize a credit card), https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createPurchase*] (to charge a payment method, for example authorizing and capturing a credit card) or https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createCredit*] (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in `*_INIT` state before calling the plugin.
+Usually, transactions end up in a terminal state right away as most gateways provide synchronous APIs. However, depending on the payment method, the plugin can choose to set the status to *PENDING*. For example, this is the case for 3D-Secure transactions (until the payment is verified by the issuer after redirecting the user), for direct debit transfers (e.g. ACH, which take usually a couple of days to be acknowledged), or for Bitcoin transfers (until the transaction is confirmed by the blockchain). Additionally, some gateways don't always provide synchronous responses (e.g. when capturing funds using Adyen), in which case the plugin has to rely on asynchronous notifications to transition the payment into a terminal state.
 
-
-Note that contrary to the hosted page scenario, transactions end up in a terminal state right away for most cases. There is no polling needed because the gateway will return the payment status synchronously (there is not asynchronous notification). However, there are a few exceptions:
-
-* when the payment ends up in the *PENDING* state. Plugins set this status when additional steps are required to acknowledge the payment, for example in case of 3D Secure or Bitcoin (while waiting on miners to integrate the transaction deep enough in the blockchain).
-* in the case of the plugin TIMEOUT discussed in the previous section.
-
-
-A user must first enter his payment information before any payment operation can occur. In Kill Bill, this translates into <<payments.adoc#components-payment-method-apis, creating a PaymentMethod>>; the api allows to pass plugin specific information which is kept at the plugin level. Also when dealing with credit card information, merchants often have the choice to keep the data into a PCI compliant environment or use a third party PCI compliant environment.
-The process often requires some tokenization/detokenization, so that the payment system only handles the token. This flow is not described in this document. The creation of the Kill Bill payment method is not represented in the flows below and we should assume this was done in a step that occured previously.
-
-
-* The user initiates the payment, and the merchant site will use the Kill Bill api <<payment-apis.adoc#build-form-descriptor,buildFormDescriptor>> to return the gateway specific information that is later used by the merchant site to build the form returned to the browser
-* The user is prompted with a form to enter its payment method information, and then the payment is initiated; the merchant site could use the createAuthorization, createPurchase, ... APIs depending on the use case. Kill Bill will connect to its payment plugin which in turn will contact the gateway to perform the required operation
-* Upon success/failure, the user is redirected to a landing page
-
+Before any payment operation can occur, the user must first enter his payment information. In Kill Bill, this translates into <<payments.adoc#components-payment-method-apis, creating a PaymentMethod>>. When dealing with credit card information specifically, merchants have to keep the data into a PCI compliant environment (often handled by the gateway): this process requires tokenization of the PAN, so that the payment system only handles the token (this flow is not described in this document), which are stored at the plugin level and passed to Kill Bill as a plugin property. Note that the creation of the Kill Bill payment method is not represented in the flows below: it can happen either in a prior step or during the payment using one of our combo payment call. Usually, the user is prompted with a form to enter his payment method information, and then the payment is initiated using one of the *createAuthorization* or *createPurchase* APIs. Kill Bill will connect to its payment plugin which in turn will contact the gateway to perform the required operation. Upon success/failure, the user is redirected to a landing page.
 
 image::https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHV25qNDljU3h4Umc&w=960&amp;h=480[Payment Gateway, align="center"]
 
 The flow below shows a 3D Secure variation of the previous flow. We are showing an authorization call, that is split in two phases:
 
-* The merchant site starts with an authorize call; if enough information is supplied to the gateway and if the payment method is 'registered' as being 3D Secure, the gateway will return a (gateway) specific status so that the user could be redirected to the access control server to complete the flow
+* The merchant site starts with an authorize call; if enough information is supplied to the gateway and if the payment method is 'registered' as being 3D-Secure, the gateway will return a (gateway) specific status so that the user can be redirected to the access control server to complete the flow
 * The user may then enter its specific information on the access control server, and upon success it is then redirected to the merchant site that will complete the authorize phase
-
-
 
 image::https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHUmNieHhoRTJVbkE&w=960&amp;h=480[Payment Gateway 3D Secure variation, align="center"]
