@@ -134,27 +134,47 @@ Notes:
 [[build-form-descriptor]]
 ==== Build form descriptor
 
-The `buildFormDescriptor` call is used when you need to prepare a payment form. There are two main scenarii:
+The `buildFormDescriptor` API is used to prepare a Hosted Payment Page (HPP) payment. In the body of the request, you need to pass custom fields that are plugin specific.
 
-* The payment form is hosted on your own website. The exact fields to add in this form are returned by the plugin. These can be:
-** required visible fields, such as the amount of the payment. The plugin will return the name expected by the gateway (e.g. `Sum` instead of `amount`)
-** hidden fields (e.g. `merchantId` value)
-* The payment form is hosted on the gateway website. In that case, the plugin builds a unique URL to redirect the user to by either:
-** submitting the order information (amount, etc.) to the gateway which returns the location of the hosted payment form
-** constructing the special URL via query parameters
-
-Given an order of $10, here is how you can get the HTML fields to build the form:
+For example, given an order of $10, here is how you can get the redirect URL using the Adyen plugin:
 
 [source,bash]
 ----
 curl -v \
-     -X POST \
      -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -H 'Content-Type: application/json' \
-     -H 'X-Killbill-ApiKey:bob' \
-     -H 'X-Killbill-ApiSecret:lazar' \
-     -H 'X-Killbill-CreatedBy: creator' \
-     --data-binary '{ "formFields": [{ "key": "order_id", "value": "1234" }, { "key": "amount", "value": "10" }, { "key": "currency", "value": "USD" }]}' \
+     -H 'X-Killbill-CreatedBy: demo' \
+     -X POST \
+     --data-binary '{
+       "formFields": [
+         {
+           "key": "country",
+           "value": "DE"
+         },
+         {
+           "key": "paymentProviderType",
+           "value": "CREDITCARD"
+         },
+         {
+           "key": "serverUrl",
+           "value": "http://killbill.io"
+         },
+         {
+           "key": "resultUrl",
+           "value": "?q=test+adyen+redirect+success"
+         },
+         {
+           "key": "amount",
+           "value": 10
+         },
+         {
+           "key": "currency",
+           "value": "USD"
+         }
+       ]
+     }' \
      "http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/268983f2-5443-47e4-a967-b8962fc699c5"
 ----
 
@@ -166,50 +186,57 @@ Notes:
 [[gateway-notification]]
 ==== Process gateway notifications
 
-Gateway notifications (Recurly push notifications, PayPal or BitPay IPN, etc.) can be processed through this API:
+Gateway notifications (Adyen notifications, Recurly push notifications, PayPal or BitPay IPN, etc.) can be processed through the `processNotification` API.
+
+For example, here is the payload that Adyen would send:
 
 [source,bash]
 ----
 curl -v \
-     -X POST \
      -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
      -H 'Content-Type: application/json' \
-     -H 'X-Killbill-ApiKey:bob' \
-     -H 'X-Killbill-ApiSecret:lazar' \
-     -H 'X-Killbill-CreatedBy: creator' \
-     "http://127.0.0.1:8080/1.0/kb/paymentGateways/notifications/pluginName?customKey=value
+     -H 'X-Killbill-CreatedBy: demo' \
+     -X POST \
+     --data-binary '<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <ns1:sendNotification xmlns:ns1="http://notification.services.adyen.com">
+      <ns1:notification>
+        <live xmlns="http://notification.services.adyen.com">true</live>
+        <notificationItems xmlns="http://notification.services.adyen.com">
+          <NotificationRequestItem>
+            <additionalData xsi:nil="true"/>
+            <amount>
+              <currency xmlns="http://common.services.adyen.com">EUR</currency>
+              <value xmlns="http://common.services.adyen.com">2995</value>
+            </amount>
+            <eventCode>AUTHORISATION</eventCode>
+            <eventDate>2013-04-15T06:59:22.278+02:00</eventDate>
+            <merchantAccountCode>TestMerchant</merchantAccountCode>
+            <merchantReference>325147059</merchantReference>
+            <operations>
+              <string>CANCEL</string>
+              <string>CAPTURE</string>
+              <string>REFUND</string>
+            </operations>
+            <originalReference xsi:nil="true"/>
+            <paymentMethod>visa</paymentMethod>
+            <pspReference>4823660019473428</pspReference>
+            <reason>111647:7629:5/2014</reason>
+            <success>true</success>
+          </NotificationRequestItem>
+        </notificationItems>
+      </ns1:notification>
+    </ns1:sendNotification>
+  </soap:Body>
+</soap:Envelope>' \
+    "http://127.0.0.1:8080/1.0/kb/paymentGateways/notification/killbill-adyen"
 ----
 
-Make sure to replace `pluginName` with your plugin name (e.g. killbill-bitpay).
+Make sure to replace `killbill-adyen` with your plugin name.
 
 The plugin will deserialize either the request body and/or the url query parameters to process the notification and return a properly formatted HTTP response object for the gateway (some gateways require specific response codes or headers to consider the notification processed and prevent retries).
 
 Because this endpoint needs to be on a public IP (to be accessible from the gateway), we recommend using the https://github.com/killbill/killbill-notifications-proxy[Kill Bill Notifications Proxy] to avoid exposing the entire Kill Bill server.
-
-=== Examples of hosted pages flows
-
-The implementation of the `buildFormDescriptor` and `processNotification` APIs described above will vary from gateway to gateway.
-While the internal mechanics of completing the payment vary for each plugin, the overall steps are usually the same:
-
-. Your website calls `buildFormDescriptor` and interprets the result
-. The customer is then either shown a payment form or redirected to an external page
-. The customer is then either shown a payment form or redirected to an external page
-. The customer completes the payment
-
-Here are a couple of example flows:
-
-==== Gateway notifies Kill Bill of the payment
-
-In this scenario, no payment has been created in Kill Bill after the `buildFormDescriptor` call. Upon completion of the payment, either the gateway will pass information about the payment in the redirect url parameters or it will send an out-of-band notification.
-
-In the first case, you will need to create the payment using the `purchase` call during the redirect. The plugin will then query the gateway to verify the payment (for security purposes).
-
-In the second case, the plugin will create the payment during the `processNotification` call (see the https://github.com/killbill/killbill-bitpay-plugin/[BitPay] plugin for an example).
-
-In both cases, the payment will end up in a terminal state (either succeeded or failed).
- 
-==== Kill Bill polls the gateway
-
-In this scenario, during the `buildFormDescriptor` call, the plugin will most likely create state in the gateway (e.g. the generated redirect url points to a unique voucher) and will also create a matching payment in Kill Bill (in a pending state).
-
-Kill Bill will then automatically start polling the plugin for that payment, which will in turn query the gateway for the latest payment status. See the https://github.com/killbill/killbill-payu-latam-plugin[PayU Latam] plugin for an example.
