@@ -488,6 +488,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#five-minutes-create-account">Create an account</a></li>
 <li><a href="#five-minutes-create-authorization">Create an authorization</a></li>
 <li><a href="#five-minutes-create-capture">Capture this authorization</a></li>
+<li><a href="#five-minutes-payments-combo">Alternative with call (also referred to as payment combo call)</a></li>
 </ul>
 </li>
 </ul>
@@ -681,6 +682,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
      -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
      --data-binary <span class="tok-s1">&#39;{&quot;transactionType&quot;:&quot;AUTHORIZE&quot;,&quot;amount&quot;:&quot;10&quot;,&quot;currency&quot;:&quot;USD&quot;,&quot;transactionExternalKey&quot;:&quot;INV-001-AUTH&quot;}&#39;</span> <span class="tok-se">\</span>
      <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments&quot;</span></code></pre>
 </div>
@@ -699,8 +701,44 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
      -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
      --data-binary <span class="tok-s1">&#39;{&quot;amount&quot;:&quot;5&quot;,&quot;currency&quot;:&quot;USD&quot;,&quot;transactionExternalKey&quot;:&quot;INV-001-CAPTURE&quot;}&#39;</span> <span class="tok-se">\</span>
      <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="five-minutes-payments-combo">Alternative with call (also referred to as payment combo call)</h4>
+<div class="paragraph">
+<p>In order to create the account, add the payment method and then proceed with the payment (auth, purchase, ..), we added a 'combo' payment call that will create the various states (acccount, payment method) if they don&#8217;t already exist.
+The call is provided as a convenience to avoid making multiple calls. It does not offer transactional properties, for instance if creating the account works but somehow adding the payment method fails, the call would fail and yet the account would end up being created.
+However, the call is idempotent, so retrying the call for the same account would resume the steps and thefeore not re-create the account which already exists.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
+     --data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">     &quot;account&quot;: {</span>
+<span class="tok-s1">         &quot;name&quot;:&quot;My Name&quot;,</span>
+<span class="tok-s1">         &quot;currency&quot;:&quot;USD&quot;</span>
+<span class="tok-s1">     },</span>
+<span class="tok-s1">     &quot;paymentMethod&quot;: {</span>
+<span class="tok-s1">         &quot;pluginName&quot;:&quot;__EXTERNAL_PAYMENT__&quot;,</span>
+<span class="tok-s1">	     &quot;pluginInfo&quot;:{}</span>
+<span class="tok-s1">	 },</span>
+<span class="tok-s1">	 &quot;transaction&quot;: {</span>
+<span class="tok-s1">	     &quot;transactionType&quot;:&quot;AUTHORIZE&quot;,</span>
+<span class="tok-s1">	     &quot;amount&quot;:12.5,</span>
+<span class="tok-s1">	     &quot;currency&quot;:&quot;USD&quot;</span>
+<span class="tok-s1">	 }</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/payments/combo&quot;</span></code></pre>
 </div>
 </div>
 </div>
@@ -1588,7 +1626,7 @@ Some of those calls might not make sense for a given gateway.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-12 21:09:22 UTC
+Last updated 2015-08-13 07:06:57 UTC
 </div>
 </div>
 </body>
