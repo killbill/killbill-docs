@@ -1,4 +1,4 @@
-/*! use killbill; */
+/*! USE killbill */;
 
 /*! SET storage_engine=INNODB */;
 
@@ -13,7 +13,7 @@ CREATE TABLE accounts (
     currency varchar(3) DEFAULT NULL,
     billing_cycle_day_local int DEFAULT NULL,
     payment_method_id varchar(36) DEFAULT NULL,
-    time_zone varchar(50) DEFAULT NULL,
+    time_zone varchar(50) NOT NULL,
     locale varchar(5) DEFAULT NULL,
     address1 varchar(100) DEFAULT NULL,
     address2 varchar(100) DEFAULT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE account_history (
     currency varchar(3) DEFAULT NULL,
     billing_cycle_day_local int DEFAULT NULL,
     payment_method_id varchar(36) DEFAULT NULL,
-    time_zone varchar(50) DEFAULT NULL,
+    time_zone varchar(50) NOT NULL,
     locale varchar(5) DEFAULT NULL,
     address1 varchar(100) DEFAULT NULL,
     address2 varchar(100) DEFAULT NULL,
@@ -324,6 +324,7 @@ CREATE UNIQUE INDEX invoice_items_id ON invoice_items(id);
 CREATE INDEX invoice_items_subscription_id ON invoice_items(subscription_id ASC);
 CREATE INDEX invoice_items_invoice_id ON invoice_items(invoice_id ASC);
 CREATE INDEX invoice_items_account_id ON invoice_items(account_id ASC);
+CREATE INDEX invoice_items_linked_item_id ON invoice_items(linked_item_id ASC);
 CREATE INDEX invoice_items_tenant_account_record_id ON invoice_items(tenant_record_id, account_record_id);
 
 DROP TABLE IF EXISTS invoices;
@@ -358,6 +359,7 @@ CREATE TABLE invoice_payments (
     processed_currency varchar(3) NOT NULL,
     payment_cookie_id varchar(255) DEFAULT NULL,
     linked_invoice_payment_id varchar(36) DEFAULT NULL,
+    success bool DEFAULT true,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
     account_record_id bigint /*! unsigned */ not null,
