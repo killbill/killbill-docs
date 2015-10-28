@@ -488,6 +488,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#five-minutes-create-account">Create an account</a></li>
 <li><a href="#five-minutes-create-authorization">Create an authorization</a></li>
 <li><a href="#five-minutes-create-capture">Capture this authorization</a></li>
+<li><a href="#five-minutes-payments-combo">Alternative with call (also referred to as payment combo call)</a></li>
 </ul>
 </li>
 </ul>
@@ -681,6 +682,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
      -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
      --data-binary <span class="tok-s1">&#39;{&quot;transactionType&quot;:&quot;AUTHORIZE&quot;,&quot;amount&quot;:&quot;10&quot;,&quot;currency&quot;:&quot;USD&quot;,&quot;transactionExternalKey&quot;:&quot;INV-001-AUTH&quot;}&#39;</span> <span class="tok-se">\</span>
      <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments&quot;</span></code></pre>
 </div>
@@ -699,8 +701,44 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
      -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
      --data-binary <span class="tok-s1">&#39;{&quot;amount&quot;:&quot;5&quot;,&quot;currency&quot;:&quot;USD&quot;,&quot;transactionExternalKey&quot;:&quot;INV-001-CAPTURE&quot;}&#39;</span> <span class="tok-se">\</span>
      <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="five-minutes-payments-combo">Alternative with call (also referred to as payment combo call)</h4>
+<div class="paragraph">
+<p>In order to create the account, add the payment method and then proceed with the payment (auth, purchase, ..), we added a 'combo' payment call that will create the various states (acccount, payment method) if they don&#8217;t already exist.
+The call is provided as a convenience to avoid making multiple calls. It does not offer transactional properties, for instance if creating the account works but somehow adding the payment method fails, the call would fail and yet the account would end up being created.
+However, the call is idempotent, so retrying the call for the same account would resume the steps and thefeore not re-create the account which already exists.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
+     --data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">     &quot;account&quot;: {</span>
+<span class="tok-s1">         &quot;name&quot;:&quot;My Name&quot;,</span>
+<span class="tok-s1">         &quot;currency&quot;:&quot;USD&quot;</span>
+<span class="tok-s1">     },</span>
+<span class="tok-s1">     &quot;paymentMethod&quot;: {</span>
+<span class="tok-s1">         &quot;pluginName&quot;:&quot;__EXTERNAL_PAYMENT__&quot;,</span>
+<span class="tok-s1">	     &quot;pluginInfo&quot;:{}</span>
+<span class="tok-s1">	 },</span>
+<span class="tok-s1">	 &quot;transaction&quot;: {</span>
+<span class="tok-s1">	     &quot;transactionType&quot;:&quot;AUTHORIZE&quot;,</span>
+<span class="tok-s1">	     &quot;amount&quot;:12.5,</span>
+<span class="tok-s1">	     &quot;currency&quot;:&quot;USD&quot;</span>
+<span class="tok-s1">	 }</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/payments/combo&quot;</span></code></pre>
 </div>
 </div>
 </div>
@@ -915,11 +953,13 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="content">
 <img src="https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kbDdEN2xnb1FsNTQ&w=960&amp;h=480" alt="Hosted Payment Page with redirect">
 </div>
+<div class="title">Figure 1. Payment created during the redirect</div>
 </div>
 <div class="imageblock" style="text-align: center">
 <div class="content">
 <img src="https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kS1lpdTZ5a2UyS2s&w=960&amp;h=480" alt="Hosted Payment Page with redirect and pending payment">
 </div>
+<div class="title">Figure 2. Pending payment created during the <strong>buildFormDescriptor</strong> call, completed during the redirect</div>
 </div>
 <div class="ulist">
 <ul>
@@ -932,6 +972,7 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="content">
 <img src="https://drive.google.com/uc?export=download&id=0B77hl6EwcM8keFo1TlM0YmlMb0U&w=960&amp;h=480" alt="Hosted Payment Page with polling">
 </div>
+<div class="title">Figure 3. Pending payment created during the <strong>buildFormDescriptor</strong> call, completed by polling <strong>getPaymentInfo</strong></div>
 </div>
 <div class="ulist">
 <ul>
@@ -944,11 +985,13 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="content">
 <img src="https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kX2NBR1AzTC1rV0E&w=960&amp;h=480" alt="Hosted Payment Page with notification">
 </div>
+<div class="title">Figure 4. Payment created when receiving a notification from the provider</div>
 </div>
 <div class="imageblock" style="text-align: center">
 <div class="content">
 <img src="https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kYzlBclhndkx0V0U&w=960&amp;h=480" alt="Hosted Payment Page with notification and pending payment">
 </div>
+<div class="title">Figure 5. Pending payment created during the <strong>buildFormDescriptor</strong> call, completed when receiving a notification from the provider</div>
 </div>
 <div class="paragraph">
 <p>Note that in all cases, Kill Bill will automatically expire old <strong>PENDING</strong> payments after some time (configurable).</p>
@@ -960,6 +1003,7 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="content">
 <img src="https://drive.google.com/uc?export=download&id=0Bw8rymjWckBHbW1IQlNFeVBmUXM&w=960&amp;h=480" alt="Hosted Payment Page 3D-Secure variation">
 </div>
+<div class="title">Figure 6. Hosted Payment Page 3D-Secure variation</div>
 </div>
 </div>
 <div class="sect2">
@@ -980,6 +1024,7 @@ The set of payment state transitions are configured in an <a href="https://githu
 <div class="content">
 <img src="https://drive.google.com/uc?export=download&id=0B77hl6EwcM8kR01kaVJta3VJcDQ&w=960&amp;h=480" alt="Gateway integration">
 </div>
+<div class="title">Figure 7. Gateway integration (direct payment API)</div>
 </div>
 <div class="paragraph">
 <p>If 3D-Secure is enabled, the payment (e.g. authorization) is split into two phases:</p>
@@ -1581,7 +1626,7 @@ Some of those calls might not make sense for a given gateway.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-12 05:38:42 UTC
+Last updated 2015-08-13 07:06:57 UTC
 </div>
 </div>
 </body>

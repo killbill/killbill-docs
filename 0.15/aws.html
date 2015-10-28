@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill and Bitcoin</title>
+<title>Kill Bill AWS Deployment</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,319 +476,359 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill and Bitcoin</h1>
+<h1>Kill Bill AWS Deployment</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_introduction">Introduction</a>
+<li><a href="#intro">Introduction</a></li>
+<li><a href="#aws_setup">AWS Setup</a>
 <ul class="sectlevel2">
-<li><a href="#_recurring_payments">Recurring payments</a></li>
-<li><a href="#_pending_payment_state">PENDING payment state</a></li>
+<li><a href="#vpc">Configuring the VPC</a></li>
+<li><a href="#rds">Configuring the RDS Instance</a></li>
+<li><a href="#ec2">Configuring the EC2 Instance</a></li>
 </ul>
 </li>
-<li><a href="#_pre_requisites">Pre-requisites</a></li>
-<li><a href="#_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</a>
+<li><a href="#aws_setup">Kill Bill Setup</a>
 <ul class="sectlevel2">
-<li><a href="#_bitpay">BitPay</a>
-<ul class="sectlevel3">
-<li><a href="#_installation">Installation</a></li>
-<li><a href="#_usage">Usage</a></li>
-</ul>
-</li>
-<li><a href="#_coinbase">Coinbase</a>
-<ul class="sectlevel3">
-<li><a href="#_installation_2">Installation</a></li>
-<li><a href="#_usage_2">Usage</a></li>
-<li><a href="#_recurring_payment">Recurring payment</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#_self_hosted_blockchain">Self-hosted blockchain</a>
-<ul class="sectlevel2">
-<li><a href="#_overview">Overview</a></li>
-<li><a href="#_usage_3">Usage</a></li>
-<li><a href="#_storing_funds">Storing funds</a></li>
+<li><a href="#killbill_db">Configuring the Kill Bill database</a></li>
+<li><a href="#stripe_config">Configuring the Stripe Plugin</a></li>
+<li><a href="#docker">Final Step</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is an open-source platform to build billing and payments services. Besides traditional payment methods (Credit and Debit cards, hosted payment gateways, checks, etc.), it does support Bitcoin as well. This guide will focus on how you can integrate Bitcoin with Kill Bill. For general information on the project, check our website <a href="http://kill-bill.org" class="bare">http://kill-bill.org</a>.</p>
-</div>
-<div class="paragraph">
-<p>Lost? Questions? Reach out to our <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing-list</a>!</p>
-</div>
-</div>
-</div>
 <div class="sect1">
-<h2 id="_introduction">Introduction</h2>
+<h2 id="intro">Introduction</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill is currency and payment method agnostic. Our one-time and recurring payments APIs work around the concept of an account, which represents a person or a corporate entity, to which several payments methods (means of payment) are attached. An account can have a US AmericanExpress credit card, German Visa debit card, a hosted Blockchain.info wallet and a MultiBit Bitcoin wallet - all of these four payment methods are treated the same in Kill Bill, for the purpose of API calls parameters, invoices and payments objects, etc. This can happen because the gateway specific logic is handled in Kill Bill plugins, which plug into the platform via tightly controlled integration points.</p>
+<p>In this tutorial, we will explore how we can deploy Kill Bill in AWS by leveraging the existing Docker killbill container.</p>
 </div>
 <div class="paragraph">
-<p>For more information on Kill Bill&#8217;s payments APIs and plugins, check our <a href="http://docs.kill-bill.org/payments.html">Payments guide</a>.</p>
-</div>
-<div class="paragraph">
-<p>The following guide assumes you already have an instance of Kill Bill running locally. To get started, check out our <a href="http://docs.kill-bill.org/userguide.html">Kill Bill in 5 minutes</a> guide.</p>
-</div>
-<div class="sect2">
-<h3 id="_recurring_payments">Recurring payments</h3>
-<div class="paragraph">
-<p>Supporting recurring payments is currently not easily feasable with Bitcoin, since it requires the merchant to have access to your wallet secret keys. While we do offer a work-around using <a href="https://coinbase.com/">Coinbase</a> (see below), we are working with the community to extend the <a href="https://github.com/bitcoin/bips/blob/master/bip-0070.mediawiki">Payment Protocol (BIP 70)</a> to add support for it. You can follow the discussion on the <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=D6BCC0C4-EF22-4DE8-868E-825D19C387E3%40kill-bill.org&amp;forum_name=bitcoin-development">bitcoin-development</a> mailing-list.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_pending_payment_state">PENDING payment state</h3>
-<div class="paragraph">
-<p>Usually in Kill Bill, a payment can be either in a success or failed status (the latter being terminal or not, if you configured your instance to retry failed payments). Due to the nature of the blockchain, a merchant often wants to wait several block confirmations (usually 6) before considering a payment successful (and before releasing goods or services). This transition period maps to the <code>PENDING</code> (unconfirmed) state in Kill Bill.</p>
-</div>
-<div class="paragraph">
-<p>Our Bitcoin plugins will verify blockchain transactions (either directly on the blockchain or indirectly, through third-parties, depending on the plugin) and make sure each payment in Kill Bill will have one single matching transaction within the Bitcoin blockchain. It will then notify Kill Bill when the payment can be considered successfull based on heuristics that are configurable, such as the depth of the blocks where the transaction occurred.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_pre_requisites">Pre-requisites</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>No matter how you plan on accepting Bitcoin, you&#8217;ll need to create an account for your customer in Kill Bill:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;john&quot;,&quot;email&quot;:&quot;john@foo.com&quot;,&quot;externalKey&quot;:&quot;11-22-33-44-55&quot;,&quot;currency&quot;:&quot;BTC&quot;}&#39;</span> <span class="tok-se">\</span>
-     http://127.0.0.1:8080/1.0/kb/accounts</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>We&#8217;ll assume the account id is f7b86b16-2770-48a6-9582-1b1413a0053c in the rest of this document.</p>
-</div>
-<div class="paragraph">
-<p>Then, the account needs an associated payment method in the plugin.</p>
-</div>
-<div class="paragraph">
-<p>For BitPay:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-bitpay&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>For Coinbase:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-coinbase&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</h2>
-<div class="sectionbody">
-<div class="sect2">
-<h3 id="_bitpay">BitPay</h3>
-<div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-bitpay-plugin">BitPay plugin</a> is a wrapper around the <a href="http://activemerchant.org">Active Merchant</a> BitPay integration.</p>
-</div>
-<div class="paragraph">
-<p>The direct payment flow is as follow:</p>
+<p>The deployment will rely on:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Using the Kill Bill <code>buildFormDescriptor</code> API call, create an invoice in BitPay</p>
+<p>One EC2 instance where the killbill docker container runs</p>
 </li>
 <li>
-<p>Redirect the user to the hosted invoice page and/or embed the invoice in an iframe</p>
-</li>
-<li>
-<p>Upon success, BitPay will send a notification to Kill Bill which will mark the payment as successful</p>
+<p>One RDS instance for mysql</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>For more details on how to configure the invoice in BitPay, see <a href="https://bitpay.com/bitcoin-payment-gateway-api" class="bare">https://bitpay.com/bitcoin-payment-gateway-api</a>.</p>
-</div>
-<div class="sect3">
-<h4 id="_installation">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22bitpay-plugin%22">latest version</a> of the plugin.</p>
+<p>Requirements: <strong>You need to create an AWS account and have an access to the AWS console</strong></p>
 </div>
 <div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/bitpay.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://bitpay.com/api-keys">BitPay API key</a>):</p>
+<p>Note that those steps are mostly for the purpose of a demo; they omit production-like features such as DB backup, Monitoring, or even deploying multiple EC2 instances for HA or horizontal scalability purpose. However, all those are more a matter of configuring AWS towards that end and spawning more instances, so in final, the steps can be used as <strong>a basis</strong> to deploy Kill Bill in the cloud to handle your production traffic.</p>
 </div>
-<div class="listingblock">
+</div>
+</div>
+<div class="sect1">
+<h2 id="aws_setup">AWS Setup</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The AWS setup is little bit convoluted, and even though there is a lot of documentation on aws, we will go through the various steps. To summarize the steps:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Setup of the VPC, that is now required by some instances</p>
+</li>
+<li>
+<p>Setup and launch the RDS instance</p>
+</li>
+<li>
+<p>Setup and launch the EC2 Killbill docker container</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="vpc">Configuring the VPC</h3>
+<div class="paragraph">
+<p>From AWS console, choose VPC service:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create the <a href="http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.html">VPC</a></p>
+<div class="literalblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:bitpay</span><span class="tok-p">:</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span> <span class="tok-s1">&#39;XXXX&#39;</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">bitpay</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
+<pre>NameTag : dockerdemo
+CIDR block : 172.50.0.0/16
+Tenancy : Default</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-bitpay-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
+<p>Then select <code>Actions</code> to set <code>DNS Resolution</code> and <code>DNS Hostname</code></p>
 </div>
-</div>
-<div class="sect3">
-<h4 id="_usage">Usage</h4>
+</li>
+<li>
+<p>Then create an <a href="http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Internet_Gateway.html#Add_IGW_Attach_Gateway">Internet Gateway</a></p>
 <div class="paragraph">
-<p>Create the invoice in BitPay using the <code>buildFormDescriptor</code> API call (note that the only required fields are amount and currency):</p>
+<p>This is necessary to make sure the public IP is visible from the outside world.</p>
 </div>
-<div class="listingblock">
+<div class="literalblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{</span>
-<span class="tok-s1">                        &quot;formFields&quot;: [</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;amount&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;0.0001&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;currency&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;BTC&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;order_id&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;INV0019483&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;notify_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-killbill.com:8080/1.0/kb/paymentGateways/notifications/killbill-bitpay&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;return_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-e-commerce.com/thank-you&quot;</span>
-<span class="tok-s1">                            }</span>
-<span class="tok-s1">                        ]</span>
-<span class="tok-s1">                    }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/f7b86b16-2770-48a6-9582-1b1413a0053c&quot;</span></code></pre>
+<pre>Specifying a Name: dockerdemo
+Right click on the created gateway, and select 'attach to VPC'; chose the VPC previously created</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Add <a href="http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPCSubnet">subnets to VPC</a></p>
+<div class="paragraph">
+<p>Subnet sub menu <code>Create Subnet</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Name Tag: dockerdemo-e1b
+VPC: select previously created VPC
+Availability zone: us-east-1b
+CIDR block : 172.50.1.0/24
+Select 'Modify Auto-Assign Plublic IP'</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>BitPay will notify Kill Bill via the <code>notify_url</code> parameter and update the payment status.</p>
+<p>Repeat twice to create the other subnets with {us-east-1c, 172.50.2.0/24}, {us-east-1d, 172.50.3.0/24})</p>
 </div>
+</li>
+<li>
+<p>Create Custom Route Tables:</p>
+<div class="paragraph">
+<p>Route Tables Menu <code>Create Route table</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Name tag: dockerdemo
+VPC: prevous VPC
+Edit the routes to add the gateway:
+Destination: 0.0.0.0/0
+Target: select the gateway igw-xxxx
+Tag 'Subnet associations': Edit and click on all subnet to 'associate'</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Security Group for EC2 instances:</p>
+<div class="paragraph">
+<p>Security Group Menu <code>Create Security Group</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Name Tag: dockerdemo
+Group Name: dockerdemo
+VPC: select VPC
+Edit SG: Add following rules:
+{Type=SSH, Protocol=TCP, Port=22, Source=0.0.0.0/0 or your IP machine if you want to be more restrictive)
+{Type=HTTP, Protocol=TCP, Port=8080, Source=0.0.0.0/0)</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Security Group for RDS instance:</p>
+<div class="paragraph">
+<p>Security Group Menu <code>Create Security Group</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Name Tag: dockerdemo-db
+Group Name: dockerdemo
+VPC: select VPC
+Edit SG: Add following rules:
+{Type=SSH, Protocol=TCP, Port=3306, Source=0.0.0.0/0 or your IP machine if you want to be more restrictive)</pre>
+</div>
+</div>
+</li>
+</ol>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_coinbase">Coinbase</h3>
+<h3 id="rds">Configuring the RDS Instance</h3>
 <div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-coinbase-plugin">Coinbase plugin</a> is a wrapper around the <a href="https://github.com/coinbase/coinbase-ruby">Coinbase Ruby gem</a>.</p>
+<p>From AWS console, choose RDS service:</p>
 </div>
-<div class="sect3">
-<h4 id="_installation_2">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22coinbase-plugin%22">latest version</a> of the plugin.</p>
-</div>
-<div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-coinbase</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/coinbase.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://coinbase.com/settings/api">Coinbase API key</a>):</p>
-</div>
-<div class="listingblock">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Add the subnet group for the DB:</p>
+<div class="literalblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:coinbase</span><span class="tok-p">:</span>
-  <span class="tok-c1"># TODO</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_id</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_secret</span><span class="tok-p">:</span>
-  <span class="tok-ss">:redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:app_redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:btc_address</span><span class="tok-p">:</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">coinbase</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
+<pre>Subnet Group Menu: Create DB subnet Group
+Name: dockerdemo-db
+VPC ID: select VPC
+Availability zone: pick one (us-east-1b)
+Add the 3 subnets prevoulsy created</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Launch DB instance (select MySQL Community Edition)</p>
+<div class="literalblock">
+<div class="content">
+<pre>Instance class: db.t2.micro
+Use Existing VPC: Select VPC
+Multi AZ: false
+DB Instance Identifier: dockerdemo
+Master Username: dockerdemo
+Master Password: dockerdemo
+Advanced Setting:
+VPC :select dockerdemo
+VPC security group : select the dockerdemo-db (oprt open for tcp 3306)
+Database name: killbill</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Launch the database</p>
+<div class="paragraph">
+<p>Write down the endpoint (e.g  dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com)</p>
+</div>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="ec2">Configuring the EC2 Instance</h3>
+<div class="paragraph">
+<p>From AWS console, choose EC2 service:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Launch instance: Chose AMI (ami-9eaa1cf6) Ubuntu Server 14.04 LTS (HVM), SSD Volume Type (for example)</p>
+<div class="literalblock">
+<div class="content">
+<pre>Instance: t2.small (or adjust to your needs)
+Configure Details:
+Select VPC: dockerdemo
+Auto assign IP: Use subnet setting (Enable)</pre>
+</div>
+</div>
+</li>
+<li>
+<p>In order to get <code>dockerd</code> installed and started automatically, the folks from docker created a script that can be invoked by <code>Cloud-Init</code>:<br>
+In <code>Advanced Detail Section</code>:</p>
+<div class="literalblock">
+<div class="content">
+<pre>User Data: As text
+Enter in the box: #include https://get.docker.com</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Next screen, edit security group and select thr previoulsy created security group (<code>dockerdemo</code> which opens port 22 and 8080)</p>
+</li>
+<li>
+<p>Launch the instance:</p>
+<div class="literalblock">
+<div class="content">
+<pre>Create new key pair: dockerdemo</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-coinbase-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
+<p>Download the private key <code>dockerdemo.pem</code> that will be needed later to download into the zone.</p>
 </div>
-</div>
-<div class="sect3">
-<h4 id="_usage_2">Usage</h4>
-<div class="paragraph">
-<p>TODO</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_recurring_payment">Recurring payment</h4>
-<div class="paragraph">
-<p>TODO</p>
-</div>
+</li>
+</ol>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_self_hosted_blockchain">Self-hosted blockchain</h2>
+<h2 id="aws_setup">Kill Bill Setup</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Alternatively, you can use our native <a href="https://github.com/killbill/killbill-bitcoin-plugin">Bitcoin plugin</a> to handle transactions yourself.</p>
+<p>At this stage you have both a dockerized instance of EC2 running and an RDS instance. We need to setup the database and start Kill Bill. Also, and as an example we will deploy the stripe plugin along with Kill Bill.</p>
+</div>
+<div class="paragraph">
+<p>Note: <strong>Replace the DNS names below in the rest of the doc with your RDS and EC2 DNS name</strong></p>
+</div>
+<div class="paragraph">
+<p>Since the RDS instance is not publicly available, we will configure it through our EC2 instance, so first we will need to ssh to the EC2 instance:</p>
+</div>
+<div class="listingblock">
+<div class="title">SSH to the zone:</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&gt; chmod <span class="tok-m">400</span> docker.pem <span class="tok-c"># make sure private key is read-only</span>
+&gt; ssh  -i dockerdemo.pem ubuntu@ec2-54-174-176-179.compute-1.amazonaws.com</code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">Also verify that dockerd is running:</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&gt; ps -ef <span class="tok-p">|</span> grep dockerd <span class="tok-c"># Or:</span>
+&gt; sudo docker info</code></pre>
+</div>
 </div>
 <div class="sect2">
-<h3 id="_overview">Overview</h3>
+<h3 id="killbill_db">Configuring the Kill Bill database</h3>
 <div class="paragraph">
-<p>The plugin uses Bitcoinj to create a local wallet and runs in Simplified Payment Verification (SPV) mode.</p>
+<p>Since the RDS instance is not publicly available, we will configure it through our EC2 instance. First we install the missing mysql-client package and then upload the database schema:</p>
 </div>
-<div class="paragraph">
-<p>The flow of operations can be summarized as follows: each time the plugin detects a new <code>PENDING</code> Bitcoin payment, it keeps track of that payment in its persistent tables (it keeps a mapping between the Kill Bill payment id and the blockchain transaction). When a new block is added to the blockchain, it checks to see if there is a <code>PENDING</code> payment that matches that BTC transactionId and it verifies if the payment can be considered valid (depending on the depth configuration). If it is, it notifies Kill Bill so that the payment status can be updated to <code>SUCCESS</code>.</p>
+<div class="listingblock">
+<div class="title">Install mysql client and upload DB schema</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&gt; sudo apt-get install -y  mysql-client
+&gt; curl -q http://killbill.io/wp-content/uploads/2014/11/killbill-0.12.0.ddl <span class="tok-p">|</span> mysql -h dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com -u dockerdemo -pdockerdemo killbill
+&gt; curl -q https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql <span class="tok-p">|</span> mysql -h dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com -u dockerdemo -pdockerdemo killbill</code></pre>
+</div>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_usage_3">Usage</h3>
+<h3 id="stripe_config">Configuring the Stripe Plugin</h3>
 <div class="paragraph">
-<p>TODO</p>
+<p>Create the stripe configuration:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&gt; mkdir -p /home/ubuntu/killbil/etc/
+&gt; vi /home/ubuntu/killbil/etc/stripe.yml</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Fill the details with your own keys:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:stripe</span><span class="tok-p">:</span>
+ <span class="tok-ss">:api_secret_key</span><span class="tok-p">:</span> <span class="tok-no">API_SECRET_KEY</span>
+ <span class="tok-ss">:test</span><span class="tok-p">:</span> <span class="tok-kp">true</span>
+ <span class="tok-ss">:database</span><span class="tok-p">:</span>
+ <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-n">jdbcmysql</span>
+ <span class="tok-ss">:jndi</span><span class="tok-p">:</span> <span class="tok-n">killbill</span><span class="tok-o">/</span><span class="tok-n">osgi</span><span class="tok-o">/</span><span class="tok-n">jdbc</span>
+ <span class="tok-ss">:connection_alive_sql</span><span class="tok-p">:</span> <span class="tok-nb">select</span> <span class="tok-mi">1</span>
+ <span class="tok-ss">:pool</span><span class="tok-p">:</span> <span class="tok-mi">25</span></code></pre>
+</div>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_storing_funds">Storing funds</h3>
+<h3 id="docker">Final Step</h3>
 <div class="paragraph">
-<p>Each plugin instance has its own instance of a wallet ; since we often run Kill Bill as a distributed service&#8201;&#8212;&#8201;for robustness purpose, or to address needs of scaling horizontally&#8201;&#8212;&#8201;that means that each node where Kill Bill runs has a different wallet, and the bitcoins in each wallet needs to be transferred to a well known (set of) public merchant keys. To address that issue, you can configure the plugin to periodically empty its wallet using a well known (set of) public keys (the interval, amount of money, etc. are configurable thresholds).</p>
+<p>Finally download the docker image, and start it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&gt; sudo docker pull killbill/killbill:0.12.1
+&gt; sudo docker run -tid <span class="tok-se">\</span>
+       –name dockerdemo <span class="tok-se">\</span>
+       -p 8080:8080 <span class="tok-se">\</span>
+       -v /home/ubuntu/killbil/etc/stripe.yml:/etc/killbill/stripe.yml <span class="tok-se">\</span>
+       -e <span class="tok-nv">KILLBILL_PLUGIN_STRIPE</span><span class="tok-o">=</span><span class="tok-m">1</span> <span class="tok-se">\</span>
+       -e <span class="tok-nv">KILLBILL_CONFIG_DAO_URL</span><span class="tok-o">=</span>jdbc:mysql://dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill <span class="tok-se">\</span>
+       -e <span class="tok-nv">KILLBILL_CONFIG_DAO_USER</span><span class="tok-o">=</span>dockerdemo <span class="tok-se">\</span>
+       -e <span class="tok-nv">KILLBILL_CONFIG_DAO_PASSWORD</span><span class="tok-o">=</span>dockerdemo <span class="tok-se">\</span>
+       -e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_URL</span><span class="tok-o">=</span>jdbc:mysql://dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill <span class="tok-se">\</span>
+       -e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_USER</span><span class="tok-o">=</span>dockerdemo <span class="tok-se">\</span>
+       -e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_PASSWORD</span><span class="tok-o">=</span>dockerdemo <span class="tok-se">\</span>
+       killbill/killbill:0.12.1
+&gt; sudo docker logs -f dockerdemo  <span class="tok-c"># check for instance to be up and running</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>From this point, you can check everything is working by doing the same curls from the <a href="http://killbill.io/blog/having-fun-with-docker-stripe-kill-bill/">docker blog</a></p>
 </div>
 </div>
 </div>
@@ -796,7 +836,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-12 05:38:42 UTC
+Last updated 2015-08-13 07:06:57 UTC
 </div>
 </div>
 </body>

@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill and Bitcoin</title>
+<title>Overdue System</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,319 +476,335 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill and Bitcoin</h1>
+<h1>Overdue System</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_introduction">Introduction</a>
+<li><a href="#intro">Introduction</a>
 <ul class="sectlevel2">
-<li><a href="#_recurring_payments">Recurring payments</a></li>
-<li><a href="#_pending_payment_state">PENDING payment state</a></li>
+<li><a href="#_scenario">Scenario</a></li>
 </ul>
 </li>
-<li><a href="#_pre_requisites">Pre-requisites</a></li>
-<li><a href="#_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</a>
+<li><a href="#_configuration_of_the_system">Configuration of the System</a>
 <ul class="sectlevel2">
-<li><a href="#_bitpay">BitPay</a>
-<ul class="sectlevel3">
-<li><a href="#_installation">Installation</a></li>
-<li><a href="#_usage">Usage</a></li>
+<li><a href="#_catalog_configuration">Catalog Configuration</a></li>
+<li><a href="#_overdue_configuration">Overdue Configuration</a></li>
+<li><a href="#_payment_retries">Payment retries</a></li>
 </ul>
 </li>
-<li><a href="#_coinbase">Coinbase</a>
-<ul class="sectlevel3">
-<li><a href="#_installation_2">Installation</a></li>
-<li><a href="#_usage_2">Usage</a></li>
-<li><a href="#_recurring_payment">Recurring payment</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#_self_hosted_blockchain">Self-hosted blockchain</a>
+<li><a href="#customers">Example of Customers</a>
 <ul class="sectlevel2">
-<li><a href="#_overview">Overview</a></li>
-<li><a href="#_usage_3">Usage</a></li>
-<li><a href="#_storing_funds">Storing funds</a></li>
+<li><a href="#_bad_customer">Bad Customer</a></li>
+<li><a href="#_good_customer">Good Customer</a></li>
+</ul>
+</li>
+<li><a href="#platform_use">Use of the Platform</a>
+<ul class="sectlevel2">
+<li><a href="#_use_of_the_apis">Use of the APIs</a></li>
+<li><a href="#_custom_plugins">Custom Plugins</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is an open-source platform to build billing and payments services. Besides traditional payment methods (Credit and Debit cards, hosted payment gateways, checks, etc.), it does support Bitcoin as well. This guide will focus on how you can integrate Bitcoin with Kill Bill. For general information on the project, check our website <a href="http://kill-bill.org" class="bare">http://kill-bill.org</a>.</p>
-</div>
-<div class="paragraph">
-<p>Lost? Questions? Reach out to our <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing-list</a>!</p>
-</div>
-</div>
-</div>
 <div class="sect1">
-<h2 id="_introduction">Introduction</h2>
+<h2 id="intro">Introduction</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill is currency and payment method agnostic. Our one-time and recurring payments APIs work around the concept of an account, which represents a person or a corporate entity, to which several payments methods (means of payment) are attached. An account can have a US AmericanExpress credit card, German Visa debit card, a hosted Blockchain.info wallet and a MultiBit Bitcoin wallet - all of these four payment methods are treated the same in Kill Bill, for the purpose of API calls parameters, invoices and payments objects, etc. This can happen because the gateway specific logic is handled in Kill Bill plugins, which plug into the platform via tightly controlled integration points.</p>
-</div>
-<div class="paragraph">
-<p>For more information on Kill Bill&#8217;s payments APIs and plugins, check our <a href="http://docs.kill-bill.org/payments.html">Payments guide</a>.</p>
-</div>
-<div class="paragraph">
-<p>The following guide assumes you already have an instance of Kill Bill running locally. To get started, check out our <a href="http://docs.kill-bill.org/userguide.html">Kill Bill in 5 minutes</a> guide.</p>
+<p>In this tutorial, we look a little bit deeper into the overdue system. The <a href="http://killbill.io/userguide/subscriptions-userguide/">subscription user guide</a> provides a section explaining the basics about the overdue system and in particular goes through the schema of the <code>overdue.xml</code> configuration file. The tutorial will attempt to put the pieces together.</p>
 </div>
 <div class="sect2">
-<h3 id="_recurring_payments">Recurring payments</h3>
+<h3 id="_scenario">Scenario</h3>
 <div class="paragraph">
-<p>Supporting recurring payments is currently not easily feasable with Bitcoin, since it requires the merchant to have access to your wallet secret keys. While we do offer a work-around using <a href="https://coinbase.com/">Coinbase</a> (see below), we are working with the community to extend the <a href="https://github.com/bitcoin/bips/blob/master/bip-0070.mediawiki">Payment Protocol (BIP 70)</a> to add support for it. You can follow the discussion on the <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=D6BCC0C4-EF22-4DE8-868E-825D19C387E3%40kill-bill.org&amp;forum_name=bitcoin-development">bitcoin-development</a> mailing-list.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_pending_payment_state">PENDING payment state</h3>
-<div class="paragraph">
-<p>Usually in Kill Bill, a payment can be either in a success or failed status (the latter being terminal or not, if you configured your instance to retry failed payments). Due to the nature of the blockchain, a merchant often wants to wait several block confirmations (usually 6) before considering a payment successful (and before releasing goods or services). This transition period maps to the <code>PENDING</code> (unconfirmed) state in Kill Bill.</p>
+<p>Let&#8217;s assume you want to build a web site where your customers can subscribe to movies (similar to Netflix). For the sake of simplicity we will assume you only provide one plan where your customers will need to pay $10 per month for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access but are not required to pay yet.</p>
 </div>
 <div class="paragraph">
-<p>Our Bitcoin plugins will verify blockchain transactions (either directly on the blockchain or indirectly, through third-parties, depending on the plugin) and make sure each payment in Kill Bill will have one single matching transaction within the Bitcoin blockchain. It will then notify Kill Bill when the payment can be considered successfull based on heuristics that are configurable, such as the depth of the blocks where the transaction occurred.</p>
+<p>We will also assume that we want to configure the overdue system (dunning) to take some actions when users don&#8217;t pay:
+1. The system should be configured to retry failed payments 3 times: the first two payment retries should happen 1 day after the last attempt, and the last one should happen 8 days after previous attempt
+2. The system should notify the user when an invoice has not been paid after 10 days (and after the system already automatically retried 3 times)
+3. The system should block the entitlements associated with the account after 14 (from the start date where invoice was not paid)
+4. The system should automatically cancel the subscriptions after 21 days</p>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_pre_requisites">Pre-requisites</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>No matter how you plan on accepting Bitcoin, you&#8217;ll need to create an account for your customer in Kill Bill:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;john&quot;,&quot;email&quot;:&quot;john@foo.com&quot;,&quot;externalKey&quot;:&quot;11-22-33-44-55&quot;,&quot;currency&quot;:&quot;BTC&quot;}&#39;</span> <span class="tok-se">\</span>
-     http://127.0.0.1:8080/1.0/kb/accounts</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>We&#8217;ll assume the account id is f7b86b16-2770-48a6-9582-1b1413a0053c in the rest of this document.</p>
-</div>
-<div class="paragraph">
-<p>Then, the account needs an associated payment method in the plugin.</p>
-</div>
-<div class="paragraph">
-<p>For BitPay:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-bitpay&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>For Coinbase:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-coinbase&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</h2>
+<h2 id="_configuration_of_the_system">Configuration of the System</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_bitpay">BitPay</h3>
+<h3 id="_catalog_configuration">Catalog Configuration</h3>
 <div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-bitpay-plugin">BitPay plugin</a> is a wrapper around the <a href="http://activemerchant.org">Active Merchant</a> BitPay integration.</p>
+<p>Your catalog will contain a plan entry that specifies two phases, one for the $0 TRIAL and one for the recurring monthly charge of $10&#8201;&#8212;&#8201;note that we omitted the other parts of the catalog such as alignment rules, &#8230;&#8203; which is beyond the scope of that tutorial:</p>
 </div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;plan</span> <span class="tok-na">name=</span><span class="tok-s">&quot;movies-monthly&quot;</span><span class="tok-nt">&gt;</span>
+    <span class="tok-nt">&lt;product&gt;</span>Movies<span class="tok-nt">&lt;/product&gt;</span>
+    <span class="tok-nt">&lt;initialPhases&gt;</span>
+       <span class="tok-nt">&lt;phase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;TRIAL&quot;</span><span class="tok-nt">&gt;</span>
+           <span class="tok-nt">&lt;duration&gt;</span>
+               <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;</span>
+               <span class="tok-nt">&lt;number&gt;</span>10<span class="tok-nt">&lt;/number&gt;</span>
+           <span class="tok-nt">&lt;/duration&gt;</span>
+           <span class="tok-nt">&lt;fixed&gt;</span>
+               <span class="tok-nt">&lt;fixedPrice&gt;</span>
+			   <span class="tok-c">&lt;!-- empty price implies $0 --&gt;</span>
+               <span class="tok-nt">&lt;/fixedPrice&gt;</span>
+           <span class="tok-nt">&lt;/fixed&gt;</span>
+       <span class="tok-nt">&lt;/phase&gt;</span>
+    <span class="tok-nt">&lt;/initialPhases&gt;</span>
+    <span class="tok-nt">&lt;finalPhase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;EVERGREEN&quot;</span><span class="tok-nt">&gt;</span>
+        <span class="tok-nt">&lt;duration&gt;</span>
+            <span class="tok-nt">&lt;unit&gt;</span>UNLIMITED<span class="tok-nt">&lt;/unit&gt;</span>
+        <span class="tok-nt">&lt;/duration&gt;</span>
+        <span class="tok-nt">&lt;recurring&gt;</span>
+            <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
+            <span class="tok-nt">&lt;recurringPrice&gt;</span>
+                <span class="tok-nt">&lt;price&gt;</span>
+                    <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
+                    <span class="tok-nt">&lt;value&gt;</span>10.00<span class="tok-nt">&lt;/value&gt;</span>
+                <span class="tok-nt">&lt;/price&gt;</span>
+            <span class="tok-nt">&lt;/recurringPrice&gt;</span>
+        <span class="tok-nt">&lt;/recurring&gt;</span>
+    <span class="tok-nt">&lt;/finalPhase&gt;</span>
+<span class="tok-nt">&lt;/plan&gt;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_overdue_configuration">Overdue Configuration</h3>
 <div class="paragraph">
-<p>The direct payment flow is as follow:</p>
+<p>The configurartion below defines the 3 different states:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Using the Kill Bill <code>buildFormDescriptor</code> API call, create an invoice in BitPay</p>
+<p><code>WARNING</code>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>timeSinceEarliestUnpaidInvoiceEqualsOrExceeds</code> is set to 10 days as specified by the scenario</p>
 </li>
 <li>
-<p>Redirect the user to the hosted invoice page and/or embed the invoice in an iframe</p>
+<p><code>disableEntitlementAndChangesBlocked</code> is set to false since we still want the user to have access to the service</p>
 </li>
 <li>
-<p>Upon success, BitPay will send a notification to Kill Bill which will mark the payment as successful</p>
+<p><code>autoReevaluationInterval</code> is set to 4 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to <code>BLOCKED</code> 4 days later</p>
+</li>
+<li>
+<p><code>blockChanges</code> is set to true to prevent users from changing plans until they clear their balance (was not specified in the scenario, but probably a good practice to follow)</p>
 </li>
 </ul>
 </div>
-<div class="paragraph">
-<p>For more details on how to configure the invoice in BitPay, see <a href="https://bitpay.com/bitcoin-payment-gateway-api" class="bare">https://bitpay.com/bitcoin-payment-gateway-api</a>.</p>
+</li>
+<li>
+<p><code>BLOCKED</code>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>timeSinceEarliestUnpaidInvoiceEqualsOrExceeds</code> is set to 14 days as specified by the scenario</p>
+</li>
+<li>
+<p><code>disableEntitlementAndChangesBlocked</code> is set to true since we now want the user to NOT have access to the service</p>
+</li>
+<li>
+<p><code>autoReevaluationInterval</code> is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to <code>CANCELATION</code> 8 days later</p>
+</li>
+</ul>
 </div>
-<div class="sect3">
-<h4 id="_installation">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22bitpay-plugin%22">latest version</a> of the plugin.</p>
+</li>
+<li>
+<p><code>CANCELATION</code>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>subscriptionCancellationPolicy</code> is set to <code>END_OF_TERM</code> to indicate that subscriptions should be cancelled in such a way that we do not generate credit for the account (no proration)</p>
+</li>
+</ul>
 </div>
-<div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/bitpay.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://bitpay.com/api-keys">BitPay API key</a>):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:bitpay</span><span class="tok-p">:</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span> <span class="tok-s1">&#39;XXXX&#39;</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">bitpay</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-bitpay-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_usage">Usage</h4>
-<div class="paragraph">
-<p>Create the invoice in BitPay using the <code>buildFormDescriptor</code> API call (note that the only required fields are amount and currency):</p>
+</li>
+</ul>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{</span>
-<span class="tok-s1">                        &quot;formFields&quot;: [</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;amount&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;0.0001&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;currency&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;BTC&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;order_id&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;INV0019483&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;notify_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-killbill.com:8080/1.0/kb/paymentGateways/notifications/killbill-bitpay&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;return_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-e-commerce.com/thank-you&quot;</span>
-<span class="tok-s1">                            }</span>
-<span class="tok-s1">                        ]</span>
-<span class="tok-s1">                    }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/f7b86b16-2770-48a6-9582-1b1413a0053c&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>BitPay will notify Kill Bill via the <code>notify_url</code> parameter and update the payment status.</p>
+<pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;overdueConfig&gt;</span>
+   <span class="tok-nt">&lt;accountOverdueStates&gt;</span>
+       <span class="tok-nt">&lt;initialReevaluationInterval&gt;</span>
+           <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>4<span class="tok-nt">&lt;/number&gt;</span>
+       <span class="tok-nt">&lt;/initialReevaluationInterval&gt;</span>
+       <span class="tok-nt">&lt;state</span> <span class="tok-na">name=</span><span class="tok-s">&quot;CANCELATION&quot;</span><span class="tok-nt">&gt;</span>
+           <span class="tok-nt">&lt;condition&gt;</span>
+               <span class="tok-nt">&lt;timeSinceEarliestUnpaidInvoiceEqualsOrExceeds&gt;</span>
+                   <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>21<span class="tok-nt">&lt;/number&gt;</span>
+               <span class="tok-nt">&lt;/timeSinceEarliestUnpaidInvoiceEqualsOrExceeds&gt;</span>
+           <span class="tok-nt">&lt;/condition&gt;</span>
+           <span class="tok-nt">&lt;externalMessage&gt;</span>Reached CANCELATION<span class="tok-nt">&lt;/externalMessage&gt;</span>
+           <span class="tok-nt">&lt;subscriptionCancellationPolicy&gt;</span>END_OF_TERM<span class="tok-nt">&lt;/subscriptionCancellationPolicy&gt;</span>
+       <span class="tok-nt">&lt;/state&gt;</span>
+       <span class="tok-nt">&lt;state</span> <span class="tok-na">name=</span><span class="tok-s">&quot;BLOCKED&quot;</span><span class="tok-nt">&gt;</span>
+           <span class="tok-nt">&lt;condition&gt;</span>
+               <span class="tok-nt">&lt;timeSinceEarliestUnpaidInvoiceEqualsOrExceeds&gt;</span>
+                   <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>14<span class="tok-nt">&lt;/number&gt;</span>
+               <span class="tok-nt">&lt;/timeSinceEarliestUnpaidInvoiceEqualsOrExceeds&gt;</span>
+           <span class="tok-nt">&lt;/condition&gt;</span>
+           <span class="tok-nt">&lt;externalMessage&gt;</span>Reached BLOCKED<span class="tok-nt">&lt;/externalMessage&gt;</span>
+           <span class="tok-nt">&lt;blockChanges&gt;</span>true<span class="tok-nt">&lt;/blockChanges&gt;</span>
+           <span class="tok-nt">&lt;disableEntitlementAndChangesBlocked&gt;</span>true<span class="tok-nt">&lt;/disableEntitlementAndChangesBlocked&gt;</span>
+           <span class="tok-nt">&lt;autoReevaluationInterval&gt;</span>
+               <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>7<span class="tok-nt">&lt;/number&gt;</span>
+           <span class="tok-nt">&lt;/autoReevaluationInterval&gt;</span>
+       <span class="tok-nt">&lt;/state&gt;</span>
+       <span class="tok-nt">&lt;state</span> <span class="tok-na">name=</span><span class="tok-s">&quot;WARNING&quot;</span><span class="tok-nt">&gt;</span>
+           <span class="tok-nt">&lt;condition&gt;</span>
+               <span class="tok-nt">&lt;timeSinceEarliestUnpaidInvoiceEqualsOrExceeds&gt;</span>
+                   <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>10<span class="tok-nt">&lt;/number&gt;</span>
+               <span class="tok-nt">&lt;/timeSinceEarliestUnpaidInvoiceEqualsOrExceeds&gt;</span>
+           <span class="tok-nt">&lt;/condition&gt;</span>
+           <span class="tok-nt">&lt;externalMessage&gt;</span>Reached WARNING<span class="tok-nt">&lt;/externalMessage&gt;</span>
+           <span class="tok-nt">&lt;blockChanges&gt;</span>true<span class="tok-nt">&lt;/blockChanges&gt;</span>
+           <span class="tok-nt">&lt;disableEntitlementAndChangesBlocked&gt;</span>false<span class="tok-nt">&lt;/disableEntitlementAndChangesBlocked&gt;</span>
+           <span class="tok-nt">&lt;autoReevaluationInterval&gt;</span>
+               <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>4<span class="tok-nt">&lt;/number&gt;</span>
+           <span class="tok-nt">&lt;/autoReevaluationInterval&gt;</span>
+       <span class="tok-nt">&lt;/state&gt;</span>
+   <span class="tok-nt">&lt;/accountOverdueStates&gt;</span>
+<span class="tok-nt">&lt;/overdueConfig&gt;</span></code></pre>
 </div>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_coinbase">Coinbase</h3>
+<h3 id="_payment_retries">Payment retries</h3>
 <div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-coinbase-plugin">Coinbase plugin</a> is a wrapper around the <a href="https://github.com/coinbase/coinbase-ruby">Coinbase Ruby gem</a>.</p>
-</div>
-<div class="sect3">
-<h4 id="_installation_2">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22coinbase-plugin%22">latest version</a> of the plugin.</p>
-</div>
-<div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-coinbase</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/coinbase.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://coinbase.com/settings/api">Coinbase API key</a>):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:coinbase</span><span class="tok-p">:</span>
-  <span class="tok-c1"># TODO</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_id</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_secret</span><span class="tok-p">:</span>
-  <span class="tok-ss">:redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:app_redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:btc_address</span><span class="tok-p">:</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">coinbase</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-coinbase-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_usage_2">Usage</h4>
-<div class="paragraph">
-<p>TODO</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_recurring_payment">Recurring payment</h4>
-<div class="paragraph">
-<p>TODO</p>
-</div>
+<p>In addition we need to configure the payment system to retry failed payments; the system property <code>org.killbill.payment.retry.days</code> specifies the retry policy associated to payment failures. In our case we need to set it to <code>1,1,8</code> to indicate 3 payment retries, the first one after 1 day, and then 1 day after, and the last one 8 days after the previous one (as specified in our scenario).</p>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_self_hosted_blockchain">Self-hosted blockchain</h2>
+<h2 id="customers">Example of Customers</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Alternatively, you can use our native <a href="https://github.com/killbill/killbill-bitcoin-plugin">Bitcoin plugin</a> to handle transactions yourself.</p>
+<p>Let&#8217;s take the case of a customer that subscribed to the service. Immediately after the subscription was created a $0 invoice is created to indicate the customer is in TRIAL. Let&#8217;s assume his credit card does not have enough funds. 10 days later the customer moves out of TRIAL and the system generates a $10 invoice for the month. At this point, the system attempts to make a payment, but the payment does not go through:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Day 1: the system will retry the payment one day later and fail again</p>
+</li>
+<li>
+<p>Day 2: the system will retry the payment one day later and fail again</p>
+</li>
+<li>
+<p>Day 10: the system will retry (one last time) the payment 8 days later and fail again; at this point the overdue system will transiton the account into a <code>WARNING</code> state</p>
+</li>
+</ul>
 </div>
 <div class="sect2">
-<h3 id="_overview">Overview</h3>
+<h3 id="_bad_customer">Bad Customer</h3>
 <div class="paragraph">
-<p>The plugin uses Bitcoinj to create a local wallet and runs in Simplified Payment Verification (SPV) mode.</p>
+<p>Let&#8217;s assume this is a bad customer, that will not update his credit card:</p>
 </div>
-<div class="paragraph">
-<p>The flow of operations can be summarized as follows: each time the plugin detects a new <code>PENDING</code> Bitcoin payment, it keeps track of that payment in its persistent tables (it keeps a mapping between the Kill Bill payment id and the blockchain transaction). When a new block is added to the blockchain, it checks to see if there is a <code>PENDING</code> payment that matches that BTC transactionId and it verifies if the payment can be considered valid (depending on the depth configuration). If it is, it notifies Kill Bill so that the payment status can be updated to <code>SUCCESS</code>.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Day 14: the customer moves to a <code>BLOCKED</code> state; the system will stop invoicing, and will indicate that the customer is not entititled to receiving service any longer (more details below)</p>
+</li>
+<li>
+<p>Day 21: the system will cancel the subscription (final state)</p>
+</li>
+</ul>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_usage_3">Usage</h3>
+<h3 id="_good_customer">Good Customer</h3>
 <div class="paragraph">
-<p>TODO</p>
+<p>Let&#8217;s assume this is a good customer, and after the WARNING, he updates his credit card:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Day 15: customer updates credit card and pays his unpaid invoice(s) (more details below). The system brings back the overdue status to <code>CLEAR</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="platform_use">Use of the Platform</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_use_of_the_apis">Use of the APIs</h3>
+<div class="paragraph">
+<p>When a customer attempts to use the service, the web site <strong>could</strong> verify if the customer is entitled to receive the service:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>It should first retrieve the overdue status (at the account level) using the <code>GET /1.0/kb/accounts/{accountId}/overdue</code> api,</p>
+</li>
+<li>
+<p>It should then retrieve the subscriptions associated with the account <code>GET /1.0/kb/accounts/{accountId}/bundles</code>, or if the subscriptionId was cached it could use <code>GET /1.0/kb/subscriptions/{subscriptionId}</code></p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>The endpoint <code>GET /1.0/kb/accounts/{accountId}/overdue</code> will return the following json:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="json"><span class="tok-err">---</span>
+<span class="tok-p">{</span> <span class="tok-nt">&quot;blockChanges&quot;</span><span class="tok-p">:</span> <span class="tok-kc">true</span><span class="tok-p">,</span>
+<span class="tok-nt">&quot;clearState&quot;</span><span class="tok-p">:</span> <span class="tok-kc">false</span><span class="tok-p">,</span>
+<span class="tok-nt">&quot;daysBetweenPaymentRetries&quot;</span><span class="tok-p">:</span> <span class="tok-mi">1</span><span class="tok-p">,</span>
+<span class="tok-nt">&quot;disableEntitlementAndChangesBlocked&quot;</span><span class="tok-p">:</span> <span class="tok-kc">false</span><span class="tok-p">,</span>
+<span class="tok-nt">&quot;externalMessage&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;Reached WARNING&quot;</span><span class="tok-p">,</span>
+<span class="tok-nt">&quot;name&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;WARNING&quot;</span><span class="tok-p">,</span>
+<span class="tok-nt">&quot;reevaluationIntervalDays&quot;</span><span class="tok-p">:</span> <span class="tok-mi">4</span> <span class="tok-p">}</span>
+<span class="tok-err">---</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If the <code>disableEntitlementAndChangesBlocked</code> is set to true, it means that the customer is not entitled to the service associated to any subscriptions.</p>
+</div>
+<div class="paragraph">
+<p>So, note that retrieving subscriptions through the <code>GET /1.0/kb/subscriptions/{subscriptionId}</code> will not directly indicate the overdue status, and so both calls must be made to have a complete picture of the entitlement when the overdue system has been configured.</p>
+</div>
+<div class="paragraph">
+<p>When retrieving entitlement/overdue status, the web site could be implemented to take all kind of actions such as displaying warning message, degrading experience, emailing customer, &#8230;&#8203;</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_storing_funds">Storing funds</h3>
+<h3 id="_custom_plugins">Custom Plugins</h3>
 <div class="paragraph">
-<p>Each plugin instance has its own instance of a wallet ; since we often run Kill Bill as a distributed service&#8201;&#8212;&#8201;for robustness purpose, or to address needs of scaling horizontally&#8201;&#8212;&#8201;that means that each node where Kill Bill runs has a different wallet, and the bitcoins in each wallet needs to be transferred to a well known (set of) public merchant keys. To address that issue, you can configure the plugin to periodically empty its wallet using a well known (set of) public keys (the interval, amount of money, etc. are configurable thresholds).</p>
+<p>In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs in for instance). Another pattern, is to create a custom plugin that will listen to Overdue events. Examples of such plugins can be found here:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-hello-world-java-plugin/blob/master/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldListener.java">Java plugin</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-hello-world-ruby-plugin/blob/master/lib/helloworld/user_listener.rb">Ruby plugin</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The plugin would need to filter for <code>OVERDUE_CHANGE</code> <a href="https://github.com/killbill/killbill-plugin-api/blob/master/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java">events</a></p>
+</div>
+<div class="paragraph">
+<p>Such plugins can be used for the following purpose:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Email/Notify user about the new state</p>
+</li>
+<li>
+<p>Take action to modify the experience (based on the state name), for instance to degrade the service, or modify the login flow on a website to prompt for payments, &#8230;&#8203;</p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -796,7 +812,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-12 05:38:42 UTC
+Last updated 2015-08-13 07:06:57 UTC
 </div>
 </div>
 </body>

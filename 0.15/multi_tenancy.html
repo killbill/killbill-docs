@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill and Bitcoin</title>
+<title>Multi-tenancy</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,319 +476,626 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill and Bitcoin</h1>
+<h1>Multi-tenancy</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_introduction">Introduction</a>
+<li><a href="#intro">Introduction</a>
 <ul class="sectlevel2">
-<li><a href="#_recurring_payments">Recurring payments</a></li>
-<li><a href="#_pending_payment_state">PENDING payment state</a></li>
+<li><a href="#_scenario">Scenario</a></li>
+<li><a href="#_users_and_roles">Users and Roles</a></li>
 </ul>
 </li>
-<li><a href="#_pre_requisites">Pre-requisites</a></li>
-<li><a href="#_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</a>
+<li><a href="#_kill_bill_multi_tenant_deployment">Kill Bill Multi-tenant Deployment</a>
 <ul class="sectlevel2">
-<li><a href="#_bitpay">BitPay</a>
-<ul class="sectlevel3">
-<li><a href="#_installation">Installation</a></li>
-<li><a href="#_usage">Usage</a></li>
+<li><a href="#_overview_of_aws_deployment_steps">Overview of AWS Deployment Steps</a></li>
+<li><a href="#_configuration_files">Configuration Files</a></li>
+<li><a href="#_starting_the_kill_bill_instance">Starting the Kill Bill Instance</a></li>
+<li><a href="#_starting_the_kaui_instance">Starting the KAUI Instance</a></li>
 </ul>
 </li>
-<li><a href="#_coinbase">Coinbase</a>
-<ul class="sectlevel3">
-<li><a href="#_installation_2">Installation</a></li>
-<li><a href="#_usage_2">Usage</a></li>
-<li><a href="#_recurring_payment">Recurring payment</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#_self_hosted_blockchain">Self-hosted blockchain</a>
+<li><a href="#_saas_setup">Saas Setup</a>
 <ul class="sectlevel2">
-<li><a href="#_overview">Overview</a></li>
-<li><a href="#_usage_3">Usage</a></li>
-<li><a href="#_storing_funds">Storing funds</a></li>
+<li><a href="#_creating_the_tenants_and_configuring_allowed_users">Creating the tenants and configuring allowed users</a></li>
+<li><a href="#_configuring_each_tenant">Configuring each tenant</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is an open-source platform to build billing and payments services. Besides traditional payment methods (Credit and Debit cards, hosted payment gateways, checks, etc.), it does support Bitcoin as well. This guide will focus on how you can integrate Bitcoin with Kill Bill. For general information on the project, check our website <a href="http://kill-bill.org" class="bare">http://kill-bill.org</a>.</p>
-</div>
-<div class="paragraph">
-<p>Lost? Questions? Reach out to our <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing-list</a>!</p>
-</div>
-</div>
-</div>
 <div class="sect1">
-<h2 id="_introduction">Introduction</h2>
+<h2 id="intro">Introduction</h2>
 <div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is currency and payment method agnostic. Our one-time and recurring payments APIs work around the concept of an account, which represents a person or a corporate entity, to which several payments methods (means of payment) are attached. An account can have a US AmericanExpress credit card, German Visa debit card, a hosted Blockchain.info wallet and a MultiBit Bitcoin wallet - all of these four payment methods are treated the same in Kill Bill, for the purpose of API calls parameters, invoices and payments objects, etc. This can happen because the gateway specific logic is handled in Kill Bill plugins, which plug into the platform via tightly controlled integration points.</p>
-</div>
-<div class="paragraph">
-<p>For more information on Kill Bill&#8217;s payments APIs and plugins, check our <a href="http://docs.kill-bill.org/payments.html">Payments guide</a>.</p>
-</div>
-<div class="paragraph">
-<p>The following guide assumes you already have an instance of Kill Bill running locally. To get started, check out our <a href="http://docs.kill-bill.org/userguide.html">Kill Bill in 5 minutes</a> guide.</p>
-</div>
 <div class="sect2">
-<h3 id="_recurring_payments">Recurring payments</h3>
+<h3 id="_scenario">Scenario</h3>
 <div class="paragraph">
-<p>Supporting recurring payments is currently not easily feasable with Bitcoin, since it requires the merchant to have access to your wallet secret keys. While we do offer a work-around using <a href="https://coinbase.com/">Coinbase</a> (see below), we are working with the community to extend the <a href="https://github.com/bitcoin/bips/blob/master/bip-0070.mediawiki">Payment Protocol (BIP 70)</a> to add support for it. You can follow the discussion on the <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=D6BCC0C4-EF22-4DE8-868E-825D19C387E3%40kill-bill.org&amp;forum_name=bitcoin-development">bitcoin-development</a> mailing-list.</p>
+<p>In this tutorial, we will look at how one could leverage the multi-tenancy feature from Kill Bill. The scenario we will describe, is one where we would like to provide 'Subscription As A Service' (SaaS) in the cloud (AWS). The tutorial will skip all the operational good practices such as redundancy of instances, firewalls, load balancers and focus instead on the Kill Bill specifics. Also, note that when deploying in the cloud where instances can come and go, the <a href="https://github.com/killbill/killbill/wiki/Kill-Bill-Bus-and-Notification-Queue-Configuration">configuration of the bus and notifications queues</a> need to be understood.</p>
+</div>
+<div class="paragraph">
+<p>We will assume that we only need one plugin to make the payments, and as an example we will use the Stripe plugin.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_pending_payment_state">PENDING payment state</h3>
+<h3 id="_users_and_roles">Users and Roles</h3>
 <div class="paragraph">
-<p>Usually in Kill Bill, a payment can be either in a success or failed status (the latter being terminal or not, if you configured your instance to retry failed payments). Due to the nature of the blockchain, a merchant often wants to wait several block confirmations (usually 6) before considering a payment successful (and before releasing goods or services). This transition period maps to the <code>PENDING</code> (unconfirmed) state in Kill Bill.</p>
-</div>
-<div class="paragraph">
-<p>Our Bitcoin plugins will verify blockchain transactions (either directly on the blockchain or indirectly, through third-parties, depending on the plugin) and make sure each payment in Kill Bill will have one single matching transaction within the Bitcoin blockchain. It will then notify Kill Bill when the payment can be considered successfull based on heuristics that are configurable, such as the depth of the blocks where the transaction occurred.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_pre_requisites">Pre-requisites</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>No matter how you plan on accepting Bitcoin, you&#8217;ll need to create an account for your customer in Kill Bill:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;john&quot;,&quot;email&quot;:&quot;john@foo.com&quot;,&quot;externalKey&quot;:&quot;11-22-33-44-55&quot;,&quot;currency&quot;:&quot;BTC&quot;}&#39;</span> <span class="tok-se">\</span>
-     http://127.0.0.1:8080/1.0/kb/accounts</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>We&#8217;ll assume the account id is f7b86b16-2770-48a6-9582-1b1413a0053c in the rest of this document.</p>
-</div>
-<div class="paragraph">
-<p>Then, the account needs an associated payment method in the plugin.</p>
-</div>
-<div class="paragraph">
-<p>For BitPay:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-bitpay&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>For Coinbase:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-coinbase&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</h2>
-<div class="sectionbody">
-<div class="sect2">
-<h3 id="_bitpay">BitPay</h3>
-<div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-bitpay-plugin">BitPay plugin</a> is a wrapper around the <a href="http://activemerchant.org">Active Merchant</a> BitPay integration.</p>
-</div>
-<div class="paragraph">
-<p>The direct payment flow is as follow:</p>
+<p>Let&#8217;s start by defining some users and roles:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Using the Kill Bill <code>buildFormDescriptor</code> API call, create an invoice in BitPay</p>
+<p>The user setting up the <code>Subscription As A Service</code> in the cloud, is called <strong>superadmin</strong>, and will have all the privileges to configure the tenants and setup the roles associated with the other users.</p>
 </li>
 <li>
-<p>Redirect the user to the hosted invoice page and/or embed the invoice in an iframe</p>
-</li>
-<li>
-<p>Upon success, BitPay will send a notification to Kill Bill which will mark the payment as successful</p>
+<p>The admin user associated to each tenant will be called <code>admin_X</code> where <code>X</code> is the name of the tenant.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>For more details on how to configure the invoice in BitPay, see <a href="https://bitpay.com/bitcoin-payment-gateway-api" class="bare">https://bitpay.com/bitcoin-payment-gateway-api</a>.</p>
-</div>
-<div class="sect3">
-<h4 id="_installation">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22bitpay-plugin%22">latest version</a> of the plugin.</p>
+<p>Let&#8217;s take the case of a small yoga studio that wants to use our <code>Subscription As A Service</code> to provide subscriptions to its users: The name of the merchant is Shakti, and so we will create a user called <strong>admin_shakti</strong> for the tenant <code>shakti</code>.
+The <code>admin_shakti</code> user will have full privileges for its Shakti tenant and will not see any of the other tenants.</p>
 </div>
 <div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/bitpay.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://bitpay.com/api-keys">BitPay API key</a>):</p>
+<p>Of course, for our own purpose of providing the service, we will also create a very first tenant to invoice our merchants (e.g the Shakti business). That tenant will be called <code>saas</code> ('Subscription As A Service'), and the associated admin user will be called <strong>admin_saas</strong>.</p>
+</div>
+<div class="paragraph">
+<p>Also, for sake of simplicity, we will setup Kill Bill to use a static <a href="http://shiro.apache.org/configuration.html">Shiro configuration file</a> to configure the various admin users/roles. In real life, it would be more practical to rely on LDAP rather than static configuration, which requires restarting Kill Bill when creating new users/roles. The LDAP configuration is supported by Shiro but we will not describe the steps in that tutorial to keep it simple.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_kill_bill_multi_tenant_deployment">Kill Bill Multi-tenant Deployment</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_overview_of_aws_deployment_steps">Overview of AWS Deployment Steps</h3>
+<div class="paragraph">
+<p>We already described the lengthy steps required to configure the various EC2 instances in that <a href="http://killbill.io/tutorials/aws">tutorial</a> so we won&#8217;t go into details here again, which means that all the setup related to the VPC, security groups, spawning of the EC2 and RDS instances is considered a prerequisite.
+In particular, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI. In addition with started our EC2 zone with with a special script that configured and started <code>dockerd</code> on the zones.
+Notes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The instructions from the <a href="http://killbill.io/tutorials/aws">tutorial</a> have been written after the 0.12.1 release so they will need to be slightly tweaked to change the Kill Bill version, ddl files, &#8230;&#8203; from 0.12.1 to at least 0.14.0 (the Docker image 0.14.0 has been released).</p>
+</li>
+<li>
+<p>In addition to that, we will need an extra zone to configure the admin UI (KAUI) and create a new database called <code>kaui</code> in the RDS database instance.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The deployment will rely on the 2 Docker images:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>killbill/killbill:0.14.0</p>
+</li>
+<li>
+<p>killbill/kaui:0.2.0</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For the Kill Bill Deployment, the <code>killbill</code> database schema will need to include:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="http://docs.killbill.io/0.14/ddl.sql">Kill Bill DDL</a></p>
+</li>
+<li>
+<p><a href="https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql">Stripe plugin DDL</a></p>
+</li>
+<li>
+<p><a href="https://raw.githubusercontent.com/killbill/killbill-analytics-plugin/master/src/main/resources/org/killbill/billing/plugin/analytics/ddl.sql">Analytrics plugin DDL</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>So, for each of those schema, you could install the schema from the EC2 zone with the following command:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:bitpay</span><span class="tok-p">:</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span> <span class="tok-s1">&#39;XXXX&#39;</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">bitpay</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
+<pre class="pygments highlight"><code data-lang="bash">killbill_ec2&gt; curl -q  http://...ddl <span class="tok-p">|</span> mysql -h RDS_URL -u RDS_USER -pRDS_PWD killbill</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-bitpay-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
+<p>For the KAUI deployment, the <code>kaui</code> database will need to include:</p>
 </div>
-</div>
-<div class="sect3">
-<h4 id="_usage">Usage</h4>
-<div class="paragraph">
-<p>Create the invoice in BitPay using the <code>buildFormDescriptor</code> API call (note that the only required fields are amount and currency):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{</span>
-<span class="tok-s1">                        &quot;formFields&quot;: [</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;amount&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;0.0001&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;currency&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;BTC&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;order_id&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;INV0019483&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;notify_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-killbill.com:8080/1.0/kb/paymentGateways/notifications/killbill-bitpay&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;return_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-e-commerce.com/thank-you&quot;</span>
-<span class="tok-s1">                            }</span>
-<span class="tok-s1">                        ]</span>
-<span class="tok-s1">                    }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/f7b86b16-2770-48a6-9582-1b1413a0053c&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>BitPay will notify Kill Bill via the <code>notify_url</code> parameter and update the payment status.</p>
-</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://raw.githubusercontent.com/killbill/killbill-admin-ui/master/db/ddl.sql">The KAUI DDL</a></p>
+</li>
+</ul>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_coinbase">Coinbase</h3>
+<h3 id="_configuration_files">Configuration Files</h3>
 <div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-coinbase-plugin">Coinbase plugin</a> is a wrapper around the <a href="https://github.com/coinbase/coinbase-ruby">Coinbase Ruby gem</a>.</p>
-</div>
-<div class="sect3">
-<h4 id="_installation_2">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22coinbase-plugin%22">latest version</a> of the plugin.</p>
+<p>Kill Bill and its plugins will rely on a set of configuration files and those will be first uploaded on the docker host (that is, the EC2 instance where the docker container runs), and then we will use the docker <code>mapping</code> mechanism to make those configuration files visible into the docker data volume. The configuration files will need to be uploaded under <code>/home/ubuntu/killbill/etc/&lt;config&gt;</code>, and then that directory will be mapped to the <code>/etc/killbill/&lt;config&gt;</code> by specifying the option <code>-v</code> when we <code>run</code> the container.</p>
 </div>
 <div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-coinbase</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/coinbase.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://coinbase.com/settings/api">Coinbase API key</a>):</p>
+<p>The following configurations files will be needed:</p>
+</div>
+<div class="listingblock">
+<div class="title">shiro.ini</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">[</span>users<span class="tok-o">]</span>
+<span class="tok-nv">superadmin</span> <span class="tok-o">=</span> PWD, root
+<span class="tok-nv">admin_shakti</span> <span class="tok-o">=</span> PWD, root_tenant
+<span class="tok-nv">admin_saas</span> <span class="tok-o">=</span> PWD, root_tenant
+<span class="tok-o">[</span>roles<span class="tok-o">]</span>
+<span class="tok-nv">root</span> <span class="tok-o">=</span> *:*
+<span class="tok-nv">root_tenant</span> <span class="tok-o">=</span> account,catalog,entitlement,invoice,overdue,payment,tag</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note: PWD is a specific password for each of those users.</p>
+</div>
+<div class="listingblock">
+<div class="title">stripe.yml</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">:stripe:
+  :api_secret_key: <span class="tok-s1">&#39;INVALID&#39;</span>
+  :api_publishable_key: <span class="tok-s1">&#39;INVALID&#39;</span>
+
+:database:
+  :adapter: <span class="tok-s1">&#39;jdbcmysql&#39;</span>
+  :username: <span class="tok-s1">&#39;RDS_USERNAME&#39;</span>
+  :password: <span class="tok-s1">&#39;RDS_PWD&#39;</span>
+  :driver: <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
+  :url: <span class="tok-s1">&#39;jdbc:mysql://RDS_URL/killbill&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Notes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>We set the <code>api_secret_key</code> and <code>api_publishable_key</code> to INVALID explicitly since those settings will be overridden on a per tenant basis in the last section. However the database section is global for all tenant so we need to specify it as a global level here.</p>
+</li>
+<li>
+<p>RDS_USERNAME, RDS_PWD, RDS_URL are respectively the username, password and url of your RDS instance.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_starting_the_kill_bill_instance">Starting the Kill Bill Instance</h3>
+<div class="paragraph">
+<p>Again, here we will be reusing the same instances we configured in the <a href="http://killbill.io/tutorials/aws/" class="bare">http://killbill.io/tutorials/aws/</a> [aws tutorial], and start first pull and and then run the docker containers in these EC2 instances:</p>
+</div>
+<div class="listingblock">
+<div class="title">Kill Bill Docker Sequence:</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">killbill_ec2&gt; sudo docker pull killbill/killbill:0.14.0
+killbill_ec2&gt; docker run -tid <span class="tok-se">\</span>
+--name killbillsaas <span class="tok-se">\</span>
+-p 8080:8080 <span class="tok-se">\</span>
+-v /home/ubuntu/killbill/etc/stripe.yml:/etc/killbill/stripe.yml <span class="tok-se">\</span>
+-v /home/ubuntu/killbill/etc/shiro.ini:/etc/killbill/shiro.ini <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_PLUGIN_STRIPE</span><span class="tok-o">=</span><span class="tok-m">1</span> <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_PLUGIN_ANALYTICS</span><span class="tok-o">=</span><span class="tok-m">1</span> <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_CONFIG_DAO_URL</span><span class="tok-o">=</span>jdbc:mysql://RDS_URL/killbill <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_CONFIG_DAO_USER</span><span class="tok-o">=</span>RDS_USER <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_CONFIG_DAO_PASSWORD</span><span class="tok-o">=</span>RDS_PWD <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_URL</span><span class="tok-o">=</span>jdbc:mysql://RDS_URL/killbill <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_USER</span><span class="tok-o">=</span>RDS_USER <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_PASSWORD</span><span class="tok-o">=</span>RDS_PWD <span class="tok-se">\</span>
+killbill/killbill:0.14.0
+killbill_ec2&gt; sudo docker logs -f killbillsaas  // check <span class="tok-k">for</span> instance to be up and running</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>At this point and after the container is up, there are a few steps that need to be performed. The first step is to change the default <code>killbill.properties</code> to include the new property <code>org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini</code>.
+Since the <code>killbill.properties</code> are not exported outside of the container, we need to first edit the file from within the container and then restart the instance so the new properties take effect:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:coinbase</span><span class="tok-p">:</span>
-  <span class="tok-c1"># TODO</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_id</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_secret</span><span class="tok-p">:</span>
-  <span class="tok-ss">:redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:app_redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:btc_address</span><span class="tok-p">:</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">coinbase</span><span class="tok-o">.</span><span class="tok-n">log</span>
+<pre class="pygments highlight"><code data-lang="bash">killbill_ec2&gt; sudo docker <span class="tok-nb">exec</span> -ti killbillsaas /bin/bash
+from-container&gt; <span class="tok-nb">echo</span> <span class="tok-s2">&quot;org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini&quot;</span> &gt;&gt; /etc/killbill/killbill.properties
+^D
+killbill_ec2&gt; sudo docker restart killbillsaas
+killbill_ec2&gt; sudo docker logs -f killbillsaas</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Finally, since we run the analytics plugin, we need to configure the analytics tables.
+There is a script that can be run to configure the analytics tables with all the existing views and reports.
+The script needs to be run from the <a href="https://github.com/killbill/killbill-analytics-plugin">analytics repo</a>, and it will both hit some endpoints on the running instance of killbill and also create some views through mysql client.
+If your RDS instance is not visible to the public world, you have two options</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Clone the repo on the killbill ec2 zone and run the script from there (but that might require installing git, &#8230;&#8203;)</p>
+</li>
+<li>
+<p>Clone the repo on your local machine and create a tunnel (this is the option we will highlight below):</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-c"># Create Tunnel through our publicly visible EC2 instance to be able to access the RDS instance</span>
+laptop&gt; ssh -i ~/&lt;yourkey&gt;.pem ubuntu@KILLBILL_IP  -L13306:RDS_URL:3306 -N
 
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
+laptop&gt; git clone https://github.com/killbill/killbill-analytics-plugin.git
+laptop&gt; <span class="tok-nb">cd </span>src/main/resources
+laptop&gt; <span class="tok-nb">export </span><span class="tok-nv">KILLBILL_HOST</span><span class="tok-o">=</span>KILLBILL_PUBLIC_IP<span class="tok-p">;</span> <span class="tok-nb">export </span><span class="tok-nv">KILLBILL_USER</span><span class="tok-o">=</span>superadmin<span class="tok-p">;</span> <span class="tok-nb">export </span><span class="tok-nv">KILLBILL_PASSWORD</span><span class="tok-o">=</span>PWD<span class="tok-p">;</span> <span class="tok-nb">export </span><span class="tok-nv">MYSQL_HOST</span><span class="tok-o">=</span>RDS_IP<span class="tok-p">;</span> <span class="tok-nb">export </span><span class="tok-nv">MYSQL_HOST</span><span class="tok-o">=</span>RDS_PORT<span class="tok-p">;</span> <span class="tok-nb">export </span><span class="tok-nv">MYSQL_PASSWORD</span><span class="tok-o">=</span>RDS_PWD <span class="tok-p">;</span> <span class="tok-nb">export </span><span class="tok-nv">MYSQL_USER</span><span class="tok-o">=</span>RDS_USER<span class="tok-p">;</span> /bin/bash ./seed_reports.sh</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-coinbase-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
+<p>If you look in your RDS instance you should see reports configured in the  <code>analytics_reports</code> table and all the views <code>v_report_*</code> such as <code>v_report_accounts_summary</code> should exist.</p>
 </div>
 </div>
-<div class="sect3">
-<h4 id="_usage_2">Usage</h4>
-<div class="paragraph">
-<p>TODO</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_recurring_payment">Recurring payment</h4>
-<div class="paragraph">
-<p>TODO</p>
+<div class="sect2">
+<h3 id="_starting_the_kaui_instance">Starting the KAUI Instance</h3>
+<div class="listingblock">
+<div class="title">Kaui Docker Sequence:</div>
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">kaui_ec2&gt; sudo docker pull killbill/kaui:0.2.0
+kaui_ec2&gt; docker run -tid <span class="tok-se">\</span>
+--name kaui-saas <span class="tok-se">\</span>
+-p 3000:8080 <span class="tok-se">\</span>
+-e <span class="tok-nv">KAUI_CONFIG_DAO_URL</span><span class="tok-o">=</span>jdbc:mysql://RDS_URL/kaui <span class="tok-se">\</span>
+-e <span class="tok-nv">KAUI_CONFIG_DAO_USER</span><span class="tok-o">=</span>RDS_USER <span class="tok-se">\</span>
+-e <span class="tok-nv">KAUI_CONFIG_DAO_PASSWORD</span><span class="tok-o">=</span>RDS_PWD <span class="tok-se">\</span>
+-e <span class="tok-nv">KAUI_URL</span><span class="tok-o">=</span>http://KILLBILL_IP:8080 <span class="tok-se">\</span>
+killbill/kaui:0.2.0
+kaui_ec2&gt; sudo docker logs -f kaui-saas</code></pre>
 </div>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_self_hosted_blockchain">Self-hosted blockchain</h2>
+<h2 id="_saas_setup">Saas Setup</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="_creating_the_tenants_and_configuring_allowed_users">Creating the tenants and configuring allowed users</h3>
 <div class="paragraph">
-<p>Alternatively, you can use our native <a href="https://github.com/killbill/killbill-bitcoin-plugin">Bitcoin plugin</a> to handle transactions yourself.</p>
+<p>KAUI has been enhanced with new <code>admin screens</code>, that are described in the Multi-tenancy screens section <a href="https://github.com/killbill/killbill-admin-ui">of that doc</a>.</p>
+</div>
+<div class="paragraph">
+<p>The first step is to login as <code>superadmin</code> to have the rights to create new tenants and configure all allowed users.</p>
+</div>
+<div class="paragraph">
+<p>Starting on the <code>/admin_tenants</code> screen, click to <code>Configure a New Tenant</code> to create the 2 tenants <code>saas</code> and <code>shakti</code>; for e.g for <code>shakti</code> we would enter:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Name :  <code>shakti</code></p>
+</li>
+<li>
+<p>API Key: <code>some_key_fort_shakti</code></p>
+</li>
+<li>
+<p>API Secret: <code>some_secret_for_shakti</code></p>
+</li>
+<li>
+<p>Click on the <code>Create tenant</code> to also create the tenant in Kill Bill.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>At this point, the tenant exists in Kill Bill and is known from KAUI as well.</p>
+</div>
+<div class="paragraph">
+<p>We can then configure the allowed users. KAUI needs to know who can access which tenant, and this information is kept in the KAUI database.
+It really means that any user known from Kill Bill (shiro.ini) will be able to make API calls against any tenant provided the user specifies the correct tenant <code>api_key</code> and <code>api_secret</code>, so the security resides behind keeping those keys secret.
+On the screen <code>/admin_allowed_users</code>, click on <code>Add a new Allowed User</code>; for e.g for the shakti administrator we would enter:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Name : <code>admin_shakti</code> # This has to match the <code>shiro.ini</code> configuration</p>
+</li>
+<li>
+<p>Description : Admin user for tenant <code>shakti</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Then you will be prompted to select the tenant this users has access to. In our example of <code>admin_shakti</code>, we will select the available tenant <code>shakti</code> from the list that we previously configured.</p>
+</div>
+<div class="paragraph">
+<p>Obviously for the user <code>superadmin</code> we would add the two tenants <code>saas</code> and <code>shakti</code>.</p>
+</div>
+<div class="paragraph">
+<p>When all the users and tenants have been configured, you can try to logout, and login as a specific user (for e.g <code>admin_shakti</code>).
+If the user has only access to one tenant, the process of login-in will directly assign that tenant and all subsequent operations will be made against that tenant.
+If the user has more than one tenant, the user will be prompted to chose which tenant to use right after the login screen.</p>
+</div>
 </div>
 <div class="sect2">
-<h3 id="_overview">Overview</h3>
+<h3 id="_configuring_each_tenant">Configuring each tenant</h3>
 <div class="paragraph">
-<p>The plugin uses Bitcoinj to create a local wallet and runs in Simplified Payment Verification (SPV) mode.</p>
+<p>Both Kill Bill and KAUI have been improved to now support uploading per tenant configuration:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The UI offers new screens to upload all these new configs</p>
+</li>
+<li>
+<p>The plugins get notified when such config occurs so they can take action if needed</p>
+</li>
+<li>
+<p>In multi-node scenario, there is a mechanism to make sure other nodes, that did not process the per tenant config change will be notified and refresh their view</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>The flow of operations can be summarized as follows: each time the plugin detects a new <code>PENDING</code> Bitcoin payment, it keeps track of that payment in its persistent tables (it keeps a mapping between the Kill Bill payment id and the blockchain transaction). When a new block is added to the blockchain, it checks to see if there is a <code>PENDING</code> payment that matches that BTC transactionId and it verifies if the payment can be considered valid (depending on the depth configuration). If it is, it notifies Kill Bill so that the payment status can be updated to <code>SUCCESS</code>.</p>
+<p>The following per-tenant configuration can now be uploaded:</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p>Per Tenant Versioned Catalog: Each new upload will create a new version of the catalog</p>
+</li>
+<li>
+<p>Per Tenant Overdue Config: Each new upload will overwrite the previous version of the overdue.xml associated with this tenant</p>
+</li>
+<li>
+<p>Per Tenant Invoice Template: Each new upload will overwrite the previous version of the invoice template associated with this tenant</p>
+</li>
+<li>
+<p>Per Tenant Invoice Translation: Each new upload will overwrite the previous version of the invoice translation associated with this tenant</p>
+</li>
+<li>
+<p>Per Tenant Catalog Translation: Each new upload will overwrite the previous version of the catalog translation associated with this tenant</p>
+</li>
+<li>
+<p>Per Tenant Plugin Translation: Each new upload will overwrite the previous version of the config associated with this tenant and this specific plugin</p>
+</li>
+</ul>
 </div>
-<div class="sect2">
-<h3 id="_usage_3">Usage</h3>
 <div class="paragraph">
-<p>TODO</p>
+<p>Let&#8217;s do some basic configuration for the tenant 'shakti'. We will upload a catalog and then a specific configuration for the stripe plugin. You can login as <code>superadmin</code> or <code>admin_shakti</code> since both these users have the right to access that tenant. From the screen <code>/admin_tenants/</code> chose the shakti tenant.</p>
 </div>
-</div>
-<div class="sect2">
-<h3 id="_storing_funds">Storing funds</h3>
 <div class="paragraph">
-<p>Each plugin instance has its own instance of a wallet ; since we often run Kill Bill as a distributed service&#8201;&#8212;&#8201;for robustness purpose, or to address needs of scaling horizontally&#8201;&#8212;&#8201;that means that each node where Kill Bill runs has a different wallet, and the bitcoins in each wallet needs to be transferred to a well known (set of) public merchant keys. To address that issue, you can configure the plugin to periodically empty its wallet using a well known (set of) public keys (the interval, amount of money, etc. are configurable thresholds).</p>
+<p>Then, let&#8217;s start with the stripe plugin: Create a valid config and then use the <code>Plugin Config</code> section of the page to specify the plugin name <code>killbill-stripe</code> and then upload the yml shown below:</p>
+</div>
+<div class="listingblock">
+<div class="title">Per tenant stripe.yml:</div>
+<div class="content">
+<pre>:stripe:
+  :api_secret_key: 'YOUR_VALID_TENANT_API_SECRET_KEY'
+  :api_publishable_key: 'YOUR_VALID_TENANT_API_PUBLISHABLE_KEY'</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then let&#8217;s now upload a catalog for our tenant: Create the following catalog and then use the <code>Tenant Catalog XML</code> section to upload the file associated with the tenant.</p>
+</div>
+<div class="listingblock">
+<div class="title">Shakti Catalog:</div>
+<div class="content">
+<pre>&lt;?xml version="1.0" encoding="UTF-8" standalone="no"?&gt;
+&lt;catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="CatalogSchema.xsd "&gt;
+
+    &lt;effectiveDate&gt;2013-02-08T00:00:00+00:00&lt;/effectiveDate&gt;
+    &lt;catalogName&gt;Shakti&lt;/catalogName&gt;
+
+    &lt;recurringBillingMode&gt;IN_ADVANCE&lt;/recurringBillingMode&gt;
+
+    &lt;currencies&gt;
+        &lt;currency&gt;USD&lt;/currency&gt;
+        &lt;currency&gt;EUR&lt;/currency&gt;
+    &lt;/currencies&gt;
+
+    &lt;products&gt;
+        &lt;product name="Ashtanga"&gt;
+            &lt;category&gt;BASE&lt;/category&gt;
+            &lt;included&gt;
+                &lt;addonProduct&gt;Pranayama&lt;/addonProduct&gt;
+            &lt;/included&gt;
+        &lt;/product&gt;
+        &lt;product name="Flow"&gt;
+            &lt;category&gt;BASE&lt;/category&gt;
+        &lt;/product&gt;
+        &lt;product name="Iyengar"&gt;
+            &lt;category&gt;BASE&lt;/category&gt;
+            &lt;available&gt;
+                &lt;addonProduct&gt;Pranayama&lt;/addonProduct&gt;
+            &lt;/available&gt;
+        &lt;/product&gt;
+        &lt;product name="Pranayama"&gt;
+            &lt;category&gt;ADD_ON&lt;/category&gt;
+        &lt;/product&gt;
+    &lt;/products&gt;
+
+    &lt;rules&gt;
+        &lt;changePolicy&gt;
+            &lt;changePolicyCase&gt;
+                &lt;policy&gt;IMMEDIATE&lt;/policy&gt;
+            &lt;/changePolicyCase&gt;
+        &lt;/changePolicy&gt;
+        &lt;changeAlignment&gt;
+            &lt;changeAlignmentCase&gt;
+                &lt;alignment&gt;START_OF_BUNDLE&lt;/alignment&gt;
+            &lt;/changeAlignmentCase&gt;
+        &lt;/changeAlignment&gt;
+        &lt;cancelPolicy&gt;
+            &lt;cancelPolicyCase&gt;
+                &lt;policy&gt;IMMEDIATE&lt;/policy&gt;
+            &lt;/cancelPolicyCase&gt;
+        &lt;/cancelPolicy&gt;
+        &lt;createAlignment&gt;
+            &lt;createAlignmentCase&gt;
+                &lt;alignment&gt;START_OF_BUNDLE&lt;/alignment&gt;
+            &lt;/createAlignmentCase&gt;
+        &lt;/createAlignment&gt;
+        &lt;billingAlignment&gt;
+            &lt;billingAlignmentCase&gt;
+                &lt;alignment&gt;ACCOUNT&lt;/alignment&gt;
+            &lt;/billingAlignmentCase&gt;
+        &lt;/billingAlignment&gt;
+        &lt;priceList&gt;
+            &lt;priceListCase&gt;
+                &lt;toPriceList&gt;DEFAULT&lt;/toPriceList&gt;
+            &lt;/priceListCase&gt;
+        &lt;/priceList&gt;
+    &lt;/rules&gt;
+
+    &lt;plans&gt;
+        &lt;plan name="ashtanga-monthly"&gt;
+            &lt;product&gt;Ashtanga&lt;/product&gt;
+            &lt;initialPhases&gt;
+                &lt;phase type="TRIAL"&gt;
+                    &lt;duration&gt;
+                        &lt;unit&gt;DAYS&lt;/unit&gt;
+                        &lt;number&gt;30&lt;/number&gt;
+                    &lt;/duration&gt;
+                    &lt;fixed&gt;
+                        &lt;fixedPrice&gt; &lt;!-- empty price implies $0 --&gt;
+                        &lt;/fixedPrice&gt;
+
+                    &lt;/fixed&gt;
+                &lt;/phase&gt;
+            &lt;/initialPhases&gt;
+            &lt;finalPhase type="EVERGREEN"&gt;
+                &lt;duration&gt;
+                    &lt;unit&gt;UNLIMITED&lt;/unit&gt;
+                &lt;/duration&gt;
+                &lt;recurring&gt;
+                    &lt;billingPeriod&gt;MONTHLY&lt;/billingPeriod&gt;
+                    &lt;recurringPrice&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;EUR&lt;/currency&gt;
+                            &lt;value&gt;150.00&lt;/value&gt;
+                        &lt;/price&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;USD&lt;/currency&gt;
+                            &lt;value&gt;175.00&lt;/value&gt;
+                        &lt;/price&gt;
+                    &lt;/recurringPrice&gt;
+                &lt;/recurring&gt;
+            &lt;/finalPhase&gt;
+        &lt;/plan&gt;
+        &lt;plan name="flow-monthly"&gt;
+            &lt;product&gt;Flow&lt;/product&gt;
+            &lt;initialPhases&gt;
+                &lt;phase type="TRIAL"&gt;
+                    &lt;duration&gt;
+                        &lt;unit&gt;DAYS&lt;/unit&gt;
+                        &lt;number&gt;30&lt;/number&gt;
+                    &lt;/duration&gt;
+                    &lt;fixed&gt;
+                        &lt;fixedPrice&gt; &lt;!-- empty price implies $0 --&gt;
+                        &lt;/fixedPrice&gt;
+                    &lt;/fixed&gt;
+                &lt;/phase&gt;
+            &lt;/initialPhases&gt;
+            &lt;finalPhase type="EVERGREEN"&gt;
+                &lt;duration&gt;
+                    &lt;unit&gt;UNLIMITED&lt;/unit&gt;
+                &lt;/duration&gt;
+                &lt;recurring&gt;
+                    &lt;billingPeriod&gt;MONTHLY&lt;/billingPeriod&gt;
+                    &lt;recurringPrice&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;EUR&lt;/currency&gt;
+                            &lt;value&gt;100.00&lt;/value&gt;
+                        &lt;/price&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;USD&lt;/currency&gt;
+                            &lt;value&gt;125.00&lt;/value&gt;
+                        &lt;/price&gt;
+                    &lt;/recurringPrice&gt;
+                &lt;/recurring&gt;
+            &lt;/finalPhase&gt;
+        &lt;/plan&gt;
+        &lt;plan name="iyengar-monthly"&gt;
+            &lt;product&gt;Iyengar&lt;/product&gt;
+            &lt;initialPhases&gt;
+                &lt;phase type="TRIAL"&gt;
+                    &lt;duration&gt;
+                        &lt;unit&gt;DAYS&lt;/unit&gt;
+                        &lt;number&gt;30&lt;/number&gt;
+                    &lt;/duration&gt;
+                    &lt;fixed&gt;
+                        &lt;fixedPrice&gt; &lt;!-- empty price implies $0 --&gt;
+                        &lt;/fixedPrice&gt;
+
+                    &lt;/fixed&gt;
+                &lt;/phase&gt;
+            &lt;/initialPhases&gt;
+            &lt;finalPhase type="EVERGREEN"&gt;
+                &lt;duration&gt;
+                    &lt;unit&gt;UNLIMITED&lt;/unit&gt;
+                &lt;/duration&gt;
+                &lt;recurring&gt;
+                    &lt;billingPeriod&gt;MONTHLY&lt;/billingPeriod&gt;
+                    &lt;recurringPrice&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;EUR&lt;/currency&gt;
+                            &lt;value&gt;115.00&lt;/value&gt;
+                        &lt;/price&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;USD&lt;/currency&gt;
+                            &lt;value&gt;150.00&lt;/value&gt;
+                        &lt;/price&gt;
+                    &lt;/recurringPrice&gt;
+                &lt;/recurring&gt;
+            &lt;/finalPhase&gt;
+        &lt;/plan&gt;
+        &lt;plan name="pranayama-monthly"&gt;
+            &lt;product&gt;Pranayama&lt;/product&gt;
+            &lt;initialPhases&gt;
+                &lt;phase type="TRIAL"&gt;
+                    &lt;duration&gt;
+                        &lt;unit&gt;DAYS&lt;/unit&gt;
+                        &lt;number&gt;30&lt;/number&gt;
+                    &lt;/duration&gt;
+                    &lt;fixed&gt;
+                        &lt;fixedPrice&gt; &lt;!-- empty price implies $0 --&gt;
+                        &lt;/fixedPrice&gt;
+
+                    &lt;/fixed&gt;
+                &lt;/phase&gt;
+            &lt;/initialPhases&gt;
+            &lt;finalPhase type="EVERGREEN"&gt;
+                &lt;duration&gt;
+                    &lt;unit&gt;UNLIMITED&lt;/unit&gt;
+                &lt;/duration&gt;
+                &lt;recurring&gt;
+                    &lt;billingPeriod&gt;MONTHLY&lt;/billingPeriod&gt;
+                    &lt;recurringPrice&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;EUR&lt;/currency&gt;
+                            &lt;value&gt;25.00&lt;/value&gt;
+                        &lt;/price&gt;
+                        &lt;price&gt;
+                            &lt;currency&gt;USD&lt;/currency&gt;
+                            &lt;value&gt;35.00&lt;/value&gt;
+                        &lt;/price&gt;
+                    &lt;/recurringPrice&gt;
+                &lt;/recurring&gt;
+            &lt;/finalPhase&gt;
+        &lt;/plan&gt;
+    &lt;/plans&gt;
+    &lt;priceLists&gt;
+        &lt;defaultPriceList name="DEFAULT"&gt;
+            &lt;plans&gt;
+                &lt;plan&gt;ashtanga-monthly&lt;/plan&gt;
+                &lt;plan&gt;flow-monthly&lt;/plan&gt;
+                &lt;plan&gt;iyengar-monthly&lt;/plan&gt;
+				&lt;plan&gt;pranayama-monthly&lt;/plan&gt;
+            &lt;/plans&gt;
+        &lt;/defaultPriceList&gt;
+    &lt;/priceLists&gt;
+&lt;/catalog&gt;</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You should now do the same kind of configuration for the other <code>saas</code> tenant and you are ready to start creating account, subscriptions, invoices and make payments on both tenants in parallel!</p>
 </div>
 </div>
 </div>
@@ -796,7 +1103,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-12 05:38:42 UTC
+Last updated 2015-08-13 07:06:57 UTC
 </div>
 </div>
 </body>
