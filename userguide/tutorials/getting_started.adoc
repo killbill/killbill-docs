@@ -1,0 +1,169 @@
+= Getting started
+
+[[intro]]
+== Introduction
+
+Kill Bill is an open-source subscription billing and payment platform.
+
+The *subscription billing* features let you create recurring subscriptions (e.g. "gold plan subscription at $9.99/month") and manage upgrades and downgrades. The system will take care of generating invoices, managing credits and triggering payments.
+
+The *payment* features let you connect with virtually any payment gateway and processor (Stripe, Braintree, PayPal, Adyen, CyberSource, etc.) to charge your customers (using credit or debit cards, ACH, wire transfers, Bitcoin, etc.) for their subscriptions or one-off payments (type shopping cart).
+
+We refer to Kill Bill as a *platform* because of its extensibility: you can write plugins to modify the behavior of the system or to integrate with third-party systems, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). A lot of open-source plugins are available on our GitHub.
+
+Kill Bill is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, instead your website will trigger REST API calls (over HTTP) to process subscriptions or orders. We also provide Kaui, the Kill Bill administrative UI, an interface to interact with Kill Bill for your support and finance teams (to manage refunds, invoice adjustments, etc.).
+
+[[installation]]
+== Installation
+
+Docker is the recommended way to run Kill Bill, both for developers and in production. Our Docker images rely on KPM, the Kill Bill Package Manager. It is a low-level tool to setup Kill Bill, its plugins and Kaui.
+
+For simplicity in this guide, we will install Kill Bill using KPM.
+
+=== Prerequisites
+
+==== Ruby
+
+Ruby is required to run KPM itself (it is not a dependency of Kill Bill).
+
+Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don't have a Ruby installation yet, use https://rvm.io/rvm/install[RVM]:
+
+[source,bash]
+----
+gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+\curl -sSL https://get.rvm.io | bash -s stable --ruby
+----
+
+After following the post-installation instructions, you should have access to the ruby and gem executables.
+
+==== Java
+
+Kill Bill runs on the https://www.java.com/en/download/[Java] platform, version 6 and above (8 is recommended).
+
+=== KPM
+
+To install Kill Bill and Kaui, run:
+
+[source,bash]
+----
+gem install kpm
+mkdir killbill
+cd killbill
+kpm install
+----
+
+* http://tomcat.apache.org/[Tomcat] (open-source Java web server) is setup in the killbill directory
+* The Kill Bill application (war) is installed in the killbill/webapps directory
+* The Kill Bill UI (Kaui war) is installed in the killbill/webapps directory
+* Default plugins are installed in the /var/tmp/bundles directory, among them:
+** jruby.jar, required to run Ruby plugins
+** the https://github.com/killbill/killbill-kpm-plugin[KPM plugin], required to (un-)install plugins at runtime
+
+To start Kill Bill, simply run
+
+[source,bash]
+----
+./bin/catalina.sh run
+----
+
+Verify that Kill Bill is running by creating your own tenant (Kill Bill supports multi-tenancy, where each tenant has its own data, configuration, etc.):
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"apiKey": "bob", "apiSecret": "lazar"}' \
+     "http://127.0.0.1:8080/1.0/kb/tenants"
+----
+
+You can then verify Kaui is running by going to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui].
+
+=== A note on the default installation
+
+By default, Kill Bill writes its data to a file-based h2 database, while Kaui to a file-based sqlite database. When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL.
+
+The default catalog, i.e. the configuration file which contains the list of plans available and their characteristics, is called https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml[SpyCarBasic]. It describes a shop that offers rental cars for spies (e.g. Sports car, rented monthly). We will describe later how you can upload your own catalog, describing your products and plans.
+
+[[kaui]]
+== Using Kill Bill with Kaui
+
+Go to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui]. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. the default set of credentials is admin/password, which grants full access (more details in this http://killbill.io/blog/multi-tenancy-authorization/[blog post]).
+
+Once you are logged-in, create a new Kill Bill account by going to http://127.0.0.1:3000/accounts/new[http://127.0.0.1:3000/accounts/new]. All fields are optional. One field that might be of interest is the "External key", that you can populate with a unique identified for that account.
+
+Once the account is created, go to the subscriptions tab and create a new subscription bundle: a subscription bundle is a collection (bundle) of subscriptions, containing one base subscription and zero or more add-ons.
+
+By going to the invoices tab, you should see that an $0 invoice has been automatically generated for the trial period.
+
+
+[[apis]]
+== Using Kill Bill from your application
+
+Now that you are familiar with the basics, the next step is to integrate Kill Bill in your application using our APIs. We offer Ruby and Java clients that are officially supported. The open-source community is maintaining the https://github.com/killbill/killbill-client-php[PHP], https://github.com/killbill/killbill-client-python[python], https://github.com/killbill/killbill-client-js[NodeJS] and https://github.com/jgomez-vp/killbill-client-scala[Scala] versions.
+
+=== Ruby
+
+Get the https://rubygems.org/gems/killbill-client[killbill-client] gem:
+
+[source,ruby]
+----
+gem install killbill-client
+----
+
+Here is a snippet listing the first 10 accounts:
+
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+accounts = KillBillClient::Model::Account.find_in_batches(0, 10)
+accounts.each_in_batches do |account|
+  puts account.inspect
+end
+----
+
+We have lots of examples in our https://github.com/killbill/killbill-integration-tests[integration tests].
+
+=== Java
+
+Get the jar from Maven Central:
+
+[source,xml]
+----
+<dependency>
+    <groupId>org.kill-bill.billing</groupId>
+    <artifactId>killbill-client-java</artifactId>
+</dependency>
+----
+
+Here is a snippet listing the first 10 accounts:
+
+[source,java]
+----
+KillBillHttpClient killBillHttpClient = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                               "admin",
+                                                               "password",
+                                                               "bob",
+                                                               "lazar");
+KillBillClient killBillClient = new KillBillClient(killBillHttpClient);
+
+
+Accounts page = killBillClient.getAccounts(0L, 10L);
+for (int i = 0; i < page.size(); i++) {
+    System.out.println(page.get(i));
+}
+----
+
+We have lots of examples in our https://github.com/killbill/killbill/tree/master/profiles/killbill/src/test/java/org/killbill/billing/jaxrs[server tests].
+
+[[next]]
+== Next steps
+
+* Write your own catalog
+* Chose a payment gateway and install the corresponding plugin
+* Investigate more advanced topics, such as overdue (dunning) and usage billing
