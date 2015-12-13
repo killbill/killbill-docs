@@ -781,7 +781,7 @@ kpm install</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Here is a snippet listing the first 10 accounts:</p>
+<p>Here is a snippet creating your first account and subscription:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -789,9 +789,39 @@ kpm install</code></pre>
 
 <span class="tok-no">KillBillClient</span><span class="tok-o">.</span><span class="tok-n">url</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;http://127.0.0.1:8080&#39;</span>
 
-<span class="tok-n">accounts</span> <span class="tok-o">=</span> <span class="tok-no">KillBillClient</span><span class="tok-o">::</span><span class="tok-no">Model</span><span class="tok-o">::</span><span class="tok-no">Account</span><span class="tok-o">.</span><span class="tok-n">find_in_batches</span><span class="tok-p">(</span><span class="tok-mi">0</span><span class="tok-p">,</span> <span class="tok-mi">10</span><span class="tok-p">)</span>
-<span class="tok-n">accounts</span><span class="tok-o">.</span><span class="tok-n">each_in_batches</span> <span class="tok-k">do</span> <span class="tok-o">|</span><span class="tok-n">account</span><span class="tok-o">|</span>
-  <span class="tok-nb">puts</span> <span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">inspect</span>
+<span class="tok-c1"># Multi-tenancy and RBAC credentials</span>
+<span class="tok-n">options</span> <span class="tok-o">=</span> <span class="tok-p">{</span>
+  <span class="tok-ss">:username</span> <span class="tok-o">=&gt;</span> <span class="tok-s1">&#39;admin&#39;</span><span class="tok-p">,</span>
+  <span class="tok-ss">:password</span> <span class="tok-o">=&gt;</span> <span class="tok-s1">&#39;password&#39;</span><span class="tok-p">,</span>
+  <span class="tok-ss">:api_key</span> <span class="tok-o">=&gt;</span> <span class="tok-s1">&#39;bob&#39;</span><span class="tok-p">,</span>
+  <span class="tok-ss">:api_secret</span> <span class="tok-o">=&gt;</span> <span class="tok-s1">&#39;lazar&#39;</span>
+<span class="tok-p">}</span>
+
+<span class="tok-c1"># Audit log data</span>
+<span class="tok-n">user</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;me&#39;</span>
+<span class="tok-n">reason</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;Going through my first tutorial&#39;</span>
+<span class="tok-n">comment</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;I like it!&#39;</span>
+
+<span class="tok-c1"># Create an account</span>
+<span class="tok-n">account</span> <span class="tok-o">=</span> <span class="tok-no">KillBillClient</span><span class="tok-o">::</span><span class="tok-no">Model</span><span class="tok-o">::</span><span class="tok-no">Account</span><span class="tok-o">.</span><span class="tok-n">new</span>
+<span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">name</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;John Doe&#39;</span>
+<span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">first_name_length</span> <span class="tok-o">=</span> <span class="tok-mi">4</span>
+<span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">external_key</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;john-doe&#39;</span>
+<span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">currency</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;USD&#39;</span>
+<span class="tok-n">account</span> <span class="tok-o">=</span> <span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">create</span><span class="tok-p">(</span><span class="tok-n">user</span><span class="tok-p">,</span> <span class="tok-n">reason</span><span class="tok-p">,</span> <span class="tok-n">comment</span><span class="tok-p">,</span> <span class="tok-n">options</span><span class="tok-p">)</span>
+
+<span class="tok-c1"># Add a subscription</span>
+<span class="tok-n">subscription</span> <span class="tok-o">=</span> <span class="tok-no">KillBillClient</span><span class="tok-o">::</span><span class="tok-no">Model</span><span class="tok-o">::</span><span class="tok-no">Subscription</span><span class="tok-o">.</span><span class="tok-n">new</span>
+<span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-n">account_id</span> <span class="tok-o">=</span> <span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">account_id</span>
+<span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-n">product_name</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;Sports&#39;</span>
+<span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-n">product_category</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;BASE&#39;</span>
+<span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-n">billing_period</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;MONTHLY&#39;</span>
+<span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-n">price_list</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;DEFAULT&#39;</span>
+<span class="tok-n">subscription</span> <span class="tok-o">=</span> <span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-n">create</span><span class="tok-p">(</span><span class="tok-n">user</span><span class="tok-p">,</span> <span class="tok-n">reason</span><span class="tok-p">,</span> <span class="tok-n">comment</span><span class="tok-p">,</span> <span class="tok-kp">nil</span><span class="tok-p">,</span> <span class="tok-kp">true</span><span class="tok-p">,</span> <span class="tok-n">options</span><span class="tok-p">)</span>
+
+<span class="tok-c1"># List invoices</span>
+<span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-n">invoices</span><span class="tok-p">(</span><span class="tok-kp">true</span><span class="tok-p">,</span> <span class="tok-n">options</span><span class="tok-p">)</span><span class="tok-o">.</span><span class="tok-n">each</span> <span class="tok-k">do</span> <span class="tok-o">|</span><span class="tok-n">invoice</span><span class="tok-o">|</span>
+  <span class="tok-nb">puts</span> <span class="tok-n">invoice</span><span class="tok-o">.</span><span class="tok-n">inspect</span>
 <span class="tok-k">end</span></code></pre>
 </div>
 </div>
@@ -813,21 +843,58 @@ kpm install</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Here is a snippet listing the first 10 accounts:</p>
+<p>Here is a snippet creating your first account and subscription:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="java"><span class="tok-n">KillBillHttpClient</span> <span class="tok-n">killBillHttpClient</span> <span class="tok-o">=</span> <span class="tok-k">new</span> <span class="tok-nf">KillBillHttpClient</span><span class="tok-o">(</span><span class="tok-s">&quot;http://127.0.0.1:8080&quot;</span><span class="tok-o">,</span>
-                                                               <span class="tok-s">&quot;admin&quot;</span><span class="tok-o">,</span>
-                                                               <span class="tok-s">&quot;password&quot;</span><span class="tok-o">,</span>
-                                                               <span class="tok-s">&quot;bob&quot;</span><span class="tok-o">,</span>
-                                                               <span class="tok-s">&quot;lazar&quot;</span><span class="tok-o">);</span>
-<span class="tok-n">KillBillClient</span> <span class="tok-n">killBillClient</span> <span class="tok-o">=</span> <span class="tok-k">new</span> <span class="tok-nf">KillBillClient</span><span class="tok-o">(</span><span class="tok-n">killBillHttpClient</span><span class="tok-o">);</span>
+<pre class="pygments highlight"><code data-lang="java"><span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.catalog.api.BillingPeriod</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.catalog.api.PriceListSet</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.catalog.api.ProductCategory</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.client.KillBillClient</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.client.KillBillClientException</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.client.KillBillHttpClient</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.client.model.Account</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.client.model.Invoice</span><span class="tok-o">;</span>
+<span class="tok-kn">import</span> <span class="tok-nn">org.killbill.billing.client.model.Subscription</span><span class="tok-o">;</span>
 
+<span class="tok-kd">public</span> <span class="tok-kd">class</span> <span class="tok-nc">KillBillDemo</span> <span class="tok-o">{</span>
 
-<span class="tok-n">Accounts</span> <span class="tok-n">page</span> <span class="tok-o">=</span> <span class="tok-n">killBillClient</span><span class="tok-o">.</span><span class="tok-na">getAccounts</span><span class="tok-o">(</span><span class="tok-mi">0L</span><span class="tok-o">,</span> <span class="tok-mi">10L</span><span class="tok-o">);</span>
-<span class="tok-k">for</span> <span class="tok-o">(</span><span class="tok-kt">int</span> <span class="tok-n">i</span> <span class="tok-o">=</span> <span class="tok-mi">0</span><span class="tok-o">;</span> <span class="tok-n">i</span> <span class="tok-o">&lt;</span> <span class="tok-n">page</span><span class="tok-o">.</span><span class="tok-na">size</span><span class="tok-o">();</span> <span class="tok-n">i</span><span class="tok-o">++)</span> <span class="tok-o">{</span>
-    <span class="tok-n">System</span><span class="tok-o">.</span><span class="tok-na">out</span><span class="tok-o">.</span><span class="tok-na">println</span><span class="tok-o">(</span><span class="tok-n">page</span><span class="tok-o">.</span><span class="tok-na">get</span><span class="tok-o">(</span><span class="tok-n">i</span><span class="tok-o">));</span>
+    <span class="tok-kd">public</span> <span class="tok-kd">static</span> <span class="tok-kt">void</span> <span class="tok-nf">main</span><span class="tok-o">(</span><span class="tok-kd">final</span> <span class="tok-n">String</span><span class="tok-o">[]</span> <span class="tok-n">args</span><span class="tok-o">)</span> <span class="tok-kd">throws</span> <span class="tok-n">KillBillClientException</span> <span class="tok-o">{</span>
+        <span class="tok-kd">final</span> <span class="tok-n">KillBillHttpClient</span> <span class="tok-n">killBillHttpClient</span> <span class="tok-o">=</span> <span class="tok-k">new</span> <span class="tok-nf">KillBillHttpClient</span><span class="tok-o">(</span><span class="tok-s">&quot;http://127.0.0.1:8080&quot;</span><span class="tok-o">,</span>
+                                                                             <span class="tok-s">&quot;admin&quot;</span><span class="tok-o">,</span>
+                                                                             <span class="tok-s">&quot;password&quot;</span><span class="tok-o">,</span>
+                                                                             <span class="tok-s">&quot;bob&quot;</span><span class="tok-o">,</span>
+                                                                             <span class="tok-s">&quot;lazar&quot;</span><span class="tok-o">);</span>
+        <span class="tok-kd">final</span> <span class="tok-n">KillBillClient</span> <span class="tok-n">killBillClient</span> <span class="tok-o">=</span> <span class="tok-k">new</span> <span class="tok-nf">KillBillClient</span><span class="tok-o">(</span><span class="tok-n">killBillHttpClient</span><span class="tok-o">);</span>
+
+        <span class="tok-c1">// Audit log data</span>
+        <span class="tok-kd">final</span> <span class="tok-n">String</span> <span class="tok-n">user</span> <span class="tok-o">=</span> <span class="tok-s">&quot;me&quot;</span><span class="tok-o">;</span>
+        <span class="tok-kd">final</span> <span class="tok-n">String</span> <span class="tok-n">reason</span> <span class="tok-o">=</span> <span class="tok-s">&quot;Going through my first tutorial&quot;</span><span class="tok-o">;</span>
+        <span class="tok-kd">final</span> <span class="tok-n">String</span> <span class="tok-n">comment</span> <span class="tok-o">=</span> <span class="tok-s">&quot;I like it!&quot;</span><span class="tok-o">;</span>
+
+        <span class="tok-c1">// Create an account</span>
+        <span class="tok-n">Account</span> <span class="tok-n">account</span> <span class="tok-o">=</span> <span class="tok-k">new</span> <span class="tok-nf">Account</span><span class="tok-o">();</span>
+        <span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-na">setName</span><span class="tok-o">(</span><span class="tok-s">&quot;John Doe&quot;</span><span class="tok-o">);</span>
+        <span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-na">setFirstNameLength</span><span class="tok-o">(</span><span class="tok-mi">4</span><span class="tok-o">);</span>
+        <span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-na">setExternalKey</span><span class="tok-o">(</span><span class="tok-s">&quot;john-doe&quot;</span><span class="tok-o">);</span>
+        <span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-na">setCurrency</span><span class="tok-o">(</span><span class="tok-s">&quot;USD&quot;</span><span class="tok-o">);</span>
+        <span class="tok-n">account</span> <span class="tok-o">=</span> <span class="tok-n">killBillClient</span><span class="tok-o">.</span><span class="tok-na">createAccount</span><span class="tok-o">(</span><span class="tok-n">account</span><span class="tok-o">,</span> <span class="tok-n">user</span><span class="tok-o">,</span> <span class="tok-n">reason</span><span class="tok-o">,</span> <span class="tok-n">comment</span><span class="tok-o">);</span>
+
+        <span class="tok-c1">// Add a subscription</span>
+        <span class="tok-n">Subscription</span> <span class="tok-n">subscription</span> <span class="tok-o">=</span> <span class="tok-k">new</span> <span class="tok-nf">Subscription</span><span class="tok-o">();</span>
+        <span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-na">setAccountId</span><span class="tok-o">(</span><span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-na">getAccountId</span><span class="tok-o">());</span>
+        <span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-na">setProductName</span><span class="tok-o">(</span><span class="tok-s">&quot;Sports&quot;</span><span class="tok-o">);</span>
+        <span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-na">setProductCategory</span><span class="tok-o">(</span><span class="tok-n">ProductCategory</span><span class="tok-o">.</span><span class="tok-na">BASE</span><span class="tok-o">);</span>
+        <span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-na">setBillingPeriod</span><span class="tok-o">(</span><span class="tok-n">BillingPeriod</span><span class="tok-o">.</span><span class="tok-na">MONTHLY</span><span class="tok-o">);</span>
+        <span class="tok-n">subscription</span><span class="tok-o">.</span><span class="tok-na">setPriceList</span><span class="tok-o">(</span><span class="tok-n">PriceListSet</span><span class="tok-o">.</span><span class="tok-na">DEFAULT_PRICELIST_NAME</span><span class="tok-o">);</span>
+        <span class="tok-n">subscription</span> <span class="tok-o">=</span> <span class="tok-n">killBillClient</span><span class="tok-o">.</span><span class="tok-na">createSubscription</span><span class="tok-o">(</span><span class="tok-n">subscription</span><span class="tok-o">,</span> <span class="tok-mi">5</span><span class="tok-o">,</span> <span class="tok-n">user</span><span class="tok-o">,</span> <span class="tok-n">reason</span><span class="tok-o">,</span> <span class="tok-n">comment</span><span class="tok-o">);</span>
+
+        <span class="tok-c1">// List invoices</span>
+        <span class="tok-k">for</span> <span class="tok-o">(</span><span class="tok-kd">final</span> <span class="tok-n">Invoice</span> <span class="tok-n">invoice</span> <span class="tok-o">:</span> <span class="tok-n">killBillClient</span><span class="tok-o">.</span><span class="tok-na">getInvoicesForAccount</span><span class="tok-o">(</span><span class="tok-n">account</span><span class="tok-o">.</span><span class="tok-na">getAccountId</span><span class="tok-o">()))</span> <span class="tok-o">{</span>
+            <span class="tok-n">System</span><span class="tok-o">.</span><span class="tok-na">out</span><span class="tok-o">.</span><span class="tok-na">println</span><span class="tok-o">(</span><span class="tok-n">invoice</span><span class="tok-o">);</span>
+        <span class="tok-o">}</span>
+        <span class="tok-n">System</span><span class="tok-o">.</span><span class="tok-na">out</span><span class="tok-o">.</span><span class="tok-na">flush</span><span class="tok-o">();</span>
+    <span class="tok-o">}</span>
 <span class="tok-o">}</span></code></pre>
 </div>
 </div>
@@ -861,7 +928,7 @@ kpm install</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-13 14:32:36 UTC
+Last updated 2015-12-13 15:08:03 UTC
 </div>
 </div>
 </body>
