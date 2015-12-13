@@ -191,7 +191,7 @@ Get the https://rubygems.org/gems/killbill-client[killbill-client] gem:
 gem install killbill-client
 ----
 
-Here is a snippet listing the first 10 accounts:
+Here is a snippet creating your first account and subscription:
 
 [source,ruby]
 ----
@@ -199,9 +199,39 @@ require 'killbill_client'
 
 KillBillClient.url = 'http://127.0.0.1:8080'
 
-accounts = KillBillClient::Model::Account.find_in_batches(0, 10)
-accounts.each_in_batches do |account|
-  puts account.inspect
+# Multi-tenancy and RBAC credentials
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+# Audit log data
+user = 'me'
+reason = 'Going through my first tutorial'
+comment = 'I like it!'
+
+# Create an account
+account = KillBillClient::Model::Account.new
+account.name = 'John Doe'
+account.first_name_length = 4
+account.external_key = 'john-doe'
+account.currency = 'USD'
+account = account.create(user, reason, comment, options)
+
+# Add a subscription
+subscription = KillBillClient::Model::Subscription.new
+subscription.account_id = account.account_id
+subscription.product_name = 'Sports'
+subscription.product_category = 'BASE'
+subscription.billing_period = 'MONTHLY'
+subscription.price_list = 'DEFAULT'
+subscription = subscription.create(user, reason, comment, nil, true, options)
+
+# List invoices
+account.invoices(true, options).each do |invoice|
+  puts invoice.inspect
 end
 ----
 
@@ -219,21 +249,58 @@ Get the jar from Maven Central:
 </dependency>
 ----
 
-Here is a snippet listing the first 10 accounts:
+Here is a snippet creating your first account and subscription:
 
 [source,java]
 ----
-KillBillHttpClient killBillHttpClient = new KillBillHttpClient("http://127.0.0.1:8080",
-                                                               "admin",
-                                                               "password",
-                                                               "bob",
-                                                               "lazar");
-KillBillClient killBillClient = new KillBillClient(killBillHttpClient);
+import org.killbill.billing.catalog.api.BillingPeriod;
+import org.killbill.billing.catalog.api.PriceListSet;
+import org.killbill.billing.catalog.api.ProductCategory;
+import org.killbill.billing.client.KillBillClient;
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.model.Account;
+import org.killbill.billing.client.model.Invoice;
+import org.killbill.billing.client.model.Subscription;
 
+public class KillBillDemo {
 
-Accounts page = killBillClient.getAccounts(0L, 10L);
-for (int i = 0; i < page.size(); i++) {
-    System.out.println(page.get(i));
+    public static void main(final String[] args) throws KillBillClientException {
+        final KillBillHttpClient killBillHttpClient = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                                             "admin",
+                                                                             "password",
+                                                                             "bob",
+                                                                             "lazar");
+        final KillBillClient killBillClient = new KillBillClient(killBillHttpClient);
+
+        // Audit log data
+        final String user = "me";
+        final String reason = "Going through my first tutorial";
+        final String comment = "I like it!";
+
+        // Create an account
+        Account account = new Account();
+        account.setName("John Doe");
+        account.setFirstNameLength(4);
+        account.setExternalKey("john-doe");
+        account.setCurrency("USD");
+        account = killBillClient.createAccount(account, user, reason, comment);
+
+        // Add a subscription
+        Subscription subscription = new Subscription();
+        subscription.setAccountId(account.getAccountId());
+        subscription.setProductName("Sports");
+        subscription.setProductCategory(ProductCategory.BASE);
+        subscription.setBillingPeriod(BillingPeriod.MONTHLY);
+        subscription.setPriceList(PriceListSet.DEFAULT_PRICELIST_NAME);
+        subscription = killBillClient.createSubscription(subscription, 5, user, reason, comment);
+
+        // List invoices
+        for (final Invoice invoice : killBillClient.getInvoicesForAccount(account.getAccountId())) {
+            System.out.println(invoice);
+        }
+        System.out.flush();
+    }
 }
 ----
 
