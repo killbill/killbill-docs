@@ -66,38 +66,116 @@ To start Kill Bill, simply run
 ./bin/catalina.sh run
 ----
 
-Verify that Kill Bill is running by creating your own tenant (Kill Bill supports multi-tenancy, where each tenant has its own data, configuration, etc.):
-
-[source,bash]
-----
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H 'Content-Type: application/json' \
-     -H 'X-Killbill-CreatedBy: admin' \
-     -d '{"apiKey": "bob", "apiSecret": "lazar"}' \
-     "http://127.0.0.1:8080/1.0/kb/tenants"
-----
-
-You can then verify Kaui is running by going to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui].
+To verify your installation, check that Kaui is running by going to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui].
 
 === A note on the default installation
 
-By default, Kill Bill writes its data to a file-based h2 database, while Kaui to a file-based sqlite database. When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL.
+==== Database
 
-The default catalog, i.e. the configuration file which contains the list of plans available and their characteristics, is called https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml[SpyCarBasic]. It describes a shop that offers rental cars for spies (e.g. Sports car, rented monthly). We will describe later how you can upload your own catalog, describing your products and plans.
+By default, Kill Bill writes its data to a file-based h2 database (you can browse the data by going to http://127.0.0.1:8082/[http://127.0.0.1:8082/]: JDBC URL jdbc:h2:file:/var/tmp/killbill, username killbill, password killbill), while Kaui to a file-based SQLite database (you can browser the data with http://sqlitebrowser.org/[DB4S], the database is at /var/tmp/kaui.sqlite3).
+
+When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL (the Kill Bill DDL is available on our http://killbill.io/downloads/]downloads page and the Kaui DDL is available on https://raw.github.com/killbill/killbill-admin-ui/master/db/ddl.sql[GitHub]). To do so, add the following to the bottom of conf/catalina.properties (update urls and credentials as needed):
+
+[source,ini]
+----
+# Kill Bill properties
+org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+org.killbill.dao.user=killbill
+org.killbill.dao.password=killbill
+org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+org.killbill.billing.osgi.dao.user=killbill
+org.killbill.billing.osgi.dao.password=killbill
+
+# Kaui properties
+kaui.db.adapter=jdbcmysql
+kaui.db.url=jdbc:mysql://localhost/kaui
+kaui.db.username=killbill
+kaui.db.password=killbill
+----
+
+==== Catalog
+
+The default catalog, i.e. the configuration file which contains the list of plans available and their characteristics, is called https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml[SpyCarBasic]. It describes a shop that offers rental cars for spies (e.g. Sports car, rented monthly). We will describe later how you can configure your own catalog, containing your products and plans.
 
 [[kaui]]
 == Using Kill Bill with Kaui
 
-Go to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui]. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. the default set of credentials is admin/password, which grants full access (more details in this http://killbill.io/blog/multi-tenancy-authorization/[blog post]).
+Go to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui]. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is admin/password, which grants full access.
 
-Once you are logged-in, create a new Kill Bill account by going to http://127.0.0.1:3000/accounts/new[http://127.0.0.1:3000/accounts/new]. All fields are optional. One field that might be of interest is the "External key", that you can populate with a unique identified for that account.
+Because Kill Bill supports multi-tenancy (where each tenant has its own data, configuration, etc.), the next step is to create your own tenant. We will assume the api key is "bob" and api secret "lazar" in the rest of this guide.
+
+For more details on RBAC and multi-tenancy, check out this http://killbill.io/blog/multi-tenancy-authorization/[blog post].
+
+Once you are logged-in, create a new Kill Bill account by going to http://127.0.0.1:3000/accounts/new[http://127.0.0.1:3000/accounts/new]. All fields are optional. One field that might be of interest is "External key", that you can populate with a unique identified for that account.
+
+=== Creating your first subscription
 
 Once the account is created, go to the subscriptions tab and create a new subscription bundle: a subscription bundle is a collection (bundle) of subscriptions, containing one base subscription and zero or more add-ons.
 
 By going to the invoices tab, you should see that an $0 invoice has been automatically generated for the trial period.
 
+==== Modifying the catalog
+
+The default catalog only contains monthly plans. Let's add another plan for the Sports car, but billed yearly (and without any trial period).
+
+Download the https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml[SpyCarBasic] catalog. Find the "sports-monthly" plan section and duplicate it. Rename it to "sports-annual", remove the TRIAL phase, modify the recurring billing period to ANNUAL and update the prices. The new plan should look like:
+
+[source,xml]
+----
+<plan name="sports-annual">
+    <product>Sports</product>
+    <finalPhase type="EVERGREEN">
+        <duration>
+            <unit>UNLIMITED</unit>
+        </duration>
+        <recurring>
+            <billingPeriod>ANNUAL</billingPeriod>
+            <recurringPrice>
+                <price>
+                    <currency>GBP</currency>
+                    <value>4500.00</value>
+                </price>
+                <price>
+                    <currency>USD</currency>
+                    <value>6000.00</value>
+                </price>
+            </recurringPrice>
+        </recurring>
+    </finalPhase>
+</plan>
+----
+
+Finally, add your entry in the defaultPriceList section at the bottom of the file:
+
+[source,xml]
+----
+<priceLists>
+    <defaultPriceList name="DEFAULT">
+        <plans>
+            <plan>standard-monthly</plan>
+            <plan>sports-monthly</plan>
+            <plan>sports-annual</plan>
+            <plan>super-monthly</plan>
+        </plans>
+    </defaultPriceList>
+</priceLists>
+----
+
+Go to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant] configuration screen and upload the full catalog modified.
+
+Try to add a new subscription bundle to the account. You should now be able to see the new sports-annual plan. Upon creation, an invoice for the full year is automatically generated, because there is no trial period and the plan is billed in advance.
+
+For more details on the catalog and its concepts, check out our main http://killbill.io/userguide/[subscription billing userguide].
+
+=== Triggering your first payment
+
+To trigger payments, the account must first have one or several payment methods (credit card, PayPal, etc.). These map to specific gateway plugins (e.g. a payment method could represent a credit card token in Stripe).
+
+Add a payment method by going to the main account screen, then click Add payment method in the Payment Methods section. By default, Kill Bill comes only with the __EXTERNAL_PAYMENT__ payment plugin, which is used to track offline payments made by checks or cash.
+
+Once created, you have several operations available on that payment method: authorize (as in credit card authorization), purchase (authorization with auto-capture) and credit (fund the payment method). These operations are gateway specific. In case of the __EXTERNAL_PAYMENT__, you would trigger a purchase. When creating the payment, you can specify the "Payment key", i.e. a unique identifier for that payment, as well as a "Transaction key": a payment can map to several transactions (for example, a purchase then a refund).
+
+Note that we charged the customer directly, regardless of his subscriptions and invoices: you would use these operations in case of one-off shopping cart scenarios. However, if a payment method is select as default (you can set it by clicking the star next to the payment method), the subscription system will use it to trigger payments automatically for outstanding invoices.
 
 [[apis]]
 == Using Kill Bill from your application
@@ -165,5 +243,6 @@ We have lots of examples in our https://github.com/killbill/killbill/tree/master
 == Next steps
 
 * Write your own catalog
-* Chose a payment gateway and install the corresponding plugin
-* Investigate more advanced topics, such as overdue (dunning) and usage billing
+* Choose a payment gateway and install the corresponding plugin
+* Follow our tutorials to investigate more advanced topics, such as overdue (dunning) and usage billing
+* For support along the way, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[Google Groups]
