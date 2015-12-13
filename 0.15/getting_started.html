@@ -490,10 +490,24 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </li>
 <li><a href="#_kpm">KPM</a></li>
-<li><a href="#_a_note_on_the_default_installation">A note on the default installation</a></li>
+<li><a href="#_a_note_on_the_default_installation">A note on the default installation</a>
+<ul class="sectlevel3">
+<li><a href="#_database">Database</a></li>
+<li><a href="#_catalog">Catalog</a></li>
 </ul>
 </li>
-<li><a href="#kaui">Using Kill Bill with Kaui</a></li>
+</ul>
+</li>
+<li><a href="#kaui">Using Kill Bill with Kaui</a>
+<ul class="sectlevel2">
+<li><a href="#_creating_your_first_subscription">Creating your first subscription</a>
+<ul class="sectlevel3">
+<li><a href="#_modifying_the_catalog">Modifying the catalog</a></li>
+</ul>
+</li>
+<li><a href="#_triggering_your_first_payment">Triggering your first payment</a></li>
+</ul>
+</li>
 <li><a href="#apis">Using Kill Bill from your application</a>
 <ul class="sectlevel2">
 <li><a href="#_ruby_2">Ruby</a></li>
@@ -609,30 +623,42 @@ kpm install</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Verify that Kill Bill is running by creating your own tenant (Kill Bill supports multi-tenancy, where each tenant has its own data, configuration, etc.):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>You can then verify Kaui is running by going to <a href="http://127.0.0.1:8080/kaui">http://127.0.0.1:8080/kaui</a>.</p>
+<p>To verify your installation, check that Kaui is running by going to <a href="http://127.0.0.1:8080/kaui">http://127.0.0.1:8080/kaui</a>.</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_a_note_on_the_default_installation">A note on the default installation</h3>
+<div class="sect3">
+<h4 id="_database">Database</h4>
 <div class="paragraph">
-<p>By default, Kill Bill writes its data to a file-based h2 database, while Kaui to a file-based sqlite database. When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL.</p>
+<p>By default, Kill Bill writes its data to a file-based h2 database (you can browse the data by going to <a href="http://127.0.0.1:8082/">http://127.0.0.1:8082/</a>: JDBC URL jdbc:h2:file:/var/tmp/killbill, username killbill, password killbill), while Kaui to a file-based SQLite database (you can browser the data with <a href="http://sqlitebrowser.org/">DB4S</a>, the database is at /var/tmp/kaui.sqlite3).</p>
 </div>
 <div class="paragraph">
-<p>The default catalog, i.e. the configuration file which contains the list of plans available and their characteristics, is called <a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml">SpyCarBasic</a>. It describes a shop that offers rental cars for spies (e.g. Sports car, rented monthly). We will describe later how you can upload your own catalog, describing your products and plans.</p>
+<p>When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL (the Kill Bill DDL is available on our <a href="http://killbill.io/downloads/" class="bare">http://killbill.io/downloads/</a>]downloads page and the Kaui DDL is available on <a href="https://raw.github.com/killbill/killbill-admin-ui/master/db/ddl.sql">GitHub</a>). To do so, add the following to the bottom of conf/catalina.properties (update urls and credentials as needed):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="ini"><span class="tok-c1"># Kill Bill properties</span>
+<span class="tok-na">org.killbill.dao.url</span><span class="tok-o">=</span><span class="tok-s">jdbc:mysql://127.0.0.1:3306/killbill</span>
+<span class="tok-na">org.killbill.dao.user</span><span class="tok-o">=</span><span class="tok-s">killbill</span>
+<span class="tok-na">org.killbill.dao.password</span><span class="tok-o">=</span><span class="tok-s">killbill</span>
+<span class="tok-na">org.killbill.billing.osgi.dao.url</span><span class="tok-o">=</span><span class="tok-s">jdbc:mysql://127.0.0.1:3306/killbill</span>
+<span class="tok-na">org.killbill.billing.osgi.dao.user</span><span class="tok-o">=</span><span class="tok-s">killbill</span>
+<span class="tok-na">org.killbill.billing.osgi.dao.password</span><span class="tok-o">=</span><span class="tok-s">killbill</span>
+
+<span class="tok-c1"># Kaui properties</span>
+<span class="tok-na">kaui.db.adapter</span><span class="tok-o">=</span><span class="tok-s">jdbcmysql</span>
+<span class="tok-na">kaui.db.url</span><span class="tok-o">=</span><span class="tok-s">jdbc:mysql://localhost/kaui</span>
+<span class="tok-na">kaui.db.username</span><span class="tok-o">=</span><span class="tok-s">killbill</span>
+<span class="tok-na">kaui.db.password</span><span class="tok-o">=</span><span class="tok-s">killbill</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_catalog">Catalog</h4>
+<div class="paragraph">
+<p>The default catalog, i.e. the configuration file which contains the list of plans available and their characteristics, is called <a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml">SpyCarBasic</a>. It describes a shop that offers rental cars for spies (e.g. Sports car, rented monthly). We will describe later how you can configure your own catalog, containing your products and plans.</p>
+</div>
 </div>
 </div>
 </div>
@@ -641,16 +667,100 @@ kpm install</code></pre>
 <h2 id="kaui">Using Kill Bill with Kaui</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Go to <a href="http://127.0.0.1:8080/kaui">http://127.0.0.1:8080/kaui</a>. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. the default set of credentials is admin/password, which grants full access (more details in this <a href="http://killbill.io/blog/multi-tenancy-authorization/">blog post</a>).</p>
+<p>Go to <a href="http://127.0.0.1:8080/kaui">http://127.0.0.1:8080/kaui</a>. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is admin/password, which grants full access.</p>
 </div>
 <div class="paragraph">
-<p>Once you are logged-in, create a new Kill Bill account by going to <a href="http://127.0.0.1:3000/accounts/new">http://127.0.0.1:3000/accounts/new</a>. All fields are optional. One field that might be of interest is the "External key", that you can populate with a unique identified for that account.</p>
+<p>Because Kill Bill supports multi-tenancy (where each tenant has its own data, configuration, etc.), the next step is to create your own tenant. We will assume the api key is "bob" and api secret "lazar" in the rest of this guide.</p>
 </div>
+<div class="paragraph">
+<p>For more details on RBAC and multi-tenancy, check out this <a href="http://killbill.io/blog/multi-tenancy-authorization/">blog post</a>.</p>
+</div>
+<div class="paragraph">
+<p>Once you are logged-in, create a new Kill Bill account by going to <a href="http://127.0.0.1:3000/accounts/new">http://127.0.0.1:3000/accounts/new</a>. All fields are optional. One field that might be of interest is "External key", that you can populate with a unique identified for that account.</p>
+</div>
+<div class="sect2">
+<h3 id="_creating_your_first_subscription">Creating your first subscription</h3>
 <div class="paragraph">
 <p>Once the account is created, go to the subscriptions tab and create a new subscription bundle: a subscription bundle is a collection (bundle) of subscriptions, containing one base subscription and zero or more add-ons.</p>
 </div>
 <div class="paragraph">
 <p>By going to the invoices tab, you should see that an $0 invoice has been automatically generated for the trial period.</p>
+</div>
+<div class="sect3">
+<h4 id="_modifying_the_catalog">Modifying the catalog</h4>
+<div class="paragraph">
+<p>The default catalog only contains monthly plans. Let&#8217;s add another plan for the Sports car, but billed yearly (and without any trial period).</p>
+</div>
+<div class="paragraph">
+<p>Download the <a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml">SpyCarBasic</a> catalog. Find the "sports-monthly" plan section and duplicate it. Rename it to "sports-annual", remove the TRIAL phase, modify the recurring billing period to ANNUAL and update the prices. The new plan should look like:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;plan</span> <span class="tok-na">name=</span><span class="tok-s">&quot;sports-annual&quot;</span><span class="tok-nt">&gt;</span>
+    <span class="tok-nt">&lt;product&gt;</span>Sports<span class="tok-nt">&lt;/product&gt;</span>
+    <span class="tok-nt">&lt;finalPhase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;EVERGREEN&quot;</span><span class="tok-nt">&gt;</span>
+        <span class="tok-nt">&lt;duration&gt;</span>
+            <span class="tok-nt">&lt;unit&gt;</span>UNLIMITED<span class="tok-nt">&lt;/unit&gt;</span>
+        <span class="tok-nt">&lt;/duration&gt;</span>
+        <span class="tok-nt">&lt;recurring&gt;</span>
+            <span class="tok-nt">&lt;billingPeriod&gt;</span>ANNUAL<span class="tok-nt">&lt;/billingPeriod&gt;</span>
+            <span class="tok-nt">&lt;recurringPrice&gt;</span>
+                <span class="tok-nt">&lt;price&gt;</span>
+                    <span class="tok-nt">&lt;currency&gt;</span>GBP<span class="tok-nt">&lt;/currency&gt;</span>
+                    <span class="tok-nt">&lt;value&gt;</span>4500.00<span class="tok-nt">&lt;/value&gt;</span>
+                <span class="tok-nt">&lt;/price&gt;</span>
+                <span class="tok-nt">&lt;price&gt;</span>
+                    <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
+                    <span class="tok-nt">&lt;value&gt;</span>6000.00<span class="tok-nt">&lt;/value&gt;</span>
+                <span class="tok-nt">&lt;/price&gt;</span>
+            <span class="tok-nt">&lt;/recurringPrice&gt;</span>
+        <span class="tok-nt">&lt;/recurring&gt;</span>
+    <span class="tok-nt">&lt;/finalPhase&gt;</span>
+<span class="tok-nt">&lt;/plan&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Finally, add your entry in the defaultPriceList section at the bottom of the file:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;priceLists&gt;</span>
+    <span class="tok-nt">&lt;defaultPriceList</span> <span class="tok-na">name=</span><span class="tok-s">&quot;DEFAULT&quot;</span><span class="tok-nt">&gt;</span>
+        <span class="tok-nt">&lt;plans&gt;</span>
+            <span class="tok-nt">&lt;plan&gt;</span>standard-monthly<span class="tok-nt">&lt;/plan&gt;</span>
+            <span class="tok-nt">&lt;plan&gt;</span>sports-monthly<span class="tok-nt">&lt;/plan&gt;</span>
+            <span class="tok-nt">&lt;plan&gt;</span>sports-annual<span class="tok-nt">&lt;/plan&gt;</span>
+            <span class="tok-nt">&lt;plan&gt;</span>super-monthly<span class="tok-nt">&lt;/plan&gt;</span>
+        <span class="tok-nt">&lt;/plans&gt;</span>
+    <span class="tok-nt">&lt;/defaultPriceList&gt;</span>
+<span class="tok-nt">&lt;/priceLists&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Go to your <a href="http://127.0.0.1:8080/kaui/admin_tenants/1">tenant</a> configuration screen and upload the full catalog modified.</p>
+</div>
+<div class="paragraph">
+<p>Try to add a new subscription bundle to the account. You should now be able to see the new sports-annual plan. Upon creation, an invoice for the full year is automatically generated, because there is no trial period and the plan is billed in advance.</p>
+</div>
+<div class="paragraph">
+<p>For more details on the catalog and its concepts, check out our main <a href="http://killbill.io/userguide/">subscription billing userguide</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_triggering_your_first_payment">Triggering your first payment</h3>
+<div class="paragraph">
+<p>To trigger payments, the account must first have one or several payment methods (credit card, PayPal, etc.). These map to specific gateway plugins (e.g. a payment method could represent a credit card token in Stripe).</p>
+</div>
+<div class="paragraph">
+<p>Add a payment method by going to the main account screen, then click Add payment method in the Payment Methods section. By default, Kill Bill comes only with the <em>EXTERNAL_PAYMENT</em> payment plugin, which is used to track offline payments made by checks or cash.</p>
+</div>
+<div class="paragraph">
+<p>Once created, you have several operations available on that payment method: authorize (as in credit card authorization), purchase (authorization with auto-capture) and credit (fund the payment method). These operations are gateway specific. In case of the <em>EXTERNAL_PAYMENT</em>, you would trigger a purchase. When creating the payment, you can specify the "Payment key", i.e. a unique identifier for that payment, as well as a "Transaction key": a payment can map to several transactions (for example, a purchase then a refund).</p>
+</div>
+<div class="paragraph">
+<p>Note that we charged the customer directly, regardless of his subscriptions and invoices: you would use these operations in case of one-off shopping cart scenarios. However, if a payment method is select as default (you can set it by clicking the star next to the payment method), the subscription system will use it to trigger payments automatically for outstanding invoices.</p>
+</div>
 </div>
 </div>
 </div>
@@ -736,10 +846,13 @@ kpm install</code></pre>
 <p>Write your own catalog</p>
 </li>
 <li>
-<p>Chose a payment gateway and install the corresponding plugin</p>
+<p>Choose a payment gateway and install the corresponding plugin</p>
 </li>
 <li>
-<p>Investigate more advanced topics, such as overdue (dunning) and usage billing</p>
+<p>Follow our tutorials to investigate more advanced topics, such as overdue (dunning) and usage billing</p>
+</li>
+<li>
+<p>For support along the way, reach out to our <a href="https://groups.google.com/forum/#!forum/killbilling-users">Google Groups</a></p>
 </li>
 </ul>
 </div>
@@ -748,7 +861,7 @@ kpm install</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-12 17:24:39 UTC
+Last updated 2015-12-13 14:32:36 UTC
 </div>
 </div>
 </body>
