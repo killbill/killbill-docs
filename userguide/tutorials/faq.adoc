@@ -1,0 +1,73 @@
+= FAQ
+
+== Features
+
+=== Large catalog
+
+If you have a very large catalog (e.g. thousands of products) and/or if it is highly dynamic, maintaining the catalog as an XML file may not be practical. Instead, you can use the https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[CatalogPluginApi] to write a plugin that would provide an alternative catalog implementation (such as integrating with your existing catalog system).
+
+Here are https://github.com/killbill/killbill-catalog-plugin-test[Java] and https://github.com/killbill/killbill-catalog-ruby-plugin[Ruby] examples.
+
+=== Coupons and discounts
+
+There are several ways to handle coupons and discounts:
+
+* The simplest option is for your catalog to include discount plans (plans can additionally include discount phases)
+* An alternative is to use the PhasePriceOverride element when creating a subscription
+* Finally, to implement a fully fledged coupon functionality, use the https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[EntitlementPluginApi] to write your custom plugin (https://github.com/killbill/killbill-coupon-plugin-demo[here] is an example)
+
+For more details, check this https://killbill.io/blog/moving-towards-a-flexible-catalog/[blog] post.
+
+=== Email notifications
+
+The https://github.com/killbill/killbill-email-notifications-plugin[email notifications] plugin lets you send emails to your customers regarding upcoming invoices, payment successes and failures, subscription cancellations, etc.
+
+=== Tax
+
+Kill Bill can be integrated with http://www.avalara.com/integrations/killbill/[Avalara AvaTax], as a tax provider. The plugin can be downloaded https://github.com/killbill/killbill-avatax-plugin[here].
+
+=== Testing subscription changes over time
+
+We have a clock abstraction in Kill Bill that can be manipulated through an API, as long as you start Kill Bill with org.killbill.server.test.mode=true. Here is an https://github.com/killbill/killbill-integration-tests/blob/master/killbill-integration-tests/core/test_entitlement_cancellation.rb#L45[example] how it could be used in tests.
+
+== Development
+
+=== Building from source
+
+Kill Bill is a standard Maven project. Simply run the following command from the https://github.com/killbill/killbill[project] root directory:
+
+[source,bash]
+----
+mvn clean install -DskipTests
+----
+
+On the first build, Maven will download all the dependencies from the internet and cache them in the local repository (~/.m2/repository), which can take a considerable amount of time. Subsequent builds will be faster.
+
+One built, you can start Kill Bill by running:
+[source,bash]
+----
+./bin/start-server -s
+----
+
+Note that master is in development, so some dependencies may have to be built from source as well (such as https://github.com/killbill/killbill-oss-parent[killbill-oss-parent], https://github.com/killbill/killbill-commons[killbill-commons] and https://github.com/killbill/killbill-platform[killbill-platform]).
+
+=== Calling APIs from Ruby plugins
+
+Take a look at these https://github.com/killbill/killbill-plugin-framework-ruby/wiki/Snippets[Snippets].
+
+=== Reloading plugins
+
+When developing plugins, you can update the plugin Jar or the plugin Ruby code directly, then tell Kill Bill to reload it:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     -d '{"systemCommandType":"true","nodeCommandType":"RESTART_PLUGIN","nodeCommandProperties":[{"key":"pluginName", "value":"analytics-plugin"} ]}' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
