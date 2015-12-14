@@ -16,62 +16,77 @@ We now want to configure the overdue system (dunning) to take some actions when 
 3. The system should block the entitlements associated with the account after 14 days
 4. The system should automatically cancel the subscriptions after 21 days
 
+Additionally, we want to prevent users from changing plans (e.g. upgrade) until they clear their balance.
+
 == Configuration of the System
 
 === Catalog Configuration
 
-Your catalog will contain a plan entry that specifies two phases, one for the trial period and one for the recurring monthly charge of $10 -- note that we omitted the other parts of the catalog such as alignment rules, ... which is beyond the scope of this tutorial:
+Your catalog will contain a plan entry that specifies two phases, one for the trial period and one for the recurring monthly charge of $10:
 
 [source,xml]
 ----
-<plan name="movies-monthly">
-    <product>Movies</product>
-    <initialPhases>
-       <phase type="TRIAL">
-           <duration>
-               <unit>DAYS</unit>
-               <number>10</number>
-           </duration>
-           <fixed>
-               <fixedPrice>
-	         <!-- empty price implies $0 -->
-               </fixedPrice>
-           </fixed>
-       </phase>
-    </initialPhases>
-    <finalPhase type="EVERGREEN">
-        <duration>
-            <unit>UNLIMITED</unit>
-        </duration>
-        <recurring>
-            <billingPeriod>MONTHLY</billingPeriod>
-            <recurringPrice>
-                <price>
-                    <currency>USD</currency>
-                    <value>10.00</value>
-                </price>
-            </recurringPrice>
-        </recurring>
-    </finalPhase>
-</plan>
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CatalogSchema.xsd ">
+    <effectiveDate>2013-02-08T00:00:00+00:00</effectiveDate>
+    <catalogName>Movies</catalogName>
+    <recurringBillingMode>IN_ADVANCE</recurringBillingMode>
+    <currencies>
+        <currency>USD</currency>
+    </currencies>
+    <products>
+        <product name="Movies">
+            <category>BASE</category>
+        </product>
+    </products>
+    <rules>
+    </rules>
+    <plans>
+      <plan name="movies-monthly">
+          <product>Movies</product>
+          <initialPhases>
+             <phase type="TRIAL">
+                 <duration>
+                     <unit>DAYS</unit>
+                     <number>10</number>
+                 </duration>
+                 <fixed>
+                 </fixed>
+             </phase>
+          </initialPhases>
+          <finalPhase type="EVERGREEN">
+              <duration>
+                  <unit>UNLIMITED</unit>
+              </duration>
+              <recurring>
+                  <billingPeriod>MONTHLY</billingPeriod>
+                  <recurringPrice>
+                      <price>
+                          <currency>USD</currency>
+                          <value>10.00</value>
+                      </price>
+                  </recurringPrice>
+              </recurring>
+          </finalPhase>
+      </plan>
+    </plans>
+    <priceLists>
+        <defaultPriceList name="DEFAULT">
+            <plans>
+                <plan>movies-monthly</plan>
+            </plans>
+        </defaultPriceList>
+    </priceLists>
+</catalog>
 ----
 
-=== Overdue Configuration
+=== Overdue configuration
 
-The configurartion below defines the 3 different states:
+The overdue configuration will define the three states the account will go through:
 
-* `WARNING`:
-** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 10 days as specified by the scenario
-** `disableEntitlementAndChangesBlocked` is set to false since we still want the user to have access to the service
-** `autoReevaluationInterval` is set to 4 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `BLOCKED` 4 days later
-** `blockChanges` is set to true to prevent users from changing plans until they clear their balance (was not specified in the scenario, but probably a good practice to follow)
-* `BLOCKED`:
-** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 14 days as specified by the scenario
-** `disableEntitlementAndChangesBlocked` is set to true since we now want the user to NOT have access to the service
-** `autoReevaluationInterval` is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `CANCELATION` 8 days later
-* `CANCELATION`:
-** `subscriptionCancellationPolicy` is set to `END_OF_TERM` to indicate that subscriptions should be cancelled in such a way that we do not generate credit for the account (no proration)
-
+1. The account will enter the WARNING state 10 days after the first unpaid invoice
+2. 4 days later, the account will move to the BLOCKED state
+3. 7 days later, the account will move to the CANCELLATION state
 
 [source,xml]
 ----
@@ -80,7 +95,7 @@ The configurartion below defines the 3 different states:
        <initialReevaluationInterval>
            <unit>DAYS</unit><number>4</number>
        </initialReevaluationInterval>
-       <state name="CANCELATION">
+       <state name="CANCELLATION">
            <condition>
                <timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
                    <unit>DAYS</unit><number>21</number>
@@ -119,11 +134,28 @@ The configurartion below defines the 3 different states:
 </overdueConfig>
 ----
 
+In more details:
+
+* `WARNING`:
+** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 10 days as specified by the scenario
+** `blockChanges` is set to true to prevent users from changing plans
+** `disableEntitlementAndChangesBlocked` is set to false, since we still want the user to have access to the service
+** `autoReevaluationInterval` is set to 4 days to make sure that if there is no payment (which would trigger a re-evaluation of the overdue state), the state will be correctly recomputed and transition to `BLOCKED` 4 days later
+* `BLOCKED`:
+** `blockChanges` is set to true to prevent users from changing plans
+** `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds` is set to 14 days as specified by the scenario
+** `disableEntitlementAndChangesBlocked` is set to true since we now want the user to NOT have access to the service
+** `autoReevaluationInterval` is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to `CANCELLATION` 8 days later
+* `CANCELLATION`:
+** `subscriptionCancellationPolicy` is set to `END_OF_TERM` to indicate that subscriptions should be cancelled in such a way that we do not generate credit for the account (no proration)
 
 === Payment retries
 
-In addition we need to configure the payment system to retry failed payments; the system property `org.killbill.payment.retry.days` specifies the retry policy associated to payment failures. In our case we need to set it to `1,1,8` to indicate 3 payment retries, the first one after 1 day, and then 1 day after, and the last one 8 days after the previous one (as specified in our scenario).
+Additionally, we need to configure the payment system to retry failed payments. Each time a payment is retried, the overdue system will react and adjust the state depending on the payment status.
 
+Kill Bill comes with a built-in retry mechanism. The property `org.killbill.payment.retry.days` specifies the retry schedule for payment failures (e.g. insufficient funds). In our case, we need to set it to `1,1,8` to indicate 3 payment retries, the first one after 1 day, then 1 day after, and the last one 8 days after the previous one (as specified in our scenario).
+
+Additionally, if you need more granularity in how you want to retry payments, you can implement your own logic in a Payment Control plugin (which goes beyond the scope of this tutorial).
 
 [[customers]]
 == Example of Customers
