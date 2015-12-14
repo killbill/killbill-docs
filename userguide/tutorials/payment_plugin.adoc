@@ -1,0 +1,95 @@
+= Developing a Payment Plugin
+
+Payment plugins integrate Kill Bill with a specific gateway (i.e. payment processor), such as Stripe or Braintree. While we already have many open-source payment plugins available on GitHub, this guide will give you pointers in case you need to develop your own.
+
+Before reading this guide, make sure to familiarize yourself with the main payment userguide.
+
+== PaymentPluginApi overview
+
+The https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] is the interface between Kill Bill and payment plugins.
+
+Here are the actions the plugin can expose:
+
+* authorizePayment and capturePayment should trigger an https://en.wikipedia.org/wiki/Authorization_hold[authorization] and capture respectfully (applies to credit cards only)
+* purchasePayment should trigger a generic payment (authorization with auto-capture for credit cards)
+* voidPayment should void an authorization (credit cards only)
+* creditPayment should fund the payment method from your merchant account (similar to a refund, but no prior payment is required)
+* refundPayment should reverse an existing (settled) charge
+* getPaymentInfo should return detailed information on the transactions for that payment (arbitrary properties can be populated in PaymentTransactionInfoPlugin#getProperties)
+* searchPayments should return payment transactions matching the specified searchKey (the implementation is up to the plugin)
+* addPaymentMethod should create the payment method in the gateway (e.g. store a token)
+* deletePaymentMethod should delete the payment method in the gateway (e.g. revoke a token)
+* getPaymentMethodDetail should return detailed information about the payment method (e.g. billing address)
+* setDefaultPaymentMethod should mark the payment method as the default one in the gateway (if the associated account in the gateway has several payment methods)
+* getPaymentMethods should list the payment methods in the gateway for that account (used by the refresh endpoint, when payment methods are added directly in the gateway, bypassing addPaymentMethod)
+* resetPaymentMethods, called at the end of a refresh call, should associate to that account the payment methods specified (this is useful if Kill Bill knows payment methods that are not yet in the gateway)
+* searchPaymentMethods should return payment methods matching the specified searchKey (the implementation is up to the plugin)
+* buildFormDescriptor should return enough metadata for the front-end to build a form or a redirect to a hosted payment page
+* processNotification should process payloads from the gateway to transition payments states
+
+If an operation is not supported, the plugin must:
+
+* return an empty list when the return type is a list
+* return a transaction with status CANCELED if the return type is a PaymentTransactionInfoPlugin (see below)
+* return empty objects otherwise
+
+=== PaymentPluginStatus states overview
+
+When building PaymentTransactionInfoPlugin objects, it is very important to correctly populate the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/plugin/api/PaymentTransactionInfoPlugin.java[status] type:
+
+* if the payment is successful, the plugin should return PROCESSED
+* if the payment is rejected by the gateway (insufficient funds, fails AVS check, fraud detected, etc.), the plugin should return ERROR
+* if the payment requires a completion step (3D-S verification, HPP, etc.), the plugin should return PENDING
+* if the gateway wasn't contacted (DNS error, SSL handshake error, socket connect timeout, etc.), the plugin should return CANCELED
+* for all other cases (socket read timeout, 500 returned, etc.), the plugin should return UNDEFINED
+
+You should try to avoid UNDEFINED as much as possible, because it is the only case where Kill Bill cannot retry payments (since the payment may or may not have happened). Kill Bill will also attempt to fix these states by polling the plugin via getPaymentInfo: if the plugin subsequently returns PROCESSED for example (maybe by querying the gateway directly), the internal payment state (as well as invoices balance, etc.) will be reflected.
+
+== Payment plugins frameworks
+
+To help with writing payment plugins, we developed https://github.com/killbill/killbill-plugin-framework-java[Java] and https://github.com/killbill/killbill-plugin-framework-ruby[Ruby] frameworks which ensure that the plugin will respect the previous mentioned conditions. If you are developing your own plugin, we strongly encourage you to use these libraries. The easiest is to copy an existing plugin and modify it for your gateway. The https://github.com/killbill/killbill-adyen-plugin[Adyen] plugin (Java) and https://github.com/killbill/killbill-cybersource-plugin[CyberSource] (Ruby) plugins are good starting points.
+
+=== ActiveMerchant plugin generation
+
+https://github.com/activemerchant/active_merchant[ActiveMerchant] is a Ruby gem supporting dozens of gateways. For convenience, we provide a tool to generate a plugin based on an ActiveMerchant connector (if your gateway is not supported by ActiveMerchant yet, it is almost always easier and faster to first write the ActiveMerchant connector and generate the plugin code, rather than implementing your plugin from scratch).
+
+First, clone the https://github.com/killbill/killbill-plugin-framework-ruby[killbill-plugin-framework-ruby] repository and run:
+
+[source,ruby]
+----
+./script/generate active_merchant gateway_name /path/to/dir
+----
+
+Replace gateway_name with the snake case of your ActiveMerchant gateway (e.g. yandex, stripe, paypal_express, etc.).
+
+This will generate a tree of files ready to be plugged into Kill Bill. Most of the work will the consist of filling in the blanks in api.rb (payment plugin API for ActiveMerchant gateways) and application.rb (sinatra application for ActiveMerchant integrations, i.e. Offsite Payments). For example, make sure the right constructor parameters are passed in the initialize method. Check the https://github.com/killbill/killbill-stripe-plugin/blob/master/lib/stripe/api.rb[Stripe plugin] for an example.
+
+The generator comes with a series a basic unit and integration tests (the latter requires gateway credentials in your local YAML configuration file). To run them:
+
+[source,ruby]
+----
+rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
+bundle install
+# Run gem install jbundler if needed
+jbundle install
+bundle exec rake
+bundle exec rake test:remote:spec
+----
+
+Not all tests will work with your gateway (maybe some features are not supported): feel free to remove them. But make sure some basic calls are working noneless (e.g. purchase), as it will make debugging in Kill Bill much harder otherwise.
+
+Finally, when you are ready, package and deploy the plugin to Kill Bill:
+
+[source,ruby]
+----
+# Cleanup output directories
+rake killbill:clean
+# Build your plugin gem in the pkg/ directory
+rake build
+# Build the Killbill plugin in the pkg/ directory
+rake killbill:package
+# Deploy the plugin (and clobber a previous version if needed) in /var/tmp/bundles
+rake killbill:deploy[true]
+----
+
+You can then restart Kill Bill and start triggering payments using the Kill Bill 1.0 JAX-RS APIs.
