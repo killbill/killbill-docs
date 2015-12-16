@@ -3,9 +3,7 @@
 [[intro]]
 == Introduction
 
-Both our http://killbill.io/userguide/subscriptions-userguide/[Subscription Billing] and http://killbill.io/userguide/payments-userguide/[Payments platform] user guides have 5 minutes tutorials to get you started interacting with Kill Bill.
-
-This tutorial is different however: it will help you put all of the pieces together and work through a real-world scenario, so you understand how to integrate Kill Bill with your application.
+This tutorial will help you put all of the pieces of the Subscription Billing and Payment features together, and work through a real-world scenario, so you understand how to integrate Kill Bill with your application.
 
 [[scenario]]
 === Scenario
@@ -19,9 +17,9 @@ Note that we won't go into the details of building the actual website, we will a
 
 We will assume:
 
-* You have Ruby 2.1+ or JRuby 1.7.11+ installed. This requirement is only to simplify the installation using https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM]. Alternatively, you can install Kill Bill manually by following the http://killbill.io/userguide/platform-userguide/[userguide]
-* You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our http://killbill.io/userguide/[client libraries]
+* You already went through the Getting started tutorial
 * You have MySQL installed and have created a killbill database
+* You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our http://killbill.io/userguide/[client libraries]
 
 [[setup]]
 == Setup
@@ -29,9 +27,7 @@ We will assume:
 [[gateways-setup]]
 === Payment gateways setup
 
-To accept credit cards, we will integrate with https://stripe.com[Stripe]: they offer free sandbox accounts and provide a nice dashboard to follow what's going on. Choosing your payment processor is critical however, you need to make sure it offers the features you need (international payments, etc.) while minimizing your costs. Luckily, there are thousands of vendors available and Kill Bill can integrate with pretty much any of them, so make sure to do your research.
-
-Another word of caution is regarding PayPal: the setup is a bit complicated and their UI glitchy unfortunately. You can follow along this tutorial even if you don't have yet your credentials (you just won't be able to test payments end-to-end).
+To accept credit cards, we will integrate with https://stripe.com[Stripe]: they offer free sandbox accounts and provide a nice dashboard to follow what's going on. Choosing your payment processor is critical however, you need to make sure it offers the features you need (international payments, etc.) while minimizing your costs (see this http://killbill.io/blog/choosing-payment-gateway/[blog post] for more details on the topic). Luckily, there are thousands of vendors available and Kill Bill can integrate with pretty much any of them, so make sure to do your research.
 
 ==== Stripe
 
@@ -52,92 +48,42 @@ You then need to contact support so they can enable recurring payments on your s
 
 This process can take up to 48 hours. In the meantime, while you will be able to test one-time purchases, you won't be able to test recurring transactions in PayPal.
 
-[[initial-setup]]
-=== Initial setup
+[[mysql]]
+=== MySQL
 
-==== MySQL
-
-As stated in the requirements, we're assuming you already have MySQL installed with a killbill database. You need to populate the database with the tables for Kill Bill, and its plugins.
+As stated in the requirements, we're assuming you already have MySQL installed with a killbill database. You need to populate the database with the tables for the two plugins (Stripe and PayPal).
 
 Assuming the server is located at 127.0.0.1 and the username/password to connect to it are killbill/killbill, run:
 
 [source,java]
 ----
-curl http://killbill.io/wp-content/uploads/2014/11/killbill-0.12.0.ddl | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill
 curl https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill
 curl https://raw.githubusercontent.com/killbill/killbill-paypal-express-plugin/master/db/ddl.sql | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill
 ----
 
-==== Tomcat
+[[plugins-installation]]
+=== Plugins installation
 
-We will use the Tomcat container to run Kill Bill as a Web application. If you are not familiar with Java containers, don't worry, the process is pretty straightforward:
-
-* Download the Tomcat container https://s3.amazonaws.com/kb-binaries/apache-tomcat-7.0.42.tar.gz[here]
-* Un-tar the archive. We will assume it is at /var/tmp/tomcat in the rest of this tutorial
-* Remove all files and directories under webapps/
-* Create a configuration file for Kill Bill: mkdir -p conf/Catalina/localhost && echo '<Context></Context>' > conf/Catalina/localhost/ROOT.xml
-
-The final step is to point it to your MySQL installation. Add this to conf/catalina.properties, updating the parameters as necessary (note that Kill Bill has two JDBC pools, one for the core and one of OSGI plugins):
-
-[source,java]
-----
-org.killbill.billing.osgi.dao.url: jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.billing.osgi.dao.user: killbill
-org.killbill.billing.osgi.dao.password: killbill
-org.killbill.dao.url: jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.dao.user: killbill
-org.killbill.dao.password: killbill
-----
-
-[[killbill-installation]]
-=== Kill Bill installation
-
-We will use https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] (the Kill Bill Package Manager) to simplify the installation of Kill Bill and its plugins.
-
-Create a kpm.yml file with the following content:
-
-[source,ruby]
-----
-killbill:
-  version: 0.12.1
-  webapp_path: /var/tmp/tomcat/webapps/ROOT.war
-  plugins_dir: /var/tmp/bundles
-  plugins:
-    ruby:
-      - name: paypal-express-plugin
-        version: 1.8.1
-      - name: stripe-plugin
-        version: 1.0.0
-----
-
-This instructs kpm to install Kill Bill version 0.12.1 in the Tomcat webapps directory, as well as two payment plugins, one for Stripe and one for PayPal. To start the installation, run:
-
-[source,bash]
-----
-kpm install kpm.yml
-----
-
-Once KPM is done, you should see the war at /var/tmp/tomcat/webapps/ROOT.war as well as various files and directories under /var/tmp/bundles.
+Go to the Kaui http://127.0.0.1:8080/kaui/kpm/plugins[plugins page] and click the install button next to Stripe and PayPal. The process takes a few minutes to download and setup the binaries on the filesystem.
 
 Plugins are installed under /var/tmp/bundles/plugins. You should see one sub-directory per plugin. If you work with Ruby, the directory structure should be familiar, as it is simply a gem cache. If you don't, don't worry. Just know that each plugin is independent and has all of its dependencies, hence the large number of files and directories.
 
-The /var/tmp/bundles/platform/ directory is used for non Kill Bill specific OSGI plugins. For convenience, it installed a recommended set of useful plugins to interact with OSGI, enhance logging, etc. If you don't know what OSGI is, don't worry about it, these plugins will just make your life easier down the line. There is one important file in that directory however: /var/tmp/bundles/platform/jruby.jar. This file makes it possible for Kill Bill to run Ruby plugins. While you could delete all other files in that directory, without jruby.jar, none of the payment plugins installed will start!
-
 ==== Stripe setup
 
-Configure the Stripe plugin by create the configuration file at /var/tmp/bundles/plugins/ruby/killbill-stripe/1.0.0/stripe.yml (replace your credentials accordingly):
+Create the Stripe configuration file (replace your credentials accordingly):
 
 [source,ruby]
 ----
 :stripe:
   :api_secret_key: 'sk_test_aaaabbbbccccdddd'
   :test: true
-
 ----
+
+Then upload it to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-stripe).
 
 ==== PayPal setup
 
-Configure the Stripe plugin by create the configuration file at /var/tmp/bundles/plugins/ruby/killbill-paypal-express/1.8.1/paypal_express.yml (replace your credentials accordingly):
+Configure the Stripe configuration file (replace your credentials accordingly):
 
 [source,ruby]
 ----
@@ -146,41 +92,9 @@ Configure the Stripe plugin by create the configuration file at /var/tmp/bundles
   :login: 'your-username-facilitator.something.com'
   :password: 'your-password'
   :test: true
-
-:database:
-  :adapter: 'jdbcmysql'
-  :jndi: 'killbill/osgi/jdbc'
-  :connection_alive_sql: 'select 1'
-  :pool: 25
 ----
 
-==== Testing
-
-That's it! Kill Bill should be ready to use. Let's try to start Kill Bill:
-
-[source,bash]
-----
-./bin/catalina.sh run
-----
-
-One the startup sequence is done, you should see Kill Bill running at http://127.0.0.1:8080/index.html[http://127.0.0.1:8080/index.html].
-
-Test your installation by creating a tenant:
-
-[source,bash]
-----
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H 'Content-Type: application/json' \
-     -H 'X-Killbill-CreatedBy: admin' \
-     -d '{"apiKey": "bob", "apiSecret": "lazar"}' \
-     "http://127.0.0.1:8080/1.0/kb/tenants"
-----
-
-Tenants lets you namespace accounts and all associated data (subscriptions, invoices, payments, etc.) in Kill Bill. This is especially useful for testing: create a new tenant, try a few things out and when you are done, delete the data associated with this tenant (the rest of the data will be preserved).
-
-At this point, we're ready to integrate Kill Bill with your application.
+Similarly, upload it to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-paypal-express).
 
 [[integration]]
 == Shopping cart integration
@@ -189,29 +103,14 @@ In your website, we assume you have a shopping cart module: users can add items 
 
 === Creating accounts
 
-For simplicity, we will assume that users going to your site have to create an account in your system (you could work around this limitation using sessions). When they create their account, you will need to create a mirrored account in Kill Bill. This will let you do things like retrieve all payments for a given user, etc.
+We will assume that users going to your site have to create an account in your system. When they do, you will need to create a mirrored account in Kill Bill. This will let you do things like retrieve all payments for a given user, etc.
 
-To create an account:
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -X POST \
-     --data-binary '{"name":"John Doe","email":"john@example.com","externalKey":"john-doe-1234","currency":"USD"}' \
-     "http://127.0.0.1:8080/1.0/kb/accounts"
-----
+While your website will issue an API call to do it, let's simply use http://127.0.0.1:3000/accounts/new[Kaui] in this tutorial to create the account manually.
 
 Notes:
 
 * The externalKey should map to the unique id of the account in your system
-* There are many more fields you can store (phone number, address, etc.), but the above is the minimal set
-
-The call above will return a Location header containing the Kill Bill account id (uuid). In the following curl commands, you'll need to replace the account id with yours.
+* There are many more fields you can store (phone number, address, etc.) -- all of them are optional
 
 === Storing payment methods
 
@@ -247,10 +146,10 @@ curl -v \
          ]
        }
      }' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?isDefault=true"
 ----
 
-This will create a new payment method and set is as the default for the account.
+This will create a new payment method and set is as the default for the account. If you load the account page in Kaui, you should now see the payment method.
 
 ==== PayPal
 
@@ -266,7 +165,7 @@ curl -v \
      -H 'X-Killbill-ApiSecret:lazar' \
      -H 'X-Killbill-CreatedBy: creator' \
      --data-binary '{
-       "kb_account_id": "13d26090-b8d7-11e2-9e96-0800200c9a66",
+       "kb_account_id": "<ACCOUNT_ID>",
        "currency": "USD",
        "options": {
          "return_url": "http://www.google.com/?q=SUCCESS",
@@ -281,10 +180,9 @@ curl -v \
 
 Kill Bill will return a 302 Found on success. The customer should be redirected to the url specified in the Location header, e.g. https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=EC-20G53990M6953444J.
 
-
 Follow the link to log to the paypal site: On the PayPal site, the user will be guided through the approval process to create a token for your website.
 
-Once that step is completed, the customer comes back from the PayPal flow, you can now create the payment method in Kill Bill by specifyfing the token that was returned in the setup-checkout step (EC-20G53990M6953444J). Note that this token is now associated to the customer that was redirected to Paypal and that accepted the agreement.
+Once that step is completed, the customer comes back from the PayPal flow, you can now create the payment method in Kill Bill by specifyfing the token that was returned in the setup-checkout step (e.g. EC-20G53990M6953444J). Note that this token is now associated to the customer who was redirected to Paypal and accepted the agreement.
 
 
 [source,bash]
@@ -307,9 +205,10 @@ curl -v \
          ]
        }
      }' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?isDefault=true"
 ----
 
+If you load the account page in Kaui, you should now see the two payment methods.
 
 === Processing payments
 
@@ -324,7 +223,7 @@ curl -v \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: demo" \
      --data-binary '{"transactionType":"PURCHASE","amount":"10","currency":"USD"}' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/payments"
 ----
 
 That's it! The call will synchronously go to Stripe or PayPal, depending on the default payment method on the account, and perform the payment.
@@ -338,11 +237,10 @@ curl -v \
      -H "X-Killbill-ApiKey: bob" \
      -H "X-Killbill-ApiSecret: lazar" \
      -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?pluginInfo=true"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?pluginInfo=true"
 ----
 
 This is useful if you want to let the user override the payment method to use during checkout. In that case, you can pass the query parameter paymentMethodId to the purchase call above.
-
 
 == Subscriptions integration
 
