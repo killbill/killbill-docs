@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill Administrative UI</title>
+<title>Kill Bill configuration guide</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,180 +476,129 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill Administrative UI</h1>
+<h1>Kill Bill configuration guide</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_overview">Overview</a></li>
-<li><a href="#_features">Features</a></li>
-<li><a href="#_extensions">Extensions</a></li>
-<li><a href="#_screenshots">Screenshots</a></li>
-<li><a href="#_pagination_of_all_accounts_per_tenant">Pagination of all Accounts (Per Tenant)</a></li>
-<li><a href="#_account">Account</a></li>
-<li><a href="#_billing_timeline">Billing Timeline</a></li>
-<li><a href="#_analytics">Analytics</a></li>
-<li><a href="#_kpm">KPM</a></li>
+<li><a href="#configuration">Configuration</a>
+<ul class="sectlevel2">
+<li><a href="#_system_properties">System properties</a>
+<ul class="sectlevel3">
+<li><a href="#configuration-overview">Overview</a></li>
+<li><a href="#_system_properties_2">System Properties</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="_overview">Overview</h2>
+<h2 id="configuration">Configuration</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="_system_properties">System properties</h3>
+<div class="sect3">
+<h4 id="configuration-overview">Overview</h4>
 <div class="paragraph">
-<p>Kill Bill itself doesn&#8217;t provide a UI to manage your accounts and subscriptions. All interactions with the core platform is expected to be done via the REST API and/or the Java APIs (if you decide to embed Kill Bill).</p>
-</div>
-<div class="paragraph">
-<p>We do provide however <a href="http://github.com/killbill/killbill-admin-ui-standalone">Kaui</a> (the Kill Bill Administrative UI): it is a self contained web application, interacting with Kill Bill over HTTP. Its primary purpose is for your support team to handle refunds, credits, cancellations, and adjustments. Additionally, it is also often used by the finance teams to record chargebacks.</p>
-</div>
-<div class="paragraph">
-<p>Under the covers, Kaui is a series of Rails mountable engines. You can extend its functionality by mounting your own engine(s) (such as to provide a custom UI for your plugin(s)).</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_features">Features</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kaui has been designed to be fully multi-tenant, which means you can deploy one UI to access all of your tenants. This <a href="http://killbill.io/blog/multi-tenancy-authorization/">blog post</a> explains in a bit more details on how that works.</p>
+<p>Kill Bill configuration is done principally via Java System Properties. These can be set on the command line (e.g. <code>java -Dkey1=value1 -Dkey2=value2 -jar killbill-server-jetty-console.war</code>) or in Java Properties files (via <code>-Dorg.killbill.server.properties=file:///path/to/killbill.properties</code> or <code>start.ini</code> if you are using Jetty). Some containers use custom formats (for example, System Properties in GlassFish would be placed in <code>domains/domain1/config/domain.xml</code>), so please refer to your container documentation for more information.</p>
 </div>
 <div class="paragraph">
-<p>Along with the multi-tenancy support, Kaui also leverages the authentication and authorization layer built into Kill Bill to restrict users from accessing some screens and actions depending on their permissions (such as refunding a payment, crediting an account, &#8230;&#8203;).</p>
+<p>The system properties are global to the system, and therefore will apply to all tenants. Those properties will also be accessible to the various plugins through a <a href="https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/killbill/osgi/libs/killbill/OSGIConfigPropertiesService.java">special interface</a>.
+Some parts of the system also rely on additional xml configuration. Currently, only the caching layer which is based on <a href="http://ehcache.org/">EhCache</a> requires such <a href="https://github.com/killbill/killbill/blob/master/util/src/main/resources/ehcache.xml">xml configuration</a>. The location of the xml itself is specified via a system property <code>org.killbill.cache.config.location</code>.</p>
 </div>
 <div class="paragraph">
-<p>Additionally, Kaui is integrated with most of Kill Bill APIs and can:</p>
+<p>In addition to these global settings, the following is also available on a per tenant basis:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>List all the accounts, bundles, invoices, payments, and allow to search based on various fields (account name, external key, email, &#8230;&#8203;)</p>
+<p>Catalog configuration</p>
 </li>
 <li>
-<p>Account management</p>
-<div class="ulist">
-<ul>
-<li>
-<p>Show contact info</p>
+<p>Overdue configuration</p>
 </li>
 <li>
-<p>Show account balance, available credits, overdue status</p>
-</li>
-<li>
-<p>Manage existing payment methods</p>
-</li>
-<li>
-<p>List existing subscriptions and allow to create new ones, change plans, cancel subscriptions</p>
-</li>
-<li>
-<p>Tag management</p>
-</li>
-</ul>
-</div>
-</li>
-<li>
-<p>Account Timeline: visualize all the events through time associated with the account and allow specific filtering (subscription, event type, &#8230;&#8203;)</p>
+<p>Invoice templates, and language translation resources</p>
 </li>
 </ul>
 </div>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_extensions">Extensions</h2>
-<div class="sectionbody">
+<div class="sect3">
+<h4 id="_system_properties_2">System Properties</h4>
 <div class="paragraph">
-<p>We provide extensions for some of the official plugins:</p>
+<p>Kill Bill relies on <a href="https://github.com/brianm/config-magic"><code>config-magic</code></a> to define, initialize, and make accessible through function calls all its system properties.</p>
+</div>
+<div class="paragraph">
+<p>Some core services in Kill Bill export some properties, whose name is fairly explanatory:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://github.com/killbill/killbill-analytics-ui">Analytics engine</a>, which displays analytics graphs when the <a href="https://github.com/killbill/killbill-analytics-plugin">analytics plugin</a> has been deployed.</p>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/CatalogConfig.java">Catalog configuration</a> (Only to specify the location of the default catalog if not per-tenant catalog have been uploaded)</p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-avatax-ui">AvaTax engine</a>, which lets you configure AvaTax when the <a href="https://github.com/killbill/killbill-avatax-plugin">AvaTax plugin</a> has been deployed.</p>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/InvoiceConfig.java">Invoice configuration</a></p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-kpm-ui">KPM engine</a>, which lets you configure KPM when the <a href="https://github.com/killbill/killbill-kpm-plugin">KPM plugin</a> has been deployed.</p>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/PaymentConfig.java">Payment configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/RbacConfig.java">Rbac configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/SecurityConfig.java">Shiro configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/CacheConfig.java">Cache configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/email/EmailConfig.java">SMTP and email configuration for notifications</a></p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>When you deploy the <a href="https://github.com/killbill/killbill-admin-ui-standalone">self contained war</a>, these mountable engines are mounted by default.</p>
+<p>The properties to configure the database are split between the core Kill Bill services and the plugins to allow plugins to use a different database or configuration (pooling, &#8230;&#8203;):</p>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_screenshots">Screenshots</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>In this section we want to show a few screenshots to give a sense of what Kaui provides (and looks like). The data that we show is synthetic data that we generated using tests.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_pagination_of_all_accounts_per_tenant">Pagination of all Accounts (Per Tenant)</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>After the user has logged in and after choosing the tenant, the user can search for a specific account (if no search query is entered, a list of all accounts is displayed):</p>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/jdbi/src/main/java/org/killbill/commons/jdbi/guice/DaoConfig.java">Kill Bill Database configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/glue/OSGIDataSourceConfig.java">Plugin   Database configuration</a></p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account_search.png" alt="account_search"></span></p>
+<p>The properties to configure the persistent buses and notification queue are shown below. Those properties are built to be used across multiple instances (we have two persistent buses) which explains the substitution parameter <code>instanceName</code>. For more
+detail on the configuration of the bus and notification queue, check <a href="https://github.com/killbill/killbill/wiki/Kill-Bill-Bus-and-Notification-Queue-Configuration">here</a>.</p>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_account">Account</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>This shows the known information about a given user account:</p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account1.png" alt="account1"></span></p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account2.png" alt="account2"></span></p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_billing_timeline">Billing Timeline</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The billing timeline shows all the events that occurred for a specific user account:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/bus/api/PersistentBusConfig.java">Persistent bus configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueConfig.java">Notification queue configuration</a></p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/timeline.png" alt="timeline"></span></p>
+<p>Finally some high level properties to configure OSGI (where to find the plugins, &#8230;&#8203;), and some Kill Bill web app configuration (multi-tenancy on/off, &#8230;&#8203;):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java">OSGI related configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/KillbillServerConfig.java">Kill Bill Web app configuration</a></p>
+</li>
+</ul>
 </div>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_analytics">Analytics</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The Analytics screen will only be available when the analytics plugin has been deployed.</p>
-</div>
-<div class="paragraph">
-<p>It lets you display custom metrics with filtering capabilities. We provide a few by default, but the analytics framework
-lets you add any desired metric.</p>
-</div>
-<div class="paragraph">
-<p>Here we show the MRR by plan over time:</p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/mrr.png" alt="mrr"></span></p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_kpm">KPM</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The KPM screen will only be available when the KPM plugin has been deployed.</p>
-</div>
-<div class="paragraph">
-<p>It lets you install and uninstall plugins, as well as start/stop/restart them at runtime:</p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/kpm_install.png" alt="kpm_install"></span></p>
 </div>
 </div>
 </div>

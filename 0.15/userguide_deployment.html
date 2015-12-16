@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill Administrative UI</title>
+<title>Kill Bill installation guide</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,180 +476,261 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill Administrative UI</h1>
+<h1>Kill Bill installation guide</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
+<li><a href="#deployment">Deployment</a>
+<ul class="sectlevel2">
 <li><a href="#_overview">Overview</a></li>
-<li><a href="#_features">Features</a></li>
-<li><a href="#_extensions">Extensions</a></li>
-<li><a href="#_screenshots">Screenshots</a></li>
-<li><a href="#_pagination_of_all_accounts_per_tenant">Pagination of all Accounts (Per Tenant)</a></li>
-<li><a href="#_account">Account</a></li>
-<li><a href="#_billing_timeline">Billing Timeline</a></li>
-<li><a href="#_analytics">Analytics</a></li>
-<li><a href="#_kpm">KPM</a></li>
+<li><a href="#deployment-jetty">Installation in Jetty</a>
+<ul class="sectlevel3">
+<li><a href="#_download_the_jetty_container">Download the Jetty container</a></li>
+<li><a href="#_deploy_kill_bill_in_jetty">Deploy Kill Bill in Jetty</a></li>
+<li><a href="#_enable_ssl">Enable SSL</a></li>
+</ul>
+</li>
+<li><a href="#deployment-tomcat">Installation in Tomcat</a>
+<ul class="sectlevel3">
+<li><a href="#_download_the_tomcat_container">Download the Tomcat container</a></li>
+<li><a href="#_deploy_kill_bill_in_tomcat">Deploy Kill Bill in Tomcat</a></li>
+</ul>
+</li>
+<li><a href="#deployment-glassfish">Installation in Glassfish</a>
+<ul class="sectlevel3">
+<li><a href="#_download_the_glassfish_container">Download the GlassFish container</a></li>
+<li><a href="#_deploy_kill_bill_in_glassfish">Deploy Kill Bill in GlassFish</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="_overview">Overview</h2>
+<h2 id="deployment">Deployment</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="_overview">Overview</h3>
 <div class="paragraph">
-<p>Kill Bill itself doesn&#8217;t provide a UI to manage your accounts and subscriptions. All interactions with the core platform is expected to be done via the REST API and/or the Java APIs (if you decide to embed Kill Bill).</p>
-</div>
-<div class="paragraph">
-<p>We do provide however <a href="http://github.com/killbill/killbill-admin-ui-standalone">Kaui</a> (the Kill Bill Administrative UI): it is a self contained web application, interacting with Kill Bill over HTTP. Its primary purpose is for your support team to handle refunds, credits, cancellations, and adjustments. Additionally, it is also often used by the finance teams to record chargebacks.</p>
-</div>
-<div class="paragraph">
-<p>Under the covers, Kaui is a series of Rails mountable engines. You can extend its functionality by mounting your own engine(s) (such as to provide a custom UI for your plugin(s)).</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_features">Features</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kaui has been designed to be fully multi-tenant, which means you can deploy one UI to access all of your tenants. This <a href="http://killbill.io/blog/multi-tenancy-authorization/">blog post</a> explains in a bit more details on how that works.</p>
-</div>
-<div class="paragraph">
-<p>Along with the multi-tenancy support, Kaui also leverages the authentication and authorization layer built into Kill Bill to restrict users from accessing some screens and actions depending on their permissions (such as refunding a payment, crediting an account, &#8230;&#8203;).</p>
-</div>
-<div class="paragraph">
-<p>Additionally, Kaui is integrated with most of Kill Bill APIs and can:</p>
+<p>Kill Bill (whether used as a Billing System or Payment System) is fundamentally a backend system and so the following consideration should apply:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>List all the accounts, bundles, invoices, payments, and allow to search based on various fields (account name, external key, email, &#8230;&#8203;)</p>
+<p>Don&#8217;t make the system visible to the outside world, you should have a front end system, or a reverse proxy in front of it; if you need to handle some IPN (Internal Payment Notification), we also developed an <a href="https://github.com/killbill/killbill-notifications-proxy">app</a> for that specific purpose.</p>
 </li>
 <li>
-<p>Account management</p>
-<div class="ulist">
-<ul>
-<li>
-<p>Show contact info</p>
+<p>Always deploy at least 2 instances (for reliability purpose) in front of a load balancer.</p>
 </li>
 <li>
-<p>Show account balance, available credits, overdue status</p>
+<p>Setup your database with a master and a slave instances (or more exotic setup if required), and configure it to take regular snapshot</p>
 </li>
 <li>
-<p>Manage existing payment methods</p>
+<p>Aggregate your logs (for example using <a href="http://logstash.net/">LogStash</a>, <a href="https://www.graylog.org/">GrayLog2</a>, &#8230;&#8203;) and take a look at our <a href="https://github.com/killbill/killbill/wiki/Logback-recipes">logback recipes</a></p>
 </li>
 <li>
-<p>List existing subscriptions and allow to create new ones, change plans, cancel subscriptions</p>
+<p>Look at the all the existing Kill Bill JMX metrics (using VisualVM, jconsole, &#8230;&#8203;) and set some alerts (for instance by using the following <a href="https://github.com/killbill/nagios-jmx-plugin">script</a>)</p>
 </li>
 <li>
-<p>Tag management</p>
+<p>Configure your system properly, especially when it comes to the <a href="https://github.com/killbill/killbill/wiki/Kill-Bill-Bus-and-Notification-Queue-Configuration">settings of the bus and notification queue</a>.</p>
 </li>
 </ul>
 </div>
-</li>
-<li>
-<p>Account Timeline: visualize all the events through time associated with the account and allow specific filtering (subscription, event type, &#8230;&#8203;)</p>
-</li>
-</ul>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_extensions">Extensions</h2>
-<div class="sectionbody">
 <div class="paragraph">
-<p>We provide extensions for some of the official plugins:</p>
+<p>When deploying Kill Bill, the following pieces will need to be deployed in addition to your OS, VM, or container (Docker,&#8230;&#8203;):</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://github.com/killbill/killbill-analytics-ui">Analytics engine</a>, which displays analytics graphs when the <a href="https://github.com/killbill/killbill-analytics-plugin">analytics plugin</a> has been deployed.</p>
+<p>A web container (jetty, tomcat, &#8230;&#8203;)</p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-avatax-ui">AvaTax engine</a>, which lets you configure AvaTax when the <a href="https://github.com/killbill/killbill-avatax-plugin">AvaTax plugin</a> has been deployed.</p>
+<p>The killbill war</p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-kpm-ui">KPM engine</a>, which lets you configure KPM when the <a href="https://github.com/killbill/killbill-kpm-plugin">KPM plugin</a> has been deployed.</p>
+<p>The plugins</p>
+</li>
+<li>
+<p>The configuration files and system properties</p>
+</li>
+<li>
+<p>The database along with the various schemas: The Kill Bill schema is available from our <a href="http://killbill.io/downloads">download page</a> and each stateful plugin will/should expose such a schema (for example, here is the <a href="https://github.com/killbill/killbill-adyen-plugin/blob/master/src/main/resources/ddl.sql">schema</a> for the Adyen plugin)</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>When you deploy the <a href="https://github.com/killbill/killbill-admin-ui-standalone">self contained war</a>, these mountable engines are mounted by default.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_screenshots">Screenshots</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>In this section we want to show a few screenshots to give a sense of what Kaui provides (and looks like). The data that we show is synthetic data that we generated using tests.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_pagination_of_all_accounts_per_tenant">Pagination of all Accounts (Per Tenant)</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>After the user has logged in and after choosing the tenant, the user can search for a specific account (if no search query is entered, a list of all accounts is displayed):</p>
+<p>In order to ease the deployment we first created <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a>, the Kill Bill Package Manager.
+KPM will allow to fetch existing (signed) artifacts for the main killbill war and also for each of the plugins, and deploy them at the right place.
+KPM will <strong>not</strong> take care of deploying the web container and the various configuration files or properties.</p>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account_search.png" alt="account_search"></span></p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_account">Account</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>This shows the known information about a given user account:</p>
+<p>So, in addition to KPM, we also provide <a href="https://registry.hub.docker.com/u/killbill/killbill">Docker images</a>. Those images internally rely on KPM for fetching the
+various artifacts and install them at the right location on the image. The docker <code>run</code> command allows to override existing Kill Bill system properties and mount
+volumes where configuration files can be accessed.</p>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account1.png" alt="account1"></span></p>
+<p>Note that one can decide to only use KPM for fetching and installing artifacts, and bypass docker to deploy on VMs or bare metal.
+Or alternatively one can use other tools, manual steps to fetch those artifacts from <a href="http://search.maven.org/">Maven Central</a>, or by using our convenient <a href="http://killbill.io/downloads">download page</a>.</p>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account2.png" alt="account2"></span></p>
+<p>The following sections below will give manual instructions on how to deploy on various containers.</p>
 </div>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_billing_timeline">Billing Timeline</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="deployment-jetty">Installation in Jetty</h3>
+<div class="sect3">
+<h4 id="_download_the_jetty_container">Download the Jetty container</h4>
 <div class="paragraph">
-<p>The billing timeline shows all the events that occurred for a specific user account:</p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/timeline.png" alt="timeline"></span></p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_analytics">Analytics</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The Analytics screen will only be available when the analytics plugin has been deployed.</p>
+<p>If you don&#8217;t have it yet, you can download the Jetty container <a href="http://download.eclipse.org/jetty/">here</a>. If you&#8217;re unsure which version to use, we recommend <strong>8.1.7.v20120910</strong>. Make sure you can unpack and start Jetty as described <a href="http://wiki.eclipse.org/Jetty/Howto/Install_Jetty">here</a>.</p>
 </div>
 <div class="paragraph">
-<p>It lets you display custom metrics with filtering capabilities. We provide a few by default, but the analytics framework
-lets you add any desired metric.</p>
+<p>Jetty ships with examples you can safely remove:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>contexts/javadoc.xml</p>
+</li>
+<li>
+<p>contexts/test.d/override-web.xml</p>
+</li>
+<li>
+<p>contexts/test.xml</p>
+</li>
+<li>
+<p>webapps/spdy.war</p>
+</li>
+<li>
+<p>webapps/test.war</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_deploy_kill_bill_in_jetty">Deploy Kill Bill in Jetty</h4>
+<div class="paragraph">
+<p>Place the downloaded Kill Bill war under <strong>webapps/root.war</strong> in the Jetty folder.</p>
 </div>
 <div class="paragraph">
-<p>Here we show the MRR by plan over time:</p>
+<p>Update the <strong>start.ini</strong> file with Kill Bill specific configuration. Here is a working example (make sure to adapt the jdbc properties):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="java"><span class="tok-err">#</span> <span class="tok-n">Kill</span> <span class="tok-n">Bill</span> <span class="tok-n">properties</span>
+<span class="tok-o">-</span><span class="tok-n">Dorg</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">url</span><span class="tok-o">=</span><span class="tok-nl">jdbc:mysql:</span><span class="tok-c1">//127.0.0.1:3306/killbill</span>
+<span class="tok-o">-</span><span class="tok-n">Dorg</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">user</span><span class="tok-o">=</span><span class="tok-n">killbill</span>
+<span class="tok-o">-</span><span class="tok-n">Dorg</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">password</span><span class="tok-o">=</span><span class="tok-n">killbill</span>
+
+<span class="tok-err">#</span> <span class="tok-n">Start</span> <span class="tok-n">classpath</span> <span class="tok-n">OPTIONS</span>
+<span class="tok-n">OPTIONS</span><span class="tok-o">=</span><span class="tok-n">Server</span><span class="tok-o">,</span><span class="tok-n">resources</span><span class="tok-o">,</span><span class="tok-n">ext</span><span class="tok-o">,</span><span class="tok-n">plus</span><span class="tok-o">,</span><span class="tok-n">annotations</span>
+
+<span class="tok-err">#</span> <span class="tok-n">Configuration</span> <span class="tok-n">files</span>
+<span class="tok-n">etc</span><span class="tok-o">/</span><span class="tok-n">jetty</span><span class="tok-o">.</span><span class="tok-na">xml</span>
+<span class="tok-n">etc</span><span class="tok-o">/</span><span class="tok-n">jetty</span><span class="tok-o">-</span><span class="tok-n">annotations</span><span class="tok-o">.</span><span class="tok-na">xml</span>
+<span class="tok-n">etc</span><span class="tok-o">/</span><span class="tok-n">jetty</span><span class="tok-o">-</span><span class="tok-n">deploy</span><span class="tok-o">.</span><span class="tok-na">xml</span>
+<span class="tok-n">etc</span><span class="tok-o">/</span><span class="tok-n">jetty</span><span class="tok-o">-</span><span class="tok-n">webapps</span><span class="tok-o">.</span><span class="tok-na">xml</span></code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/mrr.png" alt="mrr"></span></p>
+<p>You should now be all set! Kill Bill can be started via the command</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">java -jar start.jar</code></pre>
 </div>
 </div>
 </div>
-<div class="sect1">
-<h2 id="_kpm">KPM</h2>
-<div class="sectionbody">
+<div class="sect3">
+<h4 id="_enable_ssl">Enable SSL</h4>
 <div class="paragraph">
-<p>The KPM screen will only be available when the KPM plugin has been deployed.</p>
+<p>The following command generates a key pair and certificate directly into a keystore:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">keytool -keystore keystore -alias jetty -genkey -keyalg RSA</code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p>It lets you install and uninstall plugins, as well as start/stop/restart them at runtime:</p>
+<p>Save the keystore file under the <strong>etc/</strong> directory of the Jetty distribution.</p>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/kpm_install.png" alt="kpm_install"></span></p>
+<p>In your <strong>start.ini</strong> file, add the <strong>etc/jetty-ssl.xml</strong> configuration file and edit this file to update the <strong>KeyStorePassword</strong>, <strong>KeyManagerPassword</strong> and <strong>TrustStorePassword</strong> directives with the passwords you specified when you ran the keytool command.</p>
+</div>
+<div class="paragraph">
+<p>Kill Bill should now be available over SSL. For more details, see the Jetty guide <a href="http://wiki.eclipse.org/Jetty/Howto/Configure_SSL">here</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="deployment-tomcat">Installation in Tomcat</h3>
+<div class="sect3">
+<h4 id="_download_the_tomcat_container">Download the Tomcat container</h4>
+<div class="paragraph">
+<p>If you don&#8217;t have it yet, you can download the Tomcat container <a href="https://s3.amazonaws.com/kb-binaries/apache-tomcat-7.0.42.tar.gz">here</a>. You can then untar the archive and at this point you need to tweak the configuration before starting it. The setup suggested below is a quick setup used for demo, it may not be not best way to deploy your Kill Bill war into tomcat especially if you plan to have multiple wars within the same container.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_deploy_kill_bill_in_tomcat">Deploy Kill Bill in Tomcat</h4>
+<div class="paragraph">
+<p>Assuming you installed tomcat in a directory called <strong>CATALINA_HOME</strong>, then there are two things that need to happen:</p>
+</div>
+<div class="paragraph">
+<p>The Kill Bill system properties need to be added at the end of the <strong>CATALINA_HOME/conf/catalina.properties</strong>. The minimal set of system properties that need to added are the one for the jdbc parameters:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="java"><span class="tok-err">#</span> <span class="tok-n">Kill</span> <span class="tok-n">Bill</span> <span class="tok-n">properties</span>
+<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">url</span><span class="tok-o">=</span><span class="tok-nl">jdbc:mysql:</span><span class="tok-c1">//127.0.0.1:3306/killbill</span>
+<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">user</span><span class="tok-o">=</span><span class="tok-n">killbill</span>
+<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">password</span><span class="tok-o">=</span><span class="tok-n">killbil</span>
+<span class="tok-n">ANTLR_USE_DIRECT_CLASS_LOADING</span><span class="tok-o">=</span><span class="tok-kc">true</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A new entry must be added to let tomcat know about the location of the Kill Bill war. That file is called <strong>Root.xml</strong> and it must located under <strong>CATALINA_HOME/conf/Catalina/localhost</strong> (create the directories if they don&#8217;t exist). Its content must be:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;Context</span> <span class="tok-na">docBase=</span><span class="tok-s">&quot;path_to_killbill-server.war&quot;</span><span class="tok-nt">&gt;</span>
+<span class="tok-nt">&lt;/Context&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Once this is setup, you can start the tomcat container using the script <strong>CATALINA_HOME/bin/startup.sh</strong>. The server will be started in the background but logs can be followed at <strong>CATALINA_HOME/logs/catalina.out</strong>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="deployment-glassfish">Installation in Glassfish</h3>
+<div class="sect3">
+<h4 id="_download_the_glassfish_container">Download the GlassFish container</h4>
+<div class="paragraph">
+<p>If you don&#8217;t have it yet, you can download the GlassFish container <a href="http://glassfish.java.net/">here</a>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_deploy_kill_bill_in_glassfish">Deploy Kill Bill in GlassFish</h4>
+<div class="paragraph">
+<p>Configure GlassFish with your Kill Bill specific configuration in <strong>domains/domain1/config/domain.xml</strong> (make sure to adapt the jdbc properties):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;jvm-options&gt;</span>-Dorg.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill<span class="tok-nt">&lt;/jvm-options&gt;</span>
+<span class="tok-nt">&lt;jvm-options&gt;</span>-Dorg.killbill.dao.user=killbill<span class="tok-nt">&lt;/jvm-options&gt;</span>
+<span class="tok-nt">&lt;jvm-options&gt;</span>-Dorg.killbill.dao.password=killbill<span class="tok-nt">&lt;/jvm-options&gt;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the <strong>glassfish</strong> directory of the unzipped GlasshFish distribution, run the following command to deploy Kill Bill:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">./bin/asadmin start-domain <span class="tok-p">;</span> ./bin/asadmin deploy --contextroot <span class="tok-s2">&quot;/&quot;</span> /path/to/killbill.war</code></pre>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>
