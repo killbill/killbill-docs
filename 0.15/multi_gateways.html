@@ -494,17 +494,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_paypal">PayPal</a></li>
 </ul>
 </li>
-<li><a href="#initial-setup">Initial setup</a>
-<ul class="sectlevel3">
-<li><a href="#_mysql">MySQL</a></li>
-<li><a href="#_tomcat">Tomcat</a></li>
-</ul>
-</li>
-<li><a href="#killbill-installation">Kill Bill installation</a>
+<li><a href="#mysql">MySQL</a></li>
+<li><a href="#plugins-installation">Plugins installation</a>
 <ul class="sectlevel3">
 <li><a href="#_stripe_setup">Stripe setup</a></li>
 <li><a href="#_paypal_setup">PayPal setup</a></li>
-<li><a href="#_testing">Testing</a></li>
 </ul>
 </li>
 </ul>
@@ -541,10 +535,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="intro">Introduction</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Both our <a href="http://killbill.io/userguide/subscriptions-userguide/">Subscription Billing</a> and <a href="http://killbill.io/userguide/payments-userguide/">Payments platform</a> user guides have 5 minutes tutorials to get you started interacting with Kill Bill.</p>
-</div>
-<div class="paragraph">
-<p>This tutorial is different however: it will help you put all of the pieces together and work through a real-world scenario, so you understand how to integrate Kill Bill with your application.</p>
+<p>This tutorial will help you put all of the pieces of the Subscription Billing and Payment features together, and work through a real-world scenario, so you understand how to integrate Kill Bill with your application.</p>
 </div>
 <div class="sect2">
 <h3 id="scenario">Scenario</h3>
@@ -563,13 +554,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>You have Ruby 2.1+ or JRuby 1.7.11+ installed. This requirement is only to simplify the installation using <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a>. Alternatively, you can install Kill Bill manually by following the <a href="http://killbill.io/userguide/platform-userguide/">userguide</a></p>
-</li>
-<li>
-<p>You have <a href="http://curl.haxx.se/">cURL</a> installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our <a href="http://killbill.io/userguide/">client libraries</a></p>
+<p>You already went through the Getting started tutorial</p>
 </li>
 <li>
 <p>You have MySQL installed and have created a killbill database</p>
+</li>
+<li>
+<p>You have <a href="http://curl.haxx.se/">cURL</a> installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our <a href="http://killbill.io/userguide/">client libraries</a></p>
 </li>
 </ul>
 </div>
@@ -582,10 +573,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="gateways-setup">Payment gateways setup</h3>
 <div class="paragraph">
-<p>To accept credit cards, we will integrate with <a href="https://stripe.com">Stripe</a>: they offer free sandbox accounts and provide a nice dashboard to follow what&#8217;s going on. Choosing your payment processor is critical however, you need to make sure it offers the features you need (international payments, etc.) while minimizing your costs. Luckily, there are thousands of vendors available and Kill Bill can integrate with pretty much any of them, so make sure to do your research.</p>
-</div>
-<div class="paragraph">
-<p>Another word of caution is regarding PayPal: the setup is a bit complicated and their UI glitchy unfortunately. You can follow along this tutorial even if you don&#8217;t have yet your credentials (you just won&#8217;t be able to test payments end-to-end).</p>
+<p>To accept credit cards, we will integrate with <a href="https://stripe.com">Stripe</a>: they offer free sandbox accounts and provide a nice dashboard to follow what&#8217;s going on. Choosing your payment processor is critical however, you need to make sure it offers the features you need (international payments, etc.) while minimizing your costs (see this <a href="http://killbill.io/blog/choosing-payment-gateway/">blog post</a> for more details on the topic). Luckily, there are thousands of vendors available and Kill Bill can integrate with pretty much any of them, so make sure to do your research.</p>
 </div>
 <div class="sect3">
 <h4 id="_stripe">Stripe</h4>
@@ -637,102 +625,32 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="sect2">
-<h3 id="initial-setup">Initial setup</h3>
-<div class="sect3">
-<h4 id="_mysql">MySQL</h4>
+<h3 id="mysql">MySQL</h3>
 <div class="paragraph">
-<p>As stated in the requirements, we&#8217;re assuming you already have MySQL installed with a killbill database. You need to populate the database with the tables for Kill Bill, and its plugins.</p>
+<p>As stated in the requirements, we&#8217;re assuming you already have MySQL installed with a killbill database. You need to populate the database with the tables for the two plugins (Stripe and PayPal).</p>
 </div>
 <div class="paragraph">
 <p>Assuming the server is located at 127.0.0.1 and the username/password to connect to it are killbill/killbill, run:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="java"><span class="tok-n">curl</span> <span class="tok-nl">http:</span><span class="tok-c1">//killbill.io/wp-content/uploads/2014/11/killbill-0.12.0.ddl | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill</span>
-<span class="tok-n">curl</span> <span class="tok-nl">https:</span><span class="tok-c1">//raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill</span>
+<pre class="pygments highlight"><code data-lang="java"><span class="tok-n">curl</span> <span class="tok-nl">https:</span><span class="tok-c1">//raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill</span>
 <span class="tok-n">curl</span> <span class="tok-nl">https:</span><span class="tok-c1">//raw.githubusercontent.com/killbill/killbill-paypal-express-plugin/master/db/ddl.sql | mysql -h 127.0.0.1 -ukillbill -pkillbill killbill</span></code></pre>
 </div>
 </div>
 </div>
-<div class="sect3">
-<h4 id="_tomcat">Tomcat</h4>
-<div class="paragraph">
-<p>We will use the Tomcat container to run Kill Bill as a Web application. If you are not familiar with Java containers, don&#8217;t worry, the process is pretty straightforward:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Download the Tomcat container <a href="https://s3.amazonaws.com/kb-binaries/apache-tomcat-7.0.42.tar.gz">here</a></p>
-</li>
-<li>
-<p>Un-tar the archive. We will assume it is at /var/tmp/tomcat in the rest of this tutorial</p>
-</li>
-<li>
-<p>Remove all files and directories under webapps/</p>
-</li>
-<li>
-<p>Create a configuration file for Kill Bill: mkdir -p conf/Catalina/localhost &amp;&amp; echo '&lt;Context&gt;&lt;/Context&gt;' &gt; conf/Catalina/localhost/ROOT.xml</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>The final step is to point it to your MySQL installation. Add this to conf/catalina.properties, updating the parameters as necessary (note that Kill Bill has two JDBC pools, one for the core and one of OSGI plugins):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="java"><span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">billing</span><span class="tok-o">.</span><span class="tok-na">osgi</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">url</span><span class="tok-o">:</span> <span class="tok-nl">jdbc:mysql:</span><span class="tok-c1">//127.0.0.1:3306/killbill</span>
-<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">billing</span><span class="tok-o">.</span><span class="tok-na">osgi</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">user</span><span class="tok-o">:</span> <span class="tok-n">killbill</span>
-<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">billing</span><span class="tok-o">.</span><span class="tok-na">osgi</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">password</span><span class="tok-o">:</span> <span class="tok-n">killbill</span>
-<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">url</span><span class="tok-o">:</span> <span class="tok-nl">jdbc:mysql:</span><span class="tok-c1">//127.0.0.1:3306/killbill</span>
-<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">user</span><span class="tok-o">:</span> <span class="tok-n">killbill</span>
-<span class="tok-n">org</span><span class="tok-o">.</span><span class="tok-na">killbill</span><span class="tok-o">.</span><span class="tok-na">dao</span><span class="tok-o">.</span><span class="tok-na">password</span><span class="tok-o">:</span> <span class="tok-n">killbill</span></code></pre>
-</div>
-</div>
-</div>
-</div>
 <div class="sect2">
-<h3 id="killbill-installation">Kill Bill installation</h3>
+<h3 id="plugins-installation">Plugins installation</h3>
 <div class="paragraph">
-<p>We will use <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a> (the Kill Bill Package Manager) to simplify the installation of Kill Bill and its plugins.</p>
-</div>
-<div class="paragraph">
-<p>Create a kpm.yml file with the following content:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">killbill</span><span class="tok-p">:</span>
-  <span class="tok-ss">version</span><span class="tok-p">:</span> <span class="tok-mi">0</span><span class="tok-o">.</span><span class="tok-mi">12</span><span class="tok-o">.</span><span class="tok-mi">1</span>
-  <span class="tok-ss">webapp_path</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">tomcat</span><span class="tok-o">/</span><span class="tok-n">webapps</span><span class="tok-o">/</span><span class="tok-no">ROOT</span><span class="tok-o">.</span><span class="tok-n">war</span>
-  <span class="tok-ss">plugins_dir</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">bundles</span>
-  <span class="tok-ss">plugins</span><span class="tok-p">:</span>
-    <span class="tok-ss">ruby</span><span class="tok-p">:</span>
-      <span class="tok-o">-</span> <span class="tok-nb">name</span><span class="tok-p">:</span> <span class="tok-n">paypal</span><span class="tok-o">-</span><span class="tok-n">express</span><span class="tok-o">-</span><span class="tok-n">plugin</span>
-        <span class="tok-ss">version</span><span class="tok-p">:</span> <span class="tok-mi">1</span><span class="tok-o">.</span><span class="tok-mi">8</span><span class="tok-o">.</span><span class="tok-mi">1</span>
-      <span class="tok-o">-</span> <span class="tok-nb">name</span><span class="tok-p">:</span> <span class="tok-n">stripe</span><span class="tok-o">-</span><span class="tok-n">plugin</span>
-        <span class="tok-ss">version</span><span class="tok-p">:</span> <span class="tok-mi">1</span><span class="tok-o">.</span><span class="tok-mi">0</span><span class="tok-o">.</span><span class="tok-mi">0</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>This instructs kpm to install Kill Bill version 0.12.1 in the Tomcat webapps directory, as well as two payment plugins, one for Stripe and one for PayPal. To start the installation, run:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">kpm install kpm.yml</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Once KPM is done, you should see the war at /var/tmp/tomcat/webapps/ROOT.war as well as various files and directories under /var/tmp/bundles.</p>
+<p>Go to the Kaui <a href="http://127.0.0.1:8080/kaui/kpm/plugins">plugins page</a> and click the install button next to Stripe and PayPal. The process takes a few minutes to download and setup the binaries on the filesystem.</p>
 </div>
 <div class="paragraph">
 <p>Plugins are installed under /var/tmp/bundles/plugins. You should see one sub-directory per plugin. If you work with Ruby, the directory structure should be familiar, as it is simply a gem cache. If you don&#8217;t, don&#8217;t worry. Just know that each plugin is independent and has all of its dependencies, hence the large number of files and directories.</p>
 </div>
-<div class="paragraph">
-<p>The /var/tmp/bundles/platform/ directory is used for non Kill Bill specific OSGI plugins. For convenience, it installed a recommended set of useful plugins to interact with OSGI, enhance logging, etc. If you don&#8217;t know what OSGI is, don&#8217;t worry about it, these plugins will just make your life easier down the line. There is one important file in that directory however: /var/tmp/bundles/platform/jruby.jar. This file makes it possible for Kill Bill to run Ruby plugins. While you could delete all other files in that directory, without jruby.jar, none of the payment plugins installed will start!</p>
-</div>
 <div class="sect3">
 <h4 id="_stripe_setup">Stripe setup</h4>
 <div class="paragraph">
-<p>Configure the Stripe plugin by create the configuration file at /var/tmp/bundles/plugins/ruby/killbill-stripe/1.0.0/stripe.yml (replace your credentials accordingly):</p>
+<p>Create the Stripe configuration file (replace your credentials accordingly):</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -741,11 +659,14 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
   <span class="tok-ss">:test</span><span class="tok-p">:</span> <span class="tok-kp">true</span></code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>Then upload it to Kill Bill by going to your <a href="http://127.0.0.1:8080/kaui/admin_tenants/1">tenant configuration page</a> and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-stripe).</p>
+</div>
 </div>
 <div class="sect3">
 <h4 id="_paypal_setup">PayPal setup</h4>
 <div class="paragraph">
-<p>Configure the Stripe plugin by create the configuration file at /var/tmp/bundles/plugins/ruby/killbill-paypal-express/1.8.1/paypal_express.yml (replace your credentials accordingly):</p>
+<p>Configure the Stripe configuration file (replace your credentials accordingly):</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -753,48 +674,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
   <span class="tok-ss">:signature</span><span class="tok-p">:</span> <span class="tok-s1">&#39;your-paypal-signature&#39;</span>
   <span class="tok-ss">:login</span><span class="tok-p">:</span> <span class="tok-s1">&#39;your-username-facilitator.something.com&#39;</span>
   <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;your-password&#39;</span>
-  <span class="tok-ss">:test</span><span class="tok-p">:</span> <span class="tok-kp">true</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbcmysql&#39;</span>
-  <span class="tok-ss">:jndi</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill/osgi/jdbc&#39;</span>
-  <span class="tok-ss">:connection_alive_sql</span><span class="tok-p">:</span> <span class="tok-s1">&#39;select 1&#39;</span>
-  <span class="tok-ss">:pool</span><span class="tok-p">:</span> <span class="tok-mi">25</span></code></pre>
-</div>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_testing">Testing</h4>
-<div class="paragraph">
-<p>That&#8217;s it! Kill Bill should be ready to use. Let&#8217;s try to start Kill Bill:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">./bin/catalina.sh run</code></pre>
+  <span class="tok-ss">:test</span><span class="tok-p">:</span> <span class="tok-kp">true</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>One the startup sequence is done, you should see Kill Bill running at <a href="http://127.0.0.1:8080/index.html">http://127.0.0.1:8080/index.html</a>.</p>
-</div>
-<div class="paragraph">
-<p>Test your installation by creating a tenant:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Tenants lets you namespace accounts and all associated data (subscriptions, invoices, payments, etc.) in Kill Bill. This is especially useful for testing: create a new tenant, try a few things out and when you are done, delete the data associated with this tenant (the rest of the data will be preserved).</p>
-</div>
-<div class="paragraph">
-<p>At this point, we&#8217;re ready to integrate Kill Bill with your application.</p>
+<p>Similarly, upload it to Kill Bill by going to your <a href="http://127.0.0.1:8080/kaui/admin_tenants/1">tenant configuration page</a> and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-paypal-express).</p>
 </div>
 </div>
 </div>
@@ -809,23 +693,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="_creating_accounts">Creating accounts</h3>
 <div class="paragraph">
-<p>For simplicity, we will assume that users going to your site have to create an account in your system (you could work around this limitation using sessions). When they create their account, you will need to create a mirrored account in Kill Bill. This will let you do things like retrieve all payments for a given user, etc.</p>
+<p>We will assume that users going to your site have to create an account in your system. When they do, you will need to create a mirrored account in Kill Bill. This will let you do things like retrieve all payments for a given user, etc.</p>
 </div>
 <div class="paragraph">
-<p>To create an account:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;John Doe&quot;,&quot;email&quot;:&quot;john@example.com&quot;,&quot;externalKey&quot;:&quot;john-doe-1234&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span></code></pre>
-</div>
+<p>While your website will issue an API call to do it, let&#8217;s simply use <a href="http://127.0.0.1:3000/accounts/new">Kaui</a> in this tutorial to create the account manually.</p>
 </div>
 <div class="paragraph">
 <p>Notes:</p>
@@ -836,12 +707,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>The externalKey should map to the unique id of the account in your system</p>
 </li>
 <li>
-<p>There are many more fields you can store (phone number, address, etc.), but the above is the minimal set</p>
+<p>There are many more fields you can store (phone number, address, etc.)&#8201;&#8212;&#8201;all of them are optional</p>
 </li>
 </ul>
-</div>
-<div class="paragraph">
-<p>The call above will return a Location header containing the Kill Bill account id (uuid). In the following curl commands, you&#8217;ll need to replace the account id with yours.</p>
 </div>
 </div>
 <div class="sect2">
@@ -883,11 +751,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <span class="tok-s1">         ]</span>
 <span class="tok-s1">       }</span>
 <span class="tok-s1">     }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true&quot;</span></code></pre>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/&lt;ACCOUNT_ID&gt;/paymentMethods?isDefault=true&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>This will create a new payment method and set is as the default for the account.</p>
+<p>This will create a new payment method and set is as the default for the account. If you load the account page in Kaui, you should now see the payment method.</p>
 </div>
 </div>
 <div class="sect3">
@@ -905,7 +773,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
      -H <span class="tok-s1">&#39;X-Killbill-ApiSecret:lazar&#39;</span> <span class="tok-se">\</span>
      -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
      --data-binary <span class="tok-s1">&#39;{</span>
-<span class="tok-s1">       &quot;kb_account_id&quot;: &quot;13d26090-b8d7-11e2-9e96-0800200c9a66&quot;,</span>
+<span class="tok-s1">       &quot;kb_account_id&quot;: &quot;&lt;ACCOUNT_ID&gt;&quot;,</span>
 <span class="tok-s1">       &quot;currency&quot;: &quot;USD&quot;,</span>
 <span class="tok-s1">       &quot;options&quot;: {</span>
 <span class="tok-s1">         &quot;return_url&quot;: &quot;http://www.google.com/?q=SUCCESS&quot;,</span>
@@ -925,7 +793,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Follow the link to log to the paypal site: On the PayPal site, the user will be guided through the approval process to create a token for your website.</p>
 </div>
 <div class="paragraph">
-<p>Once that step is completed, the customer comes back from the PayPal flow, you can now create the payment method in Kill Bill by specifyfing the token that was returned in the setup-checkout step (EC-20G53990M6953444J). Note that this token is now associated to the customer that was redirected to Paypal and that accepted the agreement.</p>
+<p>Once that step is completed, the customer comes back from the PayPal flow, you can now create the payment method in Kill Bill by specifyfing the token that was returned in the setup-checkout step (e.g. EC-20G53990M6953444J). Note that this token is now associated to the customer who was redirected to Paypal and accepted the agreement.</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -947,8 +815,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <span class="tok-s1">         ]</span>
 <span class="tok-s1">       }</span>
 <span class="tok-s1">     }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true&quot;</span></code></pre>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/&lt;ACCOUNT_ID&gt;/paymentMethods?isDefault=true&quot;</span></code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>If you load the account page in Kaui, you should now see the two payment methods.</p>
 </div>
 </div>
 </div>
@@ -966,7 +837,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
      -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
      --data-binary <span class="tok-s1">&#39;{&quot;transactionType&quot;:&quot;PURCHASE&quot;,&quot;amount&quot;:&quot;10&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments&quot;</span></code></pre>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/&lt;ACCOUNT_ID&gt;/payments&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -982,7 +853,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
      -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
      -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?pluginInfo=true&quot;</span></code></pre>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/&lt;ACCOUNT_ID&gt;/paymentMethods?pluginInfo=true&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1241,7 +1112,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-16 20:29:05 UTC
+Last updated 2015-12-16 20:45:45 UTC
 </div>
 </div>
 </body>
