@@ -248,7 +248,7 @@ Now that your users are able to purchase their products, we want to offer a buy-
 
 === Creating the catalog
 
-Plans are defined in an xml configuration file. This file is really powerful and offer various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the http://killbill.io/userguide/subscriptions-userguide/[Subscription Billing] user guide.
+Plans are defined in an XML configuration file. This file is really powerful and offers various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the Subscription Billing user guide.
 
 For this tutorial, here is what the catalog looks like:
 
@@ -267,36 +267,6 @@ For this tutorial, here is what the catalog looks like:
         </product>
     </products>
     <rules>
-        <changePolicy>
-            <changePolicyCase>
-                <policy>IMMEDIATE</policy>
-            </changePolicyCase>
-        </changePolicy>
-        <changeAlignment>
-            <changeAlignmentCase>
-                <alignment>START_OF_BUNDLE</alignment>
-            </changeAlignmentCase>
-        </changeAlignment>
-        <cancelPolicy>
-            <cancelPolicyCase>
-                <policy>IMMEDIATE</policy>
-            </cancelPolicyCase>
-        </cancelPolicy>
-        <createAlignment>
-            <createAlignmentCase>
-                <alignment>START_OF_BUNDLE</alignment>
-            </createAlignmentCase>
-        </createAlignment>
-        <billingAlignment>
-            <billingAlignmentCase>
-                <alignment>ACCOUNT</alignment>
-            </billingAlignmentCase>
-        </billingAlignment>
-        <priceList>
-            <priceListCase>
-                <toPriceList>DEFAULT</toPriceList>
-            </priceListCase>
-        </priceList>
     </rules>
     <plans>
         <plan name="standard-free">
@@ -305,7 +275,8 @@ For this tutorial, here is what the catalog looks like:
                 <duration>
                     <unit>UNLIMITED</unit>
                 </duration>
-                <fixed></fixed>
+                <fixed>
+                </fixed>
             </finalPhase>
         </plan>
         <plan name="standard-monthly">
@@ -344,16 +315,11 @@ While each section is described in greater detail in the user guide, here are th
 * There are two plans defined: standard-free and standard-monthly. We could have just defined the latter, but we will make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
 * There is no trial period
 
+Upload the catalog to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page].
+
 === Creating and retrieving subscriptions
 
-Set the following property (in conf/catalina.properties) and restart Kill Bill (make sure to update the path to your catalog):
-
-[source,xml]
-----
-org.killbill.catalog.uri=file:///var/tmp/catalog.xml
-----
-
-Let's try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section otherwise):
+Let's now try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section otherwise):
 
 [source,bash]
 ----
@@ -364,7 +330,7 @@ curl -v \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: demo" \
      -X POST \
-     --data-binary '{"accountId":"0c9548f0-3c8f-41e8-abe2-966510076daf","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     --data-binary '{"accountId":"<ACCOUNT_ID>","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
      "http://127.0.0.1:8080/1.0/kb/subscriptions"
 ----
 
@@ -379,7 +345,7 @@ curl -v \
      -H "X-Killbill-ApiKey: bob" \
      -H "X-Killbill-ApiSecret: lazar" \
      -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/0c9548f0-3c8f-41e8-abe2-966510076daf/invoices"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/invoices?withItems=true"
 ----
 
 To view the payment:
@@ -391,7 +357,7 @@ curl -v \
      -H "X-Killbill-ApiKey: bob" \
      -H "X-Killbill-ApiSecret: lazar" \
      -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/0c9548f0-3c8f-41e8-abe2-966510076daf/payments"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/payments"
 ----
 
 Kill Bill will now automatically charge the user on a monthly basis. You can estimate the amount which will be billed at a future date (replace the targetDate parameter with a date in the future):
@@ -405,7 +371,7 @@ curl -v \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: demo" \
      -X POST \
-     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=0c9548f0-3c8f-41e8-abe2-966510076daf&targetDate=2014-12-21"
+     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=<ACCOUNT_ID>&targetDate=2014-12-21"
 ----
 
 === Premium feature example: applying 10% discount at checkout
@@ -421,7 +387,7 @@ curl -v \
      -H "X-Killbill-ApiKey: bob" \
      -H "X-Killbill-ApiSecret: lazar" \
      -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/0c9548f0-3c8f-41e8-abe2-966510076daf/bundles"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID</bundles"
 ----
 
 The subscription list will show the cancellation status: cancelledDate. If it's null or in the future, the subscriber is still a paying customer, in which case you can apply the 10% discount.
@@ -430,13 +396,12 @@ The subscription list will show the cancellation status: cancelledDate. If it's 
 [[conclusion]]
 == Conclusion
 
-In this tutorial, we've shown you how to leverage the basic features of the Kill Bill platform, how to provide recurring and one-off billing, as well as integrate with various payment processors. Kill Bill has many more features to offer, make sure to read the http://killbill.io/userguide/[user guide].
+In this tutorial, we've shown you how to leverage the basic features of the Kill Bill platform, how to provide recurring and one-off billing, as well as integrate with various payment processors. Kill Bill has many more features to offer, make sure to read the http://docs.killbill.io[user guide].
 
 === Next steps: exercises for the reader
 
 If you want to continue the tutorial, here are some next steps:
 
-* Setup Kaui. Kaui is the Kill Bill Administrative UI. It can be used as an internal tool to visualize subscriptions, handle refunds, add credits, perform payments, etc. (Hint: KPM can handle it for you)
 * Configure the overdue system. What happens when premium subscribers don't pay?
 * Setup the Analytics plugin to create revenue dashboards and monitor your MRR.
 * Defer authorize and capture: if you are shipping physical goods, you are required to defer capture only when the product ships.
