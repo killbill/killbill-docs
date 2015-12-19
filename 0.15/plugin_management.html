@@ -484,6 +484,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_apis">APIs</a>
 <ul class="sectlevel2">
 <li><a href="#_installation">Installation</a></li>
+<li><a href="#_starting_a_plugin">Starting a plugin</a></li>
+<li><a href="#_stopping_a_plugin">Stopping a plugin</a></li>
+<li><a href="#_restarting_a_plugin">Restarting a plugin</a></li>
+<li><a href="#_uninstallation">Uninstallation</a></li>
+<li><a href="#_listing_all_the_plugins">Listing all the plugins</a></li>
 </ul>
 </li>
 </ul>
@@ -621,6 +626,22 @@ The apis have been designed to work on a killbill deployment that consists of se
 <div class="sect2">
 <h3 id="_installation">Installation</h3>
 <div class="paragraph">
+<p>The installation of a plugin occurs through the KPM plugin (which itself relies on KPM) and  consists of the following sequence:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Download the binaries and installing them on the filesystem at the right place</p>
+</li>
+<li>
+<p>Set that latest downloaded version as being the default one to start (<code>isSelectedForStart</code>)</p>
+</li>
+<li>
+<p>Notify killbill core to update its view of the existing plugins</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
 <p>Example of installing a <code>paypal plugin</code> with a specified version of <code>4.0.0</code>:</p>
 </div>
 <div class="listingblock">
@@ -653,12 +674,220 @@ The apis have been designed to work on a killbill deployment that consists of se
 </div>
 </div>
 </div>
+<div class="sect2">
+<h3 id="_starting_a_plugin">Starting a plugin</h3>
+<div class="paragraph">
+<p>Starting a plugin occurs purely through killbill (independent of the KPM plugin) and  consists of the following sequence:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Load the classes through the OSGI mechanism</p>
+</li>
+<li>
+<p>Start the plugin</p>
+</li>
+<li>
+<p>Update its view of the existing plugins</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Example of starting the default installed version for the <code>paypal plugin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;systemCommandType&quot;:true,&quot;nodeCommandType&quot;:&quot;START_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;,&quot;value&quot;:&quot;paypal&quot;}]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_stopping_a_plugin">Stopping a plugin</h3>
+<div class="paragraph">
+<p>Stopping a plugin occurs purely through killbill (independent of the KPM plugin) and  consists of the following sequence:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Stop the plugin</p>
+</li>
+<li>
+<p>Unload the classes through the OSGI mechanism</p>
+</li>
+<li>
+<p>Update its view of the existing plugins</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Example of stopping the running version of the  <code>paypal plugin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;systemCommandType&quot;:true,&quot;nodeCommandType&quot;:&quot;STOP_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;,&quot;value&quot;:&quot;paypal&quot;}]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_restarting_a_plugin">Restarting a plugin</h3>
+<div class="paragraph">
+<p>Restarting a plugin consists of first stopping the plugin and then restarted the plugin (therefore unloading previous classes/code and reloading new one with a potentially different version).</p>
+</div>
+<div class="paragraph">
+<p>Example of restarting the running version of the  <code>paypal plugin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;systemCommandType&quot;:true,&quot;nodeCommandType&quot;:&quot;RESTART_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;,&quot;value&quot;:&quot;paypal&quot;}]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_uninstallation">Uninstallation</h3>
+<div class="paragraph">
+<p>Uninstalling a plugin consists in marking that plugin as being <code>disabled</code>. The code remains on the filesystem but killbill will ignore it.</p>
+</div>
+<div class="paragraph">
+<p>Example of uninstalling the  <code>paypal plugin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;systemCommandType&quot;:&quot;true&quot;,&quot;nodeCommandType&quot;:&quot;UNINSTALL_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;, &quot;value&quot;:&quot;paypal&quot;} ]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_listing_all_the_plugins">Listing all the plugins</h3>
+<div class="paragraph">
+<p>There is an api to retrieve the current view for each killbill node. That API provides details about the running versions of a killbill node along with all the plugin detail information (the json can be quote long so for better readibility one can pipe the output to <code>python -m json.tool</code> to format it nicely:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -u<span class="tok-s1">&#39;admin:password&#39;</span> -v -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> -H <span class="tok-s1">&#39;X-Killbill-ApiSecret:lazar&#39;</span> http://127.0.0.1:8080/1.0/kb/nodesInfo <span class="tok-p">|</span> python -m json.tool</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>That would provide the following output:</p>
+</div>
+<div class="paragraph">
+<p>There is an array of entries, one for each running killbill instance. Each of these entresi will contain the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>nodeName: By default this is the <code>hostname</code> of the node running, but this can be configured.</p>
+</li>
+<li>
+<p>bootTime: Time at which that node started</p>
+</li>
+<li>
+<p>kbVersion: Version for <a href="https://github.com/killbill/killbill">killbill</a></p>
+</li>
+<li>
+<p>apiVersion: Version for <a href="https://github.com/killbill/killbill-api">killbill-api</a></p>
+</li>
+<li>
+<p>pluginApiVersion: Version <a href="https://github.com/killbill/killbill-plugin-api">for killbill-plugin-api</a></p>
+</li>
+<li>
+<p>platformVersion: Version for <a href="https://github.com/killbill/killbill-platform">killbill-platform</a></p>
+</li>
+<li>
+<p>commonVersion: Version for <a href="https://github.com/killbill/killbill-commons">killbill-commons</a></p>
+</li>
+<li>
+<p>pluginsInfo: One entry for each plugin:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>pluginKey: The plugin key</p>
+</li>
+<li>
+<p>pluginName: The name of the plugin as seen on the filesystem. It is used internally by killbill to idenitify a plugin, but that name is only available after the plugin has been installed and could be changed from one installation to the next.</p>
+</li>
+<li>
+<p>bundleSymbolicName: The OSGI symbolic name (from the <code>MANIFEST.mf</code>)</p>
+</li>
+<li>
+<p>isSelectedForStart: If this is the default version to be started for that plugin</p>
+</li>
+<li>
+<p>services: The plugin apis that this plugin implements</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+        <span class="tok-s2">&quot;apiVersion&quot;</span>: <span class="tok-s2">&quot;0.32&quot;</span>,
+        <span class="tok-s2">&quot;bootTime&quot;</span>: <span class="tok-s2">&quot;2015-12-18T19:44:23.000Z&quot;</span>,
+        <span class="tok-s2">&quot;commonVersion&quot;</span>: <span class="tok-s2">&quot;0.12&quot;</span>,
+        <span class="tok-s2">&quot;kbVersion&quot;</span>: <span class="tok-s2">&quot;0.15.11-SNAPSHOT&quot;</span>,
+        <span class="tok-s2">&quot;lastUpdatedDate&quot;</span>: <span class="tok-s2">&quot;2015-12-18T19:44:23.000Z&quot;</span>,
+        <span class="tok-s2">&quot;nodeName&quot;</span>: <span class="tok-s2">&quot;GM17573-8080&quot;</span>,
+        <span class="tok-s2">&quot;platformVersion&quot;</span>: <span class="tok-s2">&quot;0.19&quot;</span>,
+        <span class="tok-s2">&quot;pluginApiVersion&quot;</span>: <span class="tok-s2">&quot;0.18&quot;</span>,
+        <span class="tok-s2">&quot;pluginsInfo&quot;</span>: <span class="tok-o">[</span>
+            <span class="tok-o">{</span>
+                <span class="tok-s2">&quot;bundleSymbolicName&quot;</span>: <span class="tok-s2">&quot;org.kill-bill.billing.plugin.java.analytics-plugin&quot;</span>,
+                <span class="tok-s2">&quot;isSelectedForStart&quot;</span>: <span class="tok-nb">true</span>,
+                <span class="tok-s2">&quot;pluginKey&quot;</span>: <span class="tok-s2">&quot;analytics&quot;</span>,
+                <span class="tok-s2">&quot;pluginName&quot;</span>: <span class="tok-s2">&quot;analytics-plugin&quot;</span>,
+                <span class="tok-s2">&quot;services&quot;</span>: <span class="tok-o">[</span>
+                    <span class="tok-o">{</span>
+                        <span class="tok-s2">&quot;registrationName&quot;</span>: <span class="tok-s2">&quot;killbill-analytics&quot;</span>,
+                        <span class="tok-s2">&quot;serviceTypeName&quot;</span>: <span class="tok-s2">&quot;javax.servlet.Servlet&quot;</span>
+                    <span class="tok-o">}</span>
+                <span class="tok-o">]</span>,
+                <span class="tok-s2">&quot;state&quot;</span>: <span class="tok-s2">&quot;RUNNING&quot;</span>,
+                <span class="tok-s2">&quot;version&quot;</span>: <span class="tok-s2">&quot;2.0.2&quot;</span>
+            <span class="tok-o">}</span>,
+.....</code></pre>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-19 20:03:14 UTC
+Last updated 2015-12-19 20:03:27 UTC
 </div>
 </div>
 </body>
