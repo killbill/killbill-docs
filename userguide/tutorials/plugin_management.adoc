@@ -47,6 +47,12 @@ The following APIs are supported:
 
 === Installation
 
+The installation of a plugin occurs through the KPM plugin (which itself relies on KPM) and  consists of the following sequence:
+
+* Download the binaries and installing them on the filesystem at the right place
+* Set that latest downloaded version as being the default one to start (`isSelectedForStart`)
+* Notify killbill core to update its view of the existing plugins
+
 Example of installing a `paypal plugin` with a specified version of `4.0.0`:
 [source,bash]
 ----
@@ -75,4 +81,143 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/nodesInfo"
 ----
 
+=== Starting a plugin
 
+Starting a plugin occurs purely through killbill (independent of the KPM plugin) and  consists of the following sequence:
+
+* Load the classes through the OSGI mechanism
+* Start the plugin
+* Update its view of the existing plugins
+
+Example of starting the default installed version for the `paypal plugin`:
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"systemCommandType":true,"nodeCommandType":"START_PLUGIN","nodeCommandProperties":[{"key":"pluginKey","value":"paypal"}]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Stopping a plugin
+
+Stopping a plugin occurs purely through killbill (independent of the KPM plugin) and  consists of the following sequence:
+
+* Stop the plugin
+* Unload the classes through the OSGI mechanism
+* Update its view of the existing plugins
+
+Example of stopping the running version of the  `paypal plugin`:
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"systemCommandType":true,"nodeCommandType":"STOP_PLUGIN","nodeCommandProperties":[{"key":"pluginKey","value":"paypal"}]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Restarting a plugin
+
+Restarting a plugin consists of first stopping the plugin and then restarted the plugin (therefore unloading previous classes/code and reloading new one with a potentially different version).
+
+Example of restarting the running version of the  `paypal plugin`:
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"systemCommandType":true,"nodeCommandType":"RESTART_PLUGIN","nodeCommandProperties":[{"key":"pluginKey","value":"paypal"}]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Uninstallation
+
+Uninstalling a plugin consists in marking that plugin as being `disabled`. The code remains on the filesystem but killbill will ignore it.
+
+Example of uninstalling the  `paypal plugin`:
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"systemCommandType":"true","nodeCommandType":"UNINSTALL_PLUGIN","nodeCommandProperties":[{"key":"pluginKey", "value":"paypal"} ]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Listing all the plugins
+
+There is an api to retrieve the current view for each killbill node. That API provides details about the running versions of a killbill node along with all the plugin detail information (the json can be quote long so for better readibility one can pipe the output to `python -m json.tool` to format it nicely:
+
+[source,bash]
+----
+curl -u'admin:password' -v -H "X-Killbill-ApiKey: bob" -H 'X-Killbill-ApiSecret:lazar' http://127.0.0.1:8080/1.0/kb/nodesInfo | python -m json.tool
+----
+
+That would provide the following output:
+
+There is an array of entries, one for each running killbill instance. Each of these entresi will contain the following:
+
+* nodeName: By default this is the `hostname` of the node running, but this can be configured.
+* bootTime: Time at which that node started
+* kbVersion: Version for https://github.com/killbill/killbill[killbill]
+* apiVersion: Version for https://github.com/killbill/killbill-api[killbill-api]
+* pluginApiVersion: Version https://github.com/killbill/killbill-plugin-api[for killbill-plugin-api]
+* platformVersion: Version for https://github.com/killbill/killbill-platform[killbill-platform]
+* commonVersion: Version for https://github.com/killbill/killbill-commons[killbill-commons]
+* pluginsInfo: One entry for each plugin:
+** pluginKey: The plugin key
+** pluginName: The name of the plugin as seen on the filesystem. It is used internally by killbill to idenitify a plugin, but that name is only available after the plugin has been installed and could be changed from one installation to the next.
+** bundleSymbolicName: The OSGI symbolic name (from the `MANIFEST.mf`)
+** isSelectedForStart: If this is the default version to be started for that plugin
+** services: The plugin apis that this plugin implements
+
+[source,bash]
+----
+[
+    {
+        "apiVersion": "0.32",
+        "bootTime": "2015-12-18T19:44:23.000Z",
+        "commonVersion": "0.12",
+        "kbVersion": "0.15.11-SNAPSHOT",
+        "lastUpdatedDate": "2015-12-18T19:44:23.000Z",
+        "nodeName": "GM17573-8080",
+        "platformVersion": "0.19",
+        "pluginApiVersion": "0.18",
+        "pluginsInfo": [
+            {
+                "bundleSymbolicName": "org.kill-bill.billing.plugin.java.analytics-plugin",
+                "isSelectedForStart": true,
+                "pluginKey": "analytics",
+                "pluginName": "analytics-plugin",
+                "services": [
+                    {
+                        "registrationName": "killbill-analytics",
+                        "serviceTypeName": "javax.servlet.Servlet"
+                    }
+                ],
+                "state": "RUNNING",
+                "version": "2.0.2"
+            },
+.....
+----
