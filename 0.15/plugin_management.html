@@ -491,6 +491,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_listing_all_the_plugins">Listing all the plugins</a></li>
 </ul>
 </li>
+<li><a href="#_internals">Internals</a>
+<ul class="sectlevel2">
+<li><a href="#_multi_node_implementation">Multi-node Implementation</a></li>
+<li><a href="#_installation_uninstallation">Installation/Uninstallation</a></li>
+<li><a href="#_kpm_plugin">KPM Plugin</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -851,6 +858,9 @@ The apis have been designed to work on a killbill deployment that consists of se
 </li>
 </ul>
 </div>
+<div class="paragraph">
+<p>Example of an output:</p>
+</div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">[</span>
@@ -884,10 +894,49 @@ The apis have been designed to work on a killbill deployment that consists of se
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_internals">Internals</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_multi_node_implementation">Multi-node Implementation</h3>
+<div class="paragraph">
+<p>Each killbill node writes the details about its versions, plugins info right after it has started. When there is any change in the system, each node is notified through a broadcast mechanism and it updates its entry guaranting that at any time the info matches the current state.</p>
+</div>
+<div class="paragraph">
+<p>The broadcast mechanism is based on a simple mechanism where each node polls periodically a database table shwoing the command to execute. When the system (each node) picks up a new entry, it then sends a special bus event so that different killbill components and plugin can react to the event and carry out the action.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_installation_uninstallation">Installation/Uninstallation</h3>
+<div class="paragraph">
+<p>Installing/uninstalling a plugin using the api is slightly different than installing/uninstalling the plugin using KPM directly. The main reason has to do with the <code>pluginKey</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When installing/uninstalling a plugin using the api, one must provide a <code>pluginKey</code>. KPM will update a configuration file under <code>ROOT/plugins/plugin_identifiers.json</code> to keep the mapping between that <code>pluginKey</code> and the <code>pluginName</code> which is the location on the filesystem where this plugin is being deployed (<code>ROOT/plugins/{java|ruby}/pluginName/pluginVersion</code>)</p>
+</li>
+<li>
+<p>When installing/uninstalling a plugin directly through KPM, one does not need to provide a <code>pluginKey</code> and the mapping is not created.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_kpm_plugin">KPM Plugin</h3>
+<div class="paragraph">
+<p>Plugin installation and uninstallation are handled by the KPM plugin, whose role is to simply listen for bus events to then delegate the installation/uninstallation the the KPM gem and then notify killbill about the result.</p>
+</div>
+<div class="paragraph">
+<p>For all other operations (start/stop/restart), the KPM plugin is not involved.</p>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-19 20:03:27 UTC
+Last updated 2015-12-19 20:09:24 UTC
 </div>
 </div>
 </body>
