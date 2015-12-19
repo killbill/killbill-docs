@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Usage: consumable in arrear</title>
+<title>Plugin Management APIs</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,221 +476,64 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Usage: consumable in arrear</h1>
+<h1>Plugin Management APIs</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#intro">Introduction</a>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#_apis">APIs</a>
 <ul class="sectlevel2">
-<li><a href="#_scenario">Scenario</a></li>
+<li><a href="#_installation">Installation</a></li>
 </ul>
 </li>
-<li><a href="#configuration">Configuration</a></li>
-<li><a href="#pieces-together">Putting The Pieces Together</a>
-<ul class="sectlevel2">
-<li><a href="#_usage_and_metering">Usage and Metering</a></li>
-<li><a href="#_example_of_a_customer_usage">Example of a Customer Usage</a></li>
-</ul>
-</li>
-<li><a href="#_additional_resources">Additional Resources</a></li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="intro">Introduction</h2>
+<h2 id="overview">Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>In this tutorial we will look at the Kill Bill <strong>usage billing</strong> feature. In particular we will see how recurring subscriptions and usage can be configured together. The tutorial will focus on a type of usage that we refer to as <strong>consumable in arrear</strong> and that we explained in that <a href="http://killbill.io/blog/usage-billing/">blog</a>; in short, that is the ability to charge the customer for units he consumed at the end of the billing period.</p>
+<p>Started with Kill Bill 0.16.0, it is now possible to go through all the lifecycle (install, start, stop, uninstall and list status) of a plugin using apis.
+The apis have been designed to work on a killbill deployment that consists of several instances.</p>
 </div>
-<div class="sect2">
-<h3 id="_scenario">Scenario</h3>
 <div class="paragraph">
-<p>Let&#8217;s assume you want to build a online store selling artisanal chocolates, and geared towards the chocolate aficionados. The service you provide is based on a monthly subscription, that includes 1 box of your (organic certified local produced) home made chocolates. In addition, you also provide videos on the topic (the history of chocolate, its fabrication, recipes of chocolate based dishes, the economy of chocolate, chocolate health benefits, &#8230;&#8203;) that are accessible online from your website. Customers that subscribed to the base service, can also stream your videos and will be invoiced based on their usage at the end of each period:</p>
+<p>The feature relies on the following pieces:
+* A running version of a (or several) killbill server(s)
+* A running <a href="https://github.com/killbill/killbill-kpm-plugin">KPM plugin</a> on each killbill instance.</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p>The base service is available for $30/month and includes that ecstatic box of chocolate,</p>
-</li>
-<li>
-<p>The first 5 videos (streamed during the month) will be invoiced at $2/video</p>
-</li>
-<li>
-<p>The next videos (streamed during the month) will be invoiced at $1/video</p>
-</li>
-</ul>
-</div>
+<div class="paragraph">
+<p>Obviously installing the KPM plugin will first need to happen using <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm" class="bare">https://github.com/killbill/killbill-cloud/tree/master/kpm</a> [KPM] itself.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="configuration">Configuration</h2>
+<h2 id="_apis">APIs</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Your catalog will have to specify the units for the usage section and also define the plan; for the sake of simplicity we omitted other catalog sections, but to see how the pieces fit together you can look at the example provided with the <a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarAdvanced.xml">source code</a>.</p>
+<p>Each of the API refers to a plugin using a <code>pluginKey</code>. A <code>pluginKey</code> can be one of the following:
+* An entry in the official Kill Bill <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml" class="bare">https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml</a> [plugin reporsitory],
+* A user provided key that will be used to identify this plugin when using the APIs. The user provided key must be unique and must contain a namespace (e.g MY_NAMESPACE:myKey).
+  During the installation phase, and when using a user provided key, one must also specify additonal properties to specify the location of that plugin.</p>
+</div>
+<div class="sect2">
+<h3 id="_installation">Installation</h3>
+<div class="paragraph">
+<p>Example of installing a <code>paypal plugin</code> with a specified version of <code>4.0.0</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="xml">---
-<span class="tok-nt">&lt;units&gt;</span>
-	<span class="tok-nt">&lt;unit</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly-videos&quot;</span><span class="tok-nt">/&gt;</span>
-<span class="tok-nt">&lt;/units&gt;</span>
-<span class="tok-c">&lt;!--...--&gt;</span>
-<span class="tok-nt">&lt;plan</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly&quot;</span><span class="tok-nt">&gt;</span>
-     <span class="tok-nt">&lt;product&gt;</span>Chocolate<span class="tok-nt">&lt;/product&gt;</span>
-     <span class="tok-nt">&lt;finalPhase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;EVERGREEN&quot;</span><span class="tok-nt">&gt;</span>
-         <span class="tok-nt">&lt;duration&gt;</span>
-             <span class="tok-nt">&lt;unit&gt;</span>UNLIMITED<span class="tok-nt">&lt;/unit&gt;</span>
-         <span class="tok-nt">&lt;/duration&gt;</span>
-         <span class="tok-nt">&lt;recurring&gt;</span>
-             <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
-             <span class="tok-nt">&lt;recurringPrice&gt;</span>
-                 <span class="tok-nt">&lt;price&gt;</span>
-                     <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                     <span class="tok-nt">&lt;value&gt;</span>30.00<span class="tok-nt">&lt;/value&gt;</span>
-                 <span class="tok-nt">&lt;/price&gt;</span>
-             <span class="tok-nt">&lt;/recurringPrice&gt;</span>
-         <span class="tok-nt">&lt;/recurring&gt;</span>
-         <span class="tok-nt">&lt;usages&gt;</span>
-             <span class="tok-nt">&lt;usage</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly-videos&quot;</span> <span class="tok-na">billingMode=</span><span class="tok-s">&quot;IN_ARREAR&quot;</span> <span class="tok-na">usageType=</span><span class="tok-s">&quot;CONSUMABLE&quot;</span><span class="tok-nt">&gt;</span>
-                 <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
-                 <span class="tok-nt">&lt;tiers&gt;</span>
-                     <span class="tok-nt">&lt;tier&gt;</span>
-                         <span class="tok-nt">&lt;blocks&gt;</span>
-                             <span class="tok-nt">&lt;tieredBlock&gt;</span>
-                                 <span class="tok-nt">&lt;unit&gt;</span>chocolate-videos<span class="tok-nt">&lt;/unit&gt;</span>
-                                 <span class="tok-nt">&lt;size&gt;</span>1<span class="tok-nt">&lt;/size&gt;</span>
-                                 <span class="tok-nt">&lt;prices&gt;</span>
-                                     <span class="tok-nt">&lt;price&gt;</span>
-                                         <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                                         <span class="tok-nt">&lt;value&gt;</span>2<span class="tok-nt">&lt;/value&gt;</span>
-                                     <span class="tok-nt">&lt;/price&gt;</span>
-                                 <span class="tok-nt">&lt;/prices&gt;</span>
-                                 <span class="tok-nt">&lt;max&gt;</span>5<span class="tok-nt">&lt;/max&gt;</span>
-                             <span class="tok-nt">&lt;/tieredBlock&gt;</span>
-                         <span class="tok-nt">&lt;/blocks&gt;</span>
-                     <span class="tok-nt">&lt;/tier&gt;</span>
-                     <span class="tok-nt">&lt;tier&gt;</span>
-                         <span class="tok-nt">&lt;blocks&gt;</span>
-                             <span class="tok-nt">&lt;tieredBlock&gt;</span>
-                                 <span class="tok-nt">&lt;unit&gt;</span>chocolate-videos<span class="tok-nt">&lt;/unit&gt;</span>
-                                 <span class="tok-nt">&lt;size&gt;</span>1<span class="tok-nt">&lt;/size&gt;</span>
-                                 <span class="tok-nt">&lt;prices&gt;</span>
-                                     <span class="tok-nt">&lt;price&gt;</span>
-                                         <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                                         <span class="tok-nt">&lt;value&gt;</span>1<span class="tok-nt">&lt;/value&gt;</span>
-                                     <span class="tok-nt">&lt;/price&gt;</span>
-                                 <span class="tok-nt">&lt;/prices&gt;</span>
-                                 <span class="tok-nt">&lt;max&gt;</span>10000<span class="tok-nt">&lt;/max&gt;</span>
-                             <span class="tok-nt">&lt;/tieredBlock&gt;</span>
-                         <span class="tok-nt">&lt;/blocks&gt;</span>
-                     <span class="tok-nt">&lt;/tier&gt;</span>
-                 <span class="tok-nt">&lt;/tiers&gt;</span>
-             <span class="tok-nt">&lt;/usage&gt;</span>
-         <span class="tok-nt">&lt;/usages&gt;</span>
-     <span class="tok-nt">&lt;/finalPhase&gt;</span>
-<span class="tok-nt">&lt;/plan&gt;</span>
----</code></pre>
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;systemCommandType&quot;:&quot;true&quot;,&quot;nodeCommandType&quot;:&quot;INSTALL_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;, &quot;value&quot;:&quot;paypal&quot;}, {&quot;key&quot;:&quot;pluginVersion&quot;,&quot;value&quot;:&quot;4.0.0&quot;} ]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p>The plan description shows the following:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>There is a recurring section that specifies that customer should be invoiced (in advance) at the begining of each month for $30</p>
-</li>
-<li>
-<p>There is a section usage that defines two tiers, each of them for a unit of <code>chocolate-videos</code> with a size of 1 (we pay for each video)</p>
-<div class="ulist">
-<ul>
-<li>
-<p>The first tier specifies that below 5 videos, the price per video (unit) is set to $2.</p>
-</li>
-<li>
-<p>The second tier specifies that after 5 videos and below 10000 (arbitrary number large enough that ensures it will not be met), the price per video becomes $1.</p>
-</li>
-</ul>
-</div>
-</li>
-</ul>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="pieces-together">Putting The Pieces Together</h2>
-<div class="sectionbody">
-<div class="sect2">
-<h3 id="_usage_and_metering">Usage and Metering</h3>
-<div class="paragraph">
-<p>Kill Bill&#8217;s usage module provides an API that can be used to record the per customer&#8217;s usage. For instance, in order to record 1 unit of <code>chocolate-videos</code>, one woud use the API <code>POST /1.0/kb/usages</code> with the following json body:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="json"><span class="tok-err">---</span>
-<span class="tok-p">{</span>
-    <span class="tok-nt">&quot;subscriptionId&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;365987b2-5443-47e4-a467-c8962fc6995c&quot;</span><span class="tok-p">,</span>
-    <span class="tok-nt">&quot;unitUsageRecords&quot;</span><span class="tok-p">:</span> <span class="tok-p">[</span>
-        <span class="tok-p">{</span>
-            <span class="tok-nt">&quot;unitType&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;chocolate-videos&quot;</span><span class="tok-p">,</span>
-            <span class="tok-nt">&quot;usageRecords&quot;</span><span class="tok-p">:</span> <span class="tok-p">[</span>
-                <span class="tok-p">{</span>
-                    <span class="tok-nt">&quot;recordDate&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;2014-03-14T04:32:25+00:00&quot;</span><span class="tok-p">,</span>
-                    <span class="tok-nt">&quot;amount&quot;</span><span class="tok-p">:</span> <span class="tok-mi">1</span>
-                <span class="tok-p">}</span>
-            <span class="tok-p">]</span>
-        <span class="tok-p">}</span>
-    <span class="tok-p">]</span>
-<span class="tok-p">}</span>
-<span class="tok-err">---</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>The calls to record usage are made per subscription, but they can include multiple unitTypes (if the catalog had defined them), and for each unit they can specify as many records as desired; the records themselves specify a date of when those units were consumed.</p>
-</div>
-<div class="paragraph">
-<p>In our example, the online store could directly make the call to Kill Bill using that API to record each video as they are consumed.</p>
-</div>
-<div class="paragraph">
-<p>Note that in scenarios where the consumption is much higher (for e.g in the case of a telecom company offering cell-phone minutes), one would need to use a <strong>metering system</strong> that would first <strong>aggregate</strong> the units on a dayly granularity before making the call to Kill Bill. You can check the initial implementation of our <a href="https://github.com/killbill/killbill-meter-plugin">metring module</a> that provides that aggregation functionality.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_example_of_a_customer_usage">Example of a Customer Usage</h3>
-<div class="paragraph">
-<p>Let&#8217;s assume Louis, who is very passionate about chocolate, subscribed to the service on March 13th and watched 13 videos during his first month.</p>
-</div>
-<div class="paragraph">
-<p>On march 13th, the system will trigger an invoice that will cover the billing period march 13th &#8594; april 13th, and it will contain one RECURRING item with a price of $30; in return, he will receive his first box of chocolate.</p>
-</div>
-<div class="paragraph">
-<p>On april 13th, the system will now trigger a new invoice that will cover:
-* A RECURRING item for the billing period from april 13th &#8594; may 13th with a price of $30,
-* A USAGE item for a price of $18 (= 5 * 2 + 8 * 1)</p>
-</div>
-<div class="paragraph">
-<p>So we can see, that each invoice will include an ITEM for the RECURRING piece (charged ahead, i.e in advance), as well as a USAGE item (charged at the end of the billing period when usage is known, i.e in arrear).</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_additional_resources">Additional Resources</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>We have integration tests that can used an example:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarAdvanced.xml">Catalog</a></p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-integration-tests/blob/master/killbill-integration-tests/core/test_usage.rb">Test</a></p>
-</li>
-</ul>
 </div>
 </div>
 </div>
