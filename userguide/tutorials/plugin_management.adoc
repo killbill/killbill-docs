@@ -223,3 +223,28 @@ Example of an output:
             },
 .....
 ----
+
+== Internals
+
+=== Multi-node Implementation
+
+Each killbill node writes the details about its versions, plugins info right after it has started. When there is any change in the system, each node is notified through a broadcast mechanism and it updates its entry guaranting that at any time the info matches the current state.
+
+The broadcast mechanism is based on a simple mechanism where each node polls periodically a database table shwoing the command to execute. When the system (each node) picks up a new entry, it then sends a special bus event so that different killbill components and plugin can react to the event and carry out the action.
+
+=== Installation/Uninstallation 
+
+Installing/uninstalling a plugin using the api is slightly different than installing/uninstalling the plugin using KPM directly. The main reason has to do with the `pluginKey`:
+
+* When installing/uninstalling a plugin using the api, one must provide a `pluginKey`. KPM will update a configuration file under `ROOT/plugins/plugin_identifiers.json` to keep the mapping between that `pluginKey` and the `pluginName` which is the location on the filesystem where this plugin is being deployed (`ROOT/plugins/{java|ruby}/pluginName/pluginVersion`)
+* When installing/uninstalling a plugin directly through KPM, one does not need to provide a `pluginKey` and the mapping is not created.
+
+=== KPM Plugin
+
+Plugin installation and uninstallation are handled by the KPM plugin, whose role is to simply listen for bus events to then delegate the installation/uninstallation the the KPM gem and then notify killbill about the result.
+
+For all other operations (start/stop/restart), the KPM plugin is not involved.
+
+
+
+
