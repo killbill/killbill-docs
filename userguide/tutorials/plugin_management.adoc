@@ -16,9 +16,33 @@ Obviously installing the KPM plugin will first need to happen using https://gith
 == APIs
 
 Each of the API refers to a plugin using a `pluginKey`. A `pluginKey` can be one of the following:
+
 * An entry in the official Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml [plugin reporsitory],
 * A user provided key that will be used to identify this plugin when using the APIs. The user provided key must be unique and must contain a namespace (e.g MY_NAMESPACE:myKey). 
   During the installation phase, and when using a user provided key, one must also specify additonal properties to specify the location of that plugin.
+  
+The following APIs are supported:
+
+* INSTALL_PLUGIN: Install a plugin. The following properties are supported:
+** `pluginKey`: required
+** `pluginType`: required for user provided key  (can be `ruby` or `java`)
+** `pluginVersion`: optional (will default to LATEST version)
+** `pluginArtifactId`: required for user provided key  (the maven `artifactId`)
+** `pluginGroupId`: required for user provided key  (the maven `groupId`)
+** `pluginPackaging`: optional (the maven `packaging` that will default to `jar` for `java` plugin and `tar.gz` for `ruby` plugins)
+** `pluginClassifier`: optional (the maven `classifier` that will default to null)
+* START_PLUGIN: Start a plugin. The following properties are supported:
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to LATEST version)
+* RESTART_PLUGIN:  Restart a plugin. All classes will be unloaded and new classes/ruby files will be loeaded and started. The following properties are supported:
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to LATEST version)
+* STOP_PLUGIN: Stop a plugin. All classes will be unloaded. The following properties are supported:
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to LATEST version)
+* UNINSTALL_PLUGIN: The command will disable the plugin so it will not be listed as the installed plugin, but the code will be kept on the filesystem (to optimize cases where one would want to re-install the same version of the plugin):
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to LATEST version)
 
 
 === Installation
@@ -37,7 +61,18 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/nodesInfo"
 ----
 
-
-
+Example of installing a `payment test plugin` (one must include all the maven coordinates to specify where this plugin should be installed from):
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"systemCommandType":"true","nodeCommandType":"INSTALL_PLUGIN","nodeCommandProperties":[{"key":"pluginKey", "value":"killbill:payment-test"},{"key":"pluginArtifactId", "value": "payment-test-plugin"},{"key":"pluginGroupId", "value": "org.kill-bill.billing.plugin.ruby"}, {"key": "pluginType", "value": "ruby"} ]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
 
 
