@@ -511,10 +511,105 @@ The apis have been designed to work on a killbill deployment that consists of se
 <h2 id="_apis">APIs</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Each of the API refers to a plugin using a <code>pluginKey</code>. A <code>pluginKey</code> can be one of the following:
-* An entry in the official Kill Bill <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml" class="bare">https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml</a> [plugin reporsitory],
-* A user provided key that will be used to identify this plugin when using the APIs. The user provided key must be unique and must contain a namespace (e.g MY_NAMESPACE:myKey).
-  During the installation phase, and when using a user provided key, one must also specify additonal properties to specify the location of that plugin.</p>
+<p>Each of the API refers to a plugin using a <code>pluginKey</code>. A <code>pluginKey</code> can be one of the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An entry in the official Kill Bill <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml" class="bare">https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml</a> [plugin reporsitory],</p>
+</li>
+<li>
+<p>A user provided key that will be used to identify this plugin when using the APIs. The user provided key must be unique and must contain a namespace (e.g MY_NAMESPACE:myKey).
+During the installation phase, and when using a user provided key, one must also specify additonal properties to specify the location of that plugin.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The following APIs are supported:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>INSTALL_PLUGIN: Install a plugin. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginType</code>: required for user provided key  (can be <code>ruby</code> or <code>java</code>)</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+<li>
+<p><code>pluginArtifactId</code>: required for user provided key  (the maven <code>artifactId</code>)</p>
+</li>
+<li>
+<p><code>pluginGroupId</code>: required for user provided key  (the maven <code>groupId</code>)</p>
+</li>
+<li>
+<p><code>pluginPackaging</code>: optional (the maven <code>packaging</code> that will default to <code>jar</code> for <code>java</code> plugin and <code>tar.gz</code> for <code>ruby</code> plugins)</p>
+</li>
+<li>
+<p><code>pluginClassifier</code>: optional (the maven <code>classifier</code> that will default to null)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>START_PLUGIN: Start a plugin. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>RESTART_PLUGIN:  Restart a plugin. All classes will be unloaded and new classes/ruby files will be loeaded and started. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>STOP_PLUGIN: Stop a plugin. All classes will be unloaded. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>UNINSTALL_PLUGIN: The command will disable the plugin so it will not be listed as the installed plugin, but the code will be kept on the filesystem (to optimize cases where one would want to re-install the same version of the plugin):</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
 </div>
 <div class="sect2">
 <h3 id="_installation">Installation</h3>
@@ -534,13 +629,29 @@ The apis have been designed to work on a killbill deployment that consists of se
 <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>Example of installing a <code>payment test plugin</code> (one must include all the maven coordinates to specify where this plugin should be installed from):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;systemCommandType&quot;:&quot;true&quot;,&quot;nodeCommandType&quot;:&quot;INSTALL_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;, &quot;value&quot;:&quot;killbill:payment-test&quot;},{&quot;key&quot;:&quot;pluginArtifactId&quot;, &quot;value&quot;: &quot;payment-test-plugin&quot;},{&quot;key&quot;:&quot;pluginGroupId&quot;, &quot;value&quot;: &quot;org.kill-bill.billing.plugin.ruby&quot;}, {&quot;key&quot;: &quot;pluginType&quot;, &quot;value&quot;: &quot;ruby&quot;} ]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-19 20:02:14 UTC
+Last updated 2015-12-19 20:02:30 UTC
 </div>
 </div>
 </body>
