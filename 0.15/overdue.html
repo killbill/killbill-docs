@@ -488,7 +488,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_configuration_of_the_system">Configuration of the System</a>
 <ul class="sectlevel2">
 <li><a href="#_catalog_configuration">Catalog Configuration</a></li>
-<li><a href="#_overdue_configuration">Overdue Configuration</a></li>
+<li><a href="#_overdue_configuration">Overdue configuration</a></li>
 <li><a href="#_payment_retries">Payment retries</a></li>
 </ul>
 </li>
@@ -512,19 +512,34 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="intro">Introduction</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>In this tutorial, we look a little bit deeper into the overdue system. The <a href="http://killbill.io/userguide/subscriptions-userguide/">subscription user guide</a> provides a section explaining the basics about the overdue system and in particular goes through the schema of the <code>overdue.xml</code> configuration file. The tutorial will attempt to put the pieces together.</p>
+<p>In this tutorial, we look a little bit deeper into the overdue system. The main subscription userguide already provides a section explaining the basics about the overdue system and in particular goes through the schema of the <code>overdue.xml</code> configuration file. This tutorial will show you how it works in practice.</p>
 </div>
 <div class="sect2">
 <h3 id="_scenario">Scenario</h3>
 <div class="paragraph">
-<p>Let&#8217;s assume you want to build a web site where your customers can subscribe to movies (similar to Netflix). For the sake of simplicity we will assume you only provide one plan where your customers will need to pay $10 per month for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access but are not required to pay yet.</p>
+<p>Let&#8217;s assume you want to build a website where your customers can subscribe to movies (similar to Netflix). For simplicity&#8217;s sake, we will assume you only provide one $10/month plan for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access.</p>
 </div>
 <div class="paragraph">
-<p>We will also assume that we want to configure the overdue system (dunning) to take some actions when users don&#8217;t pay:
-1. The system should be configured to retry failed payments 3 times: the first two payment retries should happen 1 day after the last attempt, and the last one should happen 8 days after previous attempt
-2. The system should notify the user when an invoice has not been paid after 10 days (and after the system already automatically retried 3 times)
-3. The system should block the entitlements associated with the account after 14 (from the start date where invoice was not paid)
-4. The system should automatically cancel the subscriptions after 21 days</p>
+<p>We now want to configure the overdue system (dunning) to take some actions when users don&#8217;t pay:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The system should be configured to retry failed payments 3 times: the first two payment retries should happen 1 day after the last attempt, and the last one should happen 8 days after previous attempt</p>
+</li>
+<li>
+<p>The system should notify the user when an invoice has not been paid after 10 days (during which time the system already automatically retried 3 times)</p>
+</li>
+<li>
+<p>The system should block the entitlements associated with the account after 14 days</p>
+</li>
+<li>
+<p>The system should automatically cancel the subscriptions after 21 days</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Additionally, we want to prevent users from changing plans (e.g. upgrade) until they clear their balance.</p>
 </div>
 </div>
 </div>
@@ -535,105 +550,91 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="_catalog_configuration">Catalog Configuration</h3>
 <div class="paragraph">
-<p>Your catalog will contain a plan entry that specifies two phases, one for the $0 TRIAL and one for the recurring monthly charge of $10&#8201;&#8212;&#8201;note that we omitted the other parts of the catalog such as alignment rules, &#8230;&#8203; which is beyond the scope of that tutorial:</p>
+<p>Your catalog will contain a plan entry that specifies two phases, one for the trial period and one for the recurring monthly charge of $10:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;plan</span> <span class="tok-na">name=</span><span class="tok-s">&quot;movies-monthly&quot;</span><span class="tok-nt">&gt;</span>
-    <span class="tok-nt">&lt;product&gt;</span>Movies<span class="tok-nt">&lt;/product&gt;</span>
-    <span class="tok-nt">&lt;initialPhases&gt;</span>
-       <span class="tok-nt">&lt;phase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;TRIAL&quot;</span><span class="tok-nt">&gt;</span>
-           <span class="tok-nt">&lt;duration&gt;</span>
-               <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;</span>
-               <span class="tok-nt">&lt;number&gt;</span>10<span class="tok-nt">&lt;/number&gt;</span>
-           <span class="tok-nt">&lt;/duration&gt;</span>
-           <span class="tok-nt">&lt;fixed&gt;</span>
-               <span class="tok-nt">&lt;fixedPrice&gt;</span>
-			   <span class="tok-c">&lt;!-- empty price implies $0 --&gt;</span>
-               <span class="tok-nt">&lt;/fixedPrice&gt;</span>
-           <span class="tok-nt">&lt;/fixed&gt;</span>
-       <span class="tok-nt">&lt;/phase&gt;</span>
-    <span class="tok-nt">&lt;/initialPhases&gt;</span>
-    <span class="tok-nt">&lt;finalPhase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;EVERGREEN&quot;</span><span class="tok-nt">&gt;</span>
-        <span class="tok-nt">&lt;duration&gt;</span>
-            <span class="tok-nt">&lt;unit&gt;</span>UNLIMITED<span class="tok-nt">&lt;/unit&gt;</span>
-        <span class="tok-nt">&lt;/duration&gt;</span>
-        <span class="tok-nt">&lt;recurring&gt;</span>
-            <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
-            <span class="tok-nt">&lt;recurringPrice&gt;</span>
-                <span class="tok-nt">&lt;price&gt;</span>
-                    <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                    <span class="tok-nt">&lt;value&gt;</span>10.00<span class="tok-nt">&lt;/value&gt;</span>
-                <span class="tok-nt">&lt;/price&gt;</span>
-            <span class="tok-nt">&lt;/recurringPrice&gt;</span>
-        <span class="tok-nt">&lt;/recurring&gt;</span>
-    <span class="tok-nt">&lt;/finalPhase&gt;</span>
-<span class="tok-nt">&lt;/plan&gt;</span></code></pre>
+<pre class="pygments highlight"><code data-lang="xml"><span class="tok-cp">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span>
+<span class="tok-nt">&lt;catalog</span> <span class="tok-na">xmlns:xsi=</span><span class="tok-s">&quot;http://www.w3.org/2001/XMLSchema-instance&quot;</span> <span class="tok-na">xsi:noNamespaceSchemaLocation=</span><span class="tok-s">&quot;CatalogSchema.xsd &quot;</span><span class="tok-nt">&gt;</span>
+    <span class="tok-nt">&lt;effectiveDate&gt;</span>2013-02-08T00:00:00+00:00<span class="tok-nt">&lt;/effectiveDate&gt;</span>
+    <span class="tok-nt">&lt;catalogName&gt;</span>Movies<span class="tok-nt">&lt;/catalogName&gt;</span>
+    <span class="tok-nt">&lt;recurringBillingMode&gt;</span>IN_ADVANCE<span class="tok-nt">&lt;/recurringBillingMode&gt;</span>
+    <span class="tok-nt">&lt;currencies&gt;</span>
+        <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
+    <span class="tok-nt">&lt;/currencies&gt;</span>
+    <span class="tok-nt">&lt;products&gt;</span>
+        <span class="tok-nt">&lt;product</span> <span class="tok-na">name=</span><span class="tok-s">&quot;Movies&quot;</span><span class="tok-nt">&gt;</span>
+            <span class="tok-nt">&lt;category&gt;</span>BASE<span class="tok-nt">&lt;/category&gt;</span>
+        <span class="tok-nt">&lt;/product&gt;</span>
+    <span class="tok-nt">&lt;/products&gt;</span>
+    <span class="tok-nt">&lt;rules&gt;</span>
+    <span class="tok-nt">&lt;/rules&gt;</span>
+    <span class="tok-nt">&lt;plans&gt;</span>
+      <span class="tok-nt">&lt;plan</span> <span class="tok-na">name=</span><span class="tok-s">&quot;movies-monthly&quot;</span><span class="tok-nt">&gt;</span>
+          <span class="tok-nt">&lt;product&gt;</span>Movies<span class="tok-nt">&lt;/product&gt;</span>
+          <span class="tok-nt">&lt;initialPhases&gt;</span>
+             <span class="tok-nt">&lt;phase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;TRIAL&quot;</span><span class="tok-nt">&gt;</span>
+                 <span class="tok-nt">&lt;duration&gt;</span>
+                     <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;</span>
+                     <span class="tok-nt">&lt;number&gt;</span>10<span class="tok-nt">&lt;/number&gt;</span>
+                 <span class="tok-nt">&lt;/duration&gt;</span>
+                 <span class="tok-nt">&lt;fixed&gt;</span>
+                 <span class="tok-nt">&lt;/fixed&gt;</span>
+             <span class="tok-nt">&lt;/phase&gt;</span>
+          <span class="tok-nt">&lt;/initialPhases&gt;</span>
+          <span class="tok-nt">&lt;finalPhase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;EVERGREEN&quot;</span><span class="tok-nt">&gt;</span>
+              <span class="tok-nt">&lt;duration&gt;</span>
+                  <span class="tok-nt">&lt;unit&gt;</span>UNLIMITED<span class="tok-nt">&lt;/unit&gt;</span>
+              <span class="tok-nt">&lt;/duration&gt;</span>
+              <span class="tok-nt">&lt;recurring&gt;</span>
+                  <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
+                  <span class="tok-nt">&lt;recurringPrice&gt;</span>
+                      <span class="tok-nt">&lt;price&gt;</span>
+                          <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
+                          <span class="tok-nt">&lt;value&gt;</span>10.00<span class="tok-nt">&lt;/value&gt;</span>
+                      <span class="tok-nt">&lt;/price&gt;</span>
+                  <span class="tok-nt">&lt;/recurringPrice&gt;</span>
+              <span class="tok-nt">&lt;/recurring&gt;</span>
+          <span class="tok-nt">&lt;/finalPhase&gt;</span>
+      <span class="tok-nt">&lt;/plan&gt;</span>
+    <span class="tok-nt">&lt;/plans&gt;</span>
+    <span class="tok-nt">&lt;priceLists&gt;</span>
+        <span class="tok-nt">&lt;defaultPriceList</span> <span class="tok-na">name=</span><span class="tok-s">&quot;DEFAULT&quot;</span><span class="tok-nt">&gt;</span>
+            <span class="tok-nt">&lt;plans&gt;</span>
+                <span class="tok-nt">&lt;plan&gt;</span>movies-monthly<span class="tok-nt">&lt;/plan&gt;</span>
+            <span class="tok-nt">&lt;/plans&gt;</span>
+        <span class="tok-nt">&lt;/defaultPriceList&gt;</span>
+    <span class="tok-nt">&lt;/priceLists&gt;</span>
+<span class="tok-nt">&lt;/catalog&gt;</span></code></pre>
 </div>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_overdue_configuration">Overdue Configuration</h3>
+<h3 id="_overdue_configuration">Overdue configuration</h3>
 <div class="paragraph">
-<p>The configurartion below defines the 3 different states:</p>
+<p>The overdue configuration will define the three states the account will go through:</p>
 </div>
-<div class="ulist">
-<ul>
+<div class="olist arabic">
+<ol class="arabic">
 <li>
-<p><code>WARNING</code>:</p>
-<div class="ulist">
-<ul>
-<li>
-<p><code>timeSinceEarliestUnpaidInvoiceEqualsOrExceeds</code> is set to 10 days as specified by the scenario</p>
+<p>The account will enter the WARNING state 10 days after the first unpaid invoice (i.e. 20 days after the subscription creation)</p>
 </li>
 <li>
-<p><code>disableEntitlementAndChangesBlocked</code> is set to false since we still want the user to have access to the service</p>
+<p>4 days later, the account will move to the BLOCKED state</p>
 </li>
 <li>
-<p><code>autoReevaluationInterval</code> is set to 4 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to <code>BLOCKED</code> 4 days later</p>
+<p>7 days later, the account will move to the CANCELLATION state</p>
 </li>
-<li>
-<p><code>blockChanges</code> is set to true to prevent users from changing plans until they clear their balance (was not specified in the scenario, but probably a good practice to follow)</p>
-</li>
-</ul>
-</div>
-</li>
-<li>
-<p><code>BLOCKED</code>:</p>
-<div class="ulist">
-<ul>
-<li>
-<p><code>timeSinceEarliestUnpaidInvoiceEqualsOrExceeds</code> is set to 14 days as specified by the scenario</p>
-</li>
-<li>
-<p><code>disableEntitlementAndChangesBlocked</code> is set to true since we now want the user to NOT have access to the service</p>
-</li>
-<li>
-<p><code>autoReevaluationInterval</code> is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to <code>CANCELATION</code> 8 days later</p>
-</li>
-</ul>
-</div>
-</li>
-<li>
-<p><code>CANCELATION</code>:</p>
-<div class="ulist">
-<ul>
-<li>
-<p><code>subscriptionCancellationPolicy</code> is set to <code>END_OF_TERM</code> to indicate that subscriptions should be cancelled in such a way that we do not generate credit for the account (no proration)</p>
-</li>
-</ul>
-</div>
-</li>
-</ul>
+</ol>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="xml"><span class="tok-nt">&lt;overdueConfig&gt;</span>
    <span class="tok-nt">&lt;accountOverdueStates&gt;</span>
        <span class="tok-nt">&lt;initialReevaluationInterval&gt;</span>
-           <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>4<span class="tok-nt">&lt;/number&gt;</span>
+           <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>10<span class="tok-nt">&lt;/number&gt;</span>
        <span class="tok-nt">&lt;/initialReevaluationInterval&gt;</span>
-       <span class="tok-nt">&lt;state</span> <span class="tok-na">name=</span><span class="tok-s">&quot;CANCELATION&quot;</span><span class="tok-nt">&gt;</span>
+       <span class="tok-nt">&lt;state</span> <span class="tok-na">name=</span><span class="tok-s">&quot;CANCELLATION&quot;</span><span class="tok-nt">&gt;</span>
            <span class="tok-nt">&lt;condition&gt;</span>
                <span class="tok-nt">&lt;timeSinceEarliestUnpaidInvoiceEqualsOrExceeds&gt;</span>
                    <span class="tok-nt">&lt;unit&gt;</span>DAYS<span class="tok-nt">&lt;/unit&gt;&lt;number&gt;</span>21<span class="tok-nt">&lt;/number&gt;</span>
@@ -672,11 +673,75 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <span class="tok-nt">&lt;/overdueConfig&gt;</span></code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>In more details:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>initialReevaluationInterval</code> is set to 10 (if no payment is posted, the overdue state is recomputed 10 days later to match <code>timeSinceEarliestUnpaidInvoiceEqualsOrExceeds</code>)</p>
+</li>
+<li>
+<p><code>WARNING</code>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>timeSinceEarliestUnpaidInvoiceEqualsOrExceeds</code> is set to 10 days as specified by the scenario</p>
+</li>
+<li>
+<p><code>blockChanges</code> is set to true to prevent users from changing plans</p>
+</li>
+<li>
+<p><code>disableEntitlementAndChangesBlocked</code> is set to false, since we still want the user to have access to the service</p>
+</li>
+<li>
+<p><code>autoReevaluationInterval</code> is set to 4 days to make sure that if there is no payment (which would trigger a re-evaluation of the overdue state), the state will be correctly recomputed and transition to <code>BLOCKED</code> 4 days later</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><code>BLOCKED</code>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>blockChanges</code> is set to true to prevent users from changing plans</p>
+</li>
+<li>
+<p><code>timeSinceEarliestUnpaidInvoiceEqualsOrExceeds</code> is set to 14 days as specified by the scenario</p>
+</li>
+<li>
+<p><code>disableEntitlementAndChangesBlocked</code> is set to true since we now want the user to NOT have access to the service</p>
+</li>
+<li>
+<p><code>autoReevaluationInterval</code> is set to 8 days to make sure that if there is no payment (no overdue trigger), the state will be correctly recomputed and transition to <code>CANCELLATION</code> 8 days later</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><code>CANCELLATION</code>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>subscriptionCancellationPolicy</code> is set to <code>END_OF_TERM</code> to indicate that subscriptions should be cancelled in such a way that we do not generate credit for the account (no proration)</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_payment_retries">Payment retries</h3>
 <div class="paragraph">
-<p>In addition we need to configure the payment system to retry failed payments; the system property <code>org.killbill.payment.retry.days</code> specifies the retry policy associated to payment failures. In our case we need to set it to <code>1,1,8</code> to indicate 3 payment retries, the first one after 1 day, and then 1 day after, and the last one 8 days after the previous one (as specified in our scenario).</p>
+<p>Additionally, we need to configure the payment system to retry failed payments. Each time a payment is retried, the overdue system will react and adjust the state depending on the payment status.</p>
+</div>
+<div class="paragraph">
+<p>Kill Bill comes with a built-in retry mechanism. The property <code>org.killbill.payment.retry.days</code> specifies the retry schedule for payment failures (e.g. insufficient funds). In our case, we need to set it to <code>1,1,8</code> to indicate 3 payment retries, the first one after 1 day, then 1 day after, and the last one 8 days after the previous one (as specified in our scenario).</p>
+</div>
+<div class="paragraph">
+<p>Additionally, if you need more granularity in how you want to retry payments, you can implement your own logic in a Payment Control plugin (which goes beyond the scope of this tutorial).</p>
 </div>
 </div>
 </div>
@@ -685,7 +750,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="customers">Example of Customers</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Let&#8217;s take the case of a customer that subscribed to the service. Immediately after the subscription was created a $0 invoice is created to indicate the customer is in TRIAL. Let&#8217;s assume his credit card does not have enough funds. 10 days later the customer moves out of TRIAL and the system generates a $10 invoice for the month. At this point, the system attempts to make a payment, but the payment does not go through:</p>
+<p>Let&#8217;s take the case of a customer who subscribed to the service. Immediately after the subscription was created, a $0 invoice is created to indicate the customer is in TRIAL. Let&#8217;s assume his credit card does not have enough funds. 10 days later, the customer moves out of TRIAL and the system generates a $10 invoice for the month. At this point, the system attempts to make a payment, but the payment does not go through:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -703,12 +768,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="_bad_customer">Bad Customer</h3>
 <div class="paragraph">
-<p>Let&#8217;s assume this is a bad customer, that will not update his credit card:</p>
+<p>Let&#8217;s assume this is a bad customer, who will not update his credit card:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Day 14: the customer moves to a <code>BLOCKED</code> state; the system will stop invoicing, and will indicate that the customer is not entititled to receiving service any longer (more details below)</p>
+<p>Day 14: the customer moves into a <code>BLOCKED</code> state; the system will stop invoicing, and will indicate that the customer is not entititled to receiving service any longer (more details below)</p>
 </li>
 <li>
 <p>Day 21: the system will cancel the subscription (final state)</p>
@@ -719,7 +784,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="_good_customer">Good Customer</h3>
 <div class="paragraph">
-<p>Let&#8217;s assume this is a good customer, and after the WARNING, he updates his credit card:</p>
+<p>Let&#8217;s assume he is a good customer, and after the <code>WARNING</code>, he updates his credit card:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -742,10 +807,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>It should first retrieve the overdue status (at the account level) using the <code>GET /1.0/kb/accounts/{accountId}/overdue</code> api,</p>
+<p>It should first retrieve the overdue status (at the account level) using the <code>GET /1.0/kb/accounts/{accountId}/overdue</code> api</p>
 </li>
 <li>
-<p>It should then retrieve the subscriptions associated with the account <code>GET /1.0/kb/accounts/{accountId}/bundles</code>, or if the subscriptionId was cached it could use <code>GET /1.0/kb/subscriptions/{subscriptionId}</code></p>
+<p>It should then retrieve the subscriptions associated with the account <code>GET /1.0/kb/accounts/{accountId}/bundles</code> (or if the subscriptionId was cached it could use <code>GET /1.0/kb/subscriptions/{subscriptionId}</code>) to verify the individual subscriptions status</p>
 </li>
 </ol>
 </div>
@@ -754,31 +819,31 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="json"><span class="tok-err">---</span>
-<span class="tok-p">{</span> <span class="tok-nt">&quot;blockChanges&quot;</span><span class="tok-p">:</span> <span class="tok-kc">true</span><span class="tok-p">,</span>
-<span class="tok-nt">&quot;clearState&quot;</span><span class="tok-p">:</span> <span class="tok-kc">false</span><span class="tok-p">,</span>
-<span class="tok-nt">&quot;daysBetweenPaymentRetries&quot;</span><span class="tok-p">:</span> <span class="tok-mi">1</span><span class="tok-p">,</span>
-<span class="tok-nt">&quot;disableEntitlementAndChangesBlocked&quot;</span><span class="tok-p">:</span> <span class="tok-kc">false</span><span class="tok-p">,</span>
-<span class="tok-nt">&quot;externalMessage&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;Reached WARNING&quot;</span><span class="tok-p">,</span>
-<span class="tok-nt">&quot;name&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;WARNING&quot;</span><span class="tok-p">,</span>
-<span class="tok-nt">&quot;reevaluationIntervalDays&quot;</span><span class="tok-p">:</span> <span class="tok-mi">4</span> <span class="tok-p">}</span>
-<span class="tok-err">---</span></code></pre>
+<pre class="pygments highlight"><code data-lang="json"><span class="tok-p">{</span>
+  <span class="tok-nt">&quot;blockChanges&quot;</span><span class="tok-p">:</span> <span class="tok-kc">true</span><span class="tok-p">,</span>
+  <span class="tok-nt">&quot;clearState&quot;</span><span class="tok-p">:</span> <span class="tok-kc">false</span><span class="tok-p">,</span>
+  <span class="tok-nt">&quot;daysBetweenPaymentRetries&quot;</span><span class="tok-p">:</span> <span class="tok-mi">1</span><span class="tok-p">,</span>
+  <span class="tok-nt">&quot;disableEntitlementAndChangesBlocked&quot;</span><span class="tok-p">:</span> <span class="tok-kc">false</span><span class="tok-p">,</span>
+  <span class="tok-nt">&quot;externalMessage&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;Reached WARNING&quot;</span><span class="tok-p">,</span>
+  <span class="tok-nt">&quot;name&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;WARNING&quot;</span><span class="tok-p">,</span>
+  <span class="tok-nt">&quot;reevaluationIntervalDays&quot;</span><span class="tok-p">:</span> <span class="tok-mi">4</span>
+<span class="tok-p">}</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
 <p>If the <code>disableEntitlementAndChangesBlocked</code> is set to true, it means that the customer is not entitled to the service associated to any subscriptions.</p>
 </div>
 <div class="paragraph">
-<p>So, note that retrieving subscriptions through the <code>GET /1.0/kb/subscriptions/{subscriptionId}</code> will not directly indicate the overdue status, and so both calls must be made to have a complete picture of the entitlement when the overdue system has been configured.</p>
+<p>Note that retrieving subscriptions through the <code>GET /1.0/kb/subscriptions/{subscriptionId}</code> will not directly indicate the overdue status, and so both calls must be made to have a complete picture of the entitlement when the overdue system has been configured.</p>
 </div>
 <div class="paragraph">
-<p>When retrieving entitlement/overdue status, the web site could be implemented to take all kind of actions such as displaying warning message, degrading experience, emailing customer, &#8230;&#8203;</p>
+<p>When retrieving entitlement/overdue status, the web site could be implemented to take all kinds of actions such as displaying warning message, degrading experience, emailing customer, &#8230;&#8203;</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_custom_plugins">Custom Plugins</h3>
 <div class="paragraph">
-<p>In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs in for instance). Another pattern, is to create a custom plugin that will listen to Overdue events. Examples of such plugins can be found here:</p>
+<p>In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs-in for instance). Another pattern is to create a custom plugin that will listen to Overdue events. Examples of such plugins can be found here:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -802,7 +867,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Email/Notify user about the new state</p>
 </li>
 <li>
-<p>Take action to modify the experience (based on the state name), for instance to degrade the service, or modify the login flow on a website to prompt for payments, &#8230;&#8203;</p>
+<p>Take action to modify the experience (based on the state name): for instance to degrade the service, modify the login flow to prompt for payment, &#8230;&#8203;</p>
 </li>
 </ul>
 </div>
@@ -812,7 +877,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-13 07:06:57 UTC
+Last updated 2015-12-21 21:30:20 UTC
 </div>
 </div>
 </body>

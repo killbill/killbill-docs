@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill and Bitcoin</title>
+<title>Kill Bill configuration guide</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,319 +476,128 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill and Bitcoin</h1>
+<h1>Kill Bill configuration guide</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_introduction">Introduction</a>
+<li><a href="#configuration">Configuration</a>
 <ul class="sectlevel2">
-<li><a href="#_recurring_payments">Recurring payments</a></li>
-<li><a href="#_pending_payment_state">PENDING payment state</a></li>
-</ul>
-</li>
-<li><a href="#_pre_requisites">Pre-requisites</a></li>
-<li><a href="#_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</a>
-<ul class="sectlevel2">
-<li><a href="#_bitpay">BitPay</a>
+<li><a href="#_system_properties">System properties</a>
 <ul class="sectlevel3">
-<li><a href="#_installation">Installation</a></li>
-<li><a href="#_usage">Usage</a></li>
+<li><a href="#configuration-overview">Overview</a></li>
+<li><a href="#_system_properties_2">System Properties</a></li>
 </ul>
 </li>
-<li><a href="#_coinbase">Coinbase</a>
-<ul class="sectlevel3">
-<li><a href="#_installation_2">Installation</a></li>
-<li><a href="#_usage_2">Usage</a></li>
-<li><a href="#_recurring_payment">Recurring payment</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#_self_hosted_blockchain">Self-hosted blockchain</a>
-<ul class="sectlevel2">
-<li><a href="#_overview">Overview</a></li>
-<li><a href="#_usage_3">Usage</a></li>
-<li><a href="#_storing_funds">Storing funds</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is an open-source platform to build billing and payments services. Besides traditional payment methods (Credit and Debit cards, hosted payment gateways, checks, etc.), it does support Bitcoin as well. This guide will focus on how you can integrate Bitcoin with Kill Bill. For general information on the project, check our website <a href="http://kill-bill.org" class="bare">http://kill-bill.org</a>.</p>
-</div>
-<div class="paragraph">
-<p>Lost? Questions? Reach out to our <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing-list</a>!</p>
-</div>
-</div>
-</div>
 <div class="sect1">
-<h2 id="_introduction">Introduction</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is currency and payment method agnostic. Our one-time and recurring payments APIs work around the concept of an account, which represents a person or a corporate entity, to which several payments methods (means of payment) are attached. An account can have a US AmericanExpress credit card, German Visa debit card, a hosted Blockchain.info wallet and a MultiBit Bitcoin wallet - all of these four payment methods are treated the same in Kill Bill, for the purpose of API calls parameters, invoices and payments objects, etc. This can happen because the gateway specific logic is handled in Kill Bill plugins, which plug into the platform via tightly controlled integration points.</p>
-</div>
-<div class="paragraph">
-<p>For more information on Kill Bill&#8217;s payments APIs and plugins, check our <a href="http://docs.kill-bill.org/payments.html">Payments guide</a>.</p>
-</div>
-<div class="paragraph">
-<p>The following guide assumes you already have an instance of Kill Bill running locally. To get started, check out our <a href="http://docs.kill-bill.org/userguide.html">Kill Bill in 5 minutes</a> guide.</p>
-</div>
-<div class="sect2">
-<h3 id="_recurring_payments">Recurring payments</h3>
-<div class="paragraph">
-<p>Supporting recurring payments is currently not easily feasable with Bitcoin, since it requires the merchant to have access to your wallet secret keys. While we do offer a work-around using <a href="https://coinbase.com/">Coinbase</a> (see below), we are working with the community to extend the <a href="https://github.com/bitcoin/bips/blob/master/bip-0070.mediawiki">Payment Protocol (BIP 70)</a> to add support for it. You can follow the discussion on the <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=D6BCC0C4-EF22-4DE8-868E-825D19C387E3%40kill-bill.org&amp;forum_name=bitcoin-development">bitcoin-development</a> mailing-list.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_pending_payment_state">PENDING payment state</h3>
-<div class="paragraph">
-<p>Usually in Kill Bill, a payment can be either in a success or failed status (the latter being terminal or not, if you configured your instance to retry failed payments). Due to the nature of the blockchain, a merchant often wants to wait several block confirmations (usually 6) before considering a payment successful (and before releasing goods or services). This transition period maps to the <code>PENDING</code> (unconfirmed) state in Kill Bill.</p>
-</div>
-<div class="paragraph">
-<p>Our Bitcoin plugins will verify blockchain transactions (either directly on the blockchain or indirectly, through third-parties, depending on the plugin) and make sure each payment in Kill Bill will have one single matching transaction within the Bitcoin blockchain. It will then notify Kill Bill when the payment can be considered successfull based on heuristics that are configurable, such as the depth of the blocks where the transaction occurred.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_pre_requisites">Pre-requisites</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>No matter how you plan on accepting Bitcoin, you&#8217;ll need to create an account for your customer in Kill Bill:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;john&quot;,&quot;email&quot;:&quot;john@foo.com&quot;,&quot;externalKey&quot;:&quot;11-22-33-44-55&quot;,&quot;currency&quot;:&quot;BTC&quot;}&#39;</span> <span class="tok-se">\</span>
-     http://127.0.0.1:8080/1.0/kb/accounts</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>We&#8217;ll assume the account id is f7b86b16-2770-48a6-9582-1b1413a0053c in the rest of this document.</p>
-</div>
-<div class="paragraph">
-<p>Then, the account needs an associated payment method in the plugin.</p>
-</div>
-<div class="paragraph">
-<p>For BitPay:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-bitpay&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>For Coinbase:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-coinbase&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</h2>
+<h2 id="configuration">Configuration</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_bitpay">BitPay</h3>
+<h3 id="_system_properties">System properties</h3>
+<div class="sect3">
+<h4 id="configuration-overview">Overview</h4>
 <div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-bitpay-plugin">BitPay plugin</a> is a wrapper around the <a href="http://activemerchant.org">Active Merchant</a> BitPay integration.</p>
+<p>Kill Bill configuration is done principally via Java System Properties. These can be set on the command line (e.g. <code>java -Dkey1=value1 -Dkey2=value2 -jar killbill-server-jetty-console.war</code>) or in Java Properties files (via <code>-Dorg.killbill.server.properties=file:///path/to/killbill.properties</code> or <code>start.ini</code> if you are using Jetty). Some containers use custom formats (for example, System Properties in GlassFish would be placed in <code>domains/domain1/config/domain.xml</code>), so please refer to your container documentation for more information.</p>
 </div>
 <div class="paragraph">
-<p>The direct payment flow is as follow:</p>
+<p>The system properties are global to the system, and therefore will apply to all tenants. Those properties will also be accessible to the various plugins through a <a href="https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/killbill/osgi/libs/killbill/OSGIConfigPropertiesService.java">special interface</a>.
+Some parts of the system also rely on additional xml configuration. Currently, only the caching layer which is based on <a href="http://ehcache.org/">EhCache</a> requires such <a href="https://github.com/killbill/killbill/blob/master/util/src/main/resources/ehcache.xml">xml configuration</a>. The location of the xml itself is specified via a system property <code>org.killbill.cache.config.location</code>.</p>
+</div>
+<div class="paragraph">
+<p>In addition to these global settings, the following is also available on a per tenant basis:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Using the Kill Bill <code>buildFormDescriptor</code> API call, create an invoice in BitPay</p>
+<p>Catalog configuration</p>
 </li>
 <li>
-<p>Redirect the user to the hosted invoice page and/or embed the invoice in an iframe</p>
+<p>Overdue configuration</p>
 </li>
 <li>
-<p>Upon success, BitPay will send a notification to Kill Bill which will mark the payment as successful</p>
+<p>Invoice templates, and language translation resources</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_system_properties_2">System Properties</h4>
+<div class="paragraph">
+<p>Kill Bill relies on <a href="https://github.com/brianm/config-magic"><code>config-magic</code></a> to define, initialize, and make accessible through function calls all its system properties.</p>
+</div>
+<div class="paragraph">
+<p>Some core services in Kill Bill export some properties, whose name is fairly explanatory:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/CatalogConfig.java">Catalog configuration</a> (Only to specify the location of the default catalog if not per-tenant catalog have been uploaded)</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/InvoiceConfig.java">Invoice configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/PaymentConfig.java">Payment configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/RbacConfig.java">Rbac configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/SecurityConfig.java">Shiro configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/CacheConfig.java">Cache configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/email/EmailConfig.java">SMTP and email configuration for notifications</a></p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>For more details on how to configure the invoice in BitPay, see <a href="https://bitpay.com/bitcoin-payment-gateway-api" class="bare">https://bitpay.com/bitcoin-payment-gateway-api</a>.</p>
+<p>The properties to configure the database are split between the core Kill Bill services and the plugins to allow plugins to use a different database or configuration (pooling, &#8230;&#8203;):</p>
 </div>
-<div class="sect3">
-<h4 id="_installation">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22bitpay-plugin%22">latest version</a> of the plugin.</p>
-</div>
-<div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/bitpay.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://bitpay.com/api-keys">BitPay API key</a>):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:bitpay</span><span class="tok-p">:</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span> <span class="tok-s1">&#39;XXXX&#39;</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">bitpay</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
-</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/jdbi/src/main/java/org/killbill/commons/jdbi/guice/DaoConfig.java">Kill Bill Database configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/glue/OSGIDataSourceConfig.java">Plugin   Database configuration</a></p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-bitpay-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
+<p>The properties to configure the persistent buses and notification queue are shown below. Those properties are built to be used across multiple instances (we have two persistent buses) which explains the substitution parameter <code>instanceName</code>. For more
+detail on the configuration of the bus and notification queue, check <a href="https://github.com/killbill/killbill/wiki/Kill-Bill-Bus-and-Notification-Queue-Configuration">here</a>.</p>
 </div>
-</div>
-<div class="sect3">
-<h4 id="_usage">Usage</h4>
-<div class="paragraph">
-<p>Create the invoice in BitPay using the <code>buildFormDescriptor</code> API call (note that the only required fields are amount and currency):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{</span>
-<span class="tok-s1">                        &quot;formFields&quot;: [</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;amount&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;0.0001&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;currency&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;BTC&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;order_id&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;INV0019483&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;notify_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-killbill.com:8080/1.0/kb/paymentGateways/notifications/killbill-bitpay&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;return_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-e-commerce.com/thank-you&quot;</span>
-<span class="tok-s1">                            }</span>
-<span class="tok-s1">                        ]</span>
-<span class="tok-s1">                    }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/f7b86b16-2770-48a6-9582-1b1413a0053c&quot;</span></code></pre>
-</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/bus/api/PersistentBusConfig.java">Persistent bus configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueConfig.java">Notification queue configuration</a></p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>BitPay will notify Kill Bill via the <code>notify_url</code> parameter and update the payment status.</p>
+<p>Finally some high level properties to configure OSGI (where to find the plugins, &#8230;&#8203;), and some Kill Bill web app configuration (multi-tenancy on/off, &#8230;&#8203;):</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java">OSGI related configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/KillbillServerConfig.java">Kill Bill Web app configuration</a></p>
+</li>
+</ul>
 </div>
-</div>
-<div class="sect2">
-<h3 id="_coinbase">Coinbase</h3>
-<div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-coinbase-plugin">Coinbase plugin</a> is a wrapper around the <a href="https://github.com/coinbase/coinbase-ruby">Coinbase Ruby gem</a>.</p>
-</div>
-<div class="sect3">
-<h4 id="_installation_2">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22coinbase-plugin%22">latest version</a> of the plugin.</p>
-</div>
-<div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-coinbase</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/coinbase.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://coinbase.com/settings/api">Coinbase API key</a>):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:coinbase</span><span class="tok-p">:</span>
-  <span class="tok-c1"># TODO</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_id</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_secret</span><span class="tok-p">:</span>
-  <span class="tok-ss">:redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:app_redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:btc_address</span><span class="tok-p">:</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">coinbase</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-coinbase-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_usage_2">Usage</h4>
-<div class="paragraph">
-<p>TODO</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="_recurring_payment">Recurring payment</h4>
-<div class="paragraph">
-<p>TODO</p>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_self_hosted_blockchain">Self-hosted blockchain</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Alternatively, you can use our native <a href="https://github.com/killbill/killbill-bitcoin-plugin">Bitcoin plugin</a> to handle transactions yourself.</p>
-</div>
-<div class="sect2">
-<h3 id="_overview">Overview</h3>
-<div class="paragraph">
-<p>The plugin uses Bitcoinj to create a local wallet and runs in Simplified Payment Verification (SPV) mode.</p>
-</div>
-<div class="paragraph">
-<p>The flow of operations can be summarized as follows: each time the plugin detects a new <code>PENDING</code> Bitcoin payment, it keeps track of that payment in its persistent tables (it keeps a mapping between the Kill Bill payment id and the blockchain transaction). When a new block is added to the blockchain, it checks to see if there is a <code>PENDING</code> payment that matches that BTC transactionId and it verifies if the payment can be considered valid (depending on the depth configuration). If it is, it notifies Kill Bill so that the payment status can be updated to <code>SUCCESS</code>.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_usage_3">Usage</h3>
-<div class="paragraph">
-<p>TODO</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_storing_funds">Storing funds</h3>
-<div class="paragraph">
-<p>Each plugin instance has its own instance of a wallet ; since we often run Kill Bill as a distributed service&#8201;&#8212;&#8201;for robustness purpose, or to address needs of scaling horizontally&#8201;&#8212;&#8201;that means that each node where Kill Bill runs has a different wallet, and the bitcoins in each wallet needs to be transferred to a well known (set of) public merchant keys. To address that issue, you can configure the plugin to periodically empty its wallet using a well known (set of) public keys (the interval, amount of money, etc. are configurable thresholds).</p>
 </div>
 </div>
 </div>

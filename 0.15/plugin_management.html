@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill and Bitcoin</title>
+<title>Plugin Management APIs</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,319 +476,529 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill and Bitcoin</h1>
+<h1>Plugin Management APIs</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_introduction">Introduction</a>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#_apis">APIs</a>
 <ul class="sectlevel2">
-<li><a href="#_recurring_payments">Recurring payments</a></li>
-<li><a href="#_pending_payment_state">PENDING payment state</a></li>
-</ul>
-</li>
-<li><a href="#_pre_requisites">Pre-requisites</a></li>
-<li><a href="#_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</a>
-<ul class="sectlevel2">
-<li><a href="#_bitpay">BitPay</a>
-<ul class="sectlevel3">
 <li><a href="#_installation">Installation</a></li>
-<li><a href="#_usage">Usage</a></li>
+<li><a href="#_starting_a_plugin">Starting a plugin</a></li>
+<li><a href="#_stopping_a_plugin">Stopping a plugin</a></li>
+<li><a href="#_restarting_a_plugin">Restarting a plugin</a></li>
+<li><a href="#_uninstallation">Uninstallation</a></li>
+<li><a href="#_listing_all_the_plugins">Listing all the plugins</a></li>
 </ul>
 </li>
-<li><a href="#_coinbase">Coinbase</a>
-<ul class="sectlevel3">
-<li><a href="#_installation_2">Installation</a></li>
-<li><a href="#_usage_2">Usage</a></li>
-<li><a href="#_recurring_payment">Recurring payment</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#_self_hosted_blockchain">Self-hosted blockchain</a>
+<li><a href="#_internals">Internals</a>
 <ul class="sectlevel2">
-<li><a href="#_overview">Overview</a></li>
-<li><a href="#_usage_3">Usage</a></li>
-<li><a href="#_storing_funds">Storing funds</a></li>
+<li><a href="#_multi_node_implementation">Multi-node Implementation</a></li>
+<li><a href="#_installation_uninstallation">Installation/Uninstallation</a></li>
+<li><a href="#_kpm_plugin">KPM Plugin</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill is an open-source platform to build billing and payments services. Besides traditional payment methods (Credit and Debit cards, hosted payment gateways, checks, etc.), it does support Bitcoin as well. This guide will focus on how you can integrate Bitcoin with Kill Bill. For general information on the project, check our website <a href="http://kill-bill.org" class="bare">http://kill-bill.org</a>.</p>
-</div>
-<div class="paragraph">
-<p>Lost? Questions? Reach out to our <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing-list</a>!</p>
-</div>
-</div>
-</div>
 <div class="sect1">
-<h2 id="_introduction">Introduction</h2>
+<h2 id="overview">Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill is currency and payment method agnostic. Our one-time and recurring payments APIs work around the concept of an account, which represents a person or a corporate entity, to which several payments methods (means of payment) are attached. An account can have a US AmericanExpress credit card, German Visa debit card, a hosted Blockchain.info wallet and a MultiBit Bitcoin wallet - all of these four payment methods are treated the same in Kill Bill, for the purpose of API calls parameters, invoices and payments objects, etc. This can happen because the gateway specific logic is handled in Kill Bill plugins, which plug into the platform via tightly controlled integration points.</p>
+<p>Started with Kill Bill 0.16.0, it is now possible to go through all the lifecycle (<code>install</code>, <code>start</code>, <code>stop</code>, <code>uninstall</code> and <code>list status</code>) of a plugin using apis.
+The apis have been designed to work on a killbill deployment that consists of several instances.</p>
 </div>
 <div class="paragraph">
-<p>For more information on Kill Bill&#8217;s payments APIs and plugins, check our <a href="http://docs.kill-bill.org/payments.html">Payments guide</a>.</p>
-</div>
-<div class="paragraph">
-<p>The following guide assumes you already have an instance of Kill Bill running locally. To get started, check out our <a href="http://docs.kill-bill.org/userguide.html">Kill Bill in 5 minutes</a> guide.</p>
-</div>
-<div class="sect2">
-<h3 id="_recurring_payments">Recurring payments</h3>
-<div class="paragraph">
-<p>Supporting recurring payments is currently not easily feasable with Bitcoin, since it requires the merchant to have access to your wallet secret keys. While we do offer a work-around using <a href="https://coinbase.com/">Coinbase</a> (see below), we are working with the community to extend the <a href="https://github.com/bitcoin/bips/blob/master/bip-0070.mediawiki">Payment Protocol (BIP 70)</a> to add support for it. You can follow the discussion on the <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=D6BCC0C4-EF22-4DE8-868E-825D19C387E3%40kill-bill.org&amp;forum_name=bitcoin-development">bitcoin-development</a> mailing-list.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_pending_payment_state">PENDING payment state</h3>
-<div class="paragraph">
-<p>Usually in Kill Bill, a payment can be either in a success or failed status (the latter being terminal or not, if you configured your instance to retry failed payments). Due to the nature of the blockchain, a merchant often wants to wait several block confirmations (usually 6) before considering a payment successful (and before releasing goods or services). This transition period maps to the <code>PENDING</code> (unconfirmed) state in Kill Bill.</p>
-</div>
-<div class="paragraph">
-<p>Our Bitcoin plugins will verify blockchain transactions (either directly on the blockchain or indirectly, through third-parties, depending on the plugin) and make sure each payment in Kill Bill will have one single matching transaction within the Bitcoin blockchain. It will then notify Kill Bill when the payment can be considered successfull based on heuristics that are configurable, such as the depth of the blocks where the transaction occurred.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_pre_requisites">Pre-requisites</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>No matter how you plan on accepting Bitcoin, you&#8217;ll need to create an account for your customer in Kill Bill:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;john&quot;,&quot;email&quot;:&quot;john@foo.com&quot;,&quot;externalKey&quot;:&quot;11-22-33-44-55&quot;,&quot;currency&quot;:&quot;BTC&quot;}&#39;</span> <span class="tok-se">\</span>
-     http://127.0.0.1:8080/1.0/kb/accounts</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>We&#8217;ll assume the account id is f7b86b16-2770-48a6-9582-1b1413a0053c in the rest of this document.</p>
-</div>
-<div class="paragraph">
-<p>Then, the account needs an associated payment method in the plugin.</p>
-</div>
-<div class="paragraph">
-<p>For BitPay:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-bitpay&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>For Coinbase:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;killbill-coinbase&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/f7b86b16-2770-48a6-9582-1b1413a0053c/paymentMethods?isDefault=true&quot;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_accepting_bitcoin_through_a_third_party">Accepting Bitcoin through a third-party</h2>
-<div class="sectionbody">
-<div class="sect2">
-<h3 id="_bitpay">BitPay</h3>
-<div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-bitpay-plugin">BitPay plugin</a> is a wrapper around the <a href="http://activemerchant.org">Active Merchant</a> BitPay integration.</p>
-</div>
-<div class="paragraph">
-<p>The direct payment flow is as follow:</p>
+<p>The feature relies on the following pieces:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Using the Kill Bill <code>buildFormDescriptor</code> API call, create an invoice in BitPay</p>
+<p>A running version of a (or several) killbill server(s)</p>
 </li>
 <li>
-<p>Redirect the user to the hosted invoice page and/or embed the invoice in an iframe</p>
-</li>
-<li>
-<p>Upon success, BitPay will send a notification to Kill Bill which will mark the payment as successful</p>
+<p>A running <a href="https://github.com/killbill/killbill-kpm-plugin">KPM plugin</a> on each killbill instance.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>For more details on how to configure the invoice in BitPay, see <a href="https://bitpay.com/bitcoin-payment-gateway-api" class="bare">https://bitpay.com/bitcoin-payment-gateway-api</a>.</p>
+<p>Installing the KPM plugin will first need to happen using <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a> itself.</p>
 </div>
-<div class="sect3">
-<h4 id="_installation">Installation</h4>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_apis">APIs</h2>
+<div class="sectionbody">
 <div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22bitpay-plugin%22">latest version</a> of the plugin.</p>
+<p>Each of the API refers to a plugin using a <code>pluginKey</code>. A <code>pluginKey</code> can be one of the following:</p>
 </div>
-<div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/bitpay.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://bitpay.com/api-keys">BitPay API key</a>):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:bitpay</span><span class="tok-p">:</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span> <span class="tok-s1">&#39;XXXX&#39;</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">bitpay</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
-</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An entry in the official Kill Bill <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml">plugin reporsitory</a>,</p>
+</li>
+<li>
+<p>A user provided key that will be used to identify this plugin when using the APIs. The user provided key must be unique and must contain a namespace (e.g MY_NAMESPACE:myKey). During the installation phase, and when using a user provided key, one must also specify additonal properties to specify the location of that plugin.</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-bitpay-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
+<p>The following APIs are supported:</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p>INSTALL_PLUGIN: Install a plugin. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginType</code>: required for user provided key  (can be <code>ruby</code> or <code>java</code>)</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+<li>
+<p><code>pluginArtifactId</code>: required for user provided key  (the maven <code>artifactId</code>)</p>
+</li>
+<li>
+<p><code>pluginGroupId</code>: required for user provided key  (the maven <code>groupId</code>)</p>
+</li>
+<li>
+<p><code>pluginPackaging</code>: optional (the maven <code>packaging</code> that will default to <code>jar</code> for <code>java</code> plugin and <code>tar.gz</code> for <code>ruby</code> plugins)</p>
+</li>
+<li>
+<p><code>pluginClassifier</code>: optional (the maven <code>classifier</code> that will default to null)</p>
+</li>
+</ul>
 </div>
-<div class="sect3">
-<h4 id="_usage">Usage</h4>
+</li>
+<li>
+<p>START_PLUGIN: Start a plugin. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>RESTART_PLUGIN:  Restart a plugin. All classes will be unloaded and new classes/ruby files will be loeaded and started. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>STOP_PLUGIN: Stop a plugin. All classes will be unloaded. The following properties are supported:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>UNINSTALL_PLUGIN: The command will disable the plugin so it will not be listed as the installed plugin, but the code will be kept on the filesystem (to optimize cases where one would want to re-install the same version of the plugin):</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>pluginKey</code>: required</p>
+</li>
+<li>
+<p><code>pluginVersion</code>: optional (will default to LATEST version)</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_installation">Installation</h3>
 <div class="paragraph">
-<p>Create the invoice in BitPay using the <code>buildFormDescriptor</code> API call (note that the only required fields are amount and currency):</p>
+<p>The installation of a plugin occurs through the KPM plugin (which itself relies on KPM) and  consists of the following sequence:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Download the binaries and installing them on the filesystem at the right place</p>
+</li>
+<li>
+<p>Set that latest downloaded version as being the default one to start (<code>isSelectedForStart</code>)</p>
+</li>
+<li>
+<p>Notify killbill core to update its view of the existing plugins</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Example of installing a <code>paypal plugin</code> with a specified version of <code>4.0.0</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: creator&#39;</span> <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{</span>
-<span class="tok-s1">                        &quot;formFields&quot;: [</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;amount&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;0.0001&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;currency&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;BTC&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;order_id&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;INV0019483&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;notify_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-killbill.com:8080/1.0/kb/paymentGateways/notifications/killbill-bitpay&quot;</span>
-<span class="tok-s1">                            },</span>
-<span class="tok-s1">                            {</span>
-<span class="tok-s1">                                &quot;key&quot;: &quot;return_url&quot;,</span>
-<span class="tok-s1">                                &quot;value&quot;: &quot;https://my-e-commerce.com/thank-you&quot;</span>
-<span class="tok-s1">                            }</span>
-<span class="tok-s1">                        ]</span>
-<span class="tok-s1">                    }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/f7b86b16-2770-48a6-9582-1b1413a0053c&quot;</span></code></pre>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">    &quot;nodeCommandProperties&quot;: [</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginKey&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;paypal&quot;</span>
+<span class="tok-s1">        },</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginVersion&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;4.0.0&quot;</span>
+<span class="tok-s1">        }</span>
+<span class="tok-s1">    ],</span>
+<span class="tok-s1">    &quot;nodeCommandType&quot;: &quot;INSTALL_PLUGIN&quot;,</span>
+<span class="tok-s1">    &quot;systemCommandType&quot;: &quot;true&quot;</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>BitPay will notify Kill Bill via the <code>notify_url</code> parameter and update the payment status.</p>
+<p>Example of installing a <code>payment test plugin</code> (one must include all the maven coordinates to specify where this plugin should be installed from):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">    &quot;nodeCommandProperties&quot;: [</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginKey&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;killbill:payment-test&quot;</span>
+<span class="tok-s1">        },</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginArtifactId&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;payment-test-plugin&quot;</span>
+<span class="tok-s1">        },</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginGroupId&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;org.kill-bill.billing.plugin.ruby&quot;</span>
+<span class="tok-s1">        },</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginType&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;ruby&quot;</span>
+<span class="tok-s1">        }</span>
+<span class="tok-s1">    ],</span>
+<span class="tok-s1">    &quot;nodeCommandType&quot;: &quot;INSTALL_PLUGIN&quot;,</span>
+<span class="tok-s1">    &quot;systemCommandType&quot;: &quot;true&quot;</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
 </div>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_coinbase">Coinbase</h3>
+<h3 id="_starting_a_plugin">Starting a plugin</h3>
 <div class="paragraph">
-<p>Our <a href="https://github.com/killbill/killbill-coinbase-plugin">Coinbase plugin</a> is a wrapper around the <a href="https://github.com/coinbase/coinbase-ruby">Coinbase Ruby gem</a>.</p>
+<p>Starting a plugin occurs purely through killbill (independent of the KPM plugin) and  consists of the following sequence:</p>
 </div>
-<div class="sect3">
-<h4 id="_installation_2">Installation</h4>
-<div class="paragraph">
-<p>Download the <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.plugin.ruby%22%20a%3A%22coinbase-plugin%22">latest version</a> of the plugin.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Load the classes through the OSGI mechanism</p>
+</li>
+<li>
+<p>Start the plugin</p>
+</li>
+<li>
+<p>Update its view of the existing plugins</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>Copy the inflated artifacted to <code>/var/tmp/bundles/plugins/ruby/killbill-coinbase</code> and create the configuration file at <code>/var/tmp/bundles/plugins/ruby/killbill-bitpay/0.0.1/coinbase.yml</code>. Here&#8217;s an example (make sure to replace <code>XXX</code> with your <a href="https://coinbase.com/settings/api">Coinbase API key</a>):</p>
+<p>Example of starting the default installed version for the <code>paypal plugin</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:coinbase</span><span class="tok-p">:</span>
-  <span class="tok-c1"># TODO</span>
-  <span class="tok-ss">:api_key</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_id</span><span class="tok-p">:</span>
-  <span class="tok-ss">:client_secret</span><span class="tok-p">:</span>
-  <span class="tok-ss">:redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:app_redirect_uri</span><span class="tok-p">:</span>
-  <span class="tok-ss">:btc_address</span><span class="tok-p">:</span>
-  <span class="tok-ss">:log_file</span><span class="tok-p">:</span> <span class="tok-sr">/var/</span><span class="tok-n">tmp</span><span class="tok-o">/</span><span class="tok-n">coinbase</span><span class="tok-o">.</span><span class="tok-n">log</span>
-
-<span class="tok-ss">:database</span><span class="tok-p">:</span>
-  <span class="tok-ss">:adapter</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc&#39;</span>
-  <span class="tok-ss">:driver</span><span class="tok-p">:</span> <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  <span class="tok-ss">:username</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;killbill&#39;</span>
-  <span class="tok-ss">:url</span><span class="tok-p">:</span> <span class="tok-s1">&#39;jdbc:mysql://127.0.0.1:3306/killbill&#39;</span></code></pre>
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">    &quot;nodeCommandProperties&quot;: [</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginKey&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;paypal&quot;</span>
+<span class="tok-s1">        }</span>
+<span class="tok-s1">    ],</span>
+<span class="tok-s1">    &quot;nodeCommandType&quot;: &quot;START_PLUGIN&quot;,</span>
+<span class="tok-s1">    &quot;systemCommandType&quot;: true</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_stopping_a_plugin">Stopping a plugin</h3>
+<div class="paragraph">
+<p>Stopping a plugin occurs purely through killbill (independent of the KPM plugin) and  consists of the following sequence:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Stop the plugin</p>
+</li>
+<li>
+<p>Unload the classes through the OSGI mechanism</p>
+</li>
+<li>
+<p>Update its view of the existing plugins</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Example of stopping the running version of the  <code>paypal plugin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">    &quot;nodeCommandProperties&quot;: [</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginKey&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;paypal&quot;</span>
+<span class="tok-s1">        }</span>
+<span class="tok-s1">    ],</span>
+<span class="tok-s1">    &quot;nodeCommandType&quot;: &quot;STOP_PLUGIN&quot;,</span>
+<span class="tok-s1">    &quot;systemCommandType&quot;: true</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_restarting_a_plugin">Restarting a plugin</h3>
+<div class="paragraph">
+<p>Restarting a plugin consists of first stopping the plugin and then restarted the plugin (therefore unloading previous classes/code and reloading new one with a potentially different version).</p>
+</div>
+<div class="paragraph">
+<p>Example of restarting the running version of the  <code>paypal plugin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">    &quot;nodeCommandProperties&quot;: [</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginKey&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;paypal&quot;</span>
+<span class="tok-s1">        }</span>
+<span class="tok-s1">    ],</span>
+<span class="tok-s1">    &quot;nodeCommandType&quot;: &quot;RESTART_PLUGIN&quot;,</span>
+<span class="tok-s1">    &quot;systemCommandType&quot;: true</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_uninstallation">Uninstallation</h3>
+<div class="paragraph">
+<p>Uninstalling a plugin consists in marking that plugin as being <code>disabled</code>. The code remains on the filesystem but killbill will ignore it.</p>
+</div>
+<div class="paragraph">
+<p>Example of uninstalling the  <code>paypal plugin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{</span>
+<span class="tok-s1">    &quot;nodeCommandProperties&quot;: [</span>
+<span class="tok-s1">        {</span>
+<span class="tok-s1">            &quot;key&quot;: &quot;pluginKey&quot;,</span>
+<span class="tok-s1">            &quot;value&quot;: &quot;paypal&quot;</span>
+<span class="tok-s1">        }</span>
+<span class="tok-s1">    ],</span>
+<span class="tok-s1">    &quot;nodeCommandType&quot;: &quot;UNINSTALL_PLUGIN&quot;,</span>
+<span class="tok-s1">    &quot;systemCommandType&quot;: &quot;true&quot;</span>
+<span class="tok-s1">}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_listing_all_the_plugins">Listing all the plugins</h3>
+<div class="paragraph">
+<p>There is an api to retrieve the current view for each killbill node. That API provides details about the running versions of a killbill node along with all the plugin detail information (the json can be quote long so for better readibility one can pipe the output to <code>python -m json.tool</code> to format it nicely:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -u<span class="tok-s1">&#39;admin:password&#39;</span> -v -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> -H <span class="tok-s1">&#39;X-Killbill-ApiSecret:lazar&#39;</span> http://127.0.0.1:8080/1.0/kb/nodesInfo <span class="tok-p">|</span> python -m json.tool</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Finally, install the <a href="https://raw.githubusercontent.com/killbill/killbill-coinbase-plugin/master/db/ddl.sql">plugin DDL</a> to your <code>killbill</code> database.</p>
+<p>That would provide the following output:</p>
 </div>
-</div>
-<div class="sect3">
-<h4 id="_usage_2">Usage</h4>
 <div class="paragraph">
-<p>TODO</p>
+<p>There is an array of entries, one for each running killbill instance. Each of these entresi will contain the following:</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p>nodeName: By default this is the <code>hostname</code> of the node running, but this can be configured.</p>
+</li>
+<li>
+<p>bootTime: Time at which that node started</p>
+</li>
+<li>
+<p>kbVersion: Version for <a href="https://github.com/killbill/killbill">killbill</a></p>
+</li>
+<li>
+<p>apiVersion: Version for <a href="https://github.com/killbill/killbill-api">killbill-api</a></p>
+</li>
+<li>
+<p>pluginApiVersion: Version <a href="https://github.com/killbill/killbill-plugin-api">for killbill-plugin-api</a></p>
+</li>
+<li>
+<p>platformVersion: Version for <a href="https://github.com/killbill/killbill-platform">killbill-platform</a></p>
+</li>
+<li>
+<p>commonVersion: Version for <a href="https://github.com/killbill/killbill-commons">killbill-commons</a></p>
+</li>
+<li>
+<p>pluginsInfo: One entry for each plugin:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>pluginKey: The plugin key</p>
+</li>
+<li>
+<p>pluginName: The name of the plugin as seen on the filesystem. It is used internally by killbill to idenitify a plugin, but that name is only available after the plugin has been installed and could be changed from one installation to the next.</p>
+</li>
+<li>
+<p>bundleSymbolicName: The OSGI symbolic name (from the <code>MANIFEST.mf</code>)</p>
+</li>
+<li>
+<p>isSelectedForStart: If this is the default version to be started for that plugin</p>
+</li>
+<li>
+<p>services: The plugin apis that this plugin implements</p>
+</li>
+</ul>
 </div>
-<div class="sect3">
-<h4 id="_recurring_payment">Recurring payment</h4>
+</li>
+</ul>
+</div>
 <div class="paragraph">
-<p>TODO</p>
+<p>Example of an output:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+        <span class="tok-s2">&quot;apiVersion&quot;</span>: <span class="tok-s2">&quot;0.32&quot;</span>,
+        <span class="tok-s2">&quot;bootTime&quot;</span>: <span class="tok-s2">&quot;2015-12-18T19:44:23.000Z&quot;</span>,
+        <span class="tok-s2">&quot;commonVersion&quot;</span>: <span class="tok-s2">&quot;0.12&quot;</span>,
+        <span class="tok-s2">&quot;kbVersion&quot;</span>: <span class="tok-s2">&quot;0.15.11-SNAPSHOT&quot;</span>,
+        <span class="tok-s2">&quot;lastUpdatedDate&quot;</span>: <span class="tok-s2">&quot;2015-12-18T19:44:23.000Z&quot;</span>,
+        <span class="tok-s2">&quot;nodeName&quot;</span>: <span class="tok-s2">&quot;GM17573-8080&quot;</span>,
+        <span class="tok-s2">&quot;platformVersion&quot;</span>: <span class="tok-s2">&quot;0.19&quot;</span>,
+        <span class="tok-s2">&quot;pluginApiVersion&quot;</span>: <span class="tok-s2">&quot;0.18&quot;</span>,
+        <span class="tok-s2">&quot;pluginsInfo&quot;</span>: <span class="tok-o">[</span>
+            <span class="tok-o">{</span>
+                <span class="tok-s2">&quot;bundleSymbolicName&quot;</span>: <span class="tok-s2">&quot;org.kill-bill.billing.plugin.java.analytics-plugin&quot;</span>,
+                <span class="tok-s2">&quot;isSelectedForStart&quot;</span>: <span class="tok-nb">true</span>,
+                <span class="tok-s2">&quot;pluginKey&quot;</span>: <span class="tok-s2">&quot;analytics&quot;</span>,
+                <span class="tok-s2">&quot;pluginName&quot;</span>: <span class="tok-s2">&quot;analytics-plugin&quot;</span>,
+                <span class="tok-s2">&quot;services&quot;</span>: <span class="tok-o">[</span>
+                    <span class="tok-o">{</span>
+                        <span class="tok-s2">&quot;registrationName&quot;</span>: <span class="tok-s2">&quot;killbill-analytics&quot;</span>,
+                        <span class="tok-s2">&quot;serviceTypeName&quot;</span>: <span class="tok-s2">&quot;javax.servlet.Servlet&quot;</span>
+                    <span class="tok-o">}</span>
+                <span class="tok-o">]</span>,
+                <span class="tok-s2">&quot;state&quot;</span>: <span class="tok-s2">&quot;RUNNING&quot;</span>,
+                <span class="tok-s2">&quot;version&quot;</span>: <span class="tok-s2">&quot;2.0.2&quot;</span>
+            <span class="tok-o">}</span>,
+.....</code></pre>
 </div>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_self_hosted_blockchain">Self-hosted blockchain</h2>
+<h2 id="_internals">Internals</h2>
 <div class="sectionbody">
-<div class="paragraph">
-<p>Alternatively, you can use our native <a href="https://github.com/killbill/killbill-bitcoin-plugin">Bitcoin plugin</a> to handle transactions yourself.</p>
-</div>
 <div class="sect2">
-<h3 id="_overview">Overview</h3>
+<h3 id="_multi_node_implementation">Multi-node Implementation</h3>
 <div class="paragraph">
-<p>The plugin uses Bitcoinj to create a local wallet and runs in Simplified Payment Verification (SPV) mode.</p>
+<p>Each killbill node writes the details about its versions, plugins info right after it has started. When there is any change in the system, each node is notified through a broadcast mechanism and it updates its entry guaranting that at any time the info matches the current state.</p>
 </div>
 <div class="paragraph">
-<p>The flow of operations can be summarized as follows: each time the plugin detects a new <code>PENDING</code> Bitcoin payment, it keeps track of that payment in its persistent tables (it keeps a mapping between the Kill Bill payment id and the blockchain transaction). When a new block is added to the blockchain, it checks to see if there is a <code>PENDING</code> payment that matches that BTC transactionId and it verifies if the payment can be considered valid (depending on the depth configuration). If it is, it notifies Kill Bill so that the payment status can be updated to <code>SUCCESS</code>.</p>
+<p>The broadcast mechanism is based on a simple mechanism where each node polls periodically a database table shwoing the command to execute. When the system (each node) picks up a new entry, it then sends a special bus event so that different killbill components and plugin can react to the event and carry out the action.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_usage_3">Usage</h3>
+<h3 id="_installation_uninstallation">Installation/Uninstallation</h3>
 <div class="paragraph">
-<p>TODO</p>
+<p>Installing/uninstalling a plugin using the api is slightly different than installing/uninstalling the plugin using KPM directly. The main reason has to do with the <code>pluginKey</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When installing/uninstalling a plugin using the api, one must provide a <code>pluginKey</code>. KPM will update a configuration file under <code>ROOT/plugins/plugin_identifiers.json</code> to keep the mapping between that <code>pluginKey</code> and the <code>pluginName</code> which is the location on the filesystem where this plugin is being deployed (<code>ROOT/plugins/{java|ruby}/pluginName/pluginVersion</code>)</p>
+</li>
+<li>
+<p>When installing/uninstalling a plugin directly through KPM, one does not need to provide a <code>pluginKey</code> and the mapping is not created.</p>
+</li>
+</ul>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_storing_funds">Storing funds</h3>
+<h3 id="_kpm_plugin">KPM Plugin</h3>
 <div class="paragraph">
-<p>Each plugin instance has its own instance of a wallet ; since we often run Kill Bill as a distributed service&#8201;&#8212;&#8201;for robustness purpose, or to address needs of scaling horizontally&#8201;&#8212;&#8201;that means that each node where Kill Bill runs has a different wallet, and the bitcoins in each wallet needs to be transferred to a well known (set of) public merchant keys. To address that issue, you can configure the plugin to periodically empty its wallet using a well known (set of) public keys (the interval, amount of money, etc. are configurable thresholds).</p>
+<p>Plugin installation and uninstallation are handled by the KPM plugin, whose role is to simply listen for bus events to then delegate the installation/uninstallation the the KPM gem and then notify killbill about the result.</p>
+</div>
+<div class="paragraph">
+<p>For all other operations (start/stop/restart), the KPM plugin is not involved.</p>
 </div>
 </div>
 </div>
