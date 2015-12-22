@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Usage: consumable in arrear</title>
+<title>Internationalization Overview</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,221 +476,227 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Usage: consumable in arrear</h1>
+<h1>Internationalization Overview</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#intro">Introduction</a>
-<ul class="sectlevel2">
-<li><a href="#_scenario">Scenario</a></li>
-</ul>
-</li>
-<li><a href="#configuration">Configuration</a></li>
-<li><a href="#pieces-together">Putting The Pieces Together</a>
-<ul class="sectlevel2">
-<li><a href="#_usage_and_metering">Usage and Metering</a></li>
-<li><a href="#_example_of_a_customer_usage">Example of a Customer Usage</a></li>
-</ul>
-</li>
-<li><a href="#_additional_resources">Additional Resources</a></li>
+<li><a href="#_timezones">Timezones</a></li>
+<li><a href="#_multiple_currencies">Multiple Currencies</a></li>
+<li><a href="#_locale">Locale</a></li>
+<li><a href="#_invoice_templates">Invoice Templates</a></li>
+<li><a href="#_email_templates">Email Templates</a></li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div class="sect1">
-<h2 id="intro">Introduction</h2>
+<div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>In this tutorial we will look at the Kill Bill <strong>usage billing</strong> feature. In particular we will see how recurring subscriptions and usage can be configured together. The tutorial will focus on a type of usage that we refer to as <strong>consumable in arrear</strong> and that we explained in that <a href="http://killbill.io/blog/usage-billing/">blog</a>; in short, that is the ability to charge the customer for units he consumed at the end of the billing period.</p>
+<p>Kill Bill was designed to support merchants and their customers (user account, or also referred to as 'user' or 'account' in this documentation) across different countries. In order to support that, there are a lot of different aspects that need to be covered ranging from character set, timezones, multiple currencies, locale, and ability to support multiple languages for all customer-visible data (e.g invoices).</p>
 </div>
-<div class="sect2">
-<h3 id="_scenario">Scenario</h3>
 <div class="paragraph">
-<p>Let&#8217;s assume you want to build a online store selling artisanal chocolates, and geared towards the chocolate aficionados. The service you provide is based on a monthly subscription, that includes 1 box of your (organic certified local produced) home made chocolates. In addition, you also provide videos on the topic (the history of chocolate, its fabrication, recipes of chocolate based dishes, the economy of chocolate, chocolate health benefits, &#8230;&#8203;) that are accessible online from your website. Customers that subscribed to the base service, can also stream your videos and will be invoiced based on their usage at the end of each period:</p>
+<p>In addition, these features must work indepently for the various tenants: A given merchant assigned in a given Kill Bill tenant must be able to configure the system differently than another merchant in a separate tenant.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_timezones">Timezones</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Supporting multiple timezones comes into play when a user needs to interract with the system and then later when the system computes state for this user:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>The base service is available for $30/month and includes that ecstatic box of chocolate,</p>
+<p>A user cancels a subscription and needs to provide a date (requested cancellation date). That date must be interpreted by the system in the user account timezone</p>
 </li>
 <li>
-<p>The first 5 videos (streamed during the month) will be invoiced at $2/video</p>
+<p>Subsequently, when the system computes the next invoices for instance, that one must include all the items for the period of time reflected in the invoice and as seen by the user.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>An example would be a user creating a monthly subscription on january 1st 2015 but from a timezone in PST (UTC-8). So the action may actually happen at a specific point in time such as  2015-01-02T04:00:00.000Z. The system must correctly understand that the provided date needs to be interpreted in the user timezone so that when the user receives its first invoice he sees a billing period ranging from 2015-01-01 to 2015-02-01. If the user then decides to cancel his subscription on the '2015-02-01', the system also needs to make sure this date is interpreted in the user timezone to avoid charging for an extra day; in that case the user only provides a date with no time (api works that way because it is much simpler from his point of view), and so the precise point in time when that cancellation happens needs to be in the 24 hours period of that specified day in the user timezone.</p>
+</div>
+<div class="paragraph">
+<p>More information on the internals of date, you can refer to this <a href="http://killbill.io/blog/lets-talk-about-date-and-time">blog post</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_multiple_currencies">Multiple Currencies</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The Kill Bill catalog allows to specify amounts in different currencies. Each Kill Bill account needs to specify a currency that is used by the system when generating invoices (by looking up the amount of the specified plan for that currency), and that is also used at the time of making a payment. All the credits, later generated for the account will also be in that currency.</p>
+</div>
+<div class="paragraph">
+<p>The system also allows to also use a different currency at the time of making a payment by using a currency converter.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_locale">Locale</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>An account is associated a <code>locale</code> (e.g <code>fr_FR</code>) that is used for extracting localized resources. The system allows to configure the following resource bundles:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Catalog Resource Bundle: Ability to translate specific catalog strings in different languages (e.g American english <code>Gold plan</code> translated as <code>Plan Or</code> in french)</p>
 </li>
 <li>
-<p>The next videos (streamed during the month) will be invoiced at $1/video</p>
+<p>Text Translation: Arbitrary text strings in different languages that can then be used later when creating documents out of templates to ensure they are transalated in the language matching the account.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Along with the locale, the system allows to configure different types of templates:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Invoice templates</p>
+</li>
+<li>
+<p>Email templates</p>
 </li>
 </ul>
 </div>
 </div>
 </div>
-</div>
 <div class="sect1">
-<h2 id="configuration">Configuration</h2>
+<h2 id="_invoice_templates">Invoice Templates</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Your catalog will have to specify the units for the usage section and also define the plan; for the sake of simplicity we omitted other catalog sections, but to see how the pieces fit together you can look at the example provided with the <a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarAdvanced.xml">source code</a>.</p>
+<p>Kill Bill provides an api to retrieve an html invoice (formatted and translated using the account locale). The templating mechanism is based on mustache[<a href="https://github.com/spullara/mustache.java" class="bare">https://github.com/spullara/mustache.java</a>]. In order to configure the system, the following steps need to happen:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Upload the translation for all the supported locale</p>
+</li>
+<li>
+<p>Upload the catalog translation for all the locale (if required)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Example for the locale <code>fr_FR</code>:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Upload the invoice translation for locale <code>fr_FR</code>:</p>
+<div class="literalblock">
+<div class="content">
+<pre>The file `$SOME_PATH_PREFIX/InvoiceTranslation_fr_FR.properties` would contain for instance:</pre>
+</div>
+</div>
+</li>
+</ol>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="xml">---
-<span class="tok-nt">&lt;units&gt;</span>
-	<span class="tok-nt">&lt;unit</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly-videos&quot;</span><span class="tok-nt">/&gt;</span>
-<span class="tok-nt">&lt;/units&gt;</span>
-<span class="tok-c">&lt;!--...--&gt;</span>
-<span class="tok-nt">&lt;plan</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly&quot;</span><span class="tok-nt">&gt;</span>
-     <span class="tok-nt">&lt;product&gt;</span>Chocolate<span class="tok-nt">&lt;/product&gt;</span>
-     <span class="tok-nt">&lt;finalPhase</span> <span class="tok-na">type=</span><span class="tok-s">&quot;EVERGREEN&quot;</span><span class="tok-nt">&gt;</span>
-         <span class="tok-nt">&lt;duration&gt;</span>
-             <span class="tok-nt">&lt;unit&gt;</span>UNLIMITED<span class="tok-nt">&lt;/unit&gt;</span>
-         <span class="tok-nt">&lt;/duration&gt;</span>
-         <span class="tok-nt">&lt;recurring&gt;</span>
-             <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
-             <span class="tok-nt">&lt;recurringPrice&gt;</span>
-                 <span class="tok-nt">&lt;price&gt;</span>
-                     <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                     <span class="tok-nt">&lt;value&gt;</span>30.00<span class="tok-nt">&lt;/value&gt;</span>
-                 <span class="tok-nt">&lt;/price&gt;</span>
-             <span class="tok-nt">&lt;/recurringPrice&gt;</span>
-         <span class="tok-nt">&lt;/recurring&gt;</span>
-         <span class="tok-nt">&lt;usages&gt;</span>
-             <span class="tok-nt">&lt;usage</span> <span class="tok-na">name=</span><span class="tok-s">&quot;chocolate-monthly-videos&quot;</span> <span class="tok-na">billingMode=</span><span class="tok-s">&quot;IN_ARREAR&quot;</span> <span class="tok-na">usageType=</span><span class="tok-s">&quot;CONSUMABLE&quot;</span><span class="tok-nt">&gt;</span>
-                 <span class="tok-nt">&lt;billingPeriod&gt;</span>MONTHLY<span class="tok-nt">&lt;/billingPeriod&gt;</span>
-                 <span class="tok-nt">&lt;tiers&gt;</span>
-                     <span class="tok-nt">&lt;tier&gt;</span>
-                         <span class="tok-nt">&lt;blocks&gt;</span>
-                             <span class="tok-nt">&lt;tieredBlock&gt;</span>
-                                 <span class="tok-nt">&lt;unit&gt;</span>chocolate-videos<span class="tok-nt">&lt;/unit&gt;</span>
-                                 <span class="tok-nt">&lt;size&gt;</span>1<span class="tok-nt">&lt;/size&gt;</span>
-                                 <span class="tok-nt">&lt;prices&gt;</span>
-                                     <span class="tok-nt">&lt;price&gt;</span>
-                                         <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                                         <span class="tok-nt">&lt;value&gt;</span>2<span class="tok-nt">&lt;/value&gt;</span>
-                                     <span class="tok-nt">&lt;/price&gt;</span>
-                                 <span class="tok-nt">&lt;/prices&gt;</span>
-                                 <span class="tok-nt">&lt;max&gt;</span>5<span class="tok-nt">&lt;/max&gt;</span>
-                             <span class="tok-nt">&lt;/tieredBlock&gt;</span>
-                         <span class="tok-nt">&lt;/blocks&gt;</span>
-                     <span class="tok-nt">&lt;/tier&gt;</span>
-                     <span class="tok-nt">&lt;tier&gt;</span>
-                         <span class="tok-nt">&lt;blocks&gt;</span>
-                             <span class="tok-nt">&lt;tieredBlock&gt;</span>
-                                 <span class="tok-nt">&lt;unit&gt;</span>chocolate-videos<span class="tok-nt">&lt;/unit&gt;</span>
-                                 <span class="tok-nt">&lt;size&gt;</span>1<span class="tok-nt">&lt;/size&gt;</span>
-                                 <span class="tok-nt">&lt;prices&gt;</span>
-                                     <span class="tok-nt">&lt;price&gt;</span>
-                                         <span class="tok-nt">&lt;currency&gt;</span>USD<span class="tok-nt">&lt;/currency&gt;</span>
-                                         <span class="tok-nt">&lt;value&gt;</span>1<span class="tok-nt">&lt;/value&gt;</span>
-                                     <span class="tok-nt">&lt;/price&gt;</span>
-                                 <span class="tok-nt">&lt;/prices&gt;</span>
-                                 <span class="tok-nt">&lt;max&gt;</span>10000<span class="tok-nt">&lt;/max&gt;</span>
-                             <span class="tok-nt">&lt;/tieredBlock&gt;</span>
-                         <span class="tok-nt">&lt;/blocks&gt;</span>
-                     <span class="tok-nt">&lt;/tier&gt;</span>
-                 <span class="tok-nt">&lt;/tiers&gt;</span>
-             <span class="tok-nt">&lt;/usage&gt;</span>
-         <span class="tok-nt">&lt;/usages&gt;</span>
-     <span class="tok-nt">&lt;/finalPhase&gt;</span>
-<span class="tok-nt">&lt;/plan&gt;</span>
----</code></pre>
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-nv">invoiceEmailSubject</span><span class="tok-o">=</span>Nouvelle Facture
+<span class="tok-nv">invoiceTitle</span><span class="tok-o">=</span>FACTURE
+<span class="tok-nv">invoiceDate</span><span class="tok-o">=</span>Date:
+<span class="tok-nv">invoiceNumber</span><span class="tok-o">=</span>Facture <span class="tok-c">#</span>
+<span class="tok-nv">invoiceAmount</span><span class="tok-o">=</span>XXXMontant à payer
+<span class="tok-nv">invoiceAmountPaid</span><span class="tok-o">=</span>XXXMontant payé
+<span class="tok-nv">invoiceBalance</span><span class="tok-o">=</span>Nouveau montant
+
+<span class="tok-nv">accountOwnerName</span><span class="tok-o">=</span>Chauffeur
+
+<span class="tok-nv">companyName</span><span class="tok-o">=</span>Killbill, Inc.
+<span class="tok-nv">companyAddress</span><span class="tok-o">=</span>P.O. Box 1234
+<span class="tok-nv">companyCityProvincePostalCode</span><span class="tok-o">=</span>Springfield
+<span class="tok-nv">companyCountry</span><span class="tok-o">=</span>USA
+<span class="tok-nv">companyUrl</span><span class="tok-o">=</span>http://killbilling.org
+
+<span class="tok-nv">invoiceItemBundleName</span><span class="tok-o">=</span>Armes
+<span class="tok-nv">invoiceItemDescription</span><span class="tok-o">=</span>Description
+<span class="tok-nv">invoiceItemServicePeriod</span><span class="tok-o">=</span>Periode de facturation
+<span class="tok-nv">invoiceItemAmount</span><span class="tok-o">=</span>Montant
+
+<span class="tok-nv">processedPaymentCurrency</span><span class="tok-o">=(</span>*<span class="tok-o">)</span> Le payment à été payé en
+<span class="tok-nv">processedPaymentRate</span><span class="tok-o">=</span>Le taux de conversion est</code></pre>
 </div>
-</div>
-<div class="paragraph">
-<p>The plan description shows the following:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>There is a recurring section that specifies that customer should be invoiced (in advance) at the begining of each month for $30</p>
-</li>
-<li>
-<p>There is a section usage that defines two tiers, each of them for a unit of <code>chocolate-videos</code> with a size of 1 (we pay for each video)</p>
-<div class="ulist">
-<ul>
-<li>
-<p>The first tier specifies that below 5 videos, the price per video (unit) is set to $2.</p>
-</li>
-<li>
-<p>The second tier specifies that after 5 videos and below 10000 (arbitrary number large enough that ensures it will not be met), the price per video becomes $1.</p>
-</li>
-</ul>
-</div>
-</li>
-</ul>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="pieces-together">Putting The Pieces Together</h2>
-<div class="sectionbody">
-<div class="sect2">
-<h3 id="_usage_and_metering">Usage and Metering</h3>
-<div class="paragraph">
-<p>Kill Bill&#8217;s usage module provides an API that can be used to record the per customer&#8217;s usage. For instance, in order to record 1 unit of <code>chocolate-videos</code>, one woud use the API <code>POST /1.0/kb/usages</code> with the following json body:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="json"><span class="tok-err">---</span>
-<span class="tok-p">{</span>
-    <span class="tok-nt">&quot;subscriptionId&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;365987b2-5443-47e4-a467-c8962fc6995c&quot;</span><span class="tok-p">,</span>
-    <span class="tok-nt">&quot;unitUsageRecords&quot;</span><span class="tok-p">:</span> <span class="tok-p">[</span>
-        <span class="tok-p">{</span>
-            <span class="tok-nt">&quot;unitType&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;chocolate-videos&quot;</span><span class="tok-p">,</span>
-            <span class="tok-nt">&quot;usageRecords&quot;</span><span class="tok-p">:</span> <span class="tok-p">[</span>
-                <span class="tok-p">{</span>
-                    <span class="tok-nt">&quot;recordDate&quot;</span><span class="tok-p">:</span> <span class="tok-s2">&quot;2014-03-14T04:32:25+00:00&quot;</span><span class="tok-p">,</span>
-                    <span class="tok-nt">&quot;amount&quot;</span><span class="tok-p">:</span> <span class="tok-mi">1</span>
-                <span class="tok-p">}</span>
-            <span class="tok-p">]</span>
-        <span class="tok-p">}</span>
-    <span class="tok-p">]</span>
-<span class="tok-p">}</span>
-<span class="tok-err">---</span></code></pre>
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: text/plain&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary @<span class="tok-nv">$SOME_PATH_PREFIX</span>/InvoiceTranslation_fr_FR.properties <span class="tok-se">\</span>
+http://127.0.0.1:8080/1.0/kb/invoices/translation/fr_FR</code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p>The calls to record usage are made per subscription, but they can include multiple unitTypes (if the catalog had defined them), and for each unit they can specify as many records as desired; the records themselves specify a date of when those units were consumed.</p>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Upload the catalog translation for locale <code>fr_FR</code>:</p>
+<div class="literalblock">
+<div class="content">
+<pre>The file `$SOME_PATH_PREFIX/CatalogTranslation_fr_FR.properties` would contain for instance:</pre>
 </div>
-<div class="paragraph">
-<p>In our example, the online store could directly make the call to Kill Bill using that API to record each video as they are consumed.</p>
 </div>
-<div class="paragraph">
-<p>Note that in scenarios where the consumption is much higher (for e.g in the case of a telecom company offering cell-phone minutes), one would need to use a <strong>metering system</strong> that would first <strong>aggregate</strong> the units on a dayly granularity before making the call to Kill Bill. You can check the initial implementation of our <a href="https://github.com/killbill/killbill-meter-plugin">metring module</a> that provides that aggregation functionality.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">gold-monthly <span class="tok-o">=</span> plan Or mensuel</code></pre>
 </div>
 </div>
-<div class="sect2">
-<h3 id="_example_of_a_customer_usage">Example of a Customer Usage</h3>
-<div class="paragraph">
-<p>Let&#8217;s assume Louis, who is very passionate about chocolate, subscribed to the service on March 13th and watched 13 videos during his first month.</p>
+</li>
+</ol>
 </div>
-<div class="paragraph">
-<p>On march 13th, the system will trigger an invoice that will cover the billing period march 13th &#8594; april 13th, and it will contain one RECURRING item with a price of $30; in return, he will receive his first box of chocolate.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: text/plain&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary @<span class="tok-nv">$SOME_PATH_PREFIX</span>/CatalogTranslation_fr_FR.properties <span class="tok-se">\</span>
+http://127.0.0.1:8080/1.0/kb/invoices/catalogTranslation/fr_FR</code></pre>
 </div>
-<div class="paragraph">
-<p>On april 13th, the system will now trigger a new invoice that will cover:
-* A RECURRING item for the billing period from april 13th &#8594; may 13th with a price of $30,
-* A USAGE item for a price of $18 (= 5 * 2 + 8 * 1)</p>
 </div>
-<div class="paragraph">
-<p>So we can see, that each invoice will include an ITEM for the RECURRING piece (charged ahead, i.e in advance), as well as a USAGE item (charged at the end of the billing period when usage is known, i.e in arrear).</p>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Retrieve a specfic invoice html:</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoices/1785b3d5-24b3-4d17-94ce-310aeb74bc63/html&quot;</span></code></pre>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_additional_resources">Additional Resources</h2>
+<h2 id="_email_templates">Email Templates</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>We have integration tests that can used an example:</p>
+<p>Often it is desirable to send emails to customer to inform them about the next coming invoice, a change that they made in the system (cancellation of a subscription,&#8230;&#8203;), a successful or failed payment, &#8230;&#8203; That functionality now lives in a Kill Bill plugin[<a href="https://github.com/killbill/killbill-email-notifications-plugin" class="bare">https://github.com/killbill/killbill-email-notifications-plugin</a>]. The plugin listens to bus events, and takes action to notify user.</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p><a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarAdvanced.xml">Catalog</a></p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill-integration-tests/blob/master/killbill-integration-tests/core/test_usage.rb">Test</a></p>
-</li>
-</ul>
+<div class="paragraph">
+<p>The plugin also allows to be configured on a per-tenant level with a set of templates and translation bundles for various locale.</p>
+</div>
+<div class="paragraph">
+<p>For more information please refer to the README[<a href="https://github.com/killbill/killbill-email-notifications-plugin/blob/master/README.md" class="bare">https://github.com/killbill/killbill-email-notifications-plugin/blob/master/README.md</a>]</p>
 </div>
 </div>
 </div>
