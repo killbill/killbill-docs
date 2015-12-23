@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill analytics guide</title>
+<title>Overview</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,35 +476,21 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill analytics guide</h1>
+<h1>Overview</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
+<ul class="sectlevel0">
+<li><a href="#_setup_through_apis">Setup Through APIs</a>
 <ul class="sectlevel1">
-<li><a href="#components-analytics-overview">Overview</a>
-<ul class="sectlevel2">
-<li><a href="#_internals">Internals</a></li>
+<li><a href="#_configuration_of_the_user_role_permissions">Configuration of the User/Role/Permissions</a></li>
+<li><a href="#_tenant_configuration">Tenant Configuration</a></li>
+<li><a href="#_play_time">Play Time&#8230;&#8203;</a></li>
 </ul>
 </li>
-<li><a href="#components-analytics-currency">Currency conversion</a></li>
-<li><a href="#components-analytics-accounts">Accounts</a></li>
-<li><a href="#components-analytics-bundles">Bundles</a></li>
-<li><a href="#components-analytics-analyticss">Subscriptions</a></li>
-<li><a href="#components-analytics-invoices">Invoices</a></li>
-<li><a href="#components-analytics-payments">Payments</a></li>
-<li><a href="#components-analytics-entitlement">Entitlement states</a></li>
-<li><a href="#components-analytics-tags-fields">Tags and custom fields</a></li>
-<li><a href="#components-analytics-dashboards">Dashboards and reports</a>
-<ul class="sectlevel2">
-<li><a href="#_data_api">Data API</a></li>
-<li><a href="#_dashboards">Dashboards</a>
-<ul class="sectlevel3">
-<li><a href="#_reports_configuration">Reports configuration</a>
-<ul class="sectlevel4">
-<li><a href="#_dashboard_api">Dashboard API</a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li><a href="#_setup_through_kaui">Setup Through KAUI</a>
+<ul class="sectlevel1">
+<li><a href="#_initial_configuration">Initial Configuration</a></li>
+<li><a href="#_play_time_2">Play Time</a></li>
 </ul>
 </li>
 </ul>
@@ -514,506 +500,197 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>This is the reference guide to get started with <a href="https://github.com/killbill/killbill-analytics-plugin">Kill Bill analytics plugin</a>.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-overview">Overview</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill maintains a reporting schema that is kept current in realtime for Analytics purposes. In contrary to other tables in the system, this set of tables is stable and potentially changes only between major revisions of Kill Bill. These tables are meant to be used as building blocks for reports and dashboards.</p>
+<p>Terminology: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.</p>
 </div>
 <div class="paragraph">
-<p>This analytics feature is provided as a Kill Bill <a href="https://github.com/killbill/killbill-analytics-plugin">plugin</a>. To install it, simply install the killbill-osgi-bundles-analytics jar to <strong>/var/tmp/bundles/platform/</strong> (or to your custom OSGI bundles directory if you have overridden the default path) and run the following DDL <a href="https://raw.githubusercontent.com/killbill/killbill-analytics-plugin/master/src/main/resources/org/killbill/billing/plugin/analytics/ddl.sql">script</a>.</p>
+<p>Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on <a href="http://shiro.apache.org/">shiro</a> for the backend implementation.</p>
 </div>
 <div class="paragraph">
-<p>For ease of tracking, Analytics objects contain id references to the Kill Bill ones but we strongly advise against using them for reporting purposes. Instead, use the external keys as much as possible, as they are tied to your business concepts. For instance, to count the number of accounts in the system, run a query using <strong>count(distinct account_key)</strong>, not <strong>count(distinct account_id)</strong>.</p>
-</div>
-<div class="paragraph">
-<p>Data has been denormalized on purpose to avoid joins as much as possible.</p>
-</div>
-<div class="sect2">
-<h3 id="_internals">Internals</h3>
-<div class="paragraph">
-<p>This plugin listens to events generated by Kill Bill, and rebuild the complete state of its mirrored data upon receipt. The refresh jobs (one created per event) are kept in a notification queue. By default, it uses the same notification queue tables as the system, but we encourage you to use separate ones. To do so, set the following properties (the tables have been created by the provided ddl script):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">org.killbill.notificationq.analytics.tableName<span class="tok-o">=</span>analytics_notifications
-org.killbill.notificationq.analytics.historyTableName<span class="tok-o">=</span>analytics_notifications_history</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>These jobs are kept in the <strong>refresh-queue</strong> queue of the <strong>AnalyticsService</strong> service. For debugging purposes, search key 1 is the account record id and search key 2 is the tenant record id.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-currency">Currency conversion</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Each table containing monetary columns (e.g. price, mrr, &#8230;&#8203;) will also contain a currency column, expressing the currency of the monetary values. This can be difficult to work with as tables can contain rows in various currencies: any arithmetic across them won&#8217;t make any sense.</p>
-</div>
-<div class="paragraph">
-<p>To work around this problem, the Analytics plugin has the concept of converted currency, which is a global constant currency of reference. Each monetary column will have a column associated to it with the converted value in this currency.</p>
-</div>
-<div class="paragraph">
-<p>By default, converted values are all <strong>NULL</strong>. To enable this feature, you need to populate the <strong>analytics_currency_conversion</strong> table to contain the rates you&#8217;d like to use for various currencies, for a given period of time. For example, you may choose to populate the new rates at the beginning of each month.</p>
-</div>
-<div class="paragraph">
-<p>By default, the reference currency is USD, but you can change it via:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">com.ning.billing.osgi.bundles.analytics.referenceCurrency<span class="tok-o">=</span>EUR</code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-accounts">Accounts</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The table <strong>analytics_accounts</strong> maintains information about Kill Bill accounts. The table doesn&#8217;t contain historic records (it will contain at most one record per Kill Bill account).</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-bundles">Bundles</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The table <strong>analytics_bundles</strong> maintains information about Kill Bill bundles. The table doesn&#8217;t contain historic records (it will contain at most one record per Kill Bill bundle).</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-analyticss">Subscriptions</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The table <strong>analytics_subscriptions</strong> maintains information about Kill Bill subscriptions. It describes the history of changes (both past and future) on a per subscription basis.</p>
-</div>
-<div class="paragraph">
-<p><strong>analytics_subscriptions</strong> will contain all phase transitions for all subscriptions and can be used to build subscription timelines. A few remarks:</p>
+<p>In addition to specify credentials, a user must also specify the tenant for which the request is targeted. The comes in the form of 2 http headers:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Given a subscription id, events are sorted chronologically when stored (you can rely on record_id asc)</p>
+<p>X-Killbill-ApiKey (referred to as <code>api_key</code>)</p>
 </li>
 <li>
-<p><strong>prev_</strong> fields will always be NULL for creation events</p>
-</li>
-<li>
-<p><strong>next_</strong> fields will always be NULL for cancellation events</p>
-</li>
-<li>
-<p>A CHANGE event corresponds to a user initiated change (e.g. upgrade) whereas SYSTEM_CHANGE corresponds to a phase event (e.g. transition from trial to evergreen phase)</p>
-</li>
-<li>
-<p>The <strong>requested_timestamp</strong> field reflects when the transition was requested, the <strong>next_start_date</strong> field reflects the effective transition time</p>
+<p>X-Killbill-ApiSecret (referred to as <code>api_secret</code>)</p>
 </li>
 </ul>
 </div>
+<div class="paragraph">
+<p>Note that the authentication/authorization is orthogonal to the tenant access: The set of permission associated to a given user is the same for all tenants he has access to. So a potential superuser with all permissions and with access to the <code>api_key</code>/`api_secret`for all tenants would have full control. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant, &#8230;&#8203;</p>
 </div>
 </div>
+</div>
+<h1 id="_setup_through_apis" class="sect0">Setup Through APIs</h1>
 <div class="sect1">
-<h2 id="components-analytics-invoices">Invoices</h2>
+<h2 id="_configuration_of_the_user_role_permissions">Configuration of the User/Role/Permissions</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The tables <strong>analytics_invoices</strong>, <strong>analytics_invoice_adjustments</strong>, <strong>analytics_invoice_item_adjustments</strong>, <strong>analytics_invoice_credits</strong> and <strong>analytics_invoice_items</strong> maintain information about invoices posted by account.</p>
-</div>
-<div class="paragraph">
-<p>Definitions:</p>
+<p>Shiro supports multiple backend implementation:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>invoice_balance</strong>: invoice_amount_charged + invoice_amount_credited + invoice_amount_adjusted_for_account_credit - (invoice_amount_paid + invoice_amount_refunded)</p>
+<p>Simple configuration file (<code>shiro.ini</code> file)</p>
 </li>
 <li>
-<p><strong>invoice_amount_charged</strong>: sum of all <strong>analytics_invoice_items</strong>, <strong>analytics_invoice_adjustments</strong> and <strong>analytics_invoice_item_adjustments</strong> items for that invoice</p>
+<p>Database configuration</p>
 </li>
 <li>
-<p><strong>invoice_amount_credited</strong>: sum of all <strong>analytics_invoice_credits</strong> items for that invoice (positive if granted, negative if used)</p>
-</li>
-<li>
-<p><strong>invoice_amount_paid</strong>: sum of all <strong>analytics_payments</strong> items for that invoice</p>
-</li>
-<li>
-<p><strong>invoice_amount_refunded</strong>: sum of all <strong>analytics_chargebacks</strong> and <strong>analytics_refunds</strong> items for that invoice</p>
-</li>
-<li>
-<p><strong>invoice_original_amount_charged</strong>: sum of all <strong>analytics_invoice_items</strong> items for that invoice at the time of invoice creation</p>
+<p>LDAP integration</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>Note that <strong>invoice_amount_adjusted_for_account_credit</strong> is an internal adjustment that applies for account level credits only (CREDIT_ADJ items on their own invoices) and is not represented in Analytics. The full details of the computations can be found in <a href="https://github.com/killbill/killbill/blob/master/invoice/src/main/java/com/ning/billing/invoice/calculator/InvoiceCalculatorUtils.java">InvoiceCalculatorUtils.java</a>.</p>
+<p>For simple deployments where only few static users/roles need to be assigned the <code>shiro.ini</code> file is the simplest and the best option. For large entreprise solution an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle grond is to rely on a mixed solution between the <code>shiro.ini</code> file and the database backend. This is what this section will describe.</p>
 </div>
 <div class="paragraph">
-<p>A few remarks:</p>
+<p>Kill Bill offers apis to manage the user/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>EXTERNAL_CHARGE, FIXED and RECURRING items are treated as regular line items (stored in <strong>analytics_invoice_items</strong>)</p>
+<p>The shiro.ini file is used to configure the initial user (could be a superadmin with all roles or an admin with just enough permissions to manage the user/roles). For simplicity we will cal it superadmin will assign all the permissions.</p>
 </li>
 <li>
-<p>ITEM_ADJ items are treated as invoice item adjustments (stored in <strong>analytics_invoice_item_adjustments</strong>)</p>
-</li>
-<li>
-<p>CBA_ADJ items (gained or consumed) are treated as account credits (stored in <strong>analytics_invoice_credits</strong>)</p>
-</li>
-<li>
-<p>REFUND_ADJ items are treated as invoice adjustments (stored in <strong>analytics_invoice_adjustments</strong>)</p>
-</li>
-<li>
-<p>CREDIT_ADJ items that are not on their own invoice are treated as invoice adjustments (stored in <strong>analytics_invoice_adjustments</strong>). The internal name of CREDIT_ADJ is misleading in this case and will probably be renamed to INVOICE_ADJ in a future release. Note that these should not be mixed with account level credits: when an administrator creates an account credit (different from CBA credits generated by the system), a negative CREDIT_ADJ item is added to a new invoice. This triggers a positive CBA_ADJ item (to bring the balance back to zero), which effectively becomes the account credit (and eventually stored in <strong>analytics_invoice_credits</strong>). In this case, the CREDIT_ADJ item will not be stored directly in the analytics tables</p>
-</li>
-<li>
-<p>Kill Bill repair items (REPAIR_ADJ) are not stored directly in any of these tables, but are combined with the new reparee item as invoice item adjustments (in <strong>analytics_invoice_item_adjustments</strong>). For example, if a recurring item of $20 was repaired into a $5 recurring item, <strong>analytics_invoice_items</strong> would contain the original $20 line item and <strong>analytics_invoice_item_adjustments</strong> would contain a $-15 adjustment item</p>
-</li>
-<li>
-<p>Any invoice item has a revenue recognizable attribute which is used to tell if the item is recognizable from a finance perspective (tied to cash). This is used for credits only today and we assume that any administrator generated credit (CREDIT_ADJ and CBA_ADJ on their own invoice) is not recognizable. All other credit items, including system generated ones, are.</p>
+<p>'superadmin' is now able to make api calls to configure new users/roles.</p>
 </li>
 </ul>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-payments">Payments</h2>
-<div class="sectionbody">
 <div class="paragraph">
-<p>The table <strong>analytics_payments</strong>, <strong>analytics_refunds</strong> and <strong>analytics_chargebacks</strong> maintain information about Kill Bill payments, refunds and chargebacks.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-entitlement">Entitlement states</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The table <strong>analytics_entitlement_states</strong> maintains information about Kill Bill entitlement states, including overdue statuses. The table contains historic status for a given account.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-tags-fields">Tags and custom fields</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Information about tags and custom fields are captured in the tables <strong>analytics_account_tags</strong>, <strong>analytics_bundle_tags</strong>, <strong>analytics_invoice_tags</strong>, <strong>analytics_payment_tags</strong>, <strong>analytics_account_fields</strong>, <strong>analytics_bundle_fields</strong>, <strong>analytics_invoice_fields</strong> and <strong>analytics_payment_fields</strong>. The tables don&#8217;t contain historic records (they will contain the current state of tags and custom fields).</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="components-analytics-dashboards">Dashboards and reports</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The Analytics plugin provides two types of APIs: one to retrieve and manipulate the data and one to create dashboards.</p>
-</div>
-<div class="sect2">
-<h3 id="_data_api">Data API</h3>
-<div class="paragraph">
-<p>To retrieve all data for a given account:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/f6da101f-b43c-4bb7-920d-188eaa5ae5f8&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>To force a refresh:</p>
+<p>Let&#8217;s create a new role <code>customer_support</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X PUT <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/f6da101f-b43c-4bb7-920d-188eaa5ae5f8&quot;</span></code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_dashboards">Dashboards</h3>
-<div class="paragraph">
-<p>The Analytics plugin provides simple, yet powerful, dashboarding capabilities.</p>
-</div>
-<div class="paragraph">
-<p>A dashboard is constituted of a number of reports, each of them being numbered, starting from 1. All reports are displayed in a single column, the report number 1 being the top most one. All reports share the same X axis.</p>
-</div>
-<div class="paragraph">
-<p>Currently, we support displaying data as pie charts or time series. For the former, a <strong>label</strong> and <strong>count</strong> columns are required to describe sectors. For the latter, the only required column is <strong>day</strong> (reference time, used for the X axis), you can specify any number of dimensions and metrics. If multiple dimensions are specified, one line graph will be displayed for each dimension value. For example, if your dimensions are <strong>currency</strong> and <strong>country</strong>, one line per combination (and metric) will be drawn: one for USD/USA, USD/Mexico, MEX/USA, MEX/Mexico, etc. If multiple metrics are specified, each one of them (times the cardinality of dimensions) will be on its own line graph.</p>
-</div>
-<div class="sect3">
-<h4 id="_reports_configuration">Reports configuration</h4>
-<div class="paragraph">
-<p>Let&#8217;s say you want to look at the number of accounts created per day, the query may look like:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="sql"><span class="tok-k">select</span>
-  <span class="tok-n">tenant_record_id</span>
-<span class="tok-p">,</span> <span class="tok-n">date_format</span><span class="tok-p">(</span><span class="tok-n">created_date</span><span class="tok-p">,</span> <span class="tok-s1">&#39;%Y-%m-%d&#39;</span><span class="tok-p">)</span> <span class="tok-k">as</span> <span class="tok-k">day</span>
-<span class="tok-p">,</span> <span class="tok-k">count</span><span class="tok-p">(</span><span class="tok-o">*</span><span class="tok-p">)</span> <span class="tok-k">as</span> <span class="tok-k">count</span>
-<span class="tok-k">from</span> <span class="tok-n">analytics_accounts</span>
-<span class="tok-k">where</span> <span class="tok-n">report_group</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;default&#39;</span>
-<span class="tok-k">group</span> <span class="tok-k">by</span> <span class="tok-mi">1</span><span class="tok-p">,</span><span class="tok-mi">2</span>
-<span class="tok-k">order</span> <span class="tok-k">by</span> <span class="tok-mi">1</span><span class="tok-p">,</span><span class="tok-mi">2</span> <span class="tok-k">asc</span>
-<span class="tok-p">;</span></code></pre>
+-u <span class="tok-s2">&quot;superadmin:superadmin123&quot;</span>  <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{ &quot;role&quot;: &quot;customer_support&quot;, &quot;permissions&quot;: [&quot;account:create&quot;, &quot;account:update&quot;, &quot;entitlement:change_plan&quot;, &quot;entitlement:pause_resume&quot;, &quot;entitlement:cancel&quot;, &quot;entitlement:transfer&quot;, &quot;invoice:credit&quot;, &quot;invoice:item_adjust&quot;, &quot;tag:create_tag_definition&quot;, &quot;tag:delete_tag_definition&quot;, &quot;tag:add&quot;, &quot;tag:delete&quot;] }&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://192.168.99.100:8080/1.0/kb/security/roles&#39;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>The first step is to create a view for the query:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="sql"><span class="tok-k">create</span> <span class="tok-k">or</span> <span class="tok-k">replace</span> <span class="tok-k">view</span> <span class="tok-n">v_new_accounts_per_day</span> <span class="tok-k">as</span>
-<span class="tok-k">select</span>
-  <span class="tok-n">tenant_record_id</span>
-<span class="tok-p">,</span> <span class="tok-n">date_format</span><span class="tok-p">(</span><span class="tok-n">created_date</span><span class="tok-p">,</span> <span class="tok-s1">&#39;%Y-%m-%d&#39;</span><span class="tok-p">)</span> <span class="tok-k">as</span> <span class="tok-k">day</span>
-<span class="tok-p">,</span> <span class="tok-k">count</span><span class="tok-p">(</span><span class="tok-o">*</span><span class="tok-p">)</span> <span class="tok-k">as</span> <span class="tok-k">count</span>
-<span class="tok-k">from</span> <span class="tok-n">analytics_accounts</span>
-<span class="tok-k">where</span> <span class="tok-n">report_group</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;default&#39;</span>
-<span class="tok-k">group</span> <span class="tok-k">by</span> <span class="tok-mi">1</span><span class="tok-p">,</span><span class="tok-mi">2</span>
-<span class="tok-k">order</span> <span class="tok-k">by</span> <span class="tok-mi">1</span><span class="tok-p">,</span><span class="tok-mi">2</span> <span class="tok-k">asc</span>
-<span class="tok-p">;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>You can now create the report:</p>
+<p>Let&#8217;s create a <code>cs</code> username that will have only one role <code>customer_support</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;reportName&quot;: &quot;new_accounts_per_day&quot;,</span>
-<span class="tok-s1">          &quot;reportPrettyName&quot;: &quot;New accounts created (per day)&quot;,</span>
-<span class="tok-s1">          &quot;sourceTableName&quot;: &quot;v_new_accounts_per_day&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/reports&quot;</span></code></pre>
+-u <span class="tok-s1">&#39;superadmin:superadmin123&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support&quot;] }&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://192.168.99.100:8080/1.0/kb/security/users&#39;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Where:</p>
+<p>Note: We specified for each request a <code>api_key</code> and <code>api_secret</code> (any valid tenant key would work). See <a href="https://github.com/killbill/killbill/issues/462">Issue 462</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_tenant_configuration">Tenant Configuration</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Since we did not give access for all the tenant management to our new <code>CS</code> account, let&#8217;s have our superadmin create a first tenant:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+-u superadmin:superadmin123 <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+-d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_play_time">Play Time&#8230;&#8203;</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Assuming our <code>cs</code> user knows about the <code>api_key</code> and <code>api_secret</code> of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permissions).</p>
+</div>
+<div class="paragraph">
+<p>So for instance, creating a new account in that tenant would work because his role <code>customer_support</code> includes the permission <code>account:create</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u cs:cs123 <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;John Doe&quot;,&quot;email&quot;:&quot;john@example.com&quot;,&quot;externalKey&quot;:&quot;john-doe-1234&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>But the following curl to refund a payment <code>` would fail because his role `customer_support</code> deos not include the permission <code>payment:refund</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u cs:cs123 <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;amount&quot;:&quot;12.4&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1&quot;</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<h1 id="_setup_through_kaui" class="sect0">Setup Through KAUI</h1>
+<div class="openblock partintro">
+<div class="content">
+Most of the previous steps can also be achieved through our admin UI (KAUI). KAUI has been extended to support all the user/role/permission management and corresponding sessions. Some of those implementation details were covered in <a href="http://killbill.io/blog/multi-tenancy-authorization" class="bare">http://killbill.io/blog/multi-tenancy-authorization</a>[our previous blog post}.
+</div>
+</div>
+<div class="sect1">
+<h2 id="_initial_configuration">Initial Configuration</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>However the catch-22 situation described in the previous section to configure the very first user remains true both for killbill and KAUI:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>reportName</strong> is a unique identifier for your report</p>
+<p>For killbill server, we already described the initial configuration through the <code>shiro.ini</code> file</p>
 </li>
 <li>
-<p><strong>reportPrettyName</strong> is a description, which will be used on the dashboards</p>
-</li>
-<li>
-<p><strong>sourceTableName</strong> is the name of the source table (view in our case)</p>
+<p>For KAUI, we need to also make that admin account visible (this is a small limitation configuration). Note that the credentials, roles,&#8230;&#8203; associated to that account are entirely managed on the server side (killbill) so there is no duplication or security holes.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>If the query is expensive, you should think of materializing it on a regular basis. Assuming you have a stored procedure <strong>refresh_new_accounts_per_day</strong> which materializes <strong>v_new_accounts_per_day</strong> into <strong>new_accounts_per_day</strong>, you can tell the Analytics plugin to run it on a daily basis at 4am GMT:</p>
+<p>In the <code>kaui</code> database, insert the initial entry for the <code>superadmin</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;reportName&quot;: &quot;new_accounts_per_day&quot;,</span>
-<span class="tok-s1">          &quot;reportPrettyName&quot;: &quot;New accounts created (per day)&quot;,</span>
-<span class="tok-s1">          &quot;sourceTableName&quot;: &quot;new_accounts_per_day&quot;,</span>
-<span class="tok-s1">          &quot;refreshProcedureName&quot;: &quot;refresh_new_accounts_per_day&quot;,</span>
-<span class="tok-s1">          &quot;refreshFrequency&quot;: &quot;DAILY&quot;,</span>
-<span class="tok-s1">          &quot;refreshHourOfDayGmt&quot;: 4}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/reports&quot;</span></code></pre>
+<pre class="pygments highlight"><code>insert into kaui_allowed_users (kb_username, description, created_at, updated_at) values ('superadmin', 'super admin', NOW(), NOW());</code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p>Or alternatively, you can run it on an hourly basis (it will run at 5' past the hour):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;reportName&quot;: &quot;new_accounts_per_day&quot;,</span>
-<span class="tok-s1">          &quot;reportPrettyName&quot;: &quot;New accounts created (per day)&quot;,</span>
-<span class="tok-s1">          &quot;sourceTableName&quot;: &quot;new_accounts_per_day&quot;,</span>
-<span class="tok-s1">          &quot;refreshProcedureName&quot;: &quot;refresh_new_accounts_per_day&quot;,</span>
-<span class="tok-s1">          &quot;refreshFrequency&quot;: &quot;HOURLY&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/reports&quot;</span></code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p>Here is how you can create such a stored procedure:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="sql"><span class="tok-k">create</span> <span class="tok-k">table</span> <span class="tok-n">new_accounts_per_day</span> <span class="tok-k">as</span> <span class="tok-k">select</span> <span class="tok-o">*</span> <span class="tok-k">from</span> <span class="tok-n">v_new_accounts_per_day</span> <span class="tok-k">limit</span> <span class="tok-mi">0</span><span class="tok-p">;</span>
+<div class="sect1">
+<h2 id="_play_time_2">Play Time</h2>
+<div class="sectionbody">
 
-<span class="tok-k">drop</span> <span class="tok-k">procedure</span> <span class="tok-n">if</span> <span class="tok-k">exists</span> <span class="tok-n">refresh_new_accounts_per_day</span><span class="tok-p">;</span>
-<span class="tok-k">DELIMITER</span> <span class="tok-o">//</span>
-<span class="tok-k">CREATE</span> <span class="tok-k">PROCEDURE</span> <span class="tok-n">refresh_new_accounts_per_day</span><span class="tok-p">()</span>
-<span class="tok-k">BEGIN</span>
-<span class="tok-k">delete</span> <span class="tok-k">from</span> <span class="tok-n">new_accounts_per_day</span><span class="tok-p">;</span>
-<span class="tok-k">insert</span> <span class="tok-k">into</span> <span class="tok-n">new_accounts_per_day</span> <span class="tok-k">select</span> <span class="tok-o">*</span> <span class="tok-k">from</span> <span class="tok-n">v_new_accounts_per_day</span><span class="tok-p">;</span>
-<span class="tok-k">END</span><span class="tok-p">;</span>
-<span class="tok-o">//</span>
-<span class="tok-k">DELIMITER</span> <span class="tok-p">;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>To retrieve your report configuration, use the report name:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/reports/new_accounts_per_day&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>To update it (you can edit all fields but the reportName one):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X PUT <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;reportPrettyName&quot;: &quot;New accounts created (refreshed at 2am GMT)&quot;,</span>
-<span class="tok-s1">          &quot;refreshFrequency&quot;: &quot;DAILY&quot;,</span>
-<span class="tok-s1">          &quot;refreshHourOfDayGmt&quot;: 2}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/reports/new_accounts_per_day&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Finally, to delete it:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X DELETE <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/plugins/killbill-analytics/reports/new_accounts_per_day&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>You can download the data behind your report as csv or json:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s1">&#39;http://127.0.0.1:8080/plugins/killbill-analytics/reports?name=new_accounts_per_day&amp;format=csv&#39;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>We provide a set of canned reports that can be useful as a starting point. See <a href="https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/">https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/</a>.</p>
-</div>
-<div class="sect4">
-<h5 id="_dashboard_api">Dashboard API</h5>
-<div class="paragraph">
-<p>To create a dashboard, go to <a href="http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html">http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html</a>.</p>
-</div>
-<div class="paragraph">
-<p>The dashboard system is controlled by query parameters:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><strong>report1</strong>, <strong>report2</strong>, etc.: report name (from the configuration). The number determines in which slot the data should be displayed, starting from the top of the page. For example, report1=trials&amp;report1=conversions&amp;report1=cancellations&amp;report2=accounts will graph the trials, conversions and cancellations reports in the first slot (on the same graph), and the accounts report below (in slot 2)</p>
-</li>
-<li>
-<p><strong>startDate</strong> and <strong>endDate</strong>: dates to filter the data on the server side. For example: startDate=2012-08-01&amp;endDate=2013-10-01</p>
-</li>
-<li>
-<p><strong>smooth1</strong>, <strong>smooth2</strong>, etc.: smoothing function to apply for data in a given slot. Currently support smoothing functions are:</p>
-<div class="ulist">
-<ul>
-<li>
-<p>AVERAGE_WEEKLY: average the values on a weekly basis</p>
-</li>
-<li>
-<p>AVERAGE_MONTHLY: average the values on a monthly basis</p>
-</li>
-<li>
-<p>SUM_WEEKLY: sum all values on a weekly basis</p>
-</li>
-<li>
-<p>SUM_MONTHLY: sum all values on a monthly basis</p>
-</li>
-</ul>
-</div>
-</li>
-<li>
-<p><strong>title1</strong>, <strong>title2</strong>, etc.: titles for each graph. If not specified, the default title (configured in the database) is used</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>You can narrow down the dimensions and metrics you want to plot for each report, and even specify filters. This is useful if the underlying view is a cube, for example, and you want to extract part of the data.</p>
-</div>
-<div class="paragraph">
-<p>The URL format for each report looks like: report1=payments_per_day^dimension:currency^dimension:state^metric:amount^metric:fee or if you want to override the legend: report1=payments_per_day(Payments per day)^dimension:currency^dimension:state^metric:amount^metric:fee</p>
-</div>
-<div class="paragraph">
-<p>You can specify as many dimensions and metrics as you want (each one of them should correspond to a column name in your table or view, and metrics are expected to be representable by floats).</p>
-</div>
-<div class="paragraph">
-<p>Aggregate functions are supported for metrics: report1=payments_per_day^dimension:currency^dimension:state^metric:sum(amount)^metric:count(distinct fee)^metric:100*sum(fee)/amount</p>
-</div>
-<div class="paragraph">
-<p>You can also use the <strong>filter</strong> keywork to narrow down your dataset, for example: report1=payments_per_day^dimension:currency^dimension:state^metric:amount^metric:fee^filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)</p>
-</div>
-<div class="paragraph">
-<p>Note that <strong>&amp;</strong> is represented as <strong>%26</strong>, to avoid making the server interpret it as a standalone query parameter.</p>
-</div>
-<div class="paragraph">
-<p>You can have as many filters as you want, they will be ORed as a single filter in the query.</p>
-</div>
-<div class="paragraph">
-<p>Finally, you can group certain rows together using the following syntax on dimensions (in this example, 3 groups and an <strong>Other</strong> will be created): report1=payments_per_day^dimension:currency(USD|EUR|BRL,GBP,MXN,AUD)^dimension:state^metric:amount^metric:fee</p>
-</div>
-<div class="paragraph">
-<p>You can also setup aliases and/or skip <strong>Other</strong> as such: report1=payments_per_day\^dimension:currency(USD=Main currency|EUR=Second currency|BRL,GBP,MXN,AUD=Third currency|-)<sup>dimension:state\</sup>metric:amount^metric:fee</p>
-</div>
-<div class="paragraph">
-<p>For debugging purposes, you can check the SQL generated by appending the <strong>sqlOnly</strong> parameter to the following endpoint:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey:bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret:lazar&quot;</span> <span class="tok-se">\</span>
-    <span class="tok-s1">&#39;http://127.0.0.1:8080/plugins/killbill-analytics/reports?name=payments_per_day^dimension:currency^dimension:state^metric:amount^metric:fee^filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)&amp;sqlOnly=true&#39;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>To continue with our example above, you can see the report by going to <a href="http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day">http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day</a>.</p>
-</div>
-</div>
-</div>
-</div>
 </div>
 </div>
 </div>
