@@ -1,0 +1,137 @@
+= Overview
+
+Terminology: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.
+
+Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on http://shiro.apache.org/[shiro] for the backend implementation.
+
+In addition to specify credentials, a user must also specify the tenant for which the request is targeted. The comes in the form of 2 http headers:
+
+* X-Killbill-ApiKey (referred to as `api_key`)
+* X-Killbill-ApiSecret (referred to as `api_secret`)
+
+Note that the authentication/authorization is orthogonal to the tenant access: The set of permission associated to a given user is the same for all tenants he has access to. So a potential superuser with all permissions and with access to the `api_key`/`api_secret`for all tenants would have full control. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant, ...
+
+
+= Setup Through APIs
+
+== Configuration of the User/Role/Permissions
+
+
+Shiro supports multiple backend implementation:
+
+* Simple configuration file (`shiro.ini` file)
+* Database configuration
+* LDAP integration
+
+For simple deployments where only few static users/roles need to be assigned the `shiro.ini` file is the simplest and the best option. For large entreprise solution an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle grond is to rely on a mixed solution between the `shiro.ini` file and the database backend. This is what this section will describe.
+
+Kill Bill offers apis to manage the user/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:
+
+* The shiro.ini file is used to configure the initial user (could be a superadmin with all roles or an admin with just enough permissions to manage the user/roles). For simplicity we will cal it superadmin will assign all the permissions.
+* 'superadmin' is now able to make api calls to configure new users/roles.
+
+
+Let's create a new role `customer_support`:
+
+[source,bash]
+----
+curl -v \
+-u "superadmin:superadmin123"  \
+-H "X-Killbill-ApiKey: bob" \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H "X-Killbill-CreatedBy: stephane" \
+-H "Content-Type: application/json" \
+-X POST \
+--data-binary '{ "role": "customer_support", "permissions": ["account:create", "account:update", "entitlement:change_plan", "entitlement:pause_resume", "entitlement:cancel", "entitlement:transfer", "invoice:credit", "invoice:item_adjust", "tag:create_tag_definition", "tag:delete_tag_definition", "tag:add", "tag:delete"] }' \
+'http://192.168.99.100:8080/1.0/kb/security/roles'
+----
+
+Let's create a `cs` username that will have only one role `customer_support`:
+
+[source,bash]
+----
+curl -v \
+-u 'superadmin:superadmin123' \
+-H "X-Killbill-ApiKey: bob" \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H "X-Killbill-CreatedBy: stephane" \
+-H "Content-Type: application/json" \
+-X POST \
+--data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support"] }' \
+'http://192.168.99.100:8080/1.0/kb/security/users'
+----
+
+
+Note: We specified for each request a `api_key` and `api_secret` (any valid tenant key would work). See https://github.com/killbill/killbill/issues/462[Issue 462].
+
+
+== Tenant Configuration
+
+Since we did not give access for all the tenant management to our new `CS` account, let's have our superadmin create a first tenant:
+
+[source,bash]
+----
+curl -v \
+-X POST \
+-u superadmin:superadmin123 \
+-H 'Content-Type: application/json' \
+-H 'X-Killbill-CreatedBy: admin' \
+-d '{"apiKey": "bob", "apiSecret": "lazar"}' \
+"http://127.0.0.1:8080/1.0/kb/tenants"
+----
+
+== Play Time...
+
+Assuming our `cs` user knows about the `api_key` and `api_secret` of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permissions).
+
+So for instance, creating a new account in that tenant would work because his role `customer_support` includes the permission `account:create`:
+
+[source,bash]
+----
+curl -v \
+-u cs:cs123 \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "Content-Type: application/json" \
+-H "X-Killbill-CreatedBy: demo" \
+-X POST \
+--data-binary '{"name":"John Doe","email":"john@example.com","externalKey":"john-doe-1234","currency":"USD"}' \
+"http://127.0.0.1:8080/1.0/kb/accounts"
+----
+
+But the following curl to refund a payment `` would fail because his role `customer_support` deos not include the permission `payment:refund`:
+
+
+[source,bash]
+----
+curl -v \
+-u cs:cs123 \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "Content-Type: application/json" \
+-H "X-Killbill-CreatedBy: demo" \
+-X POST \
+--data-binary '{"amount":"12.4"}' \
+"http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1"
+----
+
+
+= Setup Through KAUI
+
+
+Most of the previous steps can also be achieved through our admin UI (KAUI). KAUI has been extended to support all the user/role/permission management and corresponding sessions. Some of those implementation details were covered in http://killbill.io/blog/multi-tenancy-authorization[our previous blog post}.
+
+
+== Initial Configuration
+
+However the catch-22 situation described in the previous section to configure the very first user remains true both for killbill and KAUI:
+
+* For killbill server, we already described the initial configuration through the `shiro.ini` file
+* For KAUI, we need to also make that admin account visible (this is a small limitation configuration). Note that the credentials, roles,... associated to that account are entirely managed on the server side (killbill) so there is no duplication or security holes.
+
+In the `kaui` database, insert the initial entry for the `superadmin`:
+```
+insert into kaui_allowed_users (kb_username, description, created_at, updated_at) values ('superadmin', 'super admin', NOW(), NOW());
+```
+
+== Play Time
