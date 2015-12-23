@@ -480,7 +480,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel0">
-<li><a href="#_setup_through_apis">Setup Through APIs</a>
+<li><a href="#_user_management_apis">User Management APIs</a>
 <ul class="sectlevel1">
 <li><a href="#_configuration_of_the_user_role_permissions">Configuration of the User/Role/Permissions</a></li>
 <li><a href="#_tenant_configuration">Tenant Configuration</a></li>
@@ -500,13 +500,16 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Terminology: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.</p>
+<p><strong>Terminology</strong>: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.</p>
+</div>
+<div class="paragraph">
+<p><strong>Assumptions</strong>: We assume the reader went through the <a href="http://docs.killbill.io/0.15/getting_started.html">Getting started</a> documentation and has a running system (both killbill and kaui) running on IP=<code>127.0.0.1</code>.</p>
 </div>
 <div class="paragraph">
 <p>Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on <a href="http://shiro.apache.org/">shiro</a> for the backend implementation.</p>
 </div>
 <div class="paragraph">
-<p>In addition to specify credentials, a user must also specify the tenant for which the request is targeted. The comes in the form of 2 http headers:</p>
+<p>In addition to specifying credentials, a user must also specify the tenant for which the request is targeted. Those come in the form of 2 http headers:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -519,16 +522,16 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </div>
 <div class="paragraph">
-<p>Note that the authentication/authorization is orthogonal to the tenant access: The set of permission associated to a given user is the same for all tenants he has access to. So a potential superuser with all permissions and with access to the <code>api_key</code>/`api_secret`for all tenants would have full control. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant, &#8230;&#8203;</p>
+<p>Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the <code>api_key</code>/<code>api_secret</code> for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant,&#8230;&#8203;</p>
 </div>
 </div>
 </div>
-<h1 id="_setup_through_apis" class="sect0">Setup Through APIs</h1>
+<h1 id="_user_management_apis" class="sect0">User Management APIs</h1>
 <div class="sect1">
 <h2 id="_configuration_of_the_user_role_permissions">Configuration of the User/Role/Permissions</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Shiro supports multiple backend implementation:</p>
+<p>Shiro supports multiple backend implementations, and we integrated 3 of them:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -544,20 +547,36 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </div>
 <div class="paragraph">
-<p>For simple deployments where only few static users/roles need to be assigned the <code>shiro.ini</code> file is the simplest and the best option. For large entreprise solution an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle grond is to rely on a mixed solution between the <code>shiro.ini</code> file and the database backend. This is what this section will describe.</p>
+<p>For simple deployments where only few static users/roles need to be assigned, the <code>shiro.ini</code> file is the simplest and the best option. For large entreprise solution, an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle ground is to rely on a mixed solution between the <code>shiro.ini</code> file and the database backend. This is what the rest of this section will describe:</p>
 </div>
 <div class="paragraph">
-<p>Kill Bill offers apis to manage the user/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:</p>
+<p>Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>The shiro.ini file is used to configure the initial user (could be a superadmin with all roles or an admin with just enough permissions to manage the user/roles). For simplicity we will cal it superadmin will assign all the permissions.</p>
+<p>The <code>shiro.ini</code> file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity we will call it superadmin will assign one role containing all permissions.</p>
 </li>
 <li>
-<p>'superadmin' is now able to make api calls to configure new users/roles.</p>
+<p>Once deployed, the 'superadmin' is now able to make api calls to configure new users/roles.</p>
 </li>
 </ul>
+</div>
+<div class="paragraph">
+<p>The <code>shiro.ini</code> file will look like the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-c">#</span>
+<span class="tok-c"># Use -Dorg.killbill.security.shiroResourcePath=/var/tmp/shiro.ini to specify your own config</span>
+<span class="tok-c">#</span>
+
+<span class="tok-o">[</span>users<span class="tok-o">]</span>
+<span class="tok-nv">superadmin</span> <span class="tok-o">=</span> superadmin13, root
+
+<span class="tok-o">[</span>roles<span class="tok-o">]</span>
+<span class="tok-nv">root</span> <span class="tok-o">=</span> *:*</code></pre>
+</div>
 </div>
 <div class="paragraph">
 <p>Let&#8217;s create a new role <code>customer_support</code>:</p>
@@ -572,7 +591,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
 -X POST <span class="tok-se">\</span>
 --data-binary <span class="tok-s1">&#39;{ &quot;role&quot;: &quot;customer_support&quot;, &quot;permissions&quot;: [&quot;account:create&quot;, &quot;account:update&quot;, &quot;entitlement:change_plan&quot;, &quot;entitlement:pause_resume&quot;, &quot;entitlement:cancel&quot;, &quot;entitlement:transfer&quot;, &quot;invoice:credit&quot;, &quot;invoice:item_adjust&quot;, &quot;tag:create_tag_definition&quot;, &quot;tag:delete_tag_definition&quot;, &quot;tag:add&quot;, &quot;tag:delete&quot;] }&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s1">&#39;http://192.168.99.100:8080/1.0/kb/security/roles&#39;</span></code></pre>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/roles&#39;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -588,11 +607,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
 -X POST <span class="tok-se">\</span>
 --data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support&quot;] }&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s1">&#39;http://192.168.99.100:8080/1.0/kb/security/users&#39;</span></code></pre>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/users&#39;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Note: We specified for each request a <code>api_key</code> and <code>api_secret</code> (any valid tenant key would work). See <a href="https://github.com/killbill/killbill/issues/462">Issue 462</a>.</p>
+<p>Note: We specified for each request an <code>api_key</code> and <code>api_secret</code> (any valid tenant key would work). See <a href="https://github.com/killbill/killbill/issues/462">Issue 462</a>.</p>
 </div>
 </div>
 </div>
@@ -619,7 +638,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_play_time">Play Time&#8230;&#8203;</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Assuming our <code>cs</code> user knows about the <code>api_key</code> and <code>api_secret</code> of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permissions).</p>
+<p>Assuming our <code>cs</code> user knows about the <code>api_key</code> and <code>api_secret</code> of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permission set).</p>
 </div>
 <div class="paragraph">
 <p>So for instance, creating a new account in that tenant would work because his role <code>customer_support</code> includes the permission <code>account:create</code>:</p>
@@ -638,7 +657,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p>But the following curl to refund a payment <code>` would fail because his role `customer_support</code> deos not include the permission <code>payment:refund</code>:</p>
+<p>But the following curl to refund a payment would fail because his role <code>customer_support</code> does not include the permission <code>payment:refund</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -650,7 +669,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
 -X POST <span class="tok-se">\</span>
 --data-binary <span class="tok-s1">&#39;{&quot;amount&quot;:&quot;12.4&quot;}&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1&quot;</span></code></pre>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1/refunds&quot;</span></code></pre>
 </div>
 </div>
 </div>
@@ -696,7 +715,7 @@ Most of the previous steps can also be achieved through our admin UI (KAUI). KAU
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-23 17:57:45 UTC
+Last updated 2015-12-23 18:11:57 UTC
 </div>
 </div>
 </body>
