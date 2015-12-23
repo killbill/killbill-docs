@@ -34,20 +34,20 @@ Also, for sake of simplicity, we will setup Kill Bill to use a static http://shi
 
 We already described the lengthy steps required to configure the various EC2 instances in that http://killbill.io/tutorials/aws[tutorial] so we won't go into details here again, which means that all the setup related to the VPC, security groups, spawning of the EC2 and RDS instances is considered a prerequisite.
 In particular, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI. In addition with started our EC2 zone with with a special script that configured and started `dockerd` on the zones.
+
 Notes:
 
-* The instructions from the http://killbill.io/tutorials/aws[tutorial] have been written after the 0.12.1 release so they will need to be slightly tweaked to change the Kill Bill version, ddl files, ... from 0.12.1 to at least 0.14.0 (the Docker image 0.14.0 has been released).
-* In addition to that, we will need an extra zone to configure the admin UI (KAUI) and create a new database called `kaui` in the RDS database instance.
 
-The deployment will rely on the 2 Docker images:
-
-* killbill/killbill:0.14.0
-* killbill/kaui:0.2.0
+* We are using the version `VERSION` for killbill and kaui below to avoid having to update the documentation each time we release. We do suggest you use the latest version as shown in the https://killbill.io/downloads/[download page].
+* The deployment will consist in separate instances:
+** One instance for killbill, where we will deploy the docker image `killbill/killbill:latest`
+** One instance to configure the admin UI (KAUI) where we will deploy the deocker image `killbill/kaui:latest`
+** Finally RDS instance 
 
 
 For the Kill Bill Deployment, the `killbill` database schema will need to include:
 
-* http://docs.killbill.io/0.14/ddl.sql[Kill Bill DDL]
+* http://docs.killbill.io/VERSION/ddl.sql[Kill Bill DDL]
 * https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql[Stripe plugin DDL]
 * https://raw.githubusercontent.com/killbill/killbill-analytics-plugin/master/src/main/resources/org/killbill/billing/plugin/analytics/ddl.sql[Analytrics plugin DDL]
 
@@ -92,13 +92,7 @@ Note: PWD is a specific password for each of those users.
 :stripe:
   :api_secret_key: 'INVALID'
   :api_publishable_key: 'INVALID'
-
-:database:
-  :adapter: 'jdbcmysql'
-  :username: 'RDS_USERNAME'
-  :password: 'RDS_PWD'
-  :driver: 'com.mysql.jdbc.Driver'
-  :url: 'jdbc:mysql://RDS_URL/killbill'
+  :test: true
 ----
 
 Notes:
@@ -115,37 +109,22 @@ Again, here we will be reusing the same instances we configured in the http://ki
 [source, bash]
 .Kill Bill Docker Sequence:
 ----
-killbill_ec2> sudo docker pull killbill/killbill:0.14.0
+killbill_ec2> sudo docker pull killbill/killbill:VERSION
 killbill_ec2> docker run -tid \
 --name killbillsaas \
 -p 8080:8080 \
--v /home/ubuntu/killbill/etc/stripe.yml:/etc/killbill/stripe.yml \
--v /home/ubuntu/killbill/etc/shiro.ini:/etc/killbill/shiro.ini \
 -e KILLBILL_PLUGIN_STRIPE=1 \
 -e KILLBILL_PLUGIN_ANALYTICS=1 \
+-e KILLBILL_SHIRO_RESOURCE_PATH=/home/ubuntu/killbill/etc/shiro.ini \
 -e KILLBILL_CONFIG_DAO_URL=jdbc:mysql://RDS_URL/killbill \
 -e KILLBILL_CONFIG_DAO_USER=RDS_USER \
 -e KILLBILL_CONFIG_DAO_PASSWORD=RDS_PWD \
 -e KILLBILL_CONFIG_OSGI_DAO_URL=jdbc:mysql://RDS_URL/killbill \
 -e KILLBILL_CONFIG_OSGI_DAO_USER=RDS_USER \
 -e KILLBILL_CONFIG_OSGI_DAO_PASSWORD=RDS_PWD \
-killbill/killbill:0.14.0
+killbill/killbill:VERSION
 killbill_ec2> sudo docker logs -f killbillsaas  // check for instance to be up and running
 ----
-
-
-At this point and after the container is up, there are a few steps that need to be performed. The first step is to change the default `killbill.properties` to include the new property `org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini`.
-Since the `killbill.properties` are not exported outside of the container, we need to first edit the file from within the container and then restart the instance so the new properties take effect:
-
-[source, bash]
-----
-killbill_ec2> sudo docker exec -ti killbillsaas /bin/bash
-from-container> echo "org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini" >> /etc/killbill/killbill.properties
-^D
-killbill_ec2> sudo docker restart killbillsaas
-killbill_ec2> sudo docker logs -f killbillsaas
-----
-
 
 Finally, since we run the analytics plugin, we need to configure the analytics tables.
 There is a script that can be run to configure the analytics tables with all the existing views and reports.
@@ -173,7 +152,7 @@ If you look in your RDS instance you should see reports configured in the  `anal
 [source, bash]
 .Kaui Docker Sequence:
 ----
-kaui_ec2> sudo docker pull killbill/kaui:0.2.0
+kaui_ec2> sudo docker pull killbill/kaui:VERSION
 kaui_ec2> docker run -tid \
 --name kaui-saas \
 -p 3000:8080 \
@@ -181,7 +160,7 @@ kaui_ec2> docker run -tid \
 -e KAUI_CONFIG_DAO_USER=RDS_USER \
 -e KAUI_CONFIG_DAO_PASSWORD=RDS_PWD \
 -e KAUI_URL=http://KILLBILL_IP:8080 \
-killbill/kaui:0.2.0
+killbill/kaui:VERSION
 kaui_ec2> sudo docker logs -f kaui-saas
 ----
 
