@@ -1,34 +1,51 @@
 = Overview
 
-Terminology: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.
+**Terminology**: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.
+
+**Assumptions**: We assume the reader went through the http://docs.killbill.io/0.15/getting_started.html[Getting started] documentation and has a running system (both killbill and kaui) running on IP=`127.0.0.1`.
 
 Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on http://shiro.apache.org/[shiro] for the backend implementation.
 
-In addition to specify credentials, a user must also specify the tenant for which the request is targeted. The comes in the form of 2 http headers:
+In addition to specifying credentials, a user must also specify the tenant for which the request is targeted. Those come in the form of 2 http headers:
 
 * X-Killbill-ApiKey (referred to as `api_key`)
 * X-Killbill-ApiSecret (referred to as `api_secret`)
 
-Note that the authentication/authorization is orthogonal to the tenant access: The set of permission associated to a given user is the same for all tenants he has access to. So a potential superuser with all permissions and with access to the `api_key`/`api_secret`for all tenants would have full control. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant, ...
+Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the `api_key`/`api_secret` for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant,...
 
 
-= Setup Through APIs
+= User Management APIs
 
 == Configuration of the User/Role/Permissions
 
 
-Shiro supports multiple backend implementation:
+Shiro supports multiple backend implementations, and we integrated 3 of them:
 
 * Simple configuration file (`shiro.ini` file)
 * Database configuration
 * LDAP integration
 
-For simple deployments where only few static users/roles need to be assigned the `shiro.ini` file is the simplest and the best option. For large entreprise solution an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle grond is to rely on a mixed solution between the `shiro.ini` file and the database backend. This is what this section will describe.
+For simple deployments where only few static users/roles need to be assigned, the `shiro.ini` file is the simplest and the best option. For large entreprise solution, an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle ground is to rely on a mixed solution between the `shiro.ini` file and the database backend. This is what the rest of this section will describe:
 
-Kill Bill offers apis to manage the user/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:
+Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:
 
-* The shiro.ini file is used to configure the initial user (could be a superadmin with all roles or an admin with just enough permissions to manage the user/roles). For simplicity we will cal it superadmin will assign all the permissions.
-* 'superadmin' is now able to make api calls to configure new users/roles.
+* The `shiro.ini` file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity we will call it superadmin will assign one role containing all permissions.
+* Once deployed, the 'superadmin' is now able to make api calls to configure new users/roles.
+
+The `shiro.ini` file will look like the following:
+
+[source,bash]
+----
+# 
+# Use -Dorg.killbill.security.shiroResourcePath=/var/tmp/shiro.ini to specify your own config
+#
+
+[users]
+superadmin = superadmin13, root
+
+[roles]
+root = *:*
+----
 
 
 Let's create a new role `customer_support`:
@@ -43,7 +60,7 @@ curl -v \
 -H "Content-Type: application/json" \
 -X POST \
 --data-binary '{ "role": "customer_support", "permissions": ["account:create", "account:update", "entitlement:change_plan", "entitlement:pause_resume", "entitlement:cancel", "entitlement:transfer", "invoice:credit", "invoice:item_adjust", "tag:create_tag_definition", "tag:delete_tag_definition", "tag:add", "tag:delete"] }' \
-'http://192.168.99.100:8080/1.0/kb/security/roles'
+'http://127.0.0.1:8080/1.0/kb/security/roles'
 ----
 
 Let's create a `cs` username that will have only one role `customer_support`:
@@ -58,11 +75,11 @@ curl -v \
 -H "Content-Type: application/json" \
 -X POST \
 --data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support"] }' \
-'http://192.168.99.100:8080/1.0/kb/security/users'
+'http://127.0.0.1:8080/1.0/kb/security/users'
 ----
 
 
-Note: We specified for each request a `api_key` and `api_secret` (any valid tenant key would work). See https://github.com/killbill/killbill/issues/462[Issue 462].
+Note: We specified for each request an `api_key` and `api_secret` (any valid tenant key would work). See https://github.com/killbill/killbill/issues/462[Issue 462].
 
 
 == Tenant Configuration
@@ -82,7 +99,7 @@ curl -v \
 
 == Play Time...
 
-Assuming our `cs` user knows about the `api_key` and `api_secret` of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permissions).
+Assuming our `cs` user knows about the `api_key` and `api_secret` of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permission set).
 
 So for instance, creating a new account in that tenant would work because his role `customer_support` includes the permission `account:create`:
 
@@ -99,7 +116,7 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/accounts"
 ----
 
-But the following curl to refund a payment `` would fail because his role `customer_support` deos not include the permission `payment:refund`:
+But the following curl to refund a payment would fail because his role `customer_support` does not include the permission `payment:refund`:
 
 
 [source,bash]
@@ -112,7 +129,7 @@ curl -v \
 -H "X-Killbill-CreatedBy: demo" \
 -X POST \
 --data-binary '{"amount":"12.4"}' \
-"http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1"
+"http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1/refunds"
 ----
 
 
