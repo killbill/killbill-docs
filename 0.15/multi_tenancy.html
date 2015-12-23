@@ -551,29 +551,31 @@ The <code>admin_shakti</code> user will have full privileges for its Shakti tena
 <h3 id="_overview_of_aws_deployment_steps">Overview of AWS Deployment Steps</h3>
 <div class="paragraph">
 <p>We already described the lengthy steps required to configure the various EC2 instances in that <a href="http://killbill.io/tutorials/aws">tutorial</a> so we won&#8217;t go into details here again, which means that all the setup related to the VPC, security groups, spawning of the EC2 and RDS instances is considered a prerequisite.
-In particular, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI. In addition with started our EC2 zone with with a special script that configured and started <code>dockerd</code> on the zones.
-Notes:</p>
+In particular, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI. In addition with started our EC2 zone with with a special script that configured and started <code>dockerd</code> on the zones.</p>
+</div>
+<div class="paragraph">
+<p>Notes:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>The instructions from the <a href="http://killbill.io/tutorials/aws">tutorial</a> have been written after the 0.12.1 release so they will need to be slightly tweaked to change the Kill Bill version, ddl files, &#8230;&#8203; from 0.12.1 to at least 0.14.0 (the Docker image 0.14.0 has been released).</p>
+<p>We are using the version <code>VERSION</code> for killbill and kaui below to avoid having to update the documentation each time we release. We do suggest you use the latest version as shown in the <a href="https://killbill.io/downloads/">download page</a>.</p>
 </li>
 <li>
-<p>In addition to that, we will need an extra zone to configure the admin UI (KAUI) and create a new database called <code>kaui</code> in the RDS database instance.</p>
+<p>The deployment will consist in separate instances:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>One instance for killbill, where we will deploy the docker image <code>killbill/killbill:latest</code></p>
+</li>
+<li>
+<p>One instance to configure the admin UI (KAUI) where we will deploy the deocker image <code>killbill/kaui:latest</code></p>
+</li>
+<li>
+<p>Finally RDS instance</p>
 </li>
 </ul>
 </div>
-<div class="paragraph">
-<p>The deployment will rely on the 2 Docker images:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>killbill/killbill:0.14.0</p>
-</li>
-<li>
-<p>killbill/kaui:0.2.0</p>
 </li>
 </ul>
 </div>
@@ -583,7 +585,7 @@ Notes:</p>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="http://docs.killbill.io/0.14/ddl.sql">Kill Bill DDL</a></p>
+<p><a href="http://docs.killbill.io/VERSION/ddl.sql">Kill Bill DDL</a></p>
 </li>
 <li>
 <p><a href="https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql">Stripe plugin DDL</a></p>
@@ -641,13 +643,7 @@ Notes:</p>
 <pre class="pygments highlight"><code data-lang="bash">:stripe:
   :api_secret_key: <span class="tok-s1">&#39;INVALID&#39;</span>
   :api_publishable_key: <span class="tok-s1">&#39;INVALID&#39;</span>
-
-:database:
-  :adapter: <span class="tok-s1">&#39;jdbcmysql&#39;</span>
-  :username: <span class="tok-s1">&#39;RDS_USERNAME&#39;</span>
-  :password: <span class="tok-s1">&#39;RDS_PWD&#39;</span>
-  :driver: <span class="tok-s1">&#39;com.mysql.jdbc.Driver&#39;</span>
-  :url: <span class="tok-s1">&#39;jdbc:mysql://RDS_URL/killbill&#39;</span></code></pre>
+  :test: <span class="tok-nb">true</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -672,35 +668,21 @@ Notes:</p>
 <div class="listingblock">
 <div class="title">Kill Bill Docker Sequence:</div>
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash">killbill_ec2&gt; sudo docker pull killbill/killbill:0.14.0
+<pre class="pygments highlight"><code data-lang="bash">killbill_ec2&gt; sudo docker pull killbill/killbill:VERSION
 killbill_ec2&gt; docker run -tid <span class="tok-se">\</span>
 --name killbillsaas <span class="tok-se">\</span>
 -p 8080:8080 <span class="tok-se">\</span>
--v /home/ubuntu/killbill/etc/stripe.yml:/etc/killbill/stripe.yml <span class="tok-se">\</span>
--v /home/ubuntu/killbill/etc/shiro.ini:/etc/killbill/shiro.ini <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_PLUGIN_STRIPE</span><span class="tok-o">=</span><span class="tok-m">1</span> <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_PLUGIN_ANALYTICS</span><span class="tok-o">=</span><span class="tok-m">1</span> <span class="tok-se">\</span>
+-e <span class="tok-nv">KILLBILL_SHIRO_RESOURCE_PATH</span><span class="tok-o">=</span>/home/ubuntu/killbill/etc/shiro.ini <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_CONFIG_DAO_URL</span><span class="tok-o">=</span>jdbc:mysql://RDS_URL/killbill <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_CONFIG_DAO_USER</span><span class="tok-o">=</span>RDS_USER <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_CONFIG_DAO_PASSWORD</span><span class="tok-o">=</span>RDS_PWD <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_URL</span><span class="tok-o">=</span>jdbc:mysql://RDS_URL/killbill <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_USER</span><span class="tok-o">=</span>RDS_USER <span class="tok-se">\</span>
 -e <span class="tok-nv">KILLBILL_CONFIG_OSGI_DAO_PASSWORD</span><span class="tok-o">=</span>RDS_PWD <span class="tok-se">\</span>
-killbill/killbill:0.14.0
+killbill/killbill:VERSION
 killbill_ec2&gt; sudo docker logs -f killbillsaas  // check <span class="tok-k">for</span> instance to be up and running</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>At this point and after the container is up, there are a few steps that need to be performed. The first step is to change the default <code>killbill.properties</code> to include the new property <code>org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini</code>.
-Since the <code>killbill.properties</code> are not exported outside of the container, we need to first edit the file from within the container and then restart the instance so the new properties take effect:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">killbill_ec2&gt; sudo docker <span class="tok-nb">exec</span> -ti killbillsaas /bin/bash
-from-container&gt; <span class="tok-nb">echo</span> <span class="tok-s2">&quot;org.killbill.security.shiroResourcePath=file:///etc/killbill/shiro.ini&quot;</span> &gt;&gt; /etc/killbill/killbill.properties
-^D
-killbill_ec2&gt; sudo docker restart killbillsaas
-killbill_ec2&gt; sudo docker logs -f killbillsaas</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -738,7 +720,7 @@ laptop&gt; <span class="tok-nb">export </span><span class="tok-nv">KILLBILL_HOST
 <div class="listingblock">
 <div class="title">Kaui Docker Sequence:</div>
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash">kaui_ec2&gt; sudo docker pull killbill/kaui:0.2.0
+<pre class="pygments highlight"><code data-lang="bash">kaui_ec2&gt; sudo docker pull killbill/kaui:VERSION
 kaui_ec2&gt; docker run -tid <span class="tok-se">\</span>
 --name kaui-saas <span class="tok-se">\</span>
 -p 3000:8080 <span class="tok-se">\</span>
@@ -746,7 +728,7 @@ kaui_ec2&gt; docker run -tid <span class="tok-se">\</span>
 -e <span class="tok-nv">KAUI_CONFIG_DAO_USER</span><span class="tok-o">=</span>RDS_USER <span class="tok-se">\</span>
 -e <span class="tok-nv">KAUI_CONFIG_DAO_PASSWORD</span><span class="tok-o">=</span>RDS_PWD <span class="tok-se">\</span>
 -e <span class="tok-nv">KAUI_URL</span><span class="tok-o">=</span>http://KILLBILL_IP:8080 <span class="tok-se">\</span>
-killbill/kaui:0.2.0
+killbill/kaui:VERSION
 kaui_ec2&gt; sudo docker logs -f kaui-saas</code></pre>
 </div>
 </div>
@@ -1103,7 +1085,7 @@ If the user has more than one tenant, the user will be prompted to chose which t
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-22 19:54:41 UTC
+Last updated 2015-12-23 01:42:14 UTC
 </div>
 </div>
 </body>
