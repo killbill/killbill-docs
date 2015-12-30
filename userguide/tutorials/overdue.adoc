@@ -225,9 +225,19 @@ curl -v \
 ----
 
 
-You can then refer to the  https://github.com/killbill/killbill-payment-test-plugin/blob/master/README.md[plugin documentation (section Global State Configuration)] to configure the plugin and trigger failures. 
+At this point, one can create an account and set a payment method to use the `payment test plugin`. The scenario below will do the following:
 
-At this point, one can create an account and set a payment method to use the `payment test plugin`:
+* Create account
+* Add default payment matching our test payment plugin
+* Create a subscription
+* Move the clock after the trial and observe first successfull payments
+* Configure payment plugin to fail payments
+* Move the clock a month later and observe first failed payment
+* Move clock +1 day and observe first payment retry
+* Move clock +1 day and observe second payment retry
+* Move clock +8 day and observe third payment retry and first overdue state `WARNING`
+* Move clock +4 day and observe second overdue state `BLOCKED`
+* Move clock +7 day and observe second overdue state `CANCELLATION` and verify subscription has been automatically cancelled by the system
 
 [start = 1]
 1. Create your account:
@@ -241,12 +251,12 @@ curl -v \
 -H "Content-Type: application/json" \
 -H "X-Killbill-CreatedBy: demo" \
 -X POST \
---data-binary '{"name":"Arthur","email":"arthur@laposte.fr","externalKey":"arthur","currency":"EUR"}' \
+--data-binary '{"name":"Arthur","email":"arthur@laposte.fr","externalKey":"arthur","currency":"USD"}' \
 "http://127.0.0.1:8080/1.0/kb/accounts"
 ----
 
 [start = 2]
-2. Add the payment method:
+2. Add the payment method (assuming `60035793-cbe5-472a-8bd8-3c67cc3beaf4` is the accountId):
 
 [source,bash]
 ----
@@ -261,10 +271,11 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/accounts/60035793-cbe5-472a-8bd8-3c67cc3beaf4/paymentMethods?isDefault=true"
 ----
 
-[start = 3]
-3. Create a subscription in the past to trigger some invoices and (failed) payment. 
 
-Obviously the ids, catalog, and dates used below should be adjusted with valid values and to achieve the correct overdue state.
+[start = 3]
+3. Create a subscription to trigger some invoices and (failed) payment. 
+
+Note: The current date in the system is set to `2015-12-30` (date at which this experiment was conducted). You will need to either set the system time (suing endpoint shown below) to that date or translate to the dates of your choice.
 
 [source,bash]
 ----
@@ -275,10 +286,76 @@ curl -v \
 -H "Content-Type: application/json" \
 -H "X-Killbill-CreatedBy: demo" \
 -X POST \
---data-binary '{"accountId":"60035793-cbe5-472a-8bd8-3c67cc3beaf4","externalKey":"arthur9","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
-"http://127.0.0.1:8080/1.0/kb/subscriptions?requestedDate=2015-09-01"
+--data-binary '{"accountId":"60035793-cbe5-472a-8bd8-3c67cc3beaf4","externalKey":"s1_arthur","productName":"Movies","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+"http://127.0.0.1:8080/1.0/kb/subscriptions"
 ----
  
+[start = 4]
+4. Move the clock to reach end of trial and see first payment
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: demo' \
+-X POST \
+"http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-01-10"
+----
+
+[start = 5]
+5. Configure payment plugin to fail subsequent payments
+
+[source,bash]
+----
+curl -v \
+-u'admin:password' \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: demo' \
+-X POST \
+--data-binary '{"CONFIGURE_ACTION":"ACTION_RETURN_PLUGIN_STATUS_ERROR", "METHODS":"purchase_payment"}' \
+ -v 'http://127.0.0.1:8080/plugins/killbill-payment-test/configure'
+----
+
+You can then refer to the  https://github.com/killbill/killbill-payment-test-plugin/blob/master/README.md[plugin documentation (section Global State Configuration)] to configure the plugin and trigger failures. 
+
+
+[start = 6]
+6. Move the clock to the next month and observe first failed payment
+
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: demo' \
+-X POST \
+"http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-02-10"
+----
+
+[start = 7]
+7. Move clock +1 day and observe first payment retry
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: demo' \
+-X POST \
+"http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-02-11"
+----
+
+Keep moving the clock as suggested above to go through all payment retries and overdue states.
 
 
 [[platform_use]]
