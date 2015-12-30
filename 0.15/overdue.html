@@ -847,10 +847,44 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p>You can then refer to the  <a href="https://github.com/killbill/killbill-payment-test-plugin/blob/master/README.md">plugin documentation (section Global State Configuration)</a> to configure the plugin and trigger failures.</p>
+<p>At this point, one can create an account and set a payment method to use the <code>payment test plugin</code>. The scenario below will do the following:</p>
 </div>
-<div class="paragraph">
-<p>At this point, one can create an account and set a payment method to use the <code>payment test plugin</code>:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Create account</p>
+</li>
+<li>
+<p>Add default payment matching our test payment plugin</p>
+</li>
+<li>
+<p>Create a subscription</p>
+</li>
+<li>
+<p>Move the clock after the trial and observe first successfull payments</p>
+</li>
+<li>
+<p>Configure payment plugin to fail payments</p>
+</li>
+<li>
+<p>Move the clock a month later and observe first failed payment</p>
+</li>
+<li>
+<p>Move clock +1 day and observe first payment retry</p>
+</li>
+<li>
+<p>Move clock +1 day and observe second payment retry</p>
+</li>
+<li>
+<p>Move clock +8 day and observe third payment retry and first overdue state <code>WARNING</code></p>
+</li>
+<li>
+<p>Move clock +4 day and observe second overdue state <code>BLOCKED</code></p>
+</li>
+<li>
+<p>Move clock +7 day and observe second overdue state <code>CANCELLATION</code> and verify subscription has been automatically cancelled by the system</p>
+</li>
+</ul>
 </div>
 <div class="olist arabic">
 <ol class="arabic" start="1">
@@ -868,14 +902,14 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
 -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
 -X POST <span class="tok-se">\</span>
---data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;Arthur&quot;,&quot;email&quot;:&quot;arthur@laposte.fr&quot;,&quot;externalKey&quot;:&quot;arthur&quot;,&quot;currency&quot;:&quot;EUR&quot;}&#39;</span> <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;Arthur&quot;,&quot;email&quot;:&quot;arthur@laposte.fr&quot;,&quot;externalKey&quot;:&quot;arthur&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
 <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span></code></pre>
 </div>
 </div>
 <div class="olist arabic">
 <ol class="arabic" start="2">
 <li>
-<p>Add the payment method:</p>
+<p>Add the payment method (assuming <code>60035793-cbe5-472a-8bd8-3c67cc3beaf4</code> is the accountId):</p>
 </li>
 </ol>
 </div>
@@ -895,12 +929,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="olist arabic">
 <ol class="arabic" start="3">
 <li>
-<p>Create a subscription in the past to trigger some invoices and (failed) payment.</p>
+<p>Create a subscription to trigger some invoices and (failed) payment.</p>
 </li>
 </ol>
 </div>
 <div class="paragraph">
-<p>Obviously the ids, catalog, and dates used below should be adjusted with valid values and to achieve the correct overdue state.</p>
+<p>Note: The current date in the system is set to <code>2015-12-30</code> (date at which this experiment was conducted). You will need to either set the system time (suing endpoint shown below) to that date or translate to the dates of your choice.</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -911,9 +945,92 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
 -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
 -X POST <span class="tok-se">\</span>
---data-binary <span class="tok-s1">&#39;{&quot;accountId&quot;:&quot;60035793-cbe5-472a-8bd8-3c67cc3beaf4&quot;,&quot;externalKey&quot;:&quot;arthur9&quot;,&quot;productName&quot;:&quot;Standard&quot;,&quot;productCategory&quot;:&quot;BASE&quot;,&quot;billingPeriod&quot;:&quot;MONTHLY&quot;,&quot;priceList&quot;:&quot;DEFAULT&quot;}&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/subscriptions?requestedDate=2015-09-01&quot;</span></code></pre>
+--data-binary <span class="tok-s1">&#39;{&quot;accountId&quot;:&quot;60035793-cbe5-472a-8bd8-3c67cc3beaf4&quot;,&quot;externalKey&quot;:&quot;s1_arthur&quot;,&quot;productName&quot;:&quot;Movies&quot;,&quot;productCategory&quot;:&quot;BASE&quot;,&quot;billingPeriod&quot;:&quot;MONTHLY&quot;,&quot;priceList&quot;:&quot;DEFAULT&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/subscriptions&quot;</span></code></pre>
 </div>
+</div>
+<div class="olist arabic">
+<ol class="arabic" start="4">
+<li>
+<p>Move the clock to reach end of trial and see first payment</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-01-10&quot;</span></code></pre>
+</div>
+</div>
+<div class="olist arabic">
+<ol class="arabic" start="5">
+<li>
+<p>Configure payment plugin to fail subsequent payments</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u<span class="tok-s1">&#39;admin:password&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;CONFIGURE_ACTION&quot;:&quot;ACTION_RETURN_PLUGIN_STATUS_ERROR&quot;, &quot;METHODS&quot;:&quot;purchase_payment&quot;}&#39;</span> <span class="tok-se">\</span>
+ -v <span class="tok-s1">&#39;http://127.0.0.1:8080/plugins/killbill-payment-test/configure&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can then refer to the  <a href="https://github.com/killbill/killbill-payment-test-plugin/blob/master/README.md">plugin documentation (section Global State Configuration)</a> to configure the plugin and trigger failures.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic" start="6">
+<li>
+<p>Move the clock to the next month and observe first failed payment</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-02-10&quot;</span></code></pre>
+</div>
+</div>
+<div class="olist arabic">
+<ol class="arabic" start="7">
+<li>
+<p>Move clock +1 day and observe first payment retry</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-02-11&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Keep moving the clock as suggested above to go through all payment retries and overdue states.</p>
 </div>
 </div>
 </div>
@@ -998,7 +1115,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-24 03:25:28 UTC
+Last updated 2015-12-30 02:34:16 UTC
 </div>
 </div>
 </body>
