@@ -78,18 +78,48 @@ bundle exec rake test:remote:spec
 
 Not all tests will work with your gateway (maybe some features are not supported): feel free to remove them. But make sure some basic calls are working noneless (e.g. purchase), as it will make debugging in Kill Bill much harder otherwise.
 
-Finally, when you are ready, package and deploy the plugin to Kill Bill:
+=== Building Ruby plugins
+
+Unlike Java plugins, which are deployed as jars, Ruby plugins need a specific directory structure on the filesystem to run (containing all of the gems dependencies). Fortunately, we provide scripts to generate self-contained artifacts: all you need to do is untar (or unzip) these.
+
+==== Prerequisites
+
+Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don't have a Ruby installation yet, use https://rvm.io/rvm/install[RVM]:
+
+[source,bash]
+----
+gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+\curl -sSL https://get.rvm.io | bash -s stable --ruby
+----
+
+After following the post-installation instructions, you should have access to the `ruby` and `gem` executables.
+
+Install the following gems:
+
+[source,bash]
+----
+gem install bundler
+gem install jbundler
+----
+
+==== Build
+
+Follow these steps, making sure each one is successful before moving on to the next one:
 
 [source,ruby]
 ----
+rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
+bundle install
+jbundle install
 # Cleanup output directories
-rake killbill:clean
+bundle exec rake killbill:clean
 # Build your plugin gem in the pkg/ directory
-rake build
+bundle exec rake build
 # Build the Killbill plugin in the pkg/ directory
-rake killbill:package
-# Deploy the plugin (and clobber a previous version if needed) in /var/tmp/bundles
-rake killbill:deploy[true]
+bundle exec rake killbill:package
+# Optional: deploy the plugin (and clobber a previous version if needed) in /var/tmp/bundles.
+# Alternatively, you can manualy deploy the .tar.gz or .zip artifact from the pkg/ directory
+bundle exec rake killbill:deploy[true]
 ----
 
 You can then restart Kill Bill and start triggering payments using the Kill Bill 1.0 JAX-RS APIs.
