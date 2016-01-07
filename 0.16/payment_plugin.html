@@ -488,6 +488,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_payment_plugins_frameworks">Payment plugins frameworks</a>
 <ul class="sectlevel2">
 <li><a href="#_activemerchant_plugin_generation">ActiveMerchant plugin generation</a></li>
+<li><a href="#_building_ruby_plugins">Building Ruby plugins</a>
+<ul class="sectlevel3">
+<li><a href="#_prerequisites">Prerequisites</a></li>
+<li><a href="#_build">Build</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -652,19 +658,55 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>Not all tests will work with your gateway (maybe some features are not supported): feel free to remove them. But make sure some basic calls are working noneless (e.g. purchase), as it will make debugging in Kill Bill much harder otherwise.</p>
 </div>
+</div>
+<div class="sect2">
+<h3 id="_building_ruby_plugins">Building Ruby plugins</h3>
 <div class="paragraph">
-<p>Finally, when you are ready, package and deploy the plugin to Kill Bill:</p>
+<p>Unlike Java plugins, which are deployed as jars, Ruby plugins need a specific directory structure on the filesystem to run (containing all of the gems dependencies). Fortunately, we provide scripts to generate self-contained artifacts: all you need to do is untar (or unzip) these.</p>
+</div>
+<div class="sect3">
+<h4 id="_prerequisites">Prerequisites</h4>
+<div class="paragraph">
+<p>Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don&#8217;t have a Ruby installation yet, use <a href="https://rvm.io/rvm/install">RVM</a>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-c1"># Cleanup output directories</span>
-<span class="tok-n">rake</span> <span class="tok-ss">killbill</span><span class="tok-p">:</span><span class="tok-n">clean</span>
+<pre class="pygments highlight"><code data-lang="bash">gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+<span class="tok-se">\c</span>url -sSL https://get.rvm.io <span class="tok-p">|</span> bash -s stable --ruby</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>After following the post-installation instructions, you should have access to the <code>ruby</code> and <code>gem</code> executables.</p>
+</div>
+<div class="paragraph">
+<p>Install the following gems:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">gem install bundler
+gem install jbundler</code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_build">Build</h4>
+<div class="paragraph">
+<p>Follow these steps, making sure each one is successful before moving on to the next one:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-n">rm</span> <span class="tok-o">-</span><span class="tok-n">f</span> <span class="tok-no">Gemfile</span><span class="tok-o">.</span><span class="tok-n">lock</span> <span class="tok-no">Jarfile</span><span class="tok-o">.</span><span class="tok-n">lock</span> <span class="tok-o">.</span><span class="tok-n">jbundler</span><span class="tok-o">/</span><span class="tok-n">classpath</span><span class="tok-o">.</span><span class="tok-n">rb</span>
+<span class="tok-n">bundle</span> <span class="tok-n">install</span>
+<span class="tok-n">jbundle</span> <span class="tok-n">install</span>
+<span class="tok-c1"># Cleanup output directories</span>
+<span class="tok-n">bundle</span> <span class="tok-nb">exec</span> <span class="tok-n">rake</span> <span class="tok-ss">killbill</span><span class="tok-p">:</span><span class="tok-n">clean</span>
 <span class="tok-c1"># Build your plugin gem in the pkg/ directory</span>
-<span class="tok-n">rake</span> <span class="tok-n">build</span>
+<span class="tok-n">bundle</span> <span class="tok-nb">exec</span> <span class="tok-n">rake</span> <span class="tok-n">build</span>
 <span class="tok-c1"># Build the Killbill plugin in the pkg/ directory</span>
-<span class="tok-n">rake</span> <span class="tok-ss">killbill</span><span class="tok-p">:</span><span class="tok-n">package</span>
-<span class="tok-c1"># Deploy the plugin (and clobber a previous version if needed) in /var/tmp/bundles</span>
-<span class="tok-n">rake</span> <span class="tok-ss">killbill</span><span class="tok-p">:</span><span class="tok-n">deploy</span><span class="tok-o">[</span><span class="tok-kp">true</span><span class="tok-o">]</span></code></pre>
+<span class="tok-n">bundle</span> <span class="tok-nb">exec</span> <span class="tok-n">rake</span> <span class="tok-ss">killbill</span><span class="tok-p">:</span><span class="tok-n">package</span>
+<span class="tok-c1"># Optional: deploy the plugin (and clobber a previous version if needed) in /var/tmp/bundles.</span>
+<span class="tok-c1"># Alternatively, you can manualy deploy the .tar.gz or .zip artifact from the pkg/ directory</span>
+<span class="tok-n">bundle</span> <span class="tok-nb">exec</span> <span class="tok-n">rake</span> <span class="tok-ss">killbill</span><span class="tok-p">:</span><span class="tok-n">deploy</span><span class="tok-o">[</span><span class="tok-kp">true</span><span class="tok-o">]</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -674,9 +716,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 </div>
+</div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-01-06 15:25:40 UTC
+Last updated 2016-01-07 21:13:56 UTC
 </div>
 </div>
 </body>
