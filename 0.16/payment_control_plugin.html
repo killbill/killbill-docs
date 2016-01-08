@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill Administrative UI</title>
+<title>Developing a Payment Control Plugin</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,180 +476,209 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill Administrative UI</h1>
+<h1>Developing a Payment Control Plugin</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_overview">Overview</a></li>
-<li><a href="#_features">Features</a></li>
-<li><a href="#_extensions">Extensions</a></li>
-<li><a href="#_screenshots">Screenshots</a></li>
-<li><a href="#_pagination_of_all_accounts_per_tenant">Pagination of all Accounts (Per Tenant)</a></li>
-<li><a href="#_account">Account</a></li>
-<li><a href="#_billing_timeline">Billing Timeline</a></li>
-<li><a href="#_analytics">Analytics</a></li>
-<li><a href="#_kpm">KPM</a></li>
+<li><a href="#overview">PaymentControlPluginApi Overview</a></li>
+<li><a href="#_use_cases">Use Cases</a>
+<ul class="sectlevel2">
+<li><a href="#_fraud_detection_system">Fraud Detection System</a></li>
+<li><a href="#_payment_retries">Payment Retries</a></li>
+<li><a href="#_payment_routing">Payment Routing</a></li>
+<li><a href="#_disbursement">Disbursement</a></li>
+<li><a href="#_currency_conversion">Currency Conversion</a></li>
+<li><a href="#_others">Others</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="_overview">Overview</h2>
+<h2 id="overview">PaymentControlPluginApi Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill itself doesn&#8217;t provide a UI to manage your accounts and subscriptions. All interactions with the core platform is expected to be done via the REST API and/or the Java APIs (if you decide to embed Kill Bill).</p>
+<p>The <a href="https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java">PaymentControlPluginApi</a> exists to develop <code>payment control plugins</code>. Those plugins are called from the core payment system before payments get executed and after the payment operation has completed or failed.</p>
 </div>
 <div class="paragraph">
-<p>We do provide however <a href="http://github.com/killbill/killbill-admin-ui-standalone">Kaui</a> (the Kill Bill Administrative UI): it is a self contained web application, interacting with Kill Bill over HTTP. Its primary purpose is for your support team to handle refunds, credits, cancellations, and adjustments. Additionally, it is also often used by the finance teams to record chargebacks.</p>
-</div>
-<div class="paragraph">
-<p>Under the covers, Kaui is a series of Rails mountable engines. You can extend its functionality by mounting your own engine(s) (such as to provide a custom UI for your plugin(s)).</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_features">Features</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kaui has been designed to be fully multi-tenant, which means you can deploy one UI to access all of your tenants. This <a href="http://killbill.io/blog/multi-tenancy-authorization/">blog post</a> explains in a bit more details on how that works.</p>
-</div>
-<div class="paragraph">
-<p>Along with the multi-tenancy support, Kaui also leverages the authentication and authorization layer built into Kill Bill to restrict users from accessing some screens and actions depending on their permissions (such as refunding a payment, crediting an account, &#8230;&#8203;).</p>
-</div>
-<div class="paragraph">
-<p>Additionally, Kaui is integrated with most of Kill Bill APIs and can:</p>
+<p>Each of the apis take the following parameters:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>List all the accounts, bundles, invoices, payments, and allow to search based on various fields (account name, external key, email, &#8230;&#8203;)</p>
+<p><code>context</code>: Provides the full <code>PaymentControlContext</code> associated to that payment (account, transaction type, amount, currency, ..)</p>
 </li>
 <li>
-<p>Account management</p>
+<p><code>properties</code>: A list of <code>PluginProperty</code> that are passed all the way from the client making the api call to the plugin. Each plugin can therefore be controlled through properties to achieve the desired result and provide additional state (in addition to  the basic payment state) to the plugin that way.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Implementers of such plugins need to implement the following apis:</p>
+</div>
 <div class="ulist">
 <ul>
 <li>
-<p>Show contact info</p>
+<p><code>priorCall</code>: This is the method that will be invoked prior doing any payment operation. This method will return a <code>PriorPaymentControlResult</code> that will allow to:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>abort the call if desired</p>
 </li>
 <li>
-<p>Show account balance, available credits, overdue status</p>
+<p>adjust the amount (and/or the currency attached to this payment</p>
 </li>
 <li>
-<p>Manage existing payment methods</p>
+<p>override the current <code>paymentMethodId</code> associated with that payment</p>
 </li>
 <li>
-<p>List existing subscriptions and allow to create new ones, change plans, cancel subscriptions</p>
-</li>
-<li>
-<p>Tag management</p>
+<p>override the list of plugin properties</p>
 </li>
 </ul>
 </div>
 </li>
 <li>
-<p>Account Timeline: visualize all the events through time associated with the account and allow specific filtering (subscription, event type, &#8230;&#8203;)</p>
+<p><code>onSuccessCall</code>: This is invoked after the payment operation was executed successfully. This method will return a <code>OnSuccessPaymentControlResult</code> that allow to override the list of plugin properties</p>
+</li>
+<li>
+<p><code>onFailureCall</code>: This is invoked after the payment operation failed to execute successfully. This method will return a <code>OnFailurePaymentControlResult</code> that allows to:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>potentially set a date at which this payment should be retried</p>
+</li>
+<li>
+<p>override the list of plugin properties</p>
 </li>
 </ul>
 </div>
+</li>
+</ul>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_extensions">Extensions</h2>
-<div class="sectionbody">
 <div class="paragraph">
-<p>We provide extensions for some of the official plugins:</p>
+<p>Multiple such plugins can be registered in the system. Each plugin will be invoked in order and if a plugin decides to modify the list of <code>PluginProperty</code>, subsequent plugins then see that modifed list of properties. Obviously, this is a very powerful mechanism that also needs to be not be abused (to avoid having to debug a <strong>too</strong> complicated system). The order in which those plugins are invoked is controlled in two ways:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="https://github.com/killbill/killbill-analytics-ui">Analytics engine</a>, which displays analytics graphs when the <a href="https://github.com/killbill/killbill-analytics-plugin">analytics plugin</a> has been deployed.</p>
+<p>When making each payment api call, an ordered list of such plugins can be specified, OR</p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-avatax-ui">AvaTax engine</a>, which lets you configure AvaTax when the <a href="https://github.com/killbill/killbill-avatax-plugin">AvaTax plugin</a> has been deployed.</p>
+<p>If no such list is passed at the api level, the system will rely on a system wide property called <code>org.killbill.payment.invoice.plugin</code> that defines the default ordered list (note that the naming of the property includes <code>invoice</code> for historical reasons, but this has nothing to do with invoice).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_use_cases">Use Cases</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are many use cases associated with that plugin api. Let&#8217;s describe a few below:</p>
+</div>
+<div class="sect2">
+<h3 id="_fraud_detection_system">Fraud Detection System</h3>
+<div class="paragraph">
+<p>A fraud detection system typically needs to run some real-time checks right before a payment is executed; often a score associated to the payment is computed, and based on the result different things can happen. Let&#8217;s assume the following for the sake of an example. A score between 1-100 is returned from the plugin (or third party system with which the plugin integrates):
+* If score &lt; 25, payment should go through
+* If 25 &lt; score &lt; 75, enable 3DSecure (use case of a credit card payment where the issuer supports such verification mechanism)
+* If score score &gt; 75, reject</p>
+</div>
+<div class="paragraph">
+<p>Implementing such a plugin becomes quite easy: One needs to implement the <code>priorCall</code> api, extract the score based on the <code>PaymentControlContext</code> (and potentially additional properties that could be used to tweak the behavior on a per call basis). Based on the score, the plugin would either:
+* Let the payment go through (case &lt; 25)
+* Add specific plugin properties that are required to activate the 3DS (e.g client ip, browser info,&#8230;&#8203;) (25 &lt; score &lt; 75)
+* Abort the payment by setting the <code>isAborted</code> from <code>PriorPaymentControlResult</code>.</p>
+</div>
+<div class="paragraph">
+<p>Note: THere is an existing <a href="https://github.com/killbill/killbill-feedzai-plugin">plugin prototype</a> to integrate with the Feedzai fraud detection system (that was developed during the <a href="http://www.money2020.com/blog/money2020-hackathon-developer-stories">money20/20 hackathon</a>).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_payment_retries">Payment Retries</h3>
+<div class="paragraph">
+<p>In some cases, we want to have the ability to control when a payment should be retried. The plugin needs to be able to control the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Rules on when to retry and when not to retry (e.g retry for <code>InsufficientFund</code> error and payment amount &gt; $100)</p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-kpm-ui">KPM engine</a>, which lets you configure KPM when the <a href="https://github.com/killbill/killbill-kpm-plugin">KPM plugin</a> has been deployed.</p>
+<p>Date at which payment should be retried</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>When you deploy the <a href="https://github.com/killbill/killbill-admin-ui-standalone">self contained war</a>, these mountable engines are mounted by default.</p>
+<p>Implementing such a basic plugin is also quite easy. The developer needs to implement the business logic in the <code>onFailureCall</code> api to decide what to do upon failure, and provide the <code>nextRetryDate</code> from the `OnFailurePaymentControlResult if necessary.</p>
 </div>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_screenshots">Screenshots</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="_payment_routing">Payment Routing</h3>
 <div class="paragraph">
-<p>In this section we want to show a few screenshots to give a sense of what Kaui provides (and looks like). The data that we show is synthetic data that we generated using tests.</p>
+<p>Payment routing is itself a vast topic and we could envision different types of payment routing:</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p>Routing across different payment gateways/processors. The idea here is to address the following concerns:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Resilience: If one gateway is down or if its latency becomes too high, reroute traffic to another one</p>
+</li>
+<li>
+<p>Cost optimization: Based on the contract negociated with the third party gateway start to move some traffic when some quota (e.g volume) was reached</p>
+</li>
+<li>
+<p>Acceptance Rate: A payment may be denied when going through a certain gateway and yet succeed when going through a different gateway (because of complicated set of rules that are implemented and which take into account all kinds of variables including the processor through which the payment flows)</p>
+</li>
+</ul>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_pagination_of_all_accounts_per_tenant">Pagination of all Accounts (Per Tenant)</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>After the user has logged in and after choosing the tenant, the user can search for a specific account (if no search query is entered, a list of all accounts is displayed):</p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account_search.png" alt="account_search"></span></p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_account">Account</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>This shows the known information about a given user account:</p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account1.png" alt="account1"></span></p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account2.png" alt="account2"></span></p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_billing_timeline">Billing Timeline</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The billing timeline shows all the events that occurred for a specific user account:</p>
+</li>
+<li>
+<p>Routing across different payment method. Assuming a given user has entered several payment methods (e.g a CC and a paypal account), the system could prompt the user to chose paypal if the payment failed after using the CC. This obvioulsy requires some intricate integration from the plugin to the UI presented to the user, but this is certainly not impossible to achieve.</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/timeline.png" alt="timeline"></span></p>
+<p>The current <code>PaymentControlPluginApi</code> provides all the info and control to implement such logic because one can override the <code>paymentMethodId</code> in the <code>adjustedPaymentMethodId</code> of the <code>PriorPaymentControlResult</code> to modify at real time where to route the payment.</p>
 </div>
 </div>
-</div>
-<div class="sect1">
-<h2 id="_analytics">Analytics</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="_disbursement">Disbursement</h3>
 <div class="paragraph">
-<p>The Analytics screen will only be available when the analytics plugin has been deployed.</p>
+<p>Some merchants (organization) may accept some consumer payments for a service that is (partially) provided by an other entity (or entities). In such scenario it may become imperative to pass through the payment to that other entity. As an example we could envision a use case when the merchant accepting the payment would keep a fee that would be specified at the payment level.</p>
 </div>
 <div class="paragraph">
-<p>It lets you display custom metrics with filtering capabilities. We provide a few by default, but the analytics framework
-lets you add any desired metric.</p>
+<p>A possible implementation is to rely on the <code>PaymentControlPluginApi</code>. Any additional metadata associated to each payment (fee, details about the entity providing the service,&#8230;&#8203;) can easily be passed as a set of <code>PluginProperty</code>, that the plugin would extract to compute in real time what needs to be disbursed and which fees need to be kept. The logic associated to the disbursement could become quite complicated (rules on what to disbiurse to whom and when, batching, &#8230;&#8203;). There is choice of implementing a full fledge plugin that takes cares of all this business logic (this is certainly possible since plugins can manage their own state, export new endpints, &#8230;&#8203;) or having the plugin interract with a standalone service in charge of such operations.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_currency_conversion">Currency Conversion</h3>
+<div class="paragraph">
+<p>In some cases, it may be necessary to offer a price in a currency and actually execute the payment using a different currency (this is based on a real use case where some brazilian customers would first pay in BRL for a service offered by a US based company, and then from one day to the next, the brazilian monetary policy changed and forbid payments in BRL outside of the country). In such scenario (among others) the choice is to lose those customers, or message them about changing the currency based on the current exchange rate, and implement the change:</p>
 </div>
 <div class="paragraph">
-<p>Here we show the MRR by plan over time:</p>
+<p>Fortunately implementing such a change is quite easy with the <code>PaymentControlPluginApi</code> because the the payment <code>amount</code> and <code>currency</code> can be overriden in the <code>PriorPaymentControlResult</code>. So, in such a scenario the plugin would implement the <code>priorCall</code> api to:</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p>Ignore non <code>BRL</code> payments</p>
+</li>
+<li>
+<p>Perform the currency conversion for such <code>BRL</code> payments (by possibly integrating with a third party service for currency conversion), and return new <code>amount</code> and <code>currency</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_others">Others</h3>
 <div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/mrr.png" alt="mrr"></span></p>
+<p>There are many uses cases one could come up with, including some or a combination of the use cases presented above. Another dimension we have seen in the past is related to the Kill Bill integration with the rest of the stack. As an example it could very well be that some pieces of the payment infrastrcuture already exist outside of Kill Bill (e.g access to the detail of a payment method), and in such case one could leverage this api in a clever way to make that integration possible.</p>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_kpm">KPM</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The KPM screen will only be available when the KPM plugin has been deployed.</p>
-</div>
-<div class="paragraph">
-<p>It lets you install and uninstall plugins, as well as start/stop/restart them at runtime:</p>
-</div>
-<div class="paragraph">
-<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/kpm_install.png" alt="kpm_install"></span></p>
 </div>
 </div>
 </div>
