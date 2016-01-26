@@ -6,10 +6,6 @@
 
 Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on http://shiro.apache.org/[shiro] for the backend implementation.
 
-In addition to specifying credentials, a user must also specify the tenant for which the request is targeted. Those come in the form of 2 http headers:
-
-* X-Killbill-ApiKey (referred to as `api_key`)
-* X-Killbill-ApiSecret (referred to as `api_secret`)
 
 Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the `api_key`/`api_secret` for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant,...
 
@@ -54,8 +50,6 @@ Let's create a new role `customer_support`:
 ----
 curl -v \
 -u "superadmin:superadmin123"  \
--H "X-Killbill-ApiKey: bob" \
--H 'X-Killbill-ApiSecret: lazar' \
 -H "X-Killbill-CreatedBy: stephane" \
 -H "Content-Type: application/json" \
 -X POST \
@@ -69,8 +63,6 @@ Let's create a `cs` username that will have only one role `customer_support`:
 ----
 curl -v \
 -u 'superadmin:superadmin123' \
--H "X-Killbill-ApiKey: bob" \
--H 'X-Killbill-ApiSecret: lazar' \
 -H "X-Killbill-CreatedBy: stephane" \
 -H "Content-Type: application/json" \
 -X POST \
@@ -85,16 +77,12 @@ Let's assume we want to add more permissions to that user. We could create anoth
 ----
 curl -v \
 -u 'superadmin:superadmin123' \
--H "X-Killbill-ApiKey: bob" \
--H 'X-Killbill-ApiSecret: lazar' \
 -H "X-Killbill-CreatedBy: stephane" \
 -H "Content-Type: application/json" \
 -X PUT \
 --data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support_manager"] }' \
-'http:///127.0.0.1:8080/1.0/kb/security/users/cs/roles'
+'http://127.0.0.1:8080/1.0/kb/security/users/cs/roles'
 ----
-
-Note: We specified for each request an `api_key` and `api_secret` (any valid tenant key would work). See https://github.com/killbill/killbill/issues/462[Issue 462].
 
 
 == Tenant Configuration
