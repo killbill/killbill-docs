@@ -7,7 +7,7 @@ USERGUIDE_INPUT_DIR=$DIR/userguide
 # Common options
 COMMON_OPTS="-a sourcedir=$USERGUIDE_INPUT_DIR,imagesdir=$USERGUIDE_INPUT_DIR/assets"
 # Selfcontained options
-SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -a doctype=book,toc,toclevels=6,data-uri,linkcss!,source-highlighter=pygments,homepage=http://killbill.io"
+SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -r asciidoctor-diagram -a doctype=book,toc,toclevels=6,data-uri,linkcss!,source-highlighter=pygments,homepage=http://killbill.io"
 
 BUILD_DIR=$DIR/build
 SELFCONTAINED_BUILD_DIR=$BUILD_DIR/selfcontained
