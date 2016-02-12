@@ -6,14 +6,16 @@ This guide is intended to provide some guidelines for running migrations from an
 It is by no mean an exact recipe book to follow, but it provides some recommendations on how to do things (based on previous experiences) and highlight some specific areas of concern.
 
 The assumption is there is already an internal or third party billing system in place:
+
 * It receives some live traffic, and migration should not cause any downtime
 * It contains existing state (subscriptions, invoices, ...) that need to be migrated without impacting customers
-* It provides a UI that services like customer service (CS) use to handle customer tickets
+* It provides a UI for customer service (CS) use to handle customer tickets
 * It provides state/data that is used by accounting/financial departments
-* One or several system in the company are interracting with that system through API calls
+* One or several systems in the company are interracting with that billing system through API calls or by ETLing data
 
 The end goal of the migration is to make sure that we can unplug completely the old billing system and yet provide the same level of service (or better) for the customers and the various departments in the organization.
-This is a fairly ambitious goal, which may require a potentially a gradual shutdwon of the old system.
+
+This is a fairly ambitious goal, which may require some tradeoffs and a gradual shutdwon of the old system.
 
 == Strategy
 
@@ -24,20 +26,19 @@ Like most complicated projects, it make sense to cut the projects in separate st
 One must first decide on the data that must be migrated, so let's start by the minimum amount of data that needs to be migrated:
 
 * **Account data**: All the customer info such as name, email, phone, address, ... pretty much everything that would fit on the Kill Bill `Account` table. If additional data needs to be kept one could use custom fields to add key-value paremeters attached to the account data.
-* **Active Subscriptions**: In order for users to still be billed and receive service those need to be migrated and in a way to allow to swicth from one system to the next with no (minimum) visibility. 
+* **Active Subscriptions**: In order for users to still be billed and receive service, those need to be migrated and in a way to allow to swicth from one system to the next with no (minimum) impact/visibility. 
 
-Other state such as non active subscriptions, past invoices, and payments don't need to be migrated in the system to have the system function correctly, but that data may still need to be available in some fashion. Not migrating that data into Kill Bill simplifies the problem because:
+Other state such as non active subscriptions, past invoices, and payments *don't need* to be migrated to have the system function correctly, but **that data may still need to be available in some fashion**. By not migrating that data into Kill Bill, this simplifies the problem:
 
-* **Non active subscriptions**: Migrating those means migrating more data; also it is often the case that the older the data the less clean it is and the harder it is to migrate (associated `Plan` may not be active anymore, previous bugs from existing billing systems creating things difficult to migrate, ...). While this is feasible this does not add too much value unless one wants to also migrate past invoices
-* **Past Invoices**: Those are difficult to migrate as such, because they can't simply be replayed by Kill Bill (if we were to migrate all subscriptions and let Kill Bill catch up with invoices the result would be a set of invoices not exactly identical to the original system (pro-ration logic would be different, catalog may have been configured slightly differently on old system and in Kill Bill,...) so thiose would not be useful. Another strategy would be to insert them manually in the invoice table to make sure they exactly match, but then invoices and matching subscriptions would not correspond exactly and system would try to correct the state. Also such a strategy would require inserting data directly or providing custom endpoints to touch these tables, both of which are risky and erro prone initiatives.
+* **Non active subscriptions**: Migrating those means migrating more data; also it is often the case that the older the data the less 'clean' it is and the harder it is to migrate (associated `Plan` may not be active anymore, previous bugs from existing billing systems mauy create difficult data to migrate, ...). Also, while this is feasible, this does not add too much value unless one wants to also migrate past invoices
+* **Past Invoices**: Those are difficult to migrate as such, because they can't simply be replayed by Kill Bill (if we were to migrate all subscriptions and let Kill Bill catch up with invoices the result would be a set of invoices not exactly identical to the original system (pro-ration logic would be different, catalog may have been configured slightly differently on old system and in Kill Bill,...) and so those would not be useful as they could not provide a real replacement for past invoices. Another strategy would be to insert them manually in the invoice table to make sure they exactly match, but then invoices and subscriptions would not correspond exactly and system would try to correct the state. Also such a strategy would require inserting data directly or providing custom endpoints to touch these tables, both of which are risky and error prone initiatives.
 * **Past Payments**: Those are exactly similar to what we described for invoices. They need to match exactly past invoices and the same set of challenge exists here.
 
 So, let's look at the use cases for this data, and see how we suggest one can simplify the problem:
 
-* **Customer Use Case**: Customers may still need to access their old invoices and payments. Assuming this data is static one could keep those (past invoices and payments) outside of pure Kill Bill tables and provide new apis they fetch existing invoices and payments by merging old data with the new one from Kill Bill. Keeping that data completely static is however a challenge because customers may require some invoice adjustements, payment refunds, ... A good strategy here is to keep the old system alive for a while after the migration has been completed and serve those invoices/payments from the old system, allowing to still make the changes from the old system. After a while (maybe a few months) there will be very few such adjustments to make on those old invoices/payments and that data can be fectched and served from a static source. Isolated cases where customer still require some changes at that can be made in the new system by generating some credits and old system can be fully unplugged.
+* **Customer Use Case**: Customers may still need to access their old invoices and payments. Assuming this data is static one could keep those (past invoices and payments) outside of the pure Kill Bill tables (could be same database with additional tables, or entirely different database) and provide new apis they fetch existing invoices and payments by merging old data with the new one from Kill Bill. Now, keeping that data completely static is a challenge because customers may still require some invoice adjustements, payment refunds associated with this old data... A good strategy here is to keep the old system alive for a while after the migration has been completed and serve those invoices/payments from the old system, allowing to still make the changes from the old system. After a while (maybe a few months) there will be very few such adjustments to make on those old invoices/payments and that data can be fetched and served from a static source. Isolated cases where customers still require some changes associated with these old invoices/payments cannot be made anymore but customer could still be satisfied by generating invoice or payment credit. Finally Accounting/Finance departments would barely impacted because the number of such requests becomes very few. So finally the old system can be fully unplugged.
 
-* **Finance/Acounting departement**: They will still require old invoice and payment data to run reports but it does not necessarily need to be part of Kill Bill. A good alternative is to provide some kind of a view that will merge both the old data (from old billing system) and the new data coming from Kill Bill. Again here the old data could be ETL from old system as long as it is alive and then materialized when it has been extinct.
-
+* **Finance/Acounting departement**: They will still require old invoice and payment data to run reports but it does not necessarily need to be part of Kill Bill. A good alternative is to provide some kind of a view that will merge both the old data (from old billing system) and the new data coming from Kill Bill. Again here the old data could be ETLed from old system as long as it is alive and then data could be materialized after it has been extinct.
 
 
 
