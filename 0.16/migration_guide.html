@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Internationalization Overview</title>
+<title>Kill Bill Migration Guide</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,224 +476,69 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Internationalization Overview</h1>
+<h1>Kill Bill Migration Guide</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_timezones">Timezones</a></li>
-<li><a href="#_multiple_currencies">Multiple Currencies</a></li>
-<li><a href="#_locale">Locale</a></li>
-<li><a href="#_invoice_templates">Invoice Templates</a></li>
-<li><a href="#_email_templates">Email Templates</a></li>
+<li><a href="#_overview">Overview</a></li>
+<li><a href="#_strategy">Strategy</a></li>
+<li><a href="#_stage_1_setting_up_kill_bill">Stage 1: Setting up Kill Bill</a></li>
+<li><a href="#_stage_2_behavioral_analysis">Stage 2: Behavioral Analysis</a></li>
+<li><a href="#_stage_3_behavioral_analysis">Stage 3: Behavioral Analysis</a></li>
+<li><a href="#_stage_4_running_the_migration">Stage 4: Running the Migration</a></li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div id="preamble">
+<div class="sect1">
+<h2 id="_overview">Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill was designed to support merchants and their customers (user account, or also referred to as 'user' or 'account' in this documentation) across different countries. In order to support that, there are a lot of different aspects that need to be covered ranging from character sets, timezones, multiple currencies, locales, and the ability to support multiple languages for all customer-visible data (e.g invoices).</p>
+<p>This guide is intended to provide some guidelines for running migrations from an <strong>existing billing system</strong> to <strong>Kill Bill</strong>.
+It is by no mean an exact recipe book to follow, but it provides some recommendations on how to do things (based on previous experiences) and highlight some specific areas of concern.</p>
 </div>
 <div class="paragraph">
-<p>In addition, these features must work independently for the various tenants: a given merchant assigned to a given Kill Bill tenant must be able to configure the system differently than another merchant in a separate tenant.</p>
+<p>The assumption is there is already an internal or third party billing system in place:
+* It receives some live traffic, and migration should not cause any downtime
+* It contains existing state (subscriptions, invoices, &#8230;&#8203;) that need to be migrated without impacting customers
+* It provides a UI that services like customer support (CS) use to handle customer tickets
+* It provides state/data that is used by accounting/financial departments
+* One or several system in the company are interracting with that system through API calls</p>
+</div>
+<div class="paragraph">
+<p>The end goal of the migration is to make sure that we can unplug completely the old billing system and yet provide the same level of service (or better) for the customers and the various departments in the organization.
+This is a fairly ambitious goal, which may require a potentially a gradual shutdwon of the old system.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_timezones">Timezones</h2>
+<h2 id="_strategy">Strategy</h2>
 <div class="sectionbody">
-<div class="paragraph">
-<p>Supporting multiple timezones comes into play when a user needs to interact with the system and then later when the system computes state for this user:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>A user cancelling a subscription needs to provide a date (requested cancellation date). That date must be interpreted by the system in the user account timezone</p>
-</li>
-<li>
-<p>Subsequently, when the system computes the next invoice for instance, it must include all the items for the period of time reflected by the invoice and as seen by the user.</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>An example would be a user creating a monthly subscription on january 1st 2015 but from a timezone in PST (UTC-8). The action will actually happen at a specific point in time such as 2015-01-02T04:00:00.000Z. The system must correctly understand that the provided date needs to be interpreted in the user timezone so that when the user receives its first invoice, he sees a billing period ranging from 2015-01-01 to 2015-02-01. If the user then decides to cancel his subscription on '2015-02-01', the system also needs to make sure this date is interpreted in the user timezone to avoid charging for an extra day; in that case the user only provides a date with no time (the API works that way because it is much simpler from the user point of view), and so the precise point in time when that cancellation happens needs to be in the 24 hours period of that specified day in the user timezone.</p>
-</div>
-<div class="paragraph">
-<p>More information on the internals of date, you can refer to this <a href="http://killbill.io/blog/lets-talk-about-date-and-time">blog post</a>.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_multiple_currencies">Multiple Currencies</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>The Kill Bill catalog allows to specify amounts in different currencies. Each Kill Bill account needs to specify a currency that is used by the system when generating invoices (by looking up the amount of the specified plan for that currency), and that is also used at the time of making a payment. All the credits later generated for the account will also be in that currency.</p>
-</div>
-<div class="paragraph">
-<p>The system also allows to also use a different currency at the time of making a payment by using a currency converter.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_locale">Locale</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>An account is associated with a <code>locale</code> (e.g <code>fr_FR</code>) that is used for extracting localized resources. The system allows to configure the following resource bundles:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Catalog Resource Bundle: ability to translate specific catalog strings in different languages (e.g American english <code>Gold plan</code> translated as <code>Plan Or</code> in French)</p>
-</li>
-<li>
-<p>Text Translation: arbitrary text strings in different languages that can then be used later when creating documents out of templates to ensure they are translated in the language matching the account</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>Along with the locale, the system allows to configure different types of templates:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Invoice templates</p>
-</li>
-<li>
-<p>Email templates</p>
-</li>
-</ul>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_invoice_templates">Invoice Templates</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill provides an API to retrieve an html invoice (formatted and translated using the account locale). The templating mechanism is based on <a href="https://github.com/spullara/mustache.java">mustache</a>. In order to configure the system, the following steps need to happen:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Upload the translation for all the supported locales</p>
-</li>
-<li>
-<p>Upload the catalog translation for all the locales (if required)</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>Example for the locale <code>fr_FR</code>:</p>
-</div>
-<div class="olist arabic">
-<ol class="arabic">
-<li>
-<p>Upload the invoice translation for locale <code>fr_FR</code>:</p>
-</li>
-</ol>
-</div>
-<div class="paragraph">
-<p>The file <code>$SOME_PATH_PREFIX/InvoiceTranslation_fr_FR.properties</code> would contain for instance:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span class="tok-nv">invoiceEmailSubject</span><span class="tok-o">=</span>Nouvelle Facture
-<span class="tok-nv">invoiceTitle</span><span class="tok-o">=</span>FACTURE
-<span class="tok-nv">invoiceDate</span><span class="tok-o">=</span>Date:
-<span class="tok-nv">invoiceNumber</span><span class="tok-o">=</span>Facture <span class="tok-c">#</span>
-<span class="tok-nv">invoiceAmount</span><span class="tok-o">=</span>Montant à payer
-<span class="tok-nv">invoiceAmountPaid</span><span class="tok-o">=</span>Montant payé
-<span class="tok-nv">invoiceBalance</span><span class="tok-o">=</span>Nouveau montant
 
-<span class="tok-nv">accountOwnerName</span><span class="tok-o">=</span>Chauffeur
-
-<span class="tok-nv">companyName</span><span class="tok-o">=</span>Killbill, Inc.
-<span class="tok-nv">companyAddress</span><span class="tok-o">=</span>P.O. Box 1234
-<span class="tok-nv">companyCityProvincePostalCode</span><span class="tok-o">=</span>Springfield
-<span class="tok-nv">companyCountry</span><span class="tok-o">=</span>USA
-<span class="tok-nv">companyUrl</span><span class="tok-o">=</span>http://kill-bill.org
-
-<span class="tok-nv">invoiceItemBundleName</span><span class="tok-o">=</span>Armes
-<span class="tok-nv">invoiceItemDescription</span><span class="tok-o">=</span>Description
-<span class="tok-nv">invoiceItemServicePeriod</span><span class="tok-o">=</span>Période de facturation
-<span class="tok-nv">invoiceItemAmount</span><span class="tok-o">=</span>Montant
-
-<span class="tok-nv">processedPaymentCurrency</span><span class="tok-o">=(</span>*<span class="tok-o">)</span> Le payment à été payé en
-<span class="tok-nv">processedPaymentRate</span><span class="tok-o">=</span>Le taux de conversion est</code></pre>
-</div>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: text/plain&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary @<span class="tok-nv">$SOME_PATH_PREFIX</span>/InvoiceTranslation_fr_FR.properties <span class="tok-se">\</span>
-     http://127.0.0.1:8080/1.0/kb/invoices/translation/fr_FR</code></pre>
-</div>
-</div>
-<div class="olist arabic">
-<ol class="arabic" start="2">
-<li>
-<p>Upload the catalog translation for locale <code>fr_FR</code>:</p>
-</li>
-</ol>
-</div>
-<div class="paragraph">
-<p>The file <code>$SOME_PATH_PREFIX/CatalogTranslation_fr_FR.properties</code> would contain for instance:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">gold-monthly <span class="tok-o">=</span> plan Or mensuel</code></pre>
-</div>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: text/plain&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary @<span class="tok-nv">$SOME_PATH_PREFIX</span>/CatalogTranslation_fr_FR.properties <span class="tok-se">\</span>
-     http://127.0.0.1:8080/1.0/kb/invoices/catalogTranslation/fr_FR</code></pre>
-</div>
-</div>
-<div class="olist arabic">
-<ol class="arabic" start="3">
-<li>
-<p>Retrieve a specfic invoice html:</p>
-</li>
-</ol>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoices/1785b3d5-24b3-4d17-94ce-310aeb74bc63/html&quot;</span></code></pre>
-</div>
-</div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_email_templates">Email Templates</h2>
+<h2 id="_stage_1_setting_up_kill_bill">Stage 1: Setting up Kill Bill</h2>
 <div class="sectionbody">
-<div class="paragraph">
-<p>It is often desirable to send emails to customers to inform them about the next coming invoice, a change that they made in the system (e.g. cancellation of a subscription), a successful or failed payment, &#8230;&#8203; That functionality lives in a <a href="https://github.com/killbill/killbill-email-notifications-plugin">Kill Bill plugin</a>. The plugin listens to bus events, and takes action to notify user.</p>
+
 </div>
-<div class="paragraph">
-<p>The plugin also allows to be configured on a per-tenant level with a set of templates and translation bundles for various locales.</p>
 </div>
-<div class="paragraph">
-<p>For more information please refer to the <a href="https://github.com/killbill/killbill-email-notifications-plugin/blob/master/README.md">README</a></p>
+<div class="sect1">
+<h2 id="_stage_2_behavioral_analysis">Stage 2: Behavioral Analysis</h2>
+<div class="sectionbody">
+
 </div>
+</div>
+<div class="sect1">
+<h2 id="_stage_3_behavioral_analysis">Stage 3: Behavioral Analysis</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_stage_4_running_the_migration">Stage 4: Running the Migration</h2>
+<div class="sectionbody">
+
 </div>
 </div>
 </div>
