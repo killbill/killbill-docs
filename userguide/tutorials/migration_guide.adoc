@@ -51,40 +51,80 @@ The first thing to discuss is the **cutOverDate**, that is the date at which Kil
 
 So assuming we have N existing accounts to migrate, we end up one **newAccountCutOverDate** and N **cutOverDate**. We need to first move new accounts to Kill Bill before migrating any of the  existing accounts because:
 
-** Only when old billing system stops accepting new accounts, can we evaluate how many existing accounts there are (N becomes fixed at this point),
-** This allows to verify that Kill Bill works as expected before we start migrating data.
+* Only when old billing system stops accepting new accounts, can we evaluate how many existing accounts there are (N becomes fixed at this point),
+* This allows to verify that Kill Bill works as expected before we start migrating data.
 
 ==== Migration Framework
 
 The migration code consists in several pieces:
 
-** Ability to make api calls to old billing system (may already exist in some form)
-** Ability to make api calls to Kill Bill (mandatory to handle new accounts regardless of migration data)
-** Ability to set/get **newAccountCutOverDate** and N **cutOverDate**
-** Ability to route traffic to one (or both system)
+* Ability to make api calls to old billing system (may already exist in some form)
+* Ability to make api calls to Kill Bill (mandatory to handle new accounts regardless of migration data)
+* Ability to route traffic to one (or both system)
+* Provide migration apis:
+** Ability to set/get **newAccountCutOverDate** 
+** Ability to migrate specific accounts (would set things like **cutOverDate** for that account)
+
 
 The choice of where those pieces are implemented really depends on the current architecture of the system. For instance if the code interracting with the existing billing system is well isolated, those new functions could take place at this level (client side). Conversely, if there are many components already interracting with the existing billing system, it might make sense to provide a new proxy server that encapsulate all that logic and have thpse components go through that proxy (and from an implementation point of view that proxy server could live in the same webapp as Kill Bill and access some new tables in the same database). 
 
 The figure below shows that the migration logic owns its own migration state. It is also able to make api calls to both old billing system and Kill Bill and provide an interface to the existing Billing&Payment Components (systems that currently interact with the old billing system). From a logical point of view, the migration logic has been shown in a seprate box, but again this could be implemented in various ways:
 
-
-
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/migration/migration_logic.png[align=center]
 
+==== Migration State
+
+As discussed previously, each existing account would be migrated independently from the others providing a small granularity (and avoiding a risky success/fail migration). It is also important to allow for a process that provides claririty on what failed and what succeeded and ability to restart things from where they failed. In essence migrating an account should be an idempotent process, so it it fails part way through, things can be resumed. In order to achieve that result, the Migration Framework should own a `migration` table with the following fields (obviously one could add/remove fields as needed):
+
+* `account_key`: The unique identifier for the account to be migrated. Based on that key account data can be pulled from old billing system.
+* `migration_state`: We will see later that migrating an account is not an atomic operation so this will hold where we are in the migration process for that account
+* `created_date`: Date when we first attempted to start the migration
+* `update_date`: Date when we last attempted to run the migration
+* `cut_over_date`: Date the migration completed (equals to `update_date` when migration has completed). Any subsequent requests after that date would be redirected to Kill Bill.
+
+
+== Pre-Requisites
+
+Before we can dig into more details on how the migration works, it is important to be ready to migrate these accounts. The readiness is something to be defined on a case by case, but there are a few things that are pretty much mandatory in all cases:
+
+=== Setting up Kill Bill
+
+Migrating accounts to Kill Bill first implies that Kill Bill has been deployed and configured correctly. The point of that doc is not describe those steps (we have other http://docs.killbill.io/[docs] to explain that), but to go through a few items that require special care:
+
+* Catalog Creation: The catalog should include all the `Plans` that were configured in the old billing system, so that subscription migration works. Special care should be made for billing alignements to ensure that customer ends up being billed at the same dates as they used to. Most probably the abstractions between the two worlds are slightly different (e.g in Kill Bill world we have the concept of a `PlanPhase` while in the old billing system each `PlanPhase` may correspond to different `Plan` or event implemented differently).
+
+* Templates and Translations: Kill Bill allows to configure the system using templates (e.g. invoice html visible to customer) and for http://docs.killbill.io/0.16/internationalization.html[internationalization] (e.g translating plan names in different languages).
+
+* Analytics: This also a good time to think about how financial reports will be computed. At this stage, one can become familiar with the data model and investigate how existing reports will be generated. Kill Bill also has an https://github.com/killbill/killbill-analytics-plugin[analytics plugin], which provides the following benefits:
+** Denormalized tables (on which queries become easier to run)
+** Ability to generate custom reports
+** UI side for visulatization inside KAUI if needed
 
 
 
+After the system has been configured, we recommend trying out creating subscriptions with all the plans defined in the catalog to check they work as expected (and verifying invoice generation, ...)
 
-== Stages
+=== Behavioral Analysis
 
-=== Stage 1: Setting up Kill Bill
+At this stage, the system has been setup (proper validated catalog, ...) and there was enough manual testing to provide confidence with the setup of the system. In the next stage, the behavioral analysis, we fork the stream of requests for new accounts to go both in the old billing system (because `t < newAccountCutOverDate`) and to a Kill Bill test deployment. 
 
-=== Stage 2: Behavioral Analysis
+This provides the following benefits:
 
-=== Stage 3: Behavioral Analysis
+1. It creates production-like data (actually, data is exactly like production except for fields such as CC number, names, ... that should be obfuscated). It can be used to start computing reports and bringing confidence to the C-level team that new system will provide similar type of data/results. We suggest to configure the system with a default payment plugin inside Kill Bill (to avoid any interraction with payment gateway). The reporting only happens on the subscriptions and invoices but this is enough to guarantee that system behaves correctly.
+2. It paves the way for the first stage of the migration where new accounts are directed towards Kill Bill
 
-=== Stage 4: Running the Migration
+Regarding implementation, the forking of the stream can happen in the migration logic proxy. A good way to achieve this result is to write a servlet filter that forwrads existing request to old billing system but also call the matching Kill Bill testing endpoint.
 
 
+=== Payment Integration
+
+=== Overdue Configuration
+
+=== Redirecting New Accounts to Kill Bill
+
+== Running the Migration
+
+
+* A **mapping layer** between the name of the `Plan` on the old system and the name of the `Plan` in the kill bill catalog neeeds to be maintained.
 
 
