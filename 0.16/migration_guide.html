@@ -484,12 +484,22 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_strategy">Strategy</a>
 <ul class="sectlevel2">
 <li><a href="#_what_needs_to_be_migrated">What Needs to be Migrated?</a></li>
+<li><a href="#_how_does_migration_work">How Does Migration Work?</a>
+<ul class="sectlevel3">
+<li><a href="#_migration_cutover_dates">Migration Cutover Dates</a></li>
+<li><a href="#_migration_framework">Migration Framework</a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li><a href="#_stages">Stages</a>
+<ul class="sectlevel2">
 <li><a href="#_stage_1_setting_up_kill_bill">Stage 1: Setting up Kill Bill</a></li>
 <li><a href="#_stage_2_behavioral_analysis">Stage 2: Behavioral Analysis</a></li>
 <li><a href="#_stage_3_behavioral_analysis">Stage 3: Behavioral Analysis</a></li>
 <li><a href="#_stage_4_running_the_migration">Stage 4: Running the Migration</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -582,36 +592,90 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 </ul>
 </div>
 </div>
+<div class="sect2">
+<h3 id="_how_does_migration_work">How Does Migration Work?</h3>
+<div class="sect3">
+<h4 id="_migration_cutover_dates">Migration Cutover Dates</h4>
+<div class="paragraph">
+<p>The first thing to discuss is the <strong>cutOverDate</strong>, that is the date at which Kill Bill starts handling requests. In fact, we made the assumption that the migration would happen on a live system (with no downtime), and that has two consequences:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The first consequence is that there needs to be a point in time where <strong>new accounts</strong> will be created in Bill Bill. While this is not a migration data issue (because those new accounts would never see the old system, so there is no data to migrate), we still need to define when is that <strong>newAccountCutOverDate</strong></p>
+</li>
+<li>
+<p>The second consequence is that because we will make that migration work with no downtime, it does not need to happen all at once. In fact we propose to migrate the existing accounts on a per account basis. That way each account is migrated independently of the other (and occasional failures can be investigated and retried). So we will have one <strong>cutOverDate</strong> per account.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>So assuming we have N existing accounts to migrate, we end up one <strong>newAccountCutOverDate</strong> and N <strong>cutOverDate</strong>. We need to first move new accounts to Kill Bill before migrating any of the  existing accounts because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Only when old billing system stops accepting new accounts, can we evaluate how many existing accounts there are (N becomes fixed at this point),</p>
+</li>
+<li>
+<p>This allows to verify that Kill Bill works as expected before we start migrating data.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_migration_framework">Migration Framework</h4>
+<div class="paragraph">
+<p>The migration code consists in several pieces:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Ability to make api calls to old billing system (may already exist in some form)</p>
+</li>
+<li>
+<p>Ability to make api calls to Kill Bill (mandatory to handle new accounts regardless of migration data)</p>
+</li>
+<li>
+<p>Ability to set/get  <strong>newAccountCutOverDate</strong> and N <strong>cutOverDate</strong></p>
+</li>
+<li>
+<p>Ability to route traffic to one (or both system)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The choice of where those pieces are implemented really depends on the current architecture of the system. For instance if the code interracting with the existing billing system is well isolated, those new functions could take place at this level (client side). Conversely, if there are many components already interracting with the existing billing system, it might make sense to provide a new proxy server that encapsulate all that logic and have thpse components go through that proxy (and from an implementation point of view that proxy server could live in the same webapp as Kill Bill and access some new tables in the same database). The migration logic shown in the figure below is represented in a separate box but again it could live at different place.</p>
+</div>
+</div>
+</div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_stage_1_setting_up_kill_bill">Stage 1: Setting up Kill Bill</h2>
+<h2 id="_stages">Stages</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="_stage_1_setting_up_kill_bill">Stage 1: Setting up Kill Bill</h3>
 
 </div>
-</div>
-<div class="sect1">
-<h2 id="_stage_2_behavioral_analysis">Stage 2: Behavioral Analysis</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="_stage_2_behavioral_analysis">Stage 2: Behavioral Analysis</h3>
 
 </div>
-</div>
-<div class="sect1">
-<h2 id="_stage_3_behavioral_analysis">Stage 3: Behavioral Analysis</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="_stage_3_behavioral_analysis">Stage 3: Behavioral Analysis</h3>
 
 </div>
-</div>
-<div class="sect1">
-<h2 id="_stage_4_running_the_migration">Stage 4: Running the Migration</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="_stage_4_running_the_migration">Stage 4: Running the Migration</h3>
 
+</div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-02-12 14:58:44 UTC
+Last updated 2016-02-12 15:14:33 UTC
 </div>
 </div>
 </body>
