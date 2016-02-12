@@ -481,7 +481,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
 <li><a href="#_overview">Overview</a></li>
-<li><a href="#_strategy">Strategy</a></li>
+<li><a href="#_strategy">Strategy</a>
+<ul class="sectlevel2">
+<li><a href="#_what_needs_to_be_migrated">What Needs to be Migrated?</a></li>
+</ul>
+</li>
 <li><a href="#_stage_1_setting_up_kill_bill">Stage 1: Setting up Kill Bill</a></li>
 <li><a href="#_stage_2_behavioral_analysis">Stage 2: Behavioral Analysis</a></li>
 <li><a href="#_stage_3_behavioral_analysis">Stage 3: Behavioral Analysis</a></li>
@@ -501,7 +505,7 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 <p>The assumption is there is already an internal or third party billing system in place:
 * It receives some live traffic, and migration should not cause any downtime
 * It contains existing state (subscriptions, invoices, &#8230;&#8203;) that need to be migrated without impacting customers
-* It provides a UI that services like customer support (CS) use to handle customer tickets
+* It provides a UI that services like customer service (CS) use to handle customer tickets
 * It provides state/data that is used by accounting/financial departments
 * One or several system in the company are interracting with that system through API calls</p>
 </div>
@@ -514,7 +518,57 @@ This is a fairly ambitious goal, which may require a potentially a gradual shutd
 <div class="sect1">
 <h2 id="_strategy">Strategy</h2>
 <div class="sectionbody">
-
+<div class="paragraph">
+<p>Like most complicated projects, it make sense to cut the projects in separate stages and also look for any amount of simplifications.</p>
+</div>
+<div class="sect2">
+<h3 id="_what_needs_to_be_migrated">What Needs to be Migrated?</h3>
+<div class="paragraph">
+<p>One must first decide on the data that must be migrated, so let&#8217;s start by the minimum amount of data that needs to be migrated:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Account data: All the customer info such as name, email, phone, address, &#8230;&#8203; pretty much everything that would fit on the Kill Bill <code>Account</code> table. If additional data needs to be kept one could use custom fields to add key-value paremeters attached to the account data.</p>
+</li>
+<li>
+<p>Active Subscriptions: In order for users to still be billed and receive service those need to be migrated and in a way to allow to swicth from one system to the next with no (minimum) visibility.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Other state such as non active subscriptions, past invoices, and payments don&#8217;t need to be migrated in the system to have the system function correctly, but that data may still need to be available in some fashion. Not migrating that data into Kill Bill simplifies the problem because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Migrating non active subscriptions means migrating more data; also it is often the case that the older the data the less clean it is and the harder it is to migrate (associated <code>Plan</code> may not be active anymore, previous bugs from existing billing systems creating things difficult to migrate, &#8230;&#8203;). While this is feasible this does not add too much value unless one wants to also migrate past invoices</p>
+</li>
+<li>
+<p>Past Invoices are difficult to migrate as such, because they can&#8217;t simply be replayed by Kill Bill (if we were to migrate all subscriptions and let Kill Bill catch up with invoices the result would be a set of invoices not exactly identical to the original system (pro-ration logic would be different, catalog may have been configured slightly differently on old system and in Kill Bill,&#8230;&#8203;) so thiose would not be useful. Another strategy would be to insert them manually in the invoice table to make sure they exactly match, but then invoices and matching subscriptions would not correspond exactly and system would try to correct the state. Also such a strategy would require inserting data directly or providing custom endpoints to touch these tables, both of which are risky and erro prone initiatives.</p>
+</li>
+<li>
+<p>Past Payments are exactly similar to what we described for invoices. Those need to match exactly past invoices and we just saw this was difficult to obtain.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s look at the use cases, and how we can simplify the problem:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Customer Use Case: Customers may still need to access their old invoices and payments. Assuming this data is static one could keep those outside of Kill Bill tables and provide new apis they fetch existing invoices and payments by merging old data and data from kill Bill.</p>
+</li>
+<li>
+<p>Finance/Acounting departement will still require old invoiceand payment data to run reports but it does not necessarily need to be part of Kill Bill. A good alternative is to provide some kind of a view that will merge both the old data (from old billing system) and the new data coming from Kill Bill.</p>
+</li>
+<li>
+<p>Past Invoices: Those are required for customers (they want to access their old invoices), for accounting/finance department (they may need to run some additonal reports based on those) and for CS when there is a a dispute and such invoice needs to adjusted.</p>
+</li>
+</ul>
+</div>
+</div>
 </div>
 </div>
 <div class="sect1">
