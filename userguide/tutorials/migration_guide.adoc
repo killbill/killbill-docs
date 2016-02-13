@@ -151,7 +151,7 @@ After `t >= newAccountCutOverDate`, the set of account is fixed in the old billi
 
 ==== Catalog Mapping
 
-We discussed in the Pre-Requisites section, the importance to build a Kill Bill catalog that will provide the same kind of products/plans than the one configured in the old billing system. In addition to the Kill Bill catalog we also need a **mapping layer** between the name of the plans defined in the old system and the name of the `Plan` in the Kill Bill catalog. At the time of the migration, the plan associated to the subscription in the old catalog becomes a key in that mapping table to chose the correct Kill Bill `Plan` to use to the creation of the subscription.
+We discussed in the Pre-Requisites section, the importance to build a Kill Bill catalog that will provide the same kind of products/plans than the one configured in the old billing system. In addition to the Kill Bill catalog we also need a **mapping layer** between the name of the plans defined in the old system and the name of the `Plan` in the Kill Bill catalog. At the time of the migration, the plan associated to the subscription in the old catalog becomes a key in that mapping table to chose the correct Kill Bill `Plan` to use for the creation of the subscription.
 
 
 ==== Billing Dates
@@ -163,15 +163,15 @@ Migrating the active subscriptions correctly is definitely one of the challenge 
 
 A clean subscription migration implies that we stop the billing in the old system at the `currentBillingDate` (where `currentBillingDate` + 1 Period = `nextBillingDate`) and starts the billing in Kill Bill at the `nextBillingDate`. So how to achieve that result?
 
-The first mandatory piece is to be able to extract those dates from the old billing system for each individual subscription attached to the account. In some billing systems, there is only some support to have a `billCycleDate` (`BCD`) at the account level (day of the month at which account is billed) and so that simplifies the problem. In some other cases different subscriptions can have their own individual schedules. Kill Bill supports all models through the use of billing alignments (and for reference, even a `SUBSCRIPTION_BUNDLE` alignment) defined in the catalog, so the starting point is to verify those alignments match the old system (this was part of the Pre-Requisites section).
+The first mandatory piece is to be able to extract those dates from the old billing system for each individual subscription attached to the account. In some billing systems, there is only some support to have a `billCycleDate` (`BCD`) at the account level (day of the month at which account is billed) and so that simplifies the problem. In some other cases different subscriptions can have their own individual schedules. Kill Bill supports all models through the use of billing alignments (and for reference, even a `SUBSCRIPTION_BUNDLE` alignment) defined in the catalog. So, the starting point is to verify those alignments match the old system (this was part of the Pre-Requisites section).
 
-So from a billing point of view, we want to cancel the old subscription at `currentBillingDate` and start (the billing of) the subscription at `nextBillingDate`.
+From a billing point of view, we want to cancel the old subscription at `currentBillingDate` and start (the billing of) the subscription at `nextBillingDate`.
 
 ==== Entitlement Dates
 
-A naive migration strategy would be to start the subscription in Kill Bill at `nextBillingDate`. While this works from a billing point of view, this causes some issues when the customer makes some changes (upgrade, downgrade, cancellation,...) during the interval of time such that `cutOverDate` <= t < `nextBillingDate`: In that interval of time, the subscription would have a future startDate (= `nextBillingDate`) so immediate changes could not be applied.
+A naive migration strategy would be to start the subscription in Kill Bill at `nextBillingDate`. While this works from a billing point of view, this causes some issues when the customer makes some changes (upgrade, downgrade, cancellation,...) during the interval of time such that `cutOverDate` \<= t < `nextBillingDate`: In that interval of time, the subscription would have a future startDate (= `nextBillingDate`) so immediate changes could not be applied. Also, from an entitlement point of view, starting the subscription in the future means there is no service until we reach that date.
 
-So, we need to separate the date at which the subscription starts (`subscriptionStartDate`) and the date at which the invoicing starts: From an entitlement point of view, we could use the `cutOverDate` as the `subscriptionStartDate`, and this would work, but a better choice is to use the `originalSubscriptionStartDate` (date at which the subscription started in the old billing system). As far as entitlement goes, starting a subscription in the past is equivalent to starting it in the present, so using the Kill Bill `subscriptionStartDate` = `originalSubscriptionStartDate` solves the entitlement issue we mentionned above and preserve the `originalSubscriptionStartDate` of the subscription.
+So, we need to separate the date at which the subscription starts (`subscriptionStartDate`) and the date at which the invoicing starts: From an entitlement point of view, we could use the `cutOverDate` as the `subscriptionStartDate`, and this would work, but a better choice is to use the `originalSubscriptionStartDate` (date at which the subscription started in the old billing system). As far as entitlement goes, starting a subscription in the past is equivalent to starting it in the present, so using the Kill Bill `subscriptionStartDate` = `originalSubscriptionStartDate` solves the entitlement issue we mentionned above and it also preserves the `originalSubscriptionStartDate` of the subscription (which can be really useful for customer support when they interract with the customer).
 
 ==== Summary for Migration Dates
 
@@ -181,7 +181,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/migr
 
 At t = `cutOverDate`, the account is being migrated and for each existing active subscription in the old billing system, the following happens:
 
-1. We create a subscription with a starting date of `originalSubscriptionStartDate` (using the right `Plan`, we will discuss that in the next section)
+1. We create a subscription with a starting date of `originalSubscriptionStartDate` (we will discuss the choice of the `Plan` in the next section)
 2. We stop the billing by inserting http://killbill.io/blog/blockingstate-abstractions[`BlockingState`] events (one event at t = `originalSubscriptionStartDate` with `isBlockBilling=true` and one event at t = `nextBillingDate` with `isBlockBilling=false`)
 
 Note that subscription apis to create subscription don't allow to specify different dates for billing and entitlement, so additional apis calls to insert the `BlockingState` are required. While less practical, this is not really an issue because at that stage we have set `AUTO_INVOICING_OFF` at the account level so nothing will happen and atomicity is not required.
@@ -191,16 +191,20 @@ Note that subscription apis to create subscription don't allow to specify differ
 There is another concern we did not discuss yet when migrating subscriptions for multi-phase `Plans`. Kill Bill supports `Plans` with multiple `PlanPhases` (such as `TRIAL`, `DISCOUNT`, `EVERGREEN`). The old billing system may support that concept as well, or it could be that such concepts are implemented in an entirely different fashion:
 
 * Use multiple subscriptions for each separate phase (hopefully those are linked by some mechanism otherwsie this is quite difficult to understand,
-* Treat each phase as a upgrade/downgrade scenario (i.e move it to a different kind of plan)
+* Treat each phase as an upgrade/downgrade scenario (i.e move it to a different kind of plan)
 * ...
 
 There is obviously some amount of work to understand the old system's model, and how those will translate into Kill Bill 's catalog (again part of the Pre-Requisites stage). So, assuming we are migrating a subscription into Kill Bill using a multi-phase `Plan`, we have to be cautious with the entitlement alignments and make sure we end up on the right phase.
 
-Assuming the subscription with 2 phase `Plan` (`TRIAL`=15 days, followed by `EVERGREEN`):
-There are a few scenarios to consider:
+Assuming a subscription with a 2 phases `Plan` (`TRIAL`=15 days, followed by `EVERGREEN`). There are a few scenarios to consider:
 
-1. At t=`cutOverDate`, the subscription is already in the `EVERGREEN` phase; in this case we need to make sure we start directly into that phase. Fortunately this is possible because the Kill Bill api to create subscription allows to specify on which phase to start (skipping previous phases).
-2. At t=`cutOverDate`, the subscription is still in TRIAL => TODO: Unsupported unless we violate the `originalSubscriptionStartDate` 
+1. At t=`cutOverDate`, the subscription is already in the `EVERGREEN` phase; in this case we need to make sure we start directly into that phase. Fortunately, this is possible because the Kill Bill api to create subscription allows to specify on which phase to start (skipping previous phases).
+2. At t=`cutOverDate`, the subscription is still in TRIAL, but by chosing the `originalSubscriptionStartDate` as the start date of that subscription in Kill Bill we should end up exactly with the correct state. Let's take an example to illustrate that point:
+* The subscription started on february 14th 2016 in the old system
+* The `cutOverDate` is february 24th 2016, which means we are 10 days into the trial, so there should be 5 days when migrating to Kill Bill
+* The `nextBillingDate` is february 28th 2016 (date at which the trial ends, and billing would have started in old system)
+* We create the subscription in Kill Bill on `originalSubscriptionStartDate` (february 14th 2016), and because this a 2 phases `Plan`, the system will generate a `PHASE` event on `nextBillingDate` (february 28th 2016), which is exactly what we need.
+
 
 ==== Pending Subscription Changes
 
