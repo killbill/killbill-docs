@@ -503,6 +503,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_running_the_migration">Running the Migration</a>
 <ul class="sectlevel2">
 <li><a href="#_summary">Summary</a></li>
+<li><a href="#_subscriptions_migration">Subscriptions Migration</a>
+<ul class="sectlevel3">
+<li><a href="#_billing_dates">Billing Dates</a></li>
+<li><a href="#_entitlement_dates">Entitlement Dates</a></li>
+<li><a href="#_catalog_mapping">Catalog Mapping</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -563,7 +570,7 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 <p><strong>Account data</strong>: All the customer info such as name, email, phone, address, &#8230;&#8203; pretty much everything that would fit on the Kill Bill <code>Account</code> table. If additional data needs to be kept one could use custom fields to add key-value paremeters attached to the account data.</p>
 </li>
 <li>
-<p><strong>Active Subscriptions</strong>: In order for users to still be billed and receive service, those need to be migrated and in a way to allow to swicth from one system to the next with no (minimum) impact/visibility.</p>
+<p><strong>Active Subscriptions</strong>: In order for users to still be billed and receive service, those need to be migrated and in a way to allow to switch from one system to the next with no (minimum) impact/visibility. Also note that since we are looking at the minimal amount of data to migrate we can ignore the historical data associated to a given subscription (e.g we don&#8217;t migrate downgrade or upgrade that happened in the past, only current state).</p>
 </li>
 </ul>
 </div>
@@ -804,19 +811,64 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 <p>Create a an entry in the migration table. (<code>migration_state</code> = <code>INIT</code>)</p>
 </li>
 <li>
-<p>Migrate account data. This is relatively easy and low risk. The work consists in pulling account data from billing system and mapping that to the Kill Bill data model. As mentionned before, additionnal info could be added as custom fields on the Kill Bill created <code>Account</code> (e.g ID of the account in the old system). (<code>migration_state</code> = <code>ACCOUNT_MIGRATED</code>)</p>
+<p>Migrate account data. This is relatively easy and low risk. The work consists in pulling account data from old billing system and mapping that to the Kill Bill data model. As mentionned before, additionnal info could be added as custom fields on the Kill Bill created <code>Account</code> (e.g ID of the account in the old system). (<code>migration_state</code> = <code>ACCOUNT_MIGRATED</code>)</p>
 </li>
 <li>
 <p>Setup <code>AUTO_INVOICING_OFF</code> for the <code>Account</code> to prevent the system to trigger invoices when we start migrating the subscriptions. (<code>migration_state</code> = <code>AUTO_INVOICING_OFF</code>)</p>
 </li>
 <li>
-<p>Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions and create at the right date and using the right <code>Plan</code> in such a way that we get a clean cutover and avoid double billing. Also note that in a system where there dependencies among subscriptions (e.g. ADD_ON subscriptions), specifical care should be made to migrate them in the right order. (<code>migration_state</code> = <code>SUBSCRIPTIONS_MIGRATED</code>)</p>
+<p>Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions and create at the right date and using the right <code>Plan</code> in such a way that we get a clean cutover and avoid double billing. Also note that in a system where there are dependencies among subscriptions (e.g. ADD_ON subscriptions), special care should be made to migrate them in the right order. (<code>migration_state</code> = <code>SUBSCRIPTIONS_MIGRATED</code>)</p>
 </li>
 <li>
-<p>Cancel all subscriptions in the old system at the right time (more detail in the next section). This is a failry risky step because the chnages the state in the old billing system. This is not a point of 'no-return' but a point when rollback becomes difficult. Needless to say that cancellation code for old billing system should be tested carefully. (<code>migration_state</code> = <code>OLD_SUBSCRIPTIONS_CANCELLED</code>)</p>
+<p>Cancel all subscriptions in the old system at the right time (more detail in the next section). This is a fairly risky step because this changes the state in the old billing system. This is <strong>not</strong> a point of 'no-return' but a point when rollback becomes difficult. Needless to say that cancellation code for old billing system should have been tested carefully. (<code>migration_state</code> = <code>OLD_SUBSCRIPTIONS_CANCELLED</code>)</p>
 </li>
 <li>
 <p>Remove <code>AUTO_INVOICING_OFF</code> for the <code>Account</code>. (<code>migration_state</code> = <code>MIGRATED</code>)</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>After <code>t &gt;= newAccountCutOverDate</code>, the set of account is fixed in the old billing system. It becomes easy to get a reliable list of all accounts that should be migrated and use that as an input for the migration endpoint.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_subscriptions_migration">Subscriptions Migration</h3>
+<div class="sect3">
+<h4 id="_billing_dates">Billing Dates</h4>
+<div class="paragraph">
+<p>Migrating the active subscriptions correctly is definitely one of the challenge of the migration process. Whether the billing happens in arrear or in advance, for each subscription there is a date up to which it was billed for. This date is referred to as the <code>chargedThroughDate</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>When billing in advance, the <code>chargedThroughDate</code> is the date in the future where the next invoice will occur (charging for the next period). So <code>nextBillingDate</code> = <code>chargedThroughDate</code></p>
+</li>
+<li>
+<p>When billing in arrear, the <code>chargedThroughDate</code> is the date in the past (or present) when it was last billed. So <code>nextBillingDate</code> = <code>chargedThroughDate</code> + 1 period (e.g 1 month)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A clean subscription migration implies that we stop the billing in the old system at the <code>currentBillingDate</code> (where <code>currentBillingDate</code> + 1 Period = <code>nextBillingDate</code>) and starts the billing in Kill Bill at the <code>nextBillingDate</code>. So how to achieve that result?</p>
+</div>
+<div class="paragraph">
+<p>The first mandatory piece is to be able to extract those dates from the old billing system for each individual subscription attached to the account. In some billing systems, there is only some support to have a <code>billCycleDate</code> (<code>BCD</code>) at the account level (day of the month at which account is billed) and so that simplifies the problem. In some other cases different subscriptions can have their own individual schedules. Kill Bill supports all models through the use of billing alignments (and for reference, even a <code>SUBSCRIPTION_BUNDLE</code> alignment) defined in the catalog, so the starting point is to verify those alignments match the old system.</p>
+</div>
+<div class="paragraph">
+<p>So from a billing point of view, we want to cancel the old subscription at <code>currentBillingDate</code> and start (the billing of) the subscription at <code>nextBillingDate</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_entitlement_dates">Entitlement Dates</h4>
+<div class="paragraph">
+<p>A naive migration strategy would be to start the subscription in Kill Bill at <code>nextBillingDate</code>. While this works from a billing point of view, this causes some issues when the customer makes some changes (upgrade, downgrade, cancellation,&#8230;&#8203;) during the interval of time such that <code>cutOverDate</code> &#8656; t &lt; <code>nextBillingDate</code>: In that interval of time, the subscription would have a future startDate (= <code>nextBillingDate</code>) so immedaite changes could not be applied.</p>
+</div>
+<div class="paragraph">
+<p>So, we need to separate the date at which the subscription starts (<code>subscriptionStartDate</code>) and with the date which the invoicing starts: From an entitlement point of view, we could use the <code>cutOverDate</code> as the <code>subscriptionStartDate</code>, and this would work, but a better choice is it use the <code>originalSubscriptionStartDate</code> (date at which the subscription started in the old billing system. As far as entitlement goes, started a subscription in the past is equivalent to starting it in the present, so using have the Kill Bill <code>subscriptionStartDate</code> = <code>originalSubscriptionStartDate</code> solves the entitlement issue we mentionned above and preserve the <code>originalSubscriptionStartDate</code> of the subscription.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_catalog_mapping">Catalog Mapping</h4>
 <div class="ulist">
 <ul>
 <li>
@@ -824,8 +876,6 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 </li>
 </ul>
 </div>
-</li>
-</ol>
 </div>
 </div>
 </div>
@@ -833,7 +883,7 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-02-13 01:12:14 UTC
+Last updated 2016-02-13 01:40:04 UTC
 </div>
 </div>
 </body>
