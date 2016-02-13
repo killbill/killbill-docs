@@ -147,6 +147,11 @@ After `t >= newAccountCutOverDate`, the set of account is fixed in the old billi
 
 === Subscriptions Migration
 
+==== Catalog Mapping
+
+We discussed in the Pre-Requisites section, the importance to build a Kill Bill catalog that will provide the same kind of products/plans than the one configured in the old billing system. In addition to the Kill Bill catalog we also need a **mapping layer** between the name of the plans defined in the old system and the name of the `Plan` in the Kill Bill catalog. At the time of the migration, the plan associated to the subscription in the old catalog becomes a key in that mapping table to chose the correct Kill Bill `Plan` to use to the creation of the subscription.
+
+
 ==== Billing Dates
 
 Migrating the active subscriptions correctly is definitely one of the challenge of the migration process. Whether the billing happens in arrear or in advance, for each subscription there is a date up to which it was billed for. This date is referred to as the `chargedThroughDate`:
@@ -179,11 +184,24 @@ At t = `cutOverDate`, the account is being migrated and for each existing active
 
 Note that subscription apis to create subscription don't allow to specify different dates for billing and entitlement, so additional apis calls to insert the `BlockingState` are required. While less practical, this is not really an issue because at that stage we have set `AUTO_INVOICING_OFF` at the account level so nothing will happen and atomicity is not required.
 
+==== Multi-Phase Plans
 
+There is another concern we did not discuss yet when migrating subscriptions for multi-phase `Plans`. Kill Bill supports `Plans` with multiple `PlanPhases` (such as `TRIAL`, `DISCOUNT`, `EVERGREEN`). The old billing system may support that concept as well, or it could be that such concepts are implemented in an entirely different fashion:
 
-==== Catalog Mapping
+* Use multiple subscriptions for each separate phase (hopefully those are linked by some mechanism otherwsie this is quite difficult to understand,
+* Treat each phase as a upgrade/downgrade scenario (i.e move it to a different kind of plan)
+* ...
 
+There is obviously some amount of work to understand the old system's model, and how those will translate into Kill Bill 's catalog (again part of the Pre-Requisites stage). So, assuming we are migrating a subscription into Kill Bill using a multi-phase `Plan`, we have to be cautious with the entitlement alignments and make sure we end up on the right phase.
 
-* A **mapping layer** between the name of the `Plan` on the old system and the name of the `Plan` in the kill bill catalog neeeds to be maintained.
+Assuming the subscription with 2 phase `Plan` (`TRIAL`=15 days, followed by `EVERGREEN`):
+There are a few scenarios to consider:
+1. At t=`cutOverDate`, the subscription is already in the `EVERGREEN` phase; in this case we need to make sure we start directly into that phase. Fortunately this is possible because the Kill Bill api to create subscription allows to specify on which phase to start (skipping previous phases).
+2. At t=`cutOverDate`, the subscription is still in TRIAL => TODO: Unsupported unless we violate the `originalSubscriptionStartDate` 
+
+==== Pending Subscription Changes
+
+TODO
+
 
 
