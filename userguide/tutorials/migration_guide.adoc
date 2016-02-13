@@ -116,12 +116,20 @@ This provides the following benefits:
 1. It creates production-like data (actually, data is exactly like production except for fields such as CC number, names, ... that should be obfuscated). It can be used to start computing reports and bringing confidence to the C-level team that new system will provide similar type of data/results. We suggest to configure the system with a default payment plugin inside Kill Bill (to avoid any interraction with payment gateway). The reporting only happens on the subscriptions and invoices but this is enough to guarantee that system behaves correctly. 
 2. It paves the way for the first stage of the migration where new accounts are directed towards Kill Bill
 
-Regarding implementation, the forking of the stream can happen in the migration logic proxy. A good way to achieve this result is to write a servlet filter that forwards existing request to old billing system but also call the matching Kill Bill endpoint.
+Regarding implementation, the forking of the stream can happen in the migration logic proxy. A good way to achieve this result is to write a servlet filter that forwards existing requests to old billing system but also call the matching Kill Bill endpoints.
 
-Regarding numbers, one should not expect the same numbers because system will behave differently: Most existing billing system are batch oriented while Kill Bill is event-based, so timing will be very different. Invoicing will also likely vary due to pro-ration logic and potentially different billing alignement. However this is the right time to investigate differences so those are well understood and potentilaly corrected (e.g catalog issue, system configuration issue,..)
-
+Regarding numbers, one should not expect the same numbers because system will behave differently: Most existing billing system are batch oriented while Kill Bill is event-based, so timing will be very different. Invoicing will also likely vary due to pro-ration logic and potentially different billing alignements. However this is the right time to investigate differences so those are well understood and potentilaly corrected (e.g catalog issue, system configuration issue,..)
 
 === Redirecting New Accounts to Kill Bill
+
+At this point we have a working Kill Bill system that was correctly configured. There is a clear path forward to provide business reports, so everything is in place to start accepting new accounts. This is `t = newAccountCutOverDate`. The migration framework is then modified to not fork the stream between old billing system and Kill Bill test instance but instead:
+
+* New accounts are created in Kill Bill and subsequent requests for this account are also directed to Kill Bill
+* Old accounts related requests are still forwarded to old billing system.
+
+From an implementation point of view, the servlet filter is again a good place for this logic to happen: Given an incoming request, extract `ID` of the request (depending on the request, could be the `accountId`, a `subscriptionId`, ... ) and first fetch the matching object inside Kill Bill. If it exists, request is made to Kill Bill, and if not request is forwarded to old billing system.
+
+
 
 == Running the Migration
 
