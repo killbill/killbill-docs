@@ -130,8 +130,20 @@ At this point we have a working Kill Bill system that was correctly configured. 
 From an implementation point of view, the servlet filter is again a good place for this logic to happen: Given an incoming request, extract `ID` of the request (depending on the request, could be the `accountId`, a `subscriptionId`, ... ) and first fetch the matching object inside Kill Bill. If it exists, request is made to Kill Bill, and if not request is forwarded to old billing system.
 
 
-
 == Running the Migration
+
+=== Summary
+
+The main idea it to provide a migration endpoint, implemented in the migration logic proxy,  that knows how to migrate each account individually. Each account migration is composed of several steps:
+
+1. Create a an entry in the migration table. (`migration_state` = `INIT`)
+2. Migrate account data. This is relatively easy and low risk. The work consists in pulling account data from billing system and mapping that to the Kill Bill data model. As mentionned before, additionnal info could be added as custom fields on the Kill Bill created `Account` (e.g ID of the account in the old system). (`migration_state` = `ACCOUNT_MIGRATED`)
+3. Setup `AUTO_INVOICING_OFF` for the `Account` to prevent the system to trigger invoices when we start migrating the subscriptions. (`migration_state` = `AUTO_INVOICING_OFF`)
+4. Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions and create at the right date and using the right `Plan` in such a way that we get a clean cutover and avoid double billing. Also note that in a system where there dependencies among subscriptions (e.g. ADD_ON subscriptions), specifical care should be made to migrate them in the right order. (`migration_state` = `SUBSCRIPTIONS_MIGRATED`)
+5. Cancel all subscriptions in the old system at the right time (more detail in the next section). This is a failry risky step because the chnages the state in the old billing system. This is not a point of 'no-return' but a point when rollback becomes difficult. Needless to say that cancellation code for old billing system should be tested carefully. (`migration_state` = `OLD_SUBSCRIPTIONS_CANCELLED`)
+6. Remove `AUTO_INVOICING_OFF` for the `Account`. (`migration_state` = `MIGRATED`)
+
+
 
 
 * A **mapping layer** between the name of the `Plan` on the old system and the name of the `Plan` in the kill bill catalog neeeds to be maintained.
