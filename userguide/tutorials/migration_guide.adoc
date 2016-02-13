@@ -138,12 +138,12 @@ From an implementation point of view, the servlet filter is again a good place f
 
 The main idea it to provide a migration endpoint, implemented in the migration logic proxy,  that knows how to migrate each account individually. Each account migration is composed of several steps:
 
-1. Create a an entry in the migration table. (`migration_state` = `INIT`)
-2. Migrate account data. This is relatively easy and low risk. The work consists in pulling account data from old billing system and mapping that to the Kill Bill data model. As mentionned before, additionnal info could be added as custom fields on the Kill Bill created `Account` (e.g ID of the account in the old system). (`migration_state` = `ACCOUNT_MIGRATED`)
-3. Setup `AUTO_INVOICING_OFF` for the `Account` to prevent the system to trigger invoices when we start migrating the subscriptions. (`migration_state` = `AUTO_INVOICING_OFF`)
-4. Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions and create at the right date and using the right `Plan` in such a way that we get a clean cutover and avoid double billing. Also note that in a system where there are dependencies among subscriptions (e.g. ADD_ON subscriptions), special care should be made to migrate them in the right order. (`migration_state` = `SUBSCRIPTIONS_MIGRATED`)
-5. Cancel all subscriptions in the old system at the right time (more detail in the next section). This is a fairly risky step because this changes the state in the old billing system. This is *not* a point of 'no-return' but a point when rollback becomes difficult. Needless to say that cancellation code for old billing system should have been tested carefully. (`migration_state` = `OLD_SUBSCRIPTIONS_CANCELLED`)
-6. Remove `AUTO_INVOICING_OFF` for the `Account`. (`migration_state` = `MIGRATED`)
+1. **`migration_state` = `INIT`**: Create a an entry in the migration table.
+2.**`migration_state` = `ACCOUNT_MIGRATED`**: Migrate account data. This is relatively easy and low risk. The work consists in pulling account data from old billing system and mapping that to the Kill Bill data model. As mentionned before, additionnal info could be added as custom fields on the Kill Bill created `Account` (e.g ID of the account in the old system).
+3. **`migration_state` = `AUTO_INVOICING_OFF`**: Setup `AUTO_INVOICING_OFF` for the `Account` to prevent the system to trigger invoices when we start migrating the subscriptions.
+4. **`migration_state` = `SUBSCRIPTIONS_MIGRATED`**: Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions and create at the right date and using the right `Plan` in such a way that we get a clean cutover and avoid double billing. Also note that in a system where there are dependencies among subscriptions (e.g. ADD_ON subscriptions), special care should be made to migrate them in the right order.
+5. **`migration_state` = `OLD_SUBSCRIPTIONS_CANCELLED`**: Cancel all subscriptions in the old system at the right time (more detail in the next section). This is a fairly risky step because this changes the state in the old billing system. This is *not* a point of 'no-return' but a point when rollback becomes difficult. Needless to say that cancellation code for old billing system should have been tested carefully.
+6. **`migration_state` = `MIGRATED`**: Remove `AUTO_INVOICING_OFF` for the `Account`.
 
 After `t >= newAccountCutOverDate`, the set of account is fixed in the old billing system. It becomes easy to get a reliable list of all accounts that should be migrated and use that as an input for the migration endpoint.
 
