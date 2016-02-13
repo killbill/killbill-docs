@@ -843,7 +843,7 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="sect3">
 <h4 id="_catalog_mapping">Catalog Mapping</h4>
 <div class="paragraph">
-<p>We discussed in the Pre-Requisites section, the importance to build a Kill Bill catalog that will provide the same kind of products/plans than the one configured in the old billing system. In addition to the Kill Bill catalog we also need a <strong>mapping layer</strong> between the name of the plans defined in the old system and the name of the <code>Plan</code> in the Kill Bill catalog. At the time of the migration, the plan associated to the subscription in the old catalog becomes a key in that mapping table to chose the correct Kill Bill <code>Plan</code> to use to the creation of the subscription.</p>
+<p>We discussed in the Pre-Requisites section, the importance to build a Kill Bill catalog that will provide the same kind of products/plans than the one configured in the old billing system. In addition to the Kill Bill catalog we also need a <strong>mapping layer</strong> between the name of the plans defined in the old system and the name of the <code>Plan</code> in the Kill Bill catalog. At the time of the migration, the plan associated to the subscription in the old catalog becomes a key in that mapping table to chose the correct Kill Bill <code>Plan</code> to use for the creation of the subscription.</p>
 </div>
 </div>
 <div class="sect3">
@@ -865,19 +865,19 @@ However, keeping that data completely static is a challenge because customers ma
 <p>A clean subscription migration implies that we stop the billing in the old system at the <code>currentBillingDate</code> (where <code>currentBillingDate</code> + 1 Period = <code>nextBillingDate</code>) and starts the billing in Kill Bill at the <code>nextBillingDate</code>. So how to achieve that result?</p>
 </div>
 <div class="paragraph">
-<p>The first mandatory piece is to be able to extract those dates from the old billing system for each individual subscription attached to the account. In some billing systems, there is only some support to have a <code>billCycleDate</code> (<code>BCD</code>) at the account level (day of the month at which account is billed) and so that simplifies the problem. In some other cases different subscriptions can have their own individual schedules. Kill Bill supports all models through the use of billing alignments (and for reference, even a <code>SUBSCRIPTION_BUNDLE</code> alignment) defined in the catalog, so the starting point is to verify those alignments match the old system (this was part of the Pre-Requisites section).</p>
+<p>The first mandatory piece is to be able to extract those dates from the old billing system for each individual subscription attached to the account. In some billing systems, there is only some support to have a <code>billCycleDate</code> (<code>BCD</code>) at the account level (day of the month at which account is billed) and so that simplifies the problem. In some other cases different subscriptions can have their own individual schedules. Kill Bill supports all models through the use of billing alignments (and for reference, even a <code>SUBSCRIPTION_BUNDLE</code> alignment) defined in the catalog. So, the starting point is to verify those alignments match the old system (this was part of the Pre-Requisites section).</p>
 </div>
 <div class="paragraph">
-<p>So from a billing point of view, we want to cancel the old subscription at <code>currentBillingDate</code> and start (the billing of) the subscription at <code>nextBillingDate</code>.</p>
+<p>From a billing point of view, we want to cancel the old subscription at <code>currentBillingDate</code> and start (the billing of) the subscription at <code>nextBillingDate</code>.</p>
 </div>
 </div>
 <div class="sect3">
 <h4 id="_entitlement_dates">Entitlement Dates</h4>
 <div class="paragraph">
-<p>A naive migration strategy would be to start the subscription in Kill Bill at <code>nextBillingDate</code>. While this works from a billing point of view, this causes some issues when the customer makes some changes (upgrade, downgrade, cancellation,&#8230;&#8203;) during the interval of time such that <code>cutOverDate</code> &#8656; t &lt; <code>nextBillingDate</code>: In that interval of time, the subscription would have a future startDate (= <code>nextBillingDate</code>) so immediate changes could not be applied.</p>
+<p>A naive migration strategy would be to start the subscription in Kill Bill at <code>nextBillingDate</code>. While this works from a billing point of view, this causes some issues when the customer makes some changes (upgrade, downgrade, cancellation,&#8230;&#8203;) during the interval of time such that <code>cutOverDate</code> &lt;= t &lt; <code>nextBillingDate</code>: In that interval of time, the subscription would have a future startDate (= <code>nextBillingDate</code>) so immediate changes could not be applied. Also, from an entitlement point of view, starting the subscription in the future means there is no service until we reach that date.</p>
 </div>
 <div class="paragraph">
-<p>So, we need to separate the date at which the subscription starts (<code>subscriptionStartDate</code>) and the date at which the invoicing starts: From an entitlement point of view, we could use the <code>cutOverDate</code> as the <code>subscriptionStartDate</code>, and this would work, but a better choice is to use the <code>originalSubscriptionStartDate</code> (date at which the subscription started in the old billing system). As far as entitlement goes, starting a subscription in the past is equivalent to starting it in the present, so using the Kill Bill <code>subscriptionStartDate</code> = <code>originalSubscriptionStartDate</code> solves the entitlement issue we mentionned above and preserve the <code>originalSubscriptionStartDate</code> of the subscription.</p>
+<p>So, we need to separate the date at which the subscription starts (<code>subscriptionStartDate</code>) and the date at which the invoicing starts: From an entitlement point of view, we could use the <code>cutOverDate</code> as the <code>subscriptionStartDate</code>, and this would work, but a better choice is to use the <code>originalSubscriptionStartDate</code> (date at which the subscription started in the old billing system). As far as entitlement goes, starting a subscription in the past is equivalent to starting it in the present, so using the Kill Bill <code>subscriptionStartDate</code> = <code>originalSubscriptionStartDate</code> solves the entitlement issue we mentionned above and it also preserves the <code>originalSubscriptionStartDate</code> of the subscription (which can be really useful for customer support when they interract with the customer).</p>
 </div>
 </div>
 <div class="sect3">
@@ -894,7 +894,7 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>We create a subscription with a starting date of <code>originalSubscriptionStartDate</code> (using the right <code>Plan</code>, we will discuss that in the next section)</p>
+<p>We create a subscription with a starting date of <code>originalSubscriptionStartDate</code> (we will discuss the choice of the <code>Plan</code> in the next section)</p>
 </li>
 <li>
 <p>We stop the billing by inserting <a href="http://killbill.io/blog/blockingstate-abstractions"><code>BlockingState</code></a> events (one event at t = <code>originalSubscriptionStartDate</code> with <code>isBlockBilling=true</code> and one event at t = <code>nextBillingDate</code> with <code>isBlockBilling=false</code>)</p>
@@ -916,7 +916,7 @@ However, keeping that data completely static is a challenge because customers ma
 <p>Use multiple subscriptions for each separate phase (hopefully those are linked by some mechanism otherwsie this is quite difficult to understand,</p>
 </li>
 <li>
-<p>Treat each phase as a upgrade/downgrade scenario (i.e move it to a different kind of plan)</p>
+<p>Treat each phase as an upgrade/downgrade scenario (i.e move it to a different kind of plan)</p>
 </li>
 <li>
 <p>&#8230;&#8203;</p>
@@ -927,16 +927,31 @@ However, keeping that data completely static is a challenge because customers ma
 <p>There is obviously some amount of work to understand the old system&#8217;s model, and how those will translate into Kill Bill 's catalog (again part of the Pre-Requisites stage). So, assuming we are migrating a subscription into Kill Bill using a multi-phase <code>Plan</code>, we have to be cautious with the entitlement alignments and make sure we end up on the right phase.</p>
 </div>
 <div class="paragraph">
-<p>Assuming the subscription with 2 phase <code>Plan</code> (<code>TRIAL</code>=15 days, followed by <code>EVERGREEN</code>):
-There are a few scenarios to consider:</p>
+<p>Assuming a subscription with a 2 phases <code>Plan</code> (<code>TRIAL</code>=15 days, followed by <code>EVERGREEN</code>). There are a few scenarios to consider:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>At t=<code>cutOverDate</code>, the subscription is already in the <code>EVERGREEN</code> phase; in this case we need to make sure we start directly into that phase. Fortunately this is possible because the Kill Bill api to create subscription allows to specify on which phase to start (skipping previous phases).</p>
+<p>At t=<code>cutOverDate</code>, the subscription is already in the <code>EVERGREEN</code> phase; in this case we need to make sure we start directly into that phase. Fortunately, this is possible because the Kill Bill api to create subscription allows to specify on which phase to start (skipping previous phases).</p>
 </li>
 <li>
-<p>At t=<code>cutOverDate</code>, the subscription is still in TRIAL &#8658; TODO: Unsupported unless we violate the <code>originalSubscriptionStartDate</code></p>
+<p>At t=<code>cutOverDate</code>, the subscription is still in TRIAL, but by chosing the <code>originalSubscriptionStartDate</code> as the start date of that subscription in Kill Bill we should end up exactly with the correct state. Let&#8217;s take an example to illustrate that point:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>The subscription started on february 14th 2016 in the old system</p>
+</li>
+<li>
+<p>The <code>cutOverDate</code> is february 24th 2016, which means we are 10 days into the trial, so there should be 5 days when migrating to Kill Bill</p>
+</li>
+<li>
+<p>The <code>nextBillingDate</code> is february 28th 2016 (date at which the trial ends, and billing would have started in old system)</p>
+</li>
+<li>
+<p>We create the subscription in Kill Bill on <code>originalSubscriptionStartDate</code> (february 14th 2016), and because this a 2 phases <code>Plan</code>, the system will generate a <code>PHASE</code> event on <code>nextBillingDate</code> (february 28th 2016), which is exactly what we need.</p>
+</li>
+</ul>
+</div>
 </li>
 </ol>
 </div>
@@ -953,7 +968,7 @@ There are a few scenarios to consider:</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-02-13 20:27:14 UTC
+Last updated 2016-02-13 20:48:13 UTC
 </div>
 </div>
 </body>
