@@ -18,4 +18,4 @@ How to contribute
 -----------------
 
 * Make sure to work off branch `v3`
-* Install the gem dependencies: `gem install asciidoctor --version=1.5.2; gem install asciidoctor-diagram; gem install pygments.rb --version=0.6.3`
+* Install the gem dependencies: `gem install asciidoctor --version=1.5.2; gem install asciidoctor-diagram --version=1.3.2; gem install pygments.rb --version=0.6.3`
