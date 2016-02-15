@@ -483,7 +483,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_overview">Overview</a></li>
 <li><a href="#_strategy">Strategy</a>
 <ul class="sectlevel2">
-<li><a href="#_what_needs_to_be_migrated">What Needs to be Migrated?</a></li>
+<li><a href="#_what_really_needs_to_be_migrated">What (Really) Needs to be Migrated?</a></li>
+<li><a href="#_simplifications">Simplifications</a>
+<ul class="sectlevel3">
+<li><a href="#_historical_data_invoices_and_payments">Historical Data, Invoices and Payments</a></li>
+<li><a href="#_clean_accounts">Clean Accounts</a></li>
+</ul>
+</li>
 <li><a href="#_how_does_migration_work">How Does Migration Work?</a>
 <ul class="sectlevel3">
 <li><a href="#_migration_cutover_dates">Migration Cutover Dates</a></li>
@@ -515,6 +521,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 </ul>
 </li>
+<li><a href="#_conclusion">Conclusion</a></li>
 </ul>
 </div>
 </div>
@@ -524,27 +531,24 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sectionbody">
 <div class="paragraph">
 <p>This guide is intended to provide some guidelines for running migrations from an <strong>existing billing system</strong> to <strong>Kill Bill</strong>.
-It is by no mean an exact recipe book to follow, but it provides some recommendations on how to do things (based on previous experiences) and highlight some specific areas of concern.</p>
-</div>
-<div class="paragraph">
-<p>The assumption is that there is already an internal or third party billing system in place:</p>
+It is by no mean an exact recipe book to follow, but it provides some recommendations on how to do things (based on previous experiences) and highlight some specific areas of concern. The assumption is that there is already an internal or third party billing system in place, and so the goal of the migration is to preserve the current state of the system and yet reach a point when this old system can be fully unplugged. The old billing system currently:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>It receives some live traffic, and migration should not cause any downtime</p>
+<p>receives some live traffic, and migration should not cause any downtime</p>
 </li>
 <li>
-<p>It contains existing state (subscriptions, invoices, &#8230;&#8203;) that need to be migrated without impacting customers</p>
+<p>contains existing state (subscriptions, invoices, &#8230;&#8203;) that need to be migrated without impacting customers</p>
 </li>
 <li>
-<p>It provides a UI for customer service (CS) use to handle customer tickets</p>
+<p>offers apis that are used by one or several systems within the company</p>
 </li>
 <li>
-<p>It provides state/data that is used by accounting/financial departments</p>
+<p>provides a UI for customer service (CS) use to handle customer tickets and that functionality still need to exist in some form</p>
 </li>
 <li>
-<p>One or several systems in the company are interracting with that billing system through API calls or by ETLing data</p>
+<p>provides state/data that is used by accounting/financial departments and this data will need to remain available for these departments</p>
 </li>
 </ul>
 </div>
@@ -560,10 +564,10 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 <h2 id="_strategy">Strategy</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Like most complicated projects, it make sense to cut the projects in separate stages and also look for any amount of simplifications.</p>
+<p>Like most complicated projects, it make sense to cut the projects in separate stages and also look for any amount of simplifications. Also, it makes sense to first make a migration while preserving things the way they are so as to not mix the migration itself with enhancements. Those could come at a later phase when things are stable.</p>
 </div>
 <div class="sect2">
-<h3 id="_what_needs_to_be_migrated">What Needs to be Migrated?</h3>
+<h3 id="_what_really_needs_to_be_migrated">What (Really) Needs to be Migrated?</h3>
 <div class="paragraph">
 <p>One must first decide on the data that must be migrated, so let&#8217;s start by the minimum amount of data that needs to be migrated:</p>
 </div>
@@ -577,6 +581,11 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 </li>
 </ul>
 </div>
+</div>
+<div class="sect2">
+<h3 id="_simplifications">Simplifications</h3>
+<div class="sect3">
+<h4 id="_historical_data_invoices_and_payments">Historical Data, Invoices and Payments</h4>
 <div class="paragraph">
 <p>Other state such as non active subscriptions, past invoices, and payments <strong>don&#8217;t need</strong> to be migrated into Kill Bill to have the system function correctly, but <strong>that data may still need to be available in some fashion</strong>. By not migrating that data into Kill Bill, this simplifies the problem:</p>
 </div>
@@ -606,6 +615,39 @@ However, keeping that data completely static is a challenge because customers ma
 <p><strong>Finance/Acounting departement</strong>: They will still require old invoice and payment data to run reports but it does not necessarily need to be part of Kill Bill. A good alternative is to provide some kind of a view that will merge both the old data (from old billing system) and the new data coming from Kill Bill. The old data could be ETLed from old billing system as long as it is alive and then data could be materialized after it has been extinct.</p>
 </li>
 </ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_clean_accounts">Clean Accounts</h4>
+<div class="paragraph">
+<p>A corollary of what we described earlier is that we should only migrate clean accounts, i.e accounts that have a $0 balance. Any other account would have unpaid invoices, and since we don&#8217;t plan to migrate invoices, that balance is hard to carry over in a clean form.</p>
+</div>
+<div class="paragraph">
+<p>A good and easy strategy here is to do the migratiuon is several batches making sure we reach a point of convergence:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>A first migration batch with all clean accounts (hopefullly this accounts for the bulk of them)</p>
+</li>
+<li>
+<p>The current dunning strategy should be in place to first email customers, and moving through a gradual degrade of the service up to the point where subscriptions either become paid (and then account can be migrated) or subscriptions become cancelled (invoices are written off), and there is nothing to migrate for that account. This means unplugging the system will not happen overnight, this will be a gradual process (typicall most accounts are migrated within a week, and then syystem stays up for a few more months).</p>
+</li>
+<li>
+<p>The point of convergence is evenutally reached because:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>existing customers who have unpaid invoices either pay and get migrated or don&#8217;t pay and 'die' in the old system</p>
+</li>
+<li>
+<p>new customers are already on the new system and so they will not impact the final date at which old system could be unplugged (more on that later)</p>
+</li>
+</ul>
+</div>
+</li>
+</ol>
+</div>
 </div>
 </div>
 <div class="sect2">
@@ -904,6 +946,9 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="paragraph">
 <p>Note that subscription apis to create subscription don&#8217;t allow to specify different dates for billing and entitlement, so additional apis calls to insert the <code>BlockingState</code> are required. While less practical, this is not really an issue because at that stage we have set <code>AUTO_INVOICING_OFF</code> at the account level so nothing will happen and atomicity is not required.</p>
 </div>
+<div class="paragraph">
+<p>Finally, we should explore a bit more the choice of the per-account <code>cutOverDate</code>: Is that better to chose that date close to <code>currentBillingDate</code> or <code>nextBillingDate</code>? A choice of <code>cutOverDate</code> close to <code>currentBillingDate</code> (right after), means that customer just got invoiced and so the chances for adjustements right after are bigger than if we were to wait. Since we want to minimize actions on the old system after customer got migrated, it seems a better choice would be to pick <code>cutOverDate</code> right before <code>nextBillingDate</code>. Of course in situations where customers have multiple subscriptions on different schedule (<code>SUBSCRIPTION</code> billing alignment), there is a choice to be made (probably favor the annual versus monthly and subscriptions on higer <code>Plans</code>).</p>
+</div>
 </div>
 <div class="sect3">
 <h4 id="_multi_phase_plans">Multi-Phase Plans</h4>
@@ -927,7 +972,10 @@ However, keeping that data completely static is a challenge because customers ma
 <p>There is obviously some amount of work to understand the old system&#8217;s model, and how those will translate into Kill Bill 's catalog (again part of the Pre-Requisites stage). So, assuming we are migrating a subscription into Kill Bill using a multi-phase <code>Plan</code>, we have to be cautious with the entitlement alignments and make sure we end up on the right phase.</p>
 </div>
 <div class="paragraph">
-<p>Assuming a subscription with a 2 phases <code>Plan</code> (<code>TRIAL</code>=15 days, followed by <code>EVERGREEN</code>). There are a few scenarios to consider:</p>
+<p>One strategy is to define more <code>Plans</code> in the Kill Bill catalog to include mono-phase versions of the multi-phase <code>Plans</code>. For example, assuming a subscription with a 2 phases <code>Plan</code> (<code>TRIAL</code>=15 days, followed by <code>EVERGREEN</code>), we could also create another <code>Plan</code> with only the last phase so as to migrate subscriptions that are already on the <code>EVERGREEN</code> phase.</p>
+</div>
+<div class="paragraph">
+<p>Alternatively, we could decide to only use the original <code>Plan</code>, and play with subscription alignments in the following way:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
@@ -965,10 +1013,16 @@ However, keeping that data completely static is a challenge because customers ma
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_conclusion">Conclusion</h2>
+<div class="sectionbody">
+
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-02-13 20:51:58 UTC
+Last updated 2016-02-15 18:39:24 UTC
 </div>
 </div>
 </body>
