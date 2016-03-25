@@ -33,7 +33,7 @@ The `dryRunMigrate` command is especially useful in production environments, whe
 To run this wrapper:
 
 * Clone https://github.com/killbill/killbill[Kill Bill]
-* Checkout the tag corresponding to your specific version (e.g. `git checkout killbill-0.16.5`), to get the migration files for that specific Kill Bill version
+* Checkout the tag corresponding to your specific version (e.g. `git checkout killbill-0.16.5`) to get the migration files for that specific Kill Bill version
 * Build `util` (`cd util ; mvn clean install -DskipTests=true`)
 
 You can then run the `db-helper` script:
@@ -43,8 +43,38 @@ You can then run the `db-helper` script:
 
 === Java plugins
 
-Java plugins migrations also rely on https://flywaydb.org/[Flyway].
+Java plugins migrations also rely on https://flywaydb.org/[Flyway] and follow a similar workflow than Kill Bill itself. Note that while there is no specific `db-helper` script for each plugin, the wrapper tool for Kill Bill (available under `util/target/killbill-flyway.jar`) can be used for plugins.
+
+For more help, see the Flyway documentation or the output of `java -jar util/target/killbill-flyway.jar`.
 
 === Ruby plugins
 
-Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations].
+Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]. Migrations are located under `db/migrate/`.
+
+Similar to the Java code, we provide a wrapper to get access to the SQL for the migration (i.e. dry run mode).
+
+To run this wrapper:
+
+* Clone the plugin tree
+* Checkout the tag corresponding to your specific version to get the migration files for that specific version of the plugin
+* Download the plugin dependencies:
+```
+rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
+bundle install
+jbundle install
+```
+
+You can then run the wrapper in an irb console (JRuby is recommended):
+
+```
+$> bundle exec irb
+jruby-1.7.20 :001 > require 'killbill/migration'
+ => true
+jruby-1.7.20 :002 > migration = Killbill::Migration.new('cybersource', {:username => 'killbill', :password => 'killbill', :database => 'killbill'})
+ => #<Killbill::Migration:0x3e1f3387 @config={"adapter"=>:mysql, "driver"=>"org.mariadb.jdbc.Driver", "username"=>"killbill", "password"=>"killbill", "database"=>"killbill", "host"=>"127.0.0.1"}>
+jruby-1.7.20 :003 > #puts migration.current_version
+jruby-1.7.20 :004 > #puts migration.sql_for_migration
+jruby-1.7.20 :005 > migration.migrate
+jruby-1.7.20 :006 > #puts migration.ruby_dump.string
+jruby-1.7.20 :007 > #puts migration.sql_dump.string
+```
