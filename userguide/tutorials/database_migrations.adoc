@@ -16,3 +16,35 @@ To access a specific version:
 * For individual plugins, you can get the DDL file of a given version on GitHub by looking-up the specific tag (for v4.0.2 of the CyberSource plugin, it would be at https://github.com/killbill/killbill-cybersource-plugin/tree/v4.0.2/db/ddl.sql).
 
 == Migrations
+
+=== Kill Bill
+
+Starting with Kill Bill 0.16.4, SQL migrations files for https://flywaydb.org/[Flyway] are provided. They can be found on a per-module basis under `\*/src/main/resources/org/killbill/billing/*/migration/`. The versioning is based on the creation timestamp (i.e. `date +'%Y%M%d%H%M%S'`).
+
+If you are familiar with the tool, Flyway will work out-of-the-box with these files.
+
+Additionally, we provide a convenient wrapper integrated with our https://github.com/killbill/killbill/blob/master/bin/db-helper[db-helper] script, which:
+
+* Takes care of aggregating all `migration` directories, across all Kill Bill modules
+* Provides a `dryRunMigrate` command
+
+The `dryRunMigrate` command is especially useful in production environments, where database access is restricted and where developers don't have rights to execute DDL commands (i.e. `CREATE`, `ALTER`, `DROP`, etc. statements). Running `dryRunMigrate` against your production database (read-only credentials are sufficient) will output the SQL that needs to be run to migrate it, including the `INSERT` statements to update Flyway's `schema_version` table.
+
+To run this wrapper:
+
+* Clone https://github.com/killbill/killbill[Kill Bill]
+* Checkout the tag corresponding to your specific version (e.g. `git checkout killbill-0.16.5`), to get the migration files for that specific Kill Bill version
+* Build `util` (`cd util ; mvn clean install -DskipTests=true`)
+
+You can then run the `db-helper` script:
+
+* `./bin/db-helper -a info`
+* `./bin/db-helper -a dryRunMigrate`
+
+=== Java plugins
+
+Java plugins migrations also rely on https://flywaydb.org/[Flyway].
+
+=== Ruby plugins
+
+Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations].
