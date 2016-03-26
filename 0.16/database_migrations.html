@@ -565,7 +565,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Clone <a href="https://github.com/killbill/killbill">Kill Bill</a></p>
 </li>
 <li>
-<p>Checkout the tag corresponding to your specific version (e.g. <code>git checkout killbill-0.16.5</code>), to get the migration files for that specific Kill Bill version</p>
+<p>Checkout the tag corresponding to your specific version (e.g. <code>git checkout killbill-0.16.5</code>) to get the migration files for that specific Kill Bill version</p>
 </li>
 <li>
 <p>Build <code>util</code> (<code>cd util ; mvn clean install -DskipTests=true</code>)</p>
@@ -589,13 +589,59 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="_java_plugins">Java plugins</h3>
 <div class="paragraph">
-<p>Java plugins migrations also rely on <a href="https://flywaydb.org/">Flyway</a>.</p>
+<p>Java plugins migrations also rely on <a href="https://flywaydb.org/">Flyway</a> and follow a similar workflow than Kill Bill itself. Note that while there is no specific <code>db-helper</code> script for each plugin, the wrapper tool for Kill Bill (available under <code>util/target/killbill-flyway.jar</code>) can be used for plugins.</p>
+</div>
+<div class="paragraph">
+<p>For more help, see the Flyway documentation or the output of <code>java -jar util/target/killbill-flyway.jar</code>.</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_ruby_plugins">Ruby plugins</h3>
 <div class="paragraph">
-<p>Ruby plugins migrations rely on <a href="http://edgeguides.rubyonrails.org/active_record_migrations.html">Active Record migrations</a>.</p>
+<p>Ruby plugins migrations rely on <a href="http://edgeguides.rubyonrails.org/active_record_migrations.html">Active Record migrations</a>. Migrations are located under <code>db/migrate/</code>.</p>
+</div>
+<div class="paragraph">
+<p>Similar to the Java code, we provide a wrapper to get access to the SQL for the migration (i.e. dry run mode).</p>
+</div>
+<div class="paragraph">
+<p>To run this wrapper:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Clone the plugin tree</p>
+</li>
+<li>
+<p>Checkout the tag corresponding to your specific version to get the migration files for that specific version of the plugin</p>
+</li>
+<li>
+<p>Download the plugin dependencies:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
+bundle install
+jbundle install</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can then run the wrapper in an irb console (JRuby is recommended):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>$&gt; bundle exec irb
+jruby-1.7.20 :001 &gt; require 'killbill/migration'
+ =&gt; true
+jruby-1.7.20 :002 &gt; migration = Killbill::Migration.new('cybersource', {:username =&gt; 'killbill', :password =&gt; 'killbill', :database =&gt; 'killbill'})
+ =&gt; #&lt;Killbill::Migration:0x3e1f3387 @config={"adapter"=&gt;:mysql, "driver"=&gt;"org.mariadb.jdbc.Driver", "username"=&gt;"killbill", "password"=&gt;"killbill", "database"=&gt;"killbill", "host"=&gt;"127.0.0.1"}&gt;
+jruby-1.7.20 :003 &gt; #puts migration.current_version
+jruby-1.7.20 :004 &gt; #puts migration.sql_for_migration
+jruby-1.7.20 :005 &gt; migration.migrate
+jruby-1.7.20 :006 &gt; #puts migration.ruby_dump.string
+jruby-1.7.20 :007 &gt; #puts migration.sql_dump.string</code></pre>
+</div>
 </div>
 </div>
 </div>
@@ -603,7 +649,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-03-25 19:14:52 UTC
+Last updated 2016-03-26 00:01:07 UTC
 </div>
 </div>
 </body>
