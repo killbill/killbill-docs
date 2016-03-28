@@ -547,17 +547,51 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>If you are familiar with the tool, Flyway will work out-of-the-box with these files. If you don&#8217;t know Flyway and/or don&#8217;t want to use it, you can apply the migrations manually (they are just SQL files), although this can be error prone and isn&#8217;t recommended.</p>
 </div>
+<div class="paragraph">
+<p>The metadata table is called <code>schema_version</code> and can be created by using the <a href="https://flywaydb.org/documentation/command/baseline">baseline</a> command. For reference, here is the MySQL DDL for Flyway 4.0:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>CREATE TABLE `schema_version` (
+  `installed_rank` int(11) NOT NULL,
+  `version` varchar(50) DEFAULT NULL,
+  `description` varchar(200) NOT NULL,
+  `type` varchar(20) NOT NULL,
+  `script` varchar(1000) NOT NULL,
+  `checksum` int(11) DEFAULT NULL,
+  `installed_by` varchar(100) NOT NULL,
+  `installed_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `execution_time` int(11) NOT NULL,
+  `success` tinyint(1) NOT NULL,
+  PRIMARY KEY (`installed_rank`),
+  KEY `schema_version_s_idx` (`success`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_java_plugins">Java plugins</h3>
 <div class="paragraph">
-<p>Java plugins migrations also rely on <a href="https://flywaydb.org/">Flyway</a> and follow a similar workflow than Kill Bill itself.</p>
+<p>Java plugins migrations also rely on <a href="https://flywaydb.org/">Flyway</a> and follow a similar workflow than Kill Bill itself. The metadata table should be called <code>&lt;plugin_name&gt;_schema_version</code>.</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_ruby_plugins">Ruby plugins</h3>
 <div class="paragraph">
-<p>Ruby plugins migrations rely on <a href="http://edgeguides.rubyonrails.org/active_record_migrations.html">Active Record migrations</a>. Migrations are located under <code>db/migrate/</code>.</p>
+<p>Ruby plugins migrations rely on <a href="http://edgeguides.rubyonrails.org/active_record_migrations.html">Active Record migrations</a>. Migrations are located under <code>db/migrate/</code>. You can use the <code>killbill-migration</code> tool (see below) to run the migrations.</p>
+</div>
+<div class="paragraph">
+<p>The metadata table should be called <code>&lt;plugin_name&gt;_schema_migrations</code>, e.g.:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>CREATE TABLE `cybersource_schema_migrations` (
+  `version` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note: adapt the DDL for your RDBMS engine.</p>
 </div>
 </div>
 <div class="sect2">
@@ -624,6 +658,9 @@ kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2</code></pre>
 <p>For Ruby code, we provide a <code>killbill-migration</code> script with the <code>killbill</code> gem (JRuby is recommended, see our <a href="http://docs.killbill.io/0.16/payment_plugin.html#_building_ruby_plugins">installation instructions</a>).</p>
 </div>
 <div class="paragraph">
+<p>Besides outputting the SQL, it can also run the migrations.</p>
+</div>
+<div class="paragraph">
 <p>Usage examples:</p>
 </div>
 <div class="listingblock">
@@ -642,7 +679,7 @@ killbill-migration sql_dump cybersource</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-03-28 12:37:16 UTC
+Last updated 2016-03-28 16:40:46 UTC
 </div>
 </div>
 </body>
