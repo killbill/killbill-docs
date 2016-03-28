@@ -486,6 +486,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_kill_bill">Kill Bill</a></li>
 <li><a href="#_java_plugins">Java plugins</a></li>
 <li><a href="#_ruby_plugins">Ruby plugins</a></li>
+<li><a href="#_kpm">KPM</a></li>
+<li><a href="#_sql_output">SQL output</a>
+<ul class="sectlevel3">
+<li><a href="#_java">Java</a></li>
+<li><a href="#_ruby">Ruby</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -540,59 +547,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>If you are familiar with the tool, Flyway will work out-of-the-box with these files. If you don&#8217;t know Flyway and/or don&#8217;t want to use it, you can apply the migrations manually (they are just SQL files), although this can be error prone and isn&#8217;t recommended.</p>
 </div>
-<div class="paragraph">
-<p>Additionally, we provide a convenient wrapper integrated with our <a href="https://github.com/killbill/killbill/blob/master/bin/db-helper">db-helper</a> script, which:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Takes care of aggregating all <code>migration</code> directories, across all Kill Bill modules</p>
-</li>
-<li>
-<p>Provides a <code>dryRunMigrate</code> command</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>The <code>dryRunMigrate</code> command is especially useful in production environments, where database access is restricted and where developers don&#8217;t have rights to execute DDL commands (i.e. <code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, etc. statements). Running <code>dryRunMigrate</code> against your production database (read-only credentials are sufficient) will output the SQL that needs to be run to migrate it, including the <code>INSERT</code> statements to update Flyway&#8217;s <code>schema_version</code> table.</p>
-</div>
-<div class="paragraph">
-<p>To run this wrapper:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Clone <a href="https://github.com/killbill/killbill">Kill Bill</a></p>
-</li>
-<li>
-<p>Checkout the tag corresponding to your specific version (e.g. <code>git checkout killbill-0.16.5</code>) to get the migration files for that specific Kill Bill version</p>
-</li>
-<li>
-<p>Build <code>util</code> (<code>cd util ; mvn clean install -DskipTests=true</code>)</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>You can then run the <code>db-helper</code> script:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><code>./bin/db-helper -a info</code></p>
-</li>
-<li>
-<p><code>./bin/db-helper -a dryRunMigrate</code></p>
-</li>
-</ul>
-</div>
 </div>
 <div class="sect2">
 <h3 id="_java_plugins">Java plugins</h3>
 <div class="paragraph">
-<p>Java plugins migrations also rely on <a href="https://flywaydb.org/">Flyway</a> and follow a similar workflow than Kill Bill itself. Note that while there is no specific <code>db-helper</code> script for each plugin, the wrapper tool for Kill Bill (available under <code>util/target/killbill-flyway.jar</code>) can be used for plugins.</p>
-</div>
-<div class="paragraph">
-<p>For more help, see the Flyway documentation or the output of <code>java -jar util/target/killbill-flyway.jar</code>.</p>
+<p>Java plugins migrations also rely on <a href="https://flywaydb.org/">Flyway</a> and follow a similar workflow than Kill Bill itself.</p>
 </div>
 </div>
 <div class="sect2">
@@ -600,27 +559,64 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>Ruby plugins migrations rely on <a href="http://edgeguides.rubyonrails.org/active_record_migrations.html">Active Record migrations</a>. Migrations are located under <code>db/migrate/</code>.</p>
 </div>
+</div>
+<div class="sect2">
+<h3 id="_kpm">KPM</h3>
 <div class="paragraph">
-<p>Similar to the Java code, we provide a wrapper (<code>killbill-migration</code>) to get access to the SQL for the migration (i.e. dry run mode).</p>
+<p>KPM exposes the command <code>migrations</code> which can download migration files for Kill Bill or any plugins, between specific versions.</p>
 </div>
 <div class="paragraph">
-<p>To run this wrapper:</p>
+<p>Usage:</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p><code>gem install killbill</code> (JRuby is recommended, see our <a href="http://docs.killbill.io/0.16/payment_plugin.html#_building_ruby_plugins">installation instructions</a>)</p>
-</li>
-<li>
-<p>Clone the plugin tree</p>
-</li>
-<li>
-<p>Checkout the tag corresponding to your specific version to get the migration files for that specific version of the plugin</p>
-</li>
-</ul>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations github_repository from_tag to_tag</code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p>You can then run the tool in the root of the plugin directory (replace <code>cybersource</code> with your plugin name):</p>
+<p>For example, to download all migration files for Kill Bill between 0.16.3 and 0.16.4:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations killbill killbill-0.16.3 killbill-0.16.4</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Similar examples for Java and Ruby plugins:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations killbill-analytics-plugin analytics-plugin-3.0.0 analytics-plugin-3.0.1
+kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Because the implementation relies on the <a href="https://developer.github.com/">GitHub API</a>, unauthenticated requests are subject to <a href="https://developer.github.com/v3/#rate-limiting">rate limiting</a>. To work around it, go to <a href="https://github.com/settings/tokens" class="bare">https://github.com/settings/tokens</a> to generate a token (default public, read-only, permissions will work) and specify it to KPM:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations killbill killbill-0.16.3 killbill-0.16.4 --token=XXX</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_sql_output">SQL output</h3>
+<div class="paragraph">
+<p>In production environments, database access is often restricted and developers don&#8217;t necessarily have rights to execute DDL commands (i.e. <code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, etc. statements). To get around this, we provide scripts to get access to the SQL that needs to be run for the migrations, including the <code>INSERT</code> statements to update the metadata table(s).</p>
+</div>
+<div class="sect3">
+<h4 id="_java">Java</h4>
+<div class="paragraph">
+<p>For Java code (Kill Bill and Java plugins), we publish a <code>killbill-flyway.jar</code> binary which is a wrapper around the <code>flyway</code> utility and exposes a <code>dryRunMigrate</code> command. Simply run it against your production database (read-only credentials are sufficient) to get the raw SQL.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ruby">Ruby</h4>
+<div class="paragraph">
+<p>For Ruby code, we provide a <code>killbill-migration</code> script with the <code>killbill</code> gem (JRuby is recommended, see our <a href="http://docs.killbill.io/0.16/payment_plugin.html#_building_ruby_plugins">installation instructions</a>).</p>
+</div>
+<div class="paragraph">
+<p>Usage examples:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -635,9 +631,10 @@ killbill-migration sql_dump cybersource</code></pre>
 </div>
 </div>
 </div>
+</div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-03-26 00:37:25 UTC
+Last updated 2016-03-28 12:26:05 UTC
 </div>
 </div>
 </body>
