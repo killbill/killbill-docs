@@ -23,13 +23,42 @@ Starting with Kill Bill 0.16.4, SQL migrations files for https://flywaydb.org/[F
 
 If you are familiar with the tool, Flyway will work out-of-the-box with these files. If you don't know Flyway and/or don't want to use it, you can apply the migrations manually (they are just SQL files), although this can be error prone and isn't recommended.
 
+The metadata table is called `schema_version` and can be created by using the https://flywaydb.org/documentation/command/baseline[baseline] command. For reference, here is the MySQL DDL for Flyway 4.0:
+
+```
+CREATE TABLE `schema_version` (
+  `installed_rank` int(11) NOT NULL,
+  `version` varchar(50) DEFAULT NULL,
+  `description` varchar(200) NOT NULL,
+  `type` varchar(20) NOT NULL,
+  `script` varchar(1000) NOT NULL,
+  `checksum` int(11) DEFAULT NULL,
+  `installed_by` varchar(100) NOT NULL,
+  `installed_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `execution_time` int(11) NOT NULL,
+  `success` tinyint(1) NOT NULL,
+  PRIMARY KEY (`installed_rank`),
+  KEY `schema_version_s_idx` (`success`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+```
+
 === Java plugins
 
-Java plugins migrations also rely on https://flywaydb.org/[Flyway] and follow a similar workflow than Kill Bill itself. 
+Java plugins migrations also rely on https://flywaydb.org/[Flyway] and follow a similar workflow than Kill Bill itself. The metadata table should be called `<plugin_name>_schema_version`.
 
 === Ruby plugins
 
-Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]. Migrations are located under `db/migrate/`.
+Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]. Migrations are located under `db/migrate/`. You can use the `killbill-migration` tool (see below) to run the migrations.
+
+The metadata table should be called `<plugin_name>_schema_migrations`, e.g.:
+
+```
+CREATE TABLE `cybersource_schema_migrations` (
+  `version` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+```
+
+Note: adapt the DDL for your RDBMS engine.
 
 === KPM
 
@@ -77,6 +106,8 @@ java -jar killbill-flyway.jar -locations=filesystem:XXX dryRunMigrate
 ==== Ruby
 
 For Ruby code, we provide a `killbill-migration` script with the `killbill` gem (JRuby is recommended, see our http://docs.killbill.io/0.16/payment_plugin.html#_building_ruby_plugins[installation instructions]).
+
+Besides outputting the SQL, it can also run the migrations.
 
 Usage examples:
 
