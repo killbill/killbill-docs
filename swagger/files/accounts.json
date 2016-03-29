@@ -5,10 +5,10 @@
             "operations": [
                 {
                     "items": {
-                        "$ref": "TagJson"
+                        "$ref": "PaymentMethodJson"
                     },
                     "method": "GET",
-                    "nickname": "getTags",
+                    "nickname": "getPaymentMethods",
                     "notes": "",
                     "parameters": [
                         {
@@ -20,19 +20,29 @@
                         },
                         {
                             "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "withPluginInfo",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "items": {
+                                "type": "string"
+                            },
+                            "name": "pluginProperty",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "array"
+                        },
+                        {
+                            "allowMultiple": false,
                             "defaultValue": "NONE",
                             "name": "audit",
                             "paramType": "query",
                             "required": false,
                             "type": "AuditMode"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "includedDeleted",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
                         }
                     ],
                     "produces": [
@@ -48,9 +58,100 @@
                             "message": "Account not found"
                         }
                     ],
-                    "summary": "Retrieve account tags",
+                    "summary": "Retrieve account payment methods",
                     "type": "array"
                 },
+                {
+                    "consumes": [
+                        "application/json"
+                    ],
+                    "method": "POST",
+                    "nickname": "createPaymentMethod",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "body",
+                            "paramType": "body",
+                            "required": false,
+                            "type": "PaymentMethodJson"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "isDefault",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "payAllUnpaidInvoices",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "items": {
+                                "type": "string"
+                            },
+                            "name": "pluginProperty",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "array"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-CreatedBy",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Reason",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Comment",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        },
+                        {
+                            "code": 404,
+                            "message": "Account not found"
+                        }
+                    ],
+                    "summary": "Add a payment method",
+                    "type": "void"
+                }
+            ],
+            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/paymentMethods"
+        },
+        {
+            "operations": [
                 {
                     "method": "POST",
                     "nickname": "createTags",
@@ -159,6 +260,54 @@
                     ],
                     "summary": "Remove tags from account",
                     "type": "void"
+                },
+                {
+                    "items": {
+                        "$ref": "TagJson"
+                    },
+                    "method": "GET",
+                    "nickname": "getTags",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "NONE",
+                            "name": "audit",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "AuditMode"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "includedDeleted",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        },
+                        {
+                            "code": 404,
+                            "message": "Account not found"
+                        }
+                    ],
+                    "summary": "Retrieve account tags",
+                    "type": "array"
                 }
             ],
             "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/tags"
@@ -319,223 +468,6 @@
         {
             "operations": [
                 {
-                    "method": "GET",
-                    "nickname": "getAccount",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "accountWithBalance",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "accountWithBalanceAndCBA",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "NONE",
-                            "name": "audit",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "AuditMode"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        },
-                        {
-                            "code": 404,
-                            "message": "Account not found"
-                        }
-                    ],
-                    "summary": "Retrieve an account by id",
-                    "type": "AccountJson"
-                },
-                {
-                    "consumes": [
-                        "application/json"
-                    ],
-                    "method": "PUT",
-                    "nickname": "updateAccount",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "body",
-                            "paramType": "body",
-                            "required": false,
-                            "type": "AccountJson"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-CreatedBy",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Reason",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Comment",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account data supplied"
-                        }
-                    ],
-                    "summary": "Update account",
-                    "type": "void"
-                }
-            ],
-            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}"
-        },
-        {
-            "operations": [
-                {
-                    "method": "GET",
-                    "nickname": "getAccountByKey",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "externalKey",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "accountWithBalance",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "accountWithBalanceAndCBA",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "NONE",
-                            "name": "audit",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "AuditMode"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 404,
-                            "message": "Account not found"
-                        }
-                    ],
-                    "summary": "Retrieve an account by external key",
-                    "type": "AccountJson"
-                },
-                {
-                    "consumes": [
-                        "application/json"
-                    ],
-                    "method": "POST",
-                    "nickname": "createAccount",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "body",
-                            "paramType": "body",
-                            "required": false,
-                            "type": "AccountJson"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-CreatedBy",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Reason",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Comment",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account data supplied"
-                        }
-                    ],
-                    "summary": "Create account",
-                    "type": "void"
-                }
-            ],
-            "path": "/1.0/kb/accounts"
-        },
-        {
-            "operations": [
-                {
                     "items": {
                         "$ref": "InvoicePaymentJson"
                     },
@@ -673,6 +605,520 @@
                 }
             ],
             "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/invoicePayments"
+        },
+        {
+            "operations": [
+                {
+                    "method": "GET",
+                    "nickname": "getAccount",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "accountWithBalance",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "accountWithBalanceAndCBA",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "NONE",
+                            "name": "audit",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "AuditMode"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        },
+                        {
+                            "code": 404,
+                            "message": "Account not found"
+                        }
+                    ],
+                    "summary": "Retrieve an account by id",
+                    "type": "AccountJson"
+                },
+                {
+                    "consumes": [
+                        "application/json"
+                    ],
+                    "method": "PUT",
+                    "nickname": "updateAccount",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "body",
+                            "paramType": "body",
+                            "required": false,
+                            "type": "AccountJson"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-CreatedBy",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Reason",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Comment",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account data supplied"
+                        }
+                    ],
+                    "summary": "Update account",
+                    "type": "void"
+                }
+            ],
+            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}"
+        },
+        {
+            "operations": [
+                {
+                    "items": {
+                        "$ref": "PaymentJson"
+                    },
+                    "method": "GET",
+                    "nickname": "getPayments",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "NONE",
+                            "name": "audit",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "AuditMode"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "items": {
+                                "type": "string"
+                            },
+                            "name": "pluginProperty",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "array"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "withPluginInfo",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        }
+                    ],
+                    "summary": "Retrieve account payments",
+                    "type": "array"
+                },
+                {
+                    "consumes": [
+                        "application/json"
+                    ],
+                    "method": "POST",
+                    "nickname": "processPayment",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "body",
+                            "paramType": "body",
+                            "required": false,
+                            "type": "PaymentTransactionJson"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "paymentMethodId",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "items": {
+                                "type": "string"
+                            },
+                            "name": "controlPluginName",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "array"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "items": {
+                                "type": "string"
+                            },
+                            "name": "pluginProperty",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "array"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-CreatedBy",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Reason",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Comment",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        },
+                        {
+                            "code": 404,
+                            "message": "Account not found"
+                        }
+                    ],
+                    "summary": "Trigger a payment (authorization, purchase or credit)",
+                    "type": "void"
+                }
+            ],
+            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/payments"
+        },
+        {
+            "operations": [
+                {
+                    "method": "GET",
+                    "nickname": "getAccountByKey",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "externalKey",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "accountWithBalance",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "accountWithBalanceAndCBA",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "NONE",
+                            "name": "audit",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "AuditMode"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 404,
+                            "message": "Account not found"
+                        }
+                    ],
+                    "summary": "Retrieve an account by external key",
+                    "type": "AccountJson"
+                },
+                {
+                    "consumes": [
+                        "application/json"
+                    ],
+                    "method": "POST",
+                    "nickname": "createAccount",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "body",
+                            "paramType": "body",
+                            "required": false,
+                            "type": "AccountJson"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-CreatedBy",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Reason",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Comment",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account data supplied"
+                        }
+                    ],
+                    "summary": "Create account",
+                    "type": "void"
+                }
+            ],
+            "path": "/1.0/kb/accounts"
+        },
+        {
+            "operations": [
+                {
+                    "method": "GET",
+                    "nickname": "getInvoices",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "withItems",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "false",
+                            "name": "unpaidInvoicesOnly",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "boolean"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "defaultValue": "NONE",
+                            "name": "audit",
+                            "paramType": "query",
+                            "required": false,
+                            "type": "AuditMode"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        },
+                        {
+                            "code": 404,
+                            "message": "Account not found"
+                        }
+                    ],
+                    "summary": "Retrieve account invoices",
+                    "type": "InvoiceJson"
+                }
+            ],
+            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/invoices"
+        },
+        {
+            "operations": [
+                {
+                    "consumes": [
+                        "application/json"
+                    ],
+                    "method": "POST",
+                    "nickname": "addEmail",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "body",
+                            "paramType": "body",
+                            "required": false,
+                            "type": "AccountEmailJson"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-CreatedBy",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Reason",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        },
+                        {
+                            "allowMultiple": false,
+                            "name": "X-Killbill-Comment",
+                            "paramType": "header",
+                            "required": false,
+                            "type": "string"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        },
+                        {
+                            "code": 404,
+                            "message": "Account not found"
+                        }
+                    ],
+                    "summary": "Add account email",
+                    "type": "void"
+                },
+                {
+                    "items": {
+                        "$ref": "AccountEmailJson"
+                    },
+                    "method": "GET",
+                    "nickname": "getEmails",
+                    "notes": "",
+                    "parameters": [
+                        {
+                            "allowMultiple": false,
+                            "name": "accountId",
+                            "paramType": "path",
+                            "required": true,
+                            "type": "string"
+                        }
+                    ],
+                    "produces": [
+                        "application/json"
+                    ],
+                    "responseMessages": [
+                        {
+                            "code": 400,
+                            "message": "Invalid account id supplied"
+                        }
+                    ],
+                    "summary": "Retrieve an account emails",
+                    "type": "array"
+                }
+            ],
+            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/emails"
         },
         {
             "operations": [
@@ -1050,213 +1496,6 @@
         {
             "operations": [
                 {
-                    "method": "GET",
-                    "nickname": "getInvoices",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "withItems",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "unpaidInvoicesOnly",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "NONE",
-                            "name": "audit",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "AuditMode"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        },
-                        {
-                            "code": 404,
-                            "message": "Account not found"
-                        }
-                    ],
-                    "summary": "Retrieve account invoices",
-                    "type": "InvoiceJson"
-                }
-            ],
-            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/invoices"
-        },
-        {
-            "operations": [
-                {
-                    "consumes": [
-                        "application/json"
-                    ],
-                    "method": "POST",
-                    "nickname": "createPaymentMethod",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "body",
-                            "paramType": "body",
-                            "required": false,
-                            "type": "PaymentMethodJson"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "isDefault",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "payAllUnpaidInvoices",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "items": {
-                                "type": "string"
-                            },
-                            "name": "pluginProperty",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "array"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-CreatedBy",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Reason",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Comment",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        },
-                        {
-                            "code": 404,
-                            "message": "Account not found"
-                        }
-                    ],
-                    "summary": "Add a payment method",
-                    "type": "void"
-                },
-                {
-                    "items": {
-                        "$ref": "PaymentMethodJson"
-                    },
-                    "method": "GET",
-                    "nickname": "getPaymentMethods",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "withPluginInfo",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "items": {
-                                "type": "string"
-                            },
-                            "name": "pluginProperty",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "array"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "NONE",
-                            "name": "audit",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "AuditMode"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        },
-                        {
-                            "code": 404,
-                            "message": "Account not found"
-                        }
-                    ],
-                    "summary": "Retrieve account payment methods",
-                    "type": "array"
-                }
-            ],
-            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/paymentMethods"
-        },
-        {
-            "operations": [
-                {
                     "method": "POST",
                     "nickname": "refreshPaymentMethods",
                     "notes": "",
@@ -1408,152 +1647,6 @@
                 }
             ],
             "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/paymentMethods/{paymentMethodId:\\w+-\\w+-\\w+-\\w+-\\w+}/setDefault"
-        },
-        {
-            "operations": [
-                {
-                    "items": {
-                        "$ref": "PaymentJson"
-                    },
-                    "method": "GET",
-                    "nickname": "getPayments",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "NONE",
-                            "name": "audit",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "AuditMode"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "items": {
-                                "type": "string"
-                            },
-                            "name": "pluginProperty",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "array"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "defaultValue": "false",
-                            "name": "withPluginInfo",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "boolean"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        }
-                    ],
-                    "summary": "Retrieve account payments",
-                    "type": "array"
-                },
-                {
-                    "consumes": [
-                        "application/json"
-                    ],
-                    "method": "POST",
-                    "nickname": "processPayment",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "body",
-                            "paramType": "body",
-                            "required": false,
-                            "type": "PaymentTransactionJson"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "paymentMethodId",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "items": {
-                                "type": "string"
-                            },
-                            "name": "controlPluginName",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "array"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "items": {
-                                "type": "string"
-                            },
-                            "name": "pluginProperty",
-                            "paramType": "query",
-                            "required": false,
-                            "type": "array"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-CreatedBy",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Reason",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Comment",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        },
-                        {
-                            "code": 404,
-                            "message": "Account not found"
-                        }
-                    ],
-                    "summary": "Trigger a payment (authorization, purchase or credit)",
-                    "type": "void"
-                }
-            ],
-            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/payments"
         },
         {
             "operations": [
@@ -1740,99 +1833,6 @@
                 }
             ],
             "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/allTags"
-        },
-        {
-            "operations": [
-                {
-                    "items": {
-                        "$ref": "AccountEmailJson"
-                    },
-                    "method": "GET",
-                    "nickname": "getEmails",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        }
-                    ],
-                    "summary": "Retrieve an account emails",
-                    "type": "array"
-                },
-                {
-                    "consumes": [
-                        "application/json"
-                    ],
-                    "method": "POST",
-                    "nickname": "addEmail",
-                    "notes": "",
-                    "parameters": [
-                        {
-                            "allowMultiple": false,
-                            "name": "body",
-                            "paramType": "body",
-                            "required": false,
-                            "type": "AccountEmailJson"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "accountId",
-                            "paramType": "path",
-                            "required": true,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-CreatedBy",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Reason",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        },
-                        {
-                            "allowMultiple": false,
-                            "name": "X-Killbill-Comment",
-                            "paramType": "header",
-                            "required": false,
-                            "type": "string"
-                        }
-                    ],
-                    "produces": [
-                        "application/json"
-                    ],
-                    "responseMessages": [
-                        {
-                            "code": 400,
-                            "message": "Invalid account id supplied"
-                        },
-                        {
-                            "code": 404,
-                            "message": "Account not found"
-                        }
-                    ],
-                    "summary": "Add account email",
-                    "type": "void"
-                }
-            ],
-            "path": "/1.0/kb/accounts/{accountId:\\w+-\\w+-\\w+-\\w+-\\w+}/emails"
         },
         {
             "operations": [
