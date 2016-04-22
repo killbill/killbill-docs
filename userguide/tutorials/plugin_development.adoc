@@ -48,6 +48,8 @@ TODO: Provide detailed instructions based on the hello-world plugin (email from 
 
 === Overview
 
+==== Plugin Layout
+
 In its simplest form, deploying a plugin means placing the plugin binary at the right place on the filesystem. Kill Bill will scan the filesystem on startup and will start all the plugins that were detected.
 Kill Bill will use the value of the system property `org.killbill.osgi.bundle.install.dir` to determine the root of plugin directory structure.
 By default, this value is set to `/var/tmp/bundles`, as indicated by the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.22/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L44[Kill Bill OSGIConfig file].
@@ -85,7 +87,7 @@ The file `sha1.yml` is a used by the `KPM` tool to keep track of artifacts that 
 
 The file `plugin_identifiers.json` is used to keep a mapping between the `pluginKey` (the user visible plugin identifer), and the `pluginName` (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.
 
-=== Plugin Coordinates, Plugin Key, Plugin Name...
+==== Plugin Coordinates, Plugin Key, Plugin Name...
 
 Today, both our `ruby` and `java` plugins are released through maven and are therefore identified through their maven coordinates.
 We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins.
@@ -104,9 +106,53 @@ There is a distinction to be made between publicly released Kill Bill plugins an
 Each entry in that repository is identified by a key, and that key is the `pluginKey`.
 * Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form `<prefix>::<something>` to make sure there is no name collision with Kill Bill plugin keys.
 
-TODO: provide example of installing such plugins.
+
+=== Java Plugins
+
+TODO: 
+
+=== Ruby Plugins
+
+==== Prerequisites
+
+Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don't have a Ruby installation yet, use https://rvm.io/rvm/install[RVM]:
+
+[source,bash]
+----
+gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+\curl -sSL https://get.rvm.io | bash -s stable --ruby
+----
+
+After following the post-installation instructions, you should have access to the `ruby` and `gem` executables.
+
+Install the following gems:
+
+[source,bash]
+----
+gem install bundler
+gem install jbundler
+----
+
+==== Build
+
+Follow these steps, making sure each one is successful before moving on to the next one:
+
+[source,ruby]
+----
+rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
+bundle install
+jbundle install
+# Cleanup output directories
+bundle exec rake killbill:clean
+# Build your plugin gem in the pkg/ directory
+bundle exec rake build
+# Build the Killbill plugin in the pkg/ directory
+bundle exec rake killbill:package
+----
 
 === Deploying by Hand
+
+==== Java Plugins
 
 For `java` plugins, deploying by hand consists in building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
 
@@ -116,6 +162,8 @@ java
   |_ 0.3.2
     |_ adyen-plugin-0.3.2.jar
 ```
+
+==== Ruby Plugins
 
 For `ruby` plugins, deploying by hand consists in building the package (`tar.gz`) and untaring that package at the right place: For example, the `stripe` plugin with a version `3.0.2` would show up as the following:
 
@@ -131,9 +179,19 @@ ruby
     |_tmp
 ```
 
-In the case of `ruby` plugin (and as mentionned before), the correct version of the `jruby.jar` must exist (and be name that way) under the `platform` directory entry. The correct version must match the Kill Bill version (or more precisely the version of the https://github.com/killbill/killbill-platform[platform] used for the a specific version of https://github.com/killbill/killbill[killbill]).
+In order to make it easy to deploy those plugins we created a special rake task that will copy, untar plugin entries at the right place:
+
+[source,ruby]
+----
+# Optional: deploy the plugin (and clobber a previous version if needed) in /var/tmp/bundles.
+# Alternatively, you can manualy deploy the .tar.gz or .zip artifact from the pkg/ directory
+bundle exec rake killbill:deploy[true]
+----
+
+Note that if you don't need any custom configuration, make sure to delete the default YAML configuration file `/var/tmp/bundles/plugins/ruby/killbill-\*/*/*.yml`. In development mode, i.e. when you are running tests outside of Kill Bill (see `rake test:spec` and `rake test:remote:spec`), the database configuration is specified in that YAML file (payment plugins rely on a couple of database tables, principally to keep the credit card tokens and gateway-specific details for transactions, such as reference codes). By default, the plugin will use SQLite. If you uncomment the part of the YAML file below the comment "In Kill Bill", this will tell the plugin to use the JNDI connection exposed by Kill Bill instead. This is the default in case the file isn't present (or if the database section is missing).
 
 
+Also, in the case of `ruby` plugin (and as mentionned before), the correct version of the `jruby.jar` must exist (and be name that way) under the `platform` directory entry. The correct version must match the Kill Bill version (or more precisely the version of the https://github.com/killbill/killbill-platform[platform] used for the a specific version of https://github.com/killbill/killbill[killbill]).
 
 
 === KPM
