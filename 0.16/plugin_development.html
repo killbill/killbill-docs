@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Overview</title>
+<title>Plugin Development</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,244 +476,242 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Overview</h1>
+<h1>Plugin Development</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel0">
-<li><a href="#_user_management_apis">User Management APIs</a>
+<li><a href="#_overview">Overview</a>
 <ul class="sectlevel1">
-<li><a href="#_configuration_of_the_user_role_permissions">Configuration of the User/Role/Permissions</a></li>
-<li><a href="#_tenant_configuration">Tenant Configuration</a></li>
-<li><a href="#_play_time">Play Time&#8230;&#8203;</a></li>
+<li><a href="#_scope">Scope</a></li>
+<li><a href="#_kill_bill_plugins">Kill Bill Plugins</a></li>
+<li><a href="#_where_to_start">Where to Start?</a></li>
+<li><a href="#_deployment">Deployment</a>
+<ul class="sectlevel2">
+<li><a href="#_overview_2">Overview</a></li>
+<li><a href="#_plugin_coordinates_plugin_key_plugin_name">Plugin Coordinates, Plugin Key, Plugin Name&#8230;&#8203;</a></li>
+<li><a href="#_deploying_by_hand">Deploying by Hand</a></li>
+<li><a href="#_kpm">KPM</a></li>
 </ul>
 </li>
-<li><a href="#_kaui">KAUI</a>
-<ul class="sectlevel1">
-<li><a href="#_initial_configuration">Initial Configuration</a></li>
-<li><a href="#_adding_new_allowed_user">Adding new Allowed User</a></li>
+<li><a href="#_plugin_configuration">Plugin Configuration</a></li>
+<li><a href="#_debugging_plugins">Debugging Plugins</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </div>
 <div id="content">
-<div id="preamble">
-<div class="sectionbody">
-<div class="paragraph">
-<p><strong>Terminology</strong>: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.</p>
-</div>
-<div class="paragraph">
-<p><strong>Assumptions</strong>: We assume the reader went through the <a href="http://docs.killbill.io/0.15/getting_started.html">Getting started</a> documentation and has a running system (both killbill and kaui) running on IP=<code>127.0.0.1</code>.</p>
-</div>
-<div class="paragraph">
-<p>Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on <a href="http://shiro.apache.org/">shiro</a> for the backend implementation.</p>
-</div>
-<div class="paragraph">
-<p>Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the <code>api_key</code>/<code>api_secret</code> for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant,&#8230;&#8203;</p>
-</div>
-</div>
-</div>
-<h1 id="_user_management_apis" class="sect0">User Management APIs</h1>
+<h1 id="_overview" class="sect0">Overview</h1>
 <div class="sect1">
-<h2 id="_configuration_of_the_user_role_permissions">Configuration of the User/Role/Permissions</h2>
+<h2 id="_scope">Scope</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Shiro supports multiple backend implementations, and we integrated 3 of them:</p>
+<p>This document is indented to provide some information about plugin development:
+* What are plugins and what can be achieved through plugins
+* Where to start the development
+* Tooling and apis to deploy plugins</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_kill_bill_plugins">Kill Bill Plugins</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Kill Bill Plugins are based on the <a href="https://www.osgi.org/">OSGI standard</a> and so they provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Simple configuration file (<code>shiro.ini</code> file)</p>
+<p>They can be called from the Kill Bill platform through <a href="https://github.com/killbill/killbill-plugin-api">plugin apis</a>. This happens when a plugin that implements one of those api (or 'spi' to be more precise) was correctly registered in the system.</p>
 </li>
 <li>
-<p>Database configuration</p>
+<p>They can receive notifications (bus events) from the Kill Bill platform</p>
 </li>
 <li>
-<p>LDAP integration</p>
+<p>They can make <a href="https://github.com/killbill/killbill-api">api calls</a> to Kill Bill</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>For simple deployments where only few static users/roles need to be assigned, the <code>shiro.ini</code> file is the simplest and the best option. For large entreprise solution, an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle ground is to rely on a mixed solution between the <code>shiro.ini</code> file and the database backend. This is what the rest of this section will describe:</p>
-</div>
-<div class="paragraph">
-<p>Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:</p>
+<p>Here are a few examples of typical flow of operations:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>The <code>shiro.ini</code> file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity we will call it superadmin will assign one role containing all permissions.</p>
+<p>Notification Plugin: A plugin registered to receive bus events. When a bus event is being delivered to the plugin, the plugin calls back Kill Bill through api call to retrieve additional state for this event or to change the state in the system</p>
 </li>
 <li>
-<p>Once deployed, the 'superadmin' is now able to make api calls to configure new users/roles.</p>
+<p>Plugin that registered as an implementor of a specific <a href="https://github.com/killbill/killbill-plugin-api">plugin api</a>: A payment plugin for instance would have registered itself as an implementor of the <a href="https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java">PaymentPluginApi</a> and the payment system would then invoke that plugin for issuing payment operations. The plugin would have the ability to call back Kill Bill using apis to retrieve more state or create/change state in the system.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>The <code>shiro.ini</code> file will look like the following:</p>
+<p>A Kill Bill plugin will either implement one (or several) plugin api(s) and/or also listen to Kill Bill bus events to be notified of changes and take appropriate action.
+It often makes sense to specialize plugins and have them implement only one of the <a href="https://github.com/killbill/killbill-plugin-api">plugin apis</a>, but this is a design choice, and there is nothing preventing a plugin to implement multiple of those apis.
+Also we don&#8217;t recommend it, a plugin could implement the <a href="https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java">PaymentPluginApi</a> and the <a href="https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java">PaymentControlPluginApi</a>, and that would qualify it as a 'payment and payment control plugin'.</p>
+</div>
+<div class="paragraph">
+<p>TODO: Provide example of what can be achieved with plugins (and examples)</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_where_to_start">Where to Start?</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A good starting point is to assess what the plugin should do and then based on that, read the various <a href="http://docs.killbill.io/">plugin docs in the developer guide section</a> that describe the different types of plugins offered in Kill Bill:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="http://docs.killbill.io/0.16/catalog_plugin.html">catalog plugin</a>:</p>
+</li>
+<li>
+<p><a href="http://docs.killbill.io/0.16/payment_plugin.html">payment plugin</a></p>
+</li>
+<li>
+<p><a href="http://docs.killbill.io/0.16/payment_control_plugin.html">(payment) control plugin</a></p>
+</li>
+<li>
+<p>entitlement plugin</p>
+</li>
+<li>
+<p><a href="http://docs.killbill.io/0.16/invoice_plugin.html">invoice plugin</a></p>
+</li>
+<li>
+<p>notification plugin</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The next stage is to identify existing (similar) plugins which could be used as a starting point to write the code. At this point, this becomes a normal software development cycle, including writing unit tests for that plugin (independent of Kill Bill).</p>
+</div>
+<div class="paragraph">
+<p>TODO: Provide detailed instructions based on the hello-world plugin (email from Guisepe). Need to fix hello-workd first.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_deployment">Deployment</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_overview_2">Overview</h3>
+<div class="paragraph">
+<p>In its simplest form, deploying a plugin means placing the plugin binary at the right place on the filesystem. Kill Bill will scan the filesystem on startup and will start all the plugins that were detected.
+Kill Bill will use the value of the system property <code>org.killbill.osgi.bundle.install.dir</code> to determine the root of plugin directory structure.
+By default, this value is set to <code>/var/tmp/bundles</code>, as indicated by the <a href="https://github.com/killbill/killbill-platform/blob/killbill-platform-0.22/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L44">Kill Bill OSGIConfig file</a>.</p>
+</div>
+<div class="paragraph">
+<p>The directory structure looks like following:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span class="tok-c">#</span>
-<span class="tok-c"># Use -Dorg.killbill.security.shiroResourcePath=/var/tmp/shiro.ini to specify your own config</span>
-<span class="tok-c">#</span>
+<pre class="pygments highlight"><code>root (org.killbill.osgi.bundle.install.dir)
+|_sha1.yml
+|_platform
+|_plugins
+  |_java
+  |_ruby
+  |_plugin_identifiers.json</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Under <code>platform</code>, we will find the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>jruby.jar</code> : the Runtime jruby jar that is loaded into killbill for each ruby plugin</p>
+</li>
+<li>
+<p>A set of <a href="http://felix.apache.org/downloads.cgi">pure OSGI plugins</a> (unrelated to Kill Bill plugin) and required for things like OSGI logging, OSGI console, &#8230;&#8203;</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Under <code>java</code> and <code>ruby</code>, we will find one entry per plugin, and then followed by one entry per version.
+For instance, if we had installed two versions for the ruby <code>stripe</code> plugin, we would see the following (<code>SET_DEFAULT</code> is a symbolic link that point to the default active version):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>ruby
+|_killbill-stripe
+  |_ 3.0.2
+  |_ 3.0.1
+  |_ SET_DEFAULT</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_plugin_coordinates_plugin_key_plugin_name">Plugin Coordinates, Plugin Key, Plugin Name&#8230;&#8203;</h3>
+<div class="paragraph">
+<p>Today, both our <code>ruby</code> and <code>java</code> plugins are released through maven and are therefore identified through their maven coordinates.
+We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins.
+Plugin Coordinates are bit heavy to manipulate after the download was made, and also they don&#8217;t solve the case of a non published plugin (typical use case for a plugin being developed), so we introduced some identifers.</p>
+</div>
+<div class="paragraph">
+<p>As mentioned earlier, Kill Bill will scan the filesystem (<code>org.killbill.osgi.bundle.install.dir</code>) on start-up to detect and then start all the plugins. The name on the filesystem (e.g in our previous example <code>killbill-stripe</code>) constitutes what we call the <strong><code>pluginName</code></strong>
+When installing using KPM, the <code>pluginName</code> is dependent how the plugin was packaged and also differs between ruby and java. For well known publicly available Kill Bill plugins, we adopted a (sane) convention, but we have no way to enforce that convention for third party plugins.
+Also, note that we could change the name of <code>killbill-stripe</code> to <code>foo</code> on the filesystem (<code>mv killbill-stripe foo</code>) and then suddenly Kill Bill would see that plugin as being the <code>foo</code> plugin.
+Therefore, the <code>pluginName</code> is not a reliable way to identify the plugin, and is used solely by Kill Bill as an runtime identifier.</p>
+</div>
+<div class="paragraph">
+<p>The <code>pluginKey</code> is the identifier for the plugin and is used for all the user visible operations, whether through KPM command line tool or whether using the <a href="http://docs.killbill.io/0.16/plugin_management.html">Plugin Management APIs</a>.
+There is a distinction to be made between publicly released Kill Bill plugins and third party plugins:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>(Publicly released) Kill Bill Plugins: All the plugins developed by the Kill Bill core team are maintained in a <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml">repository</a> (we provide today a simple file-based repository, but this may change in the future as we start accepting certified third-party plugins).
+Each entry in that repository is identified by a key, and that key is the <code>pluginKey</code>.</p>
+</li>
+<li>
+<p>Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form <code>&lt;prefix&gt;::&lt;something&gt;</code> to make sure there is no name collision with Kill Bill plugin keys.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>TODO: provide example of installing such plugins.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_deploying_by_hand">Deploying by Hand</h3>
+<div class="paragraph">
+<p>For <code>java</code> plugins, deploying by hand consists in building the self contained OSGI jar, and copying that jar under its version</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_kpm">KPM</h3>
+<div class="paragraph">
+<p>The standard way to deploy plugins is to rely on <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm">KPM</a>.
+The <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/README.md">KPM README</a> explains how to install KPM and also provides some guidance on how to use it for deploy public known plugins.</p>
+</div>
+<div class="paragraph">
+<p>When developing a new plugin (or a new version of a not yet publicly released plugin), there are different ways to deploy that plugin:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Deploy the plugin by hand</p>
+</li>
+<li>
+<p>Rely on KPM to make the deployment</p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_plugin_configuration">Plugin Configuration</h2>
+<div class="sectionbody">
 
-<span class="tok-o">[</span>users<span class="tok-o">]</span>
-<span class="tok-nv">superadmin</span> <span class="tok-o">=</span> superadmin13, root
+</div>
+</div>
+<div class="sect1">
+<h2 id="_debugging_plugins">Debugging Plugins</h2>
+<div class="sectionbody">
 
-<span class="tok-o">[</span>roles<span class="tok-o">]</span>
-<span class="tok-nv">root</span> <span class="tok-o">=</span> *:*</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Let&#8217;s create a new role <code>customer_support</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
--u <span class="tok-s2">&quot;superadmin:superadmin123&quot;</span>  <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
--X POST <span class="tok-se">\</span>
---data-binary <span class="tok-s1">&#39;{ &quot;role&quot;: &quot;customer_support&quot;, &quot;permissions&quot;: [&quot;account:create&quot;, &quot;account:update&quot;, &quot;entitlement:change_plan&quot;, &quot;entitlement:pause_resume&quot;, &quot;entitlement:cancel&quot;, &quot;entitlement:transfer&quot;, &quot;invoice:credit&quot;, &quot;invoice:item_adjust&quot;, &quot;tag:create_tag_definition&quot;, &quot;tag:delete_tag_definition&quot;, &quot;tag:add&quot;, &quot;tag:delete&quot;] }&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/roles&#39;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Let&#8217;s create a <code>cs</code> username that will have only one role <code>customer_support</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
--u <span class="tok-s1">&#39;superadmin:superadmin123&#39;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
--X POST <span class="tok-se">\</span>
---data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support&quot;] }&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/users&#39;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Let&#8217;s assume we want to add more permissions to that user. We could create another role <code>customer_support_manager</code> (same step as before with the desired set of permissions), and then update our user to now have this new role:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
--u <span class="tok-s1">&#39;superadmin:superadmin123&#39;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
--X PUT <span class="tok-se">\</span>
---data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support_manager&quot;] }&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/users/cs/roles&#39;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_tenant_configuration">Tenant Configuration</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Since we did not give access for all the tenant management to our new <code>CS</code> account, let&#8217;s have our superadmin create a first tenant:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
--X POST <span class="tok-se">\</span>
--u superadmin:superadmin123 <span class="tok-se">\</span>
--H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
--H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
--d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_play_time">Play Time&#8230;&#8203;</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Assuming our <code>cs</code> user knows about the <code>api_key</code> and <code>api_secret</code> of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permission set).</p>
-</div>
-<div class="paragraph">
-<p>So for instance, creating a new account in that tenant would work because his role <code>customer_support</code> includes the permission <code>account:create</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
--u cs:cs123 <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
--X POST <span class="tok-se">\</span>
---data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;John Doe&quot;,&quot;email&quot;:&quot;john@example.com&quot;,&quot;externalKey&quot;:&quot;john-doe-1234&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>But the following curl to refund a payment would fail because his role <code>customer_support</code> does not include the permission <code>payment:refund</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
--u cs:cs123 <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
--H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
--X POST <span class="tok-se">\</span>
---data-binary <span class="tok-s1">&#39;{&quot;amount&quot;:&quot;12.4&quot;}&#39;</span> <span class="tok-se">\</span>
-<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1/refunds&quot;</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<h1 id="_kaui" class="sect0">KAUI</h1>
-<div class="openblock partintro">
-<div class="content">
-<div class="paragraph">
-<p>KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in <a href="http://killbill.io/blog/multi-tenancy-authorization" class="bare">http://killbill.io/blog/multi-tenancy-authorization</a>[our previous blog post}.</p>
-</div>
-<div class="paragraph">
-<p>However KAUI does not yet have the flexibility to manage the user/roles/permissions, and also requires making each user known available.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_initial_configuration">Initial Configuration</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>However the catch-22 situation described in the previous section to configure the very first user remains true both for killbill and KAUI:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>For killbill server, we already described the initial configuration through the <code>shiro.ini</code> file</p>
-</li>
-<li>
-<p>For KAUI, we need to also make that admin account visible (this is a small limitation configuration). Note that the credentials, roles,&#8230;&#8203; associated to that account are entirely managed on the server side (killbill) so there is no duplication or security holes.</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>In the <code>kaui</code> database, insert the initial entry for the <code>superadmin</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>insert into kaui_allowed_users (kb_username, description, created_at, updated_at) values ('superadmin', 'super admin', NOW(), NOW());</code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_adding_new_allowed_user">Adding new Allowed User</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Before our new <code>cs</code> user can be able to login to KAUI, the <code>superadmin</code> must make it visible. The screen <code>/admin_allowed_users</code> (the top right icon will bring you there), allows to enter that user. Only the name and a descriuption needs to be entered (and not the credentials/roles which are managed by the backend) need to be entered.</p>
-</div>
-<div class="paragraph">
-<p>After entering a new user, the UI will allow to select the tenants this user has access to.</p>
-</div>
 </div>
 </div>
 </div>
