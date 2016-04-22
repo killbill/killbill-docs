@@ -1,0 +1,126 @@
+= Plugin Development
+
+= Overview
+
+== Scope
+
+This document is indented to provide some information about plugin development:
+* What are plugins and what can be achieved through plugins
+* Where to start the development
+* Tooling and apis to deploy plugins
+
+== Kill Bill Plugins
+
+Kill Bill Plugins are based on the https://www.osgi.org/[OSGI standard] and so they provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:
+
+* They can be called from the Kill Bill platform through https://github.com/killbill/killbill-plugin-api[plugin apis]. This happens when a plugin that implements one of those api (or 'spi' to be more precise) was correctly registered in the system.
+* They can receive notifications (bus events) from the Kill Bill platform
+* They can make https://github.com/killbill/killbill-api[api calls] to Kill Bill
+
+Here are a few examples of typical flow of operations:
+
+* Notification Plugin: A plugin registered to receive bus events. When a bus event is being delivered to the plugin, the plugin calls back Kill Bill through api call to retrieve additional state for this event or to change the state in the system
+* Plugin that registered as an implementor of a specific https://github.com/killbill/killbill-plugin-api[plugin api]: A payment plugin for instance would have registered itself as an implementor of the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the payment system would then invoke that plugin for issuing payment operations. The plugin would have the ability to call back Kill Bill using apis to retrieve more state or create/change state in the system.
+
+A Kill Bill plugin will either implement one (or several) plugin api(s) and/or also listen to Kill Bill bus events to be notified of changes and take appropriate action.
+It often makes sense to specialize plugins and have them implement only one of the https://github.com/killbill/killbill-plugin-api[plugin apis], but this is a design choice, and there is nothing preventing a plugin to implement multiple of those apis.
+Also we don't recommend it, a plugin could implement the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[PaymentControlPluginApi], and that would qualify it as a 'payment and payment control plugin'.
+
+TODO: Provide example of what can be achieved with plugins (and examples)
+
+
+== Where to Start?
+
+A good starting point is to assess what the plugin should do and then based on that, read the various http://docs.killbill.io/[plugin docs in the developer guide section] that describe the different types of plugins offered in Kill Bill:
+
+* http://docs.killbill.io/0.16/catalog_plugin.html[catalog plugin]:
+* http://docs.killbill.io/0.16/payment_plugin.html[payment plugin]
+* http://docs.killbill.io/0.16/payment_control_plugin.html[(payment) control plugin]
+* entitlement plugin
+* http://docs.killbill.io/0.16/invoice_plugin.html[invoice plugin]
+* notification plugin
+
+The next stage is to identify existing (similar) plugins which could be used as a starting point to write the code. At this point, this becomes a normal software development cycle, including writing unit tests for that plugin (independent of Kill Bill).
+
+TODO: Provide detailed instructions based on the hello-world plugin (email from Guisepe). Need to fix hello-workd first.
+
+== Deployment
+
+=== Overview
+
+In its simplest form, deploying a plugin means placing the plugin binary at the right place on the filesystem. Kill Bill will scan the filesystem on startup and will start all the plugins that were detected.
+Kill Bill will use the value of the system property `org.killbill.osgi.bundle.install.dir` to determine the root of plugin directory structure.
+By default, this value is set to `/var/tmp/bundles`, as indicated by the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.22/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L44[Kill Bill OSGIConfig file].
+
+The directory structure looks like following:
+
+```
+root (org.killbill.osgi.bundle.install.dir)
+|_sha1.yml
+|_platform
+|_plugins
+  |_java
+  |_ruby
+  |_plugin_identifiers.json
+```
+
+Under `platform`, we will find the following:
+
+* `jruby.jar` : the Runtime jruby jar that is loaded into killbill for each ruby plugin
+* A set of http://felix.apache.org/downloads.cgi[pure OSGI plugins] (unrelated to Kill Bill plugin) and required for things like OSGI logging, OSGI console, ...
+
+Under `java` and `ruby`, we will find one entry per plugin, and then followed by one entry per version.
+For instance, if we had installed two versions for the ruby `stripe` plugin, we would see the following (`SET_DEFAULT` is a symbolic link that point to the default active version):
+
+```
+ruby
+|_killbill-stripe
+  |_ 3.0.2
+  |_ 3.0.1
+  |_ SET_DEFAULT
+```
+
+=== Plugin Coordinates, Plugin Key, Plugin Name...
+
+Today, both our `ruby` and `java` plugins are released through maven and are therefore identified through their maven coordinates.
+We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins.
+Plugin Coordinates are bit heavy to manipulate after the download was made, and also they don't solve the case of a non published plugin (typical use case for a plugin being developed), so we introduced some identifers.
+
+
+As mentioned earlier, Kill Bill will scan the filesystem (`org.killbill.osgi.bundle.install.dir`) on start-up to detect and then start all the plugins. The name on the filesystem (e.g in our previous example `killbill-stripe`) constitutes what we call the **`pluginName`**
+When installing using KPM, the `pluginName` is dependent how the plugin was packaged and also differs between ruby and java. For well known publicly available Kill Bill plugins, we adopted a (sane) convention, but we have no way to enforce that convention for third party plugins.
+Also, note that we could change the name of `killbill-stripe` to `foo` on the filesystem (`mv killbill-stripe foo`) and then suddenly Kill Bill would see that plugin as being the `foo` plugin.
+Therefore, the `pluginName` is not a reliable way to identify the plugin, and is used solely by Kill Bill as an runtime identifier.
+
+The `pluginKey` is the identifier for the plugin and is used for all the user visible operations, whether through KPM command line tool or whether using the http://docs.killbill.io/0.16/plugin_management.html[Plugin Management APIs].
+There is a distinction to be made between publicly released Kill Bill plugins and third party plugins:
+
+* (Publicly released) Kill Bill Plugins: All the plugins developed by the Kill Bill core team are maintained in a https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[repository] (we provide today a simple file-based repository, but this may change in the future as we start accepting certified third-party plugins).
+Each entry in that repository is identified by a key, and that key is the `pluginKey`.
+* Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form `<prefix>::<something>` to make sure there is no name collision with Kill Bill plugin keys.
+
+
+TODO: provide example of installing such plugins.
+
+=== Deploying by Hand
+
+
+For `java` plugins, deploying by hand consists in building the self contained OSGI jar, and copying that jar under its version
+
+
+=== KPM
+
+The standard way to deploy plugins is to rely on https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM].
+The https://github.com/killbill/killbill-cloud/blob/master/kpm/README.md[KPM README] explains how to install KPM and also provides some guidance on how to use it for deploy public known plugins.
+
+When developing a new plugin (or a new version of a not yet publicly released plugin), there are different ways to deploy that plugin:
+
+1. Deploy the plugin by hand
+2. Rely on KPM to make the deployment
+
+
+== Plugin Configuration
+
+== Debugging Plugins
+
+
