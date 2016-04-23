@@ -45,6 +45,9 @@ TODO: Provide detailed instructions based on the hello-world plugin (email from 
 
 = Development
 
+
+TODO: describe framworks, ... and https://github.com/killbill/killbill-platform/blob/killbill-platform-0.22/osgi-bundles/libs/killbill/src/main/java/org/killbill/killbill/osgi/libs/killbill/KillbillActivatorBase.java#L59[KillbillActivatorBase]
+
 == Java Plugins
 
 TODO: 
@@ -215,7 +218,72 @@ We plan to https://github.com/killbill/killbill-cloud/issues/48[enhance KPM] in 
 
 = Plugin Configuration
 
+== System Properties
 
+As described previoulsy, Kill Bill plugins are started with access to system properties through the use of a special interface https://github.com/killbill/killbill-platform/blob/master/osgi-api/src/main/java/org/killbill/billing/osgi/api/OSGIConfigProperties.java[OSGIConfigProperties]. System properties passed to the JVM are then accessible to the plugins and can be used to tweak the behavior of the plugin as needed.
+
+== Configuration File
+
+Property files can be used to configure global settings for a plugin. Those property files need to be part of the archive (and OSGI mechanism) will make sure these are only visible to the particular plugin:
+
+* For `java` plugins, the property file needs to be on the classpath (`resource` directory)
+* For `ruby` plugins, the property file is often located at the root of the archive
+
+There is no restriction on the format of the propery file, but often the case, `ruby` plugins will use `yml` files and `java` plugins will rely on `key-value`, `json` or `xml` files. 
+
+== Per-tenant Configuration
+
+The two previous mechanisms work well for global settings, but are inadequate to configure the plugins on a per-tenant fashion (e.g for a payment plugin interracting with a payment gateway, different credentials might be needed for different tenants). In those situations, Kill Bill provides apis to upload/retrieve/delete per-tenant plugin configurations:
+
+```
+# Upload new config
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: application/json' \
+     -d '<CONFIG>' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
+```
+
+The `<CONFIG>` is treaded as a string and it could be the content of an `xml` or `json` file, a lit of `key-value` parameters,...
+
+```
+# Retrieve config
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: application/json' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
+```
+
+```
+# Delete config
+curl -v \
+     -X DELETE \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
+```
+
+In a nutshell, the mechanism works in the following way:
+
+1. The adminstrator uses the kill bill api to upload the configuration
+2. Kill Bill stores the config in the `tenant_kvs` table using a `tenant_key` of `PLUGIN_CONFIG_<pluginName>` and sets the `tenant_value` with the config provided
+3. Kill Bill broadcast the change across the cluster of nodes and emit an configuartion bus event: `TENANT_CONFIG_CHANGE` or `TENANT_CONFIG_DELETION`
+4. The plugin code is responsible to listen to these events and take appropriate action to reload/delete its configuration for that specific tenant.
+
+
+
+
+
+TODO: explain merge between properyy file and per-tenant entries
 
 = Debugging Plugins
 
