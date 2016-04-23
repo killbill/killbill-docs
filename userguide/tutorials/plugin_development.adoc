@@ -1,13 +1,11 @@
-= Plugin Development
-
 = Overview
 
 == Scope
 
 This document is indented to provide some information about plugin development:
 
-* What are plugins and what can be achieved through plugins
-* Where to start the development
+* What are plugins and what can be achieved through plugins?
+* Where to start the development?
 * Tooling and apis to deploy plugins
 
 == Kill Bill Plugins
@@ -29,7 +27,6 @@ Also we don't recommend it, a plugin could implement the https://github.com/kill
 
 TODO: Provide example of what can be achieved with plugins (and examples)
 
-
 == Where to Start?
 
 A good starting point is to assess what the plugin should do and then based on that, read the various http://docs.killbill.io/[plugin docs in the developer guide section] that describe the different types of plugins offered in Kill Bill:
@@ -45,11 +42,68 @@ The next stage is to identify existing (similar) plugins which could be used as 
 
 TODO: Provide detailed instructions based on the hello-world plugin (email from Guisepe). Need to fix hello-workd first.
 
-== Deployment
 
-=== Overview
+= Development
 
-==== Plugin Layout
+==Java Plugins
+
+TODO: 
+
+== Ruby Plugins
+
+=== Prerequisites
+
+Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don't have a Ruby installation yet, use https://rvm.io/rvm/install[RVM]:
+
+[source,bash]
+----
+gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+\curl -sSL https://get.rvm.io | bash -s stable --ruby
+----
+
+After following the post-installation instructions, you should have access to the `ruby` and `gem` executables.
+
+Install the following gems:
+
+[source,bash]
+----
+gem install bundler
+gem install jbundler
+----
+
+=== Build
+
+Follow these steps, making sure each one is successful before moving on to the next one:
+
+[source,ruby]
+----
+rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
+bundle install
+jbundle install
+# Cleanup output directories
+bundle exec rake killbill:clean
+# Build your plugin gem in the pkg/ directory
+bundle exec rake build
+# Build the Killbill plugin in the pkg/ directory
+bundle exec rake killbill:package
+----
+
+=== Examples of Ruby Plugins
+
+We provide a https://github.com/killbill/killbill-hello-world-ruby-plugin[hello world] ruby plugin that can be used as starting point. Make sure to correctly update the `*.gemspec` and the `pom.xml` to correctly reflect the gem name, and maven coordinates of your plugin.
+
+We also provide real life ruby plugins of interest:
+* The https://github.com/killbill/killbill-cybersource-plugin[Cybersource plugin] is good exmaple to look at to implement a payment plugin (one that implements the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi]) and that relies on the https://github.com/activemerchant/active_merchant[Active Merchant gem].
+* The https://github.com/killbill/killbill-avatax-plugin[Avalara plugin] is a good example to look at to implement an invoice plugin (one that implements the https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[InvoicePluginApi]).
+
+TODO: Verify the plugin is up to date and works correctly. Should that hello-world depend on `https://github.com/killbill/killbill-plugin-framework-ruby` ?
+
+
+= Deployment
+
+== Overview
+
+=== Plugin Layout
 
 In its simplest form, deploying a plugin means placing the plugin binary at the right place on the filesystem. Kill Bill will scan the filesystem on startup and will start all the plugins that were detected.
 Kill Bill will use the value of the system property `org.killbill.osgi.bundle.install.dir` to determine the root of plugin directory structure.
@@ -88,7 +142,7 @@ The file `sha1.yml` is a used by the `KPM` tool to keep track of artifacts that 
 
 The file `plugin_identifiers.json` is used to keep a mapping between the `pluginKey` (the user visible plugin identifer), and the `pluginName` (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.
 
-==== Plugin Coordinates, Plugin Key, Plugin Name...
+=== Plugin Coordinates, Plugin Key, Plugin Name...
 
 Today, both our `ruby` and `java` plugins are released through maven and are therefore identified through their maven coordinates.
 We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins.
@@ -108,64 +162,9 @@ Each entry in that repository is identified by a key, and that key is the `plugi
 * Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form `<prefix>::<something>` to make sure there is no name collision with Kill Bill plugin keys.
 
 
+== Deploying by Hand
+
 === Java Plugins
-
-TODO: 
-
-=== Ruby Plugins
-
-==== Prerequisites
-
-Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don't have a Ruby installation yet, use https://rvm.io/rvm/install[RVM]:
-
-[source,bash]
-----
-gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
-\curl -sSL https://get.rvm.io | bash -s stable --ruby
-----
-
-After following the post-installation instructions, you should have access to the `ruby` and `gem` executables.
-
-Install the following gems:
-
-[source,bash]
-----
-gem install bundler
-gem install jbundler
-----
-
-==== Build
-
-Follow these steps, making sure each one is successful before moving on to the next one:
-
-[source,ruby]
-----
-rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
-bundle install
-jbundle install
-# Cleanup output directories
-bundle exec rake killbill:clean
-# Build your plugin gem in the pkg/ directory
-bundle exec rake build
-# Build the Killbill plugin in the pkg/ directory
-bundle exec rake killbill:package
-----
-
-==== Examples of Plugins
-
-We provide a https://github.com/killbill/killbill-hello-world-ruby-plugin[hello world] ruby plugin that can be used as starting point. Make sure to correctly update the `*.gemspec` and the `pom.xml` to correctly reflect the gem name, and maven coordinates of your plugin.
-
-We also provide real life ruby plugins of interest:
-* The https://github.com/killbill/killbill-cybersource-plugin[Cybersource plugin] is good exmaple to look at to implement a payment plugin (one that implements the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi]) and that relies on the https://github.com/activemerchant/active_merchant[Active Merchant gem].
-* The https://github.com/killbill/killbill-avatax-plugin[Avalara plugin] is a good example to look at to implement an invoice plugin (one that implements the https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[InvoicePluginApi]).
-
-TODO: Verify the plugin is up to date and works correctly. Should that hello-world depend on `https://github.com/killbill/killbill-plugin-framework-ruby` ?
-
-
-
-=== Deploying by Hand
-
-==== Java Plugins
 
 For `java` plugins, deploying by hand consists in building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
 
@@ -176,7 +175,7 @@ java
     |_ adyen-plugin-0.3.2.jar
 ```
 
-==== Ruby Plugins
+=== Ruby Plugins
 
 For `ruby` plugins, deploying by hand consists in building the package (`tar.gz`) and untaring that package at the right place: For example, the `stripe` plugin with a version `3.0.2` would show up as the following:
 
@@ -207,19 +206,15 @@ Note that if you don't need any custom configuration, make sure to delete the de
 Also, in the case of `ruby` plugin (and as mentionned before), the correct version of the `jruby.jar` must exist (and be name that way) under the `platform` directory entry. The correct version must match the Kill Bill version (or more precisely the version of the https://github.com/killbill/killbill-platform[platform] used for the a specific version of https://github.com/killbill/killbill[killbill]).
 
 
-=== KPM
+=== Deployment Through KPM
 
 The standard way to deploy plugins is to rely on https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM].
 The https://github.com/killbill/killbill-cloud/blob/master/kpm/README.md[KPM README] explains how to install KPM and also provides some guidance on how to use it for deploy public known plugins.
 
-When developing a new plugin (or a new version of a not yet publicly released plugin), there are different ways to deploy that plugin:
-
-1. Deploy the plugin by hand
-2. Rely on KPM to make the deployment
 
 
-== Plugin Configuration
+= Plugin Configuration
 
-== Debugging Plugins
+= Debugging Plugins
 
 
