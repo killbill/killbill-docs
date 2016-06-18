@@ -2,6 +2,12 @@
 
 == Overview
 
+A typical Kill Bill deployment is comprised of several components: The core Kill Bill webapp and some plugins. Migrating the software to a higher version may require to migrate one, a few or all the different components and so potentially upgrading the database schema associated with one, a few or all of those components. The compatibility version between core Kill Bill and its plugin depends on the version of the [plugin api](https://github.com/killbill/killbill-plugin-api) exported by a given Kill Bill version. The [KPM](https://github.com/killbill/killbill-cloud/tree/master/kpm) tool allows to list compatible plugins associated with a given Kill Bill version:
+
+```
+> kpm info --version <killbill_version>
+```
+
 Kill Bill and individual plugins assume specific tables, functions, etc. are installed in your database. The source of truth for DDL files are:
 
 * In individual modules for Kill Bill, under `\*/src/main/resources/org/killbill/billing/*/ddl.sql` (for example https://github.com/killbill/killbill/tree/master/account/src/main/resources/org/killbill/billing/account/ddl.sql[account/src/main/resources/org/killbill/billing/account/ddl.sql]).
@@ -17,79 +23,15 @@ To access a specific version:
 
 == Migrations
 
-=== Kill Bill
+In order to ease the database migrations, we decided to rely on standard tools for migrating from a given version to a higher version:
 
-Starting with Kill Bill 0.16.4, SQL migrations files for https://flywaydb.org/[Flyway] are provided. They can be found on a per-module basis under `\*/src/main/resources/org/killbill/billing/*/migration/`. The versioning is based on the creation timestamp (i.e. `date +'%Y%M%d%H%M%S'`).
+* For java componenents (Kill Bill itself, java plugins), we rely on https://flywaydb.org/[Flyway]
+* For ruby components (ruby plugins, KAUI, ...), we rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]
 
-If you are familiar with the tool, Flyway will work out-of-the-box with these files. If you don't know Flyway and/or don't want to use it, you can apply the migrations manually (they are just SQL files), although this can be error prone and isn't recommended.
+In addition to these standard tools, we also enhanced our existing tooling to support the following use cases:
 
-The metadata table is called `schema_version` and can be created by using the https://flywaydb.org/documentation/command/baseline[baseline] command. For reference, here is the MySQL DDL for Flyway 4.0:
-
-```
-CREATE TABLE `schema_version` (
-  `installed_rank` int(11) NOT NULL,
-  `version` varchar(50) DEFAULT NULL,
-  `description` varchar(200) NOT NULL,
-  `type` varchar(20) NOT NULL,
-  `script` varchar(1000) NOT NULL,
-  `checksum` int(11) DEFAULT NULL,
-  `installed_by` varchar(100) NOT NULL,
-  `installed_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `execution_time` int(11) NOT NULL,
-  `success` tinyint(1) NOT NULL,
-  PRIMARY KEY (`installed_rank`),
-  KEY `schema_version_s_idx` (`success`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
-```
-
-=== Java plugins
-
-Java plugins migrations also rely on https://flywaydb.org/[Flyway] and follow a similar workflow than Kill Bill itself. They can be found in each plugin under `src/main/resources/migration/`.
-
-The metadata table should be called `<plugin_name>_schema_version`.
-
-=== Ruby plugins
-
-Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]. Migrations are located under `db/migrate/`. You can use the `killbill-migration` tool (see below) to run the migrations.
-
-The metadata table should be called `<plugin_name>_schema_migrations`, e.g.:
-
-```
-CREATE TABLE `cybersource_schema_migrations` (
-  `version` varchar(255) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
-```
-
-Note: adapt the DDL for your RDBMS engine.
-
-=== KPM
-
-KPM exposes the command `migrations` which can download migration files for Kill Bill or any plugin, between specific versions.
-
-Usage:
-
-```
-kpm migrations github_repository from_tag to_tag
-```
-
-For example, to download all migration files for Kill Bill between 0.16.3 and 0.16.4:
-
-```
-kpm migrations killbill killbill-0.16.3 killbill-0.16.4
-```
-
-Similar examples for Java and Ruby plugins:
-
-```
-kpm migrations killbill-analytics-plugin analytics-plugin-3.0.0 analytics-plugin-3.0.1
-kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2
-```
-
-Because the implementation relies on the https://developer.github.com/[GitHub API], unauthenticated requests are subject to https://developer.github.com/v3/#rate-limiting[rate limiting]. To work around it, go to https://github.com/settings/tokens to generate a token (default public, read-only, permissions will work) and specify it to KPM:
-
-```
-kpm migrations killbill killbill-0.16.3 killbill-0.16.4 --token=XXX
-```
+* Ability to download all the migration files associated with a migration from version `N` to `M` (section `KPM` below)
+* Ability to output SQL (migration files) for production systems (section `SQL output` below)
 
 === SQL output
 
@@ -129,3 +71,98 @@ PLUGIN_NAME=paypal_express USERNAME=root PASSWORD=root DB=killbill rake killbill
 ```
 
 Note that the `PLUGIN_NAME` variable needs to match the prefix of the `schema_migrations` table.
+
+=== KPM
+
+We extended [KPM](https://github.com/killbill/killbill-cloud/tree/master/kpm) with a new `migrations` verb to be able to **download migration files** that should be applied when migrating from one version to the next. 
+
+Usage:
+
+```
+kpm migrations github_repository from_tag to_tag
+```
+
+For example, to download all migration files for Kill Bill between 0.16.3 and 0.16.4:
+
+```
+kpm migrations killbill killbill-0.16.3 killbill-0.16.4
+```
+
+Similar examples for Java and Ruby plugins:
+
+```
+kpm migrations killbill-analytics-plugin analytics-plugin-3.0.0 analytics-plugin-3.0.1
+kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2
+```
+
+Because the implementation relies on the https://developer.github.com/[GitHub API], unauthenticated requests are subject to https://developer.github.com/v3/#rate-limiting[rate limiting]. To work around it, go to https://github.com/settings/tokens to generate a token (default public, read-only, permissions will work) and specify it to KPM:
+
+```
+kpm migrations killbill killbill-0.16.3 killbill-0.16.4 --token=XXX
+```
+
+=== Kill Bill
+
+Starting with Kill Bill 0.16.4, SQL migrations files for Flyway are provided. They can be found on a per-module basis under `\*/src/main/resources/org/killbill/billing/*/migration/`. The versioning is based on the creation timestamp (i.e. `date +'%Y%M%d%H%M%S'`) and must be unique for each file so as to indicate the ordering (what Flyway calls the `version_rank`).
+
+==== Baseline
+
+For Flyway migrations to work correctly, there is an initial https://flywaydb.org/documentation/command/baseline[baseline] operation that needs to happens so as to create the metadata table, called `schema_version`. In the scenario where a developer can run its own migrations, the following command would be run:
+
+```
+flyway -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=<USERNAME> -password=<PASSWORD> baseline
+```
+
+In the production scenario, the `schema_version` along with the initial version would have to be created manually:
+
+```
+CREATE TABLE `schema_version` (
+  `installed_rank` int(11) NOT NULL,
+  `version` varchar(50) DEFAULT NULL,
+  `description` varchar(200) NOT NULL,
+  `type` varchar(20) NOT NULL,
+  `script` varchar(1000) NOT NULL,
+  `checksum` int(11) DEFAULT NULL,
+  `installed_by` varchar(100) NOT NULL,
+  `installed_on` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `execution_time` int(11) NOT NULL,
+  `success` tinyint(1) NOT NULL,
+  PRIMARY KEY (`installed_rank`),
+  KEY `schema_version_s_idx` (`success`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+
+insert into schema_version (version_rank, installed_rank, version, description, type, script, installed_by, installed_on, execution_time, success) VALUES (1,1, 1, '<< Flyway Baseline >>', 'BASELINE', '<< Flyway Baseline >>', 'admin', NOW(), 0, 1);
+
+==== Migration from version `N` to `M`
+
+A typical migration from version `N` to `M` will require to first identify the set of migrations files that should be applied and then either apply them using Flyway commands or manually (production use case).
+
+
+```
+# Will download migration files in a tenp folder (e.g /var/folders/XXX)
+> kpm migrations killbill killbill-N killbill-M --token='GITHUB_TOKEN'
+
+# If using flyway is an option
+> flyway -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=<USERNAME> -password=<PASSWORD>  -locations=filesystem:/var/folders/XXX migrate 
+
+```
+
+=== Java plugins
+
+Java plugins migrations also rely on https://flywaydb.org/[Flyway] and follow a similar workflow than Kill Bill itself. They can be found in each plugin under `src/main/resources/migration/`.
+
+The metadata table should be called `<plugin_name>_schema_version`.
+
+=== Ruby plugins
+
+Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]. Migrations are located under `db/migrate/`. You can use the `killbill-migration` tool (see below) to run the migrations.
+
+The metadata table should be called `<plugin_name>_schema_migrations`, e.g.:
+
+```
+CREATE TABLE `cybersource_schema_migrations` (
+  `version` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+```
+
+Note: adapt the DDL for your RDBMS engine.
