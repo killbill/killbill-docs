@@ -483,22 +483,23 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_overview">Overview</a></li>
 <li><a href="#_migrations">Migrations</a>
 <ul class="sectlevel2">
+<li><a href="#_kpm">KPM</a></li>
 <li><a href="#_sql_output">SQL output</a>
 <ul class="sectlevel3">
 <li><a href="#_java">Java</a></li>
 <li><a href="#_ruby">Ruby</a></li>
 </ul>
 </li>
-<li><a href="#_kpm">KPM</a></li>
 <li><a href="#_kill_bill">Kill Bill</a>
 <ul class="sectlevel3">
 <li><a href="#_baseline">Baseline</a></li>
+<li><a href="#_migration_from_version_code_n_code_to_code_m_code">Migration from version <code>N</code> to <code>M</code></a></li>
 </ul>
 </li>
+<li><a href="#_java_plugins">Java plugins</a></li>
+<li><a href="#_ruby_plugins">Ruby plugins</a></li>
 </ul>
 </li>
-<li><a href="#_will_download_migration_files_in_a_tenp_folder_e_g_var_folders_xxx">Will download migration files in a tenp folder (e.g /var/folders/XXX)</a></li>
-<li><a href="#_if_using_flyway_is_an_option">If using flyway is an option</a></li>
 </ul>
 </div>
 </div>
@@ -507,15 +508,15 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_overview">Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A typical Kill Bill deployment is comprised of several components: The core Kill Bill webapp and some plugins. Migrating the software to a higher version may require to migrate one, a few or all the different components and so potentially upgrading the database schema associated with one, a few or all of those components. The compatibility version between core Kill Bill and its plugin depends on the version of the [plugin api](<a href="https://github.com/killbill/killbill-plugin-api" class="bare">https://github.com/killbill/killbill-plugin-api</a>) exported by a given Kill Bill version. The [KPM](<a href="https://github.com/killbill/killbill-cloud/tree/master/kpm" class="bare">https://github.com/killbill/killbill-cloud/tree/master/kpm</a>) tool allows to list compatible plugins associated with a given Kill Bill version:</p>
+<p>A typical Kill Bill deployment is comprised of several components: The core Kill Bill webapp and some plugins. Migrating the software to a higher version may require to migrate one, a few or all the different components and so potentially upgrading the database schema associated with one, a few or all of those components. The compatibility version between core Kill Bill and its plugins depends on the version of the <a href="https://github.com/killbill/killbill-plugin-api">plugin api</a> exported by a given Kill Bill version. The <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a> tool allows to list compatible plugins associated with a given Kill Bill version:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code>&gt; kpm info --version &lt;killbill_version&gt;</code></pre>
+<pre class="pygments highlight"><code>kpm info --version &lt;killbill_version&gt;</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Kill Bill and individual plugins assume specific tables, functions, etc. are installed in your database. The source of truth for DDL files are:</p>
+<p>Kill Bill and individual plugins assume specific tables, functions, etc. are installed in your database. The source of truth for the schema (DDL) files are:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -531,7 +532,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </div>
 <div class="paragraph">
-<p>These files always contain the latest version, matching the latest code in that specific branch.</p>
+<p>These files always contain the latest version, matching the latest code in that specific branch/tag.</p>
 </div>
 <div class="paragraph">
 <p>To access a specific version:</p>
@@ -552,7 +553,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_migrations">Migrations</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>In order to ease the database migrations, we decided to rely on standard tools for migrating from a given version to a higher version:</p>
+<p>In order to ease the database migrations, we decided to rely on standard tools for migrating from one given version to a higher version:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -570,12 +571,51 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>Ability to download all the migration files associated with a migration from version <code>N</code> to <code>M</code> (section <code>KPM</code> below)</p>
+<p>Ability to download all the migration files associated with a migration from version <code>N</code> to <code>M</code> (see section <code>KPM</code> below)</p>
 </li>
 <li>
-<p>Ability to output SQL (migration files) for production systems (section <code>SQL output</code> below)</p>
+<p>Ability to output SQL (migration files) for production systems (see section <code>SQL output</code> below)</p>
 </li>
 </ul>
+</div>
+<div class="sect2">
+<h3 id="_kpm">KPM</h3>
+<div class="paragraph">
+<p>We extended [KPM](<a href="https://github.com/killbill/killbill-cloud/tree/master/kpm" class="bare">https://github.com/killbill/killbill-cloud/tree/master/kpm</a>) with a new <code>migrations</code> verb to be able to <strong>download migration files</strong> that should be applied when migrating from one version to the next.</p>
+</div>
+<div class="paragraph">
+<p>Usage:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations github_repository from_tag to_tag</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For example, to download all migration files for Kill Bill between 0.16.3 and 0.16.4:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations killbill killbill-0.16.3 killbill-0.16.4</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Similar examples for Java and Ruby plugins:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations killbill-analytics-plugin analytics-plugin-3.0.0 analytics-plugin-3.0.1
+kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Because the implementation relies on the <a href="https://developer.github.com/">GitHub API</a>, unauthenticated requests are subject to <a href="https://developer.github.com/v3/#rate-limiting">rate limiting</a>. To work around it, go to <a href="https://github.com/settings/tokens" class="bare">https://github.com/settings/tokens</a> to generate a token (default public, read-only, permissions will work) and specify it to KPM:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kpm migrations killbill killbill-0.16.3 killbill-0.16.4 --token=TOKEN</code></pre>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_sql_output">SQL output</h3>
@@ -592,7 +632,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code>java -jar killbill-flyway.jar -locations=filesystem:XXX dryRunMigrate</code></pre>
+<pre class="pygments highlight"><code># /var/folders/tmp/migrations is the directory where the migration files were downoaded (using kpm migrate)
+java -jar killbill-flyway.jar -locations=filesystem:/var/folders/tmp/migrations -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=&lt;USERNAME&gt; -password=&lt;PASSWORD&gt; dryRunMigrate</code></pre>
 </div>
 </div>
 </div>
@@ -631,45 +672,6 @@ PLUGIN_NAME=paypal_express USERNAME=root PASSWORD=root DB=killbill rake killbill
 </div>
 </div>
 <div class="sect2">
-<h3 id="_kpm">KPM</h3>
-<div class="paragraph">
-<p>We extended [KPM](<a href="https://github.com/killbill/killbill-cloud/tree/master/kpm" class="bare">https://github.com/killbill/killbill-cloud/tree/master/kpm</a>) with a new <code>migrations</code> verb to be able to <strong>download migration files</strong> that should be applied when migrating from one version to the next.</p>
-</div>
-<div class="paragraph">
-<p>Usage:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>kpm migrations github_repository from_tag to_tag</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>For example, to download all migration files for Kill Bill between 0.16.3 and 0.16.4:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>kpm migrations killbill killbill-0.16.3 killbill-0.16.4</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Similar examples for Java and Ruby plugins:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>kpm migrations killbill-analytics-plugin analytics-plugin-3.0.0 analytics-plugin-3.0.1
-kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Because the implementation relies on the <a href="https://developer.github.com/">GitHub API</a>, unauthenticated requests are subject to <a href="https://developer.github.com/v3/#rate-limiting">rate limiting</a>. To work around it, go to <a href="https://github.com/settings/tokens" class="bare">https://github.com/settings/tokens</a> to generate a token (default public, read-only, permissions will work) and specify it to KPM:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>kpm migrations killbill killbill-0.16.3 killbill-0.16.4 --token=XXX</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
 <h3 id="_kill_bill">Kill Bill</h3>
 <div class="paragraph">
 <p>Starting with Kill Bill 0.16.4, SQL migrations files for Flyway are provided. They can be found on a per-module basis under <code>*/src/main/resources/org/killbill/billing/*/migration/</code>. The versioning is based on the creation timestamp (i.e. <code>date +'%Y%M%d%H%M%S'</code>) and must be unique for each file so as to indicate the ordering (what Flyway calls the <code>version_rank</code>).</p>
@@ -704,62 +706,52 @@ kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2</code></pre>
   KEY `schema_version_s_idx` (`success`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 
-insert into schema_version (version_rank, installed_rank, version, description, type, script, installed_by, installed_on, execution_time, success) VALUES (1,1, 1, '&lt;&lt; Flyway Baseline &gt;&gt;', 'BASELINE', '&lt;&lt; Flyway Baseline &gt;&gt;', 'admin', NOW(), 0, 1);
-
-==== Migration from version `N` to `M`
-
-A typical migration from version `N` to `M` will require to first identify the set of migrations files that should be applied and then either apply them using Flyway commands or manually (production use case).</code></pre>
+insert into schema_version (version_rank, installed_rank, version, description, type, script, installed_by, installed_on, execution_time, success) VALUES (1,1, 1, '&lt;&lt; Flyway Baseline &gt;&gt;', 'BASELINE', '&lt;&lt; Flyway Baseline &gt;&gt;', 'admin', NOW(), 0, 1);</code></pre>
 </div>
 </div>
 </div>
-</div>
-</div>
-</div>
-<h1 id="_will_download_migration_files_in_a_tenp_folder_e_g_var_folders_xxx" class="sect0">Will download migration files in a tenp folder (e.g /var/folders/XXX)</h1>
-<div class="openblock partintro">
-<div class="content">
-<div class="quoteblock">
-<blockquote>
+<div class="sect3">
+<h4 id="_migration_from_version_code_n_code_to_code_m_code">Migration from version <code>N</code> to <code>M</code></h4>
 <div class="paragraph">
-<p>kpm migrations killbill killbill-N killbill-M --token='GITHUB_TOKEN'</p>
-</div>
-</blockquote>
-</div>
-</div>
-</div>
-<h1 id="_if_using_flyway_is_an_option" class="sect0">If using flyway is an option</h1>
-<div class="openblock partintro">
-<div class="content">
-<div class="quoteblock">
-<blockquote>
-<div class="paragraph">
-<p>flyway -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=&lt;USERNAME&gt; -password=&lt;PASSWORD&gt;  -locations=filesystem:/var/folders/XXX migrate</p>
-</div>
-</blockquote>
+<p>A typical migration from version <code>N</code> to <code>M</code> will require to first identify the set of migrations files that should be applied and then either apply them using Flyway commands or manually (production use case).</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code>=== Java plugins
+<pre class="pygments highlight"><code># Will download migration files in a temporary folder (e.g /var/folders/XXX)
+kpm migrations killbill killbill-N killbill-M --token='GITHUB_TOKEN'
 
-Java plugins migrations also rely on https://flywaydb.org/[Flyway] and follow a similar workflow than Kill Bill itself. They can be found in each plugin under `src/main/resources/migration/`.
-
-The metadata table should be called `&lt;plugin_name&gt;_schema_version`.
-
-=== Ruby plugins
-
-Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]. Migrations are located under `db/migrate/`. You can use the `killbill-migration` tool (see below) to run the migrations.
-
-The metadata table should be called `&lt;plugin_name&gt;_schema_migrations`, e.g.:</code></pre>
+# If using flyway is an option
+flyway -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=&lt;USERNAME&gt; -password=&lt;PASSWORD&gt;  -locations=filesystem:/var/folders/XXX migrate</code></pre>
 </div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_java_plugins">Java plugins</h3>
+<div class="paragraph">
+<p>Java plugins migrations also rely on <a href="https://flywaydb.org/">Flyway</a> and follow a similar workflow than Kill Bill itself. They can be found in each plugin under <code>src/main/resources/migration/</code>.</p>
 </div>
 <div class="paragraph">
-<p>CREATE TABLE <code>cybersource_schema_migrations</code> (
-  <code>version</code> varchar(255) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8</p>
+<p>The metadata table should be called <code>&lt;plugin_name&gt;_schema_version</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_ruby_plugins">Ruby plugins</h3>
+<div class="paragraph">
+<p>Ruby plugins migrations rely on <a href="http://edgeguides.rubyonrails.org/active_record_migrations.html">Active Record migrations</a>. Migrations are located under <code>db/migrate/</code>. You can use the <code>killbill-migration</code> tool (see below) to run the migrations.</p>
+</div>
+<div class="paragraph">
+<p>The metadata table should be called <code>&lt;plugin_name&gt;_schema_migrations</code>, e.g.:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code>Note: adapt the DDL for your RDBMS engine.</code></pre>
+<pre class="pygments highlight"><code>CREATE TABLE `cybersource_schema_migrations` (
+  `version` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note: adapt the DDL for your RDBMS engine.</p>
 </div>
 </div>
 </div>
@@ -767,7 +759,7 @@ The metadata table should be called `&lt;plugin_name&gt;_schema_migrations`, e.g
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-06-18 19:32:18 UTC
+Last updated 2016-06-18 22:32:10 UTC
 </div>
 </div>
 </body>
