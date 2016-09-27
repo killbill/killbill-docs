@@ -7,7 +7,7 @@
 Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on http://shiro.apache.org/[shiro] for the backend implementation.
 
 
-Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the `api_key`/`api_secret` for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant,...
+Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the `api_key`/`api_secret` for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant.
 
 
 = User Management APIs
@@ -25,7 +25,7 @@ For simple deployments where only few static users/roles need to be assigned, th
 
 Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:
 
-* The `shiro.ini` file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity we will call it superadmin will assign one role containing all permissions.
+* The `shiro.ini` file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity, we will call it `superadmin` and will assign one role containing all permissions.
 * Once deployed, the 'superadmin' is now able to make api calls to configure new users/roles.
 
 The `shiro.ini` file will look like the following:
@@ -139,26 +139,23 @@ curl -v \
 = KAUI
 
 
-KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in http://killbill.io/blog/multi-tenancy-authorization[our previous blog post}.
+KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in http://killbill.io/blog/multi-tenancy-authorization[our previous blog post].
 
-However KAUI does not yet have the flexibility to manage the user/roles/permissions, and also requires making each user known available.
+As far as user configuration goes, this is all done on the server side and so KAUI does not export a way to add users, configure roles and associated permissions. As long as the user is correctly configured on the server side (either statically in `shiro.ini`, or in the database through the use of the apis we have shown previously, or by relying on an external LDAP configuration), the login process through KAUI should work.
 
+However, KAUI needs to be told about the relashionship between user and tenants. This mapping is specific to the UI and on the server side, as long as the user connects using the right credentials, and specifying the right tenant `api_key` and `api_secret`, things will work. The idea, is that a super admin would first configure the allowed users for each specific tenant on the KAUI side, in such a way that later when a specific user logs in, he only sees the tenants he has access to.
 
-== Initial Configuration
+As far as tenant configuration goes, it is possible to create tenants directly from KAUI, or such tenants can also be created using apis (outside of KAUI). In the later case, KAUI needs to be told that such tenants exists (there is no auto-discovery); and then as discussed earlier mappings between tenants and allowed users need to be made inside KAUI.
 
-However the catch-22 situation described in the previous section to configure the very first user remains true both for killbill and KAUI:
+== Summary
 
-* For killbill server, we already described the initial configuration through the `shiro.ini` file
-* For KAUI, we need to also make that admin account visible (this is a small limitation configuration). Note that the credentials, roles,... associated to that account are entirely managed on the server side (killbill) so there is no duplication or security holes.
+1. User, roles, permissions need to be configured on the server side (`shiro.ini`, database, LDAP)
+2. Tenants can then be created (using a user whole role's permissions allow such operation)
+3. Mapping between tenant and allowed users need to be defined in KAUI
 
-In the `kaui` database, insert the initial entry for the `superadmin`:
-```
-insert into kaui_allowed_users (kb_username, description, created_at, updated_at) values ('superadmin', 'super admin', NOW(), NOW());
-```
+== Default `admin` user
 
-== Adding new Allowed User
+By default both Kill Bill (`shiro.ini`) and KAUI ship with an `admin` user (and its password `password`) that has all the permissions. One can immediatley log-in to KAUI using such user, and start configuring tenants as needed.
 
-Before our new `cs` user can be able to login to KAUI, the `superadmin` must make it visible. The screen `/admin_allowed_users` (the top right icon will bring you there), allows to enter that user. Only the name and a descriuption needs to be entered (and not the credentials/roles which are managed by the backend) need to be entered.
-
-After entering a new user, the UI will allow to select the tenants this user has access to.
+Changing such user (e.g to use `superadmin`), would require editing `shiro.ini` on the Kill Bill side to making sure this initial user can log-in to KAUI.
 
