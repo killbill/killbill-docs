@@ -489,8 +489,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 <li><a href="#_kaui">KAUI</a>
 <ul class="sectlevel1">
-<li><a href="#_summary">Summary</a></li>
-<li><a href="#_default_code_admin_code_user">Default <code>admin</code> user</a></li>
+<li><a href="#_initial_configuration">Initial Configuration</a></li>
+<li><a href="#_adding_new_allowed_user">Adding new Allowed User</a></li>
 </ul>
 </li>
 </ul>
@@ -509,7 +509,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on <a href="http://shiro.apache.org/">shiro</a> for the backend implementation.</p>
 </div>
 <div class="paragraph">
-<p>Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the <code>api_key</code>/<code>api_secret</code> for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant.</p>
+<p>Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the <code>api_key</code>/<code>api_secret</code> for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant,&#8230;&#8203;</p>
 </div>
 </div>
 </div>
@@ -542,7 +542,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>The <code>shiro.ini</code> file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity, we will call it <code>superadmin</code> and will assign one role containing all permissions.</p>
+<p>The <code>shiro.ini</code> file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity we will call it superadmin will assign one role containing all permissions.</p>
 </li>
 <li>
 <p>Once deployed, the 'superadmin' is now able to make api calls to configure new users/roles.</p>
@@ -672,52 +672,54 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="openblock partintro">
 <div class="content">
 <div class="paragraph">
-<p>KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in <a href="http://killbill.io/blog/multi-tenancy-authorization">our previous blog post</a>.</p>
+<p>KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in <a href="http://killbill.io/blog/multi-tenancy-authorization" class="bare">http://killbill.io/blog/multi-tenancy-authorization</a>[our previous blog post}.</p>
 </div>
 <div class="paragraph">
-<p>As far as user configuration goes, this is all done on the server side and so KAUI does not export a way to add users, configure roles and associated permissions. As long as the user is correctly configured on the server side (either statically in <code>shiro.ini</code>, or in the database through the use of the apis we have shown previously, or by relying on an external LDAP configuration), the login process through KAUI should work.</p>
-</div>
-<div class="paragraph">
-<p>However, KAUI needs to be told about the relashionship between user and tenants. This mapping is specific to the UI and on the server side, as long as the user connects using the right credentials, and specifying the right tenant <code>api_key</code> and <code>api_secret</code>, things will work. The idea, is that a super admin would first configure the allowed users for each specific tenant on the KAUI side, in such a way that later when a specific user logs in, he only sees the tenants he has access to.</p>
-</div>
-<div class="paragraph">
-<p>As far as tenant configuration goes, it is possible to create tenants directly from KAUI, or such tenants can also be created using apis (outside of KAUI). In the later case, KAUI needs to be told that such tenants exists (there is no auto-discovery); and then as discussed earlier mappings between tenants and allowed users need to be made inside KAUI.</p>
+<p>However KAUI does not yet have the flexibility to manage the user/roles/permissions, and also requires making each user known available.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_summary">Summary</h2>
+<h2 id="_initial_configuration">Initial Configuration</h2>
 <div class="sectionbody">
-<div class="olist arabic">
-<ol class="arabic">
+<div class="paragraph">
+<p>However the catch-22 situation described in the previous section to configure the very first user remains true both for killbill and KAUI:</p>
+</div>
+<div class="ulist">
+<ul>
 <li>
-<p>User, roles, permissions need to be configured on the server side (<code>shiro.ini</code>, database, LDAP)</p>
+<p>For killbill server, we already described the initial configuration through the <code>shiro.ini</code> file</p>
 </li>
 <li>
-<p>Tenants can then be created (using a user whole role&#8217;s permissions allow such operation)</p>
+<p>For KAUI, we need to also make that admin account visible (this is a small limitation configuration). Note that the credentials, roles,&#8230;&#8203; associated to that account are entirely managed on the server side (killbill) so there is no duplication or security holes.</p>
 </li>
-<li>
-<p>Mapping between tenant and allowed users need to be defined in KAUI</p>
-</li>
-</ol>
+</ul>
+</div>
+<div class="paragraph">
+<p>In the <code>kaui</code> database, insert the initial entry for the <code>superadmin</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>insert into kaui_allowed_users (kb_username, description, created_at, updated_at) values ('superadmin', 'super admin', NOW(), NOW());</code></pre>
+</div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_default_code_admin_code_user">Default <code>admin</code> user</h2>
+<h2 id="_adding_new_allowed_user">Adding new Allowed User</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>By default both Kill Bill (<code>shiro.ini</code>) and KAUI ship with an <code>admin</code> user (and its password <code>password</code>) that has all the permissions. One can immediatley log-in to KAUI using such user, and start configuring tenants as needed.</p>
+<p>Before our new <code>cs</code> user can be able to login to KAUI, the <code>superadmin</code> must make it visible. The screen <code>/admin_allowed_users</code> (the top right icon will bring you there), allows to enter that user. Only the name and a descriuption needs to be entered (and not the credentials/roles which are managed by the backend) need to be entered.</p>
 </div>
 <div class="paragraph">
-<p>Changing such user (e.g to use <code>superadmin</code>), would require editing <code>shiro.ini</code> on the Kill Bill side to making sure this initial user can log-in to KAUI.</p>
+<p>After entering a new user, the UI will allow to select the tenants this user has access to.</p>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-11-13 07:40:14 UTC
+Last updated 2016-12-08 07:20:15 UTC
 </div>
 </div>
 </body>

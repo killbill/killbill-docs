@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill tutorial</title>
+<title>Recurring subscriptions with multiple payment gateways</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,7 +476,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill tutorial</h1>
+<h1>Recurring subscriptions with multiple payment gateways</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
@@ -543,7 +543,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Let&#8217;s assume you want to build a site similar to Amazon Prime, i.e. an e-commerce website which offers a shopping cart and where paying subscribers have extra benefits (discounts, free shipping, etc.). You want to accept both credit cards and PayPal as means of payment.</p>
 </div>
 <div class="paragraph">
-<p>Note that we won&#8217;t go into the details of building the actual website, we will assume you already have a front-end (Rails app, JSP webapp, etc.). Kill Bill will handle all subscriptions and payments as a separate service, and your application  will communicate with Kill Bill over HTTP APIs.</p>
+<p>Kill Bill will handle all subscriptions and payments as a separate service, and your application will communicate with Kill Bill over HTTP APIs.</p>
+</div>
+<div class="paragraph">
+<p>Note that we won&#8217;t go into the details of building the actual website, we will assume you already have a front-end (Rails app, JSP webapp, etc.). You can also take a look at the following <a href="https://github.com/killbill/killbill-stripe-demo">Stripe</a> and <a href="https://github.com/killbill/killbill-paypal-demo">PayPal</a> demo websites, to help you with the front-end integration.</p>
 </div>
 </div>
 <div class="sect2">
@@ -560,7 +563,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>You have MySQL installed and have created a killbill database</p>
 </li>
 <li>
-<p>You have <a href="http://curl.haxx.se/">cURL</a> installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our <a href="http://killbill.io/userguide/">client libraries</a></p>
+<p>You have <a href="http://curl.haxx.se/">cURL</a> installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our <a href="http://docs.killbill.io/">client libraries</a></p>
 </li>
 </ul>
 </div>
@@ -599,7 +602,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Create a free account at <a href="https://developer.paypal.com">paypal.com</a></p>
 </li>
 <li>
-<p>Go to your <a href="https://developer.paypal.com/webapps/developer/applications/account">Dashboard</a> and click Create Account (You need both a Personal and one Business account). The Business account is for the merchant that will receive the money and the Personal account is for the customer that will purchase the subscription.</p>
+<p>Go to your <a href="https://developer.paypal.com/webapps/developer/applications/account">Dashboard</a> and click Create Account (You need both a Personal and a Business account). The Business account is for the merchant that will receive the money and the Personal account is for the customer that will purchase the subscription.</p>
 </li>
 <li>
 <p>Login to the sandbox using the Personal account credentials and add some money</p>
@@ -612,7 +615,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>Go to <a href="https://ppmts.custhelp.com">PayPal Technical Support</a></p>
+<p>Go to <a href="https://www.paypal-techsupport.com/">PayPal Technical Support</a></p>
 </li>
 <li>
 <p>Create a ticket and ask to "Enable reference transactions for the Sandbox account XXXXX". Replace XXX with the API username of the Business test account you created (to see the username, click on Profile in the dashboard under the email address of the account, then click on the API credentials tab)</p>
@@ -650,35 +653,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect3">
 <h4 id="_stripe_setup">Stripe setup</h4>
 <div class="paragraph">
-<p>Create the Stripe configuration file (replace your credentials accordingly):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:stripe</span><span class="tok-p">:</span>
-  <span class="tok-ss">:api_secret_key</span><span class="tok-p">:</span> <span class="tok-s1">&#39;sk_test_aaaabbbbccccdddd&#39;</span>
-  <span class="tok-ss">:test</span><span class="tok-p">:</span> <span class="tok-kp">true</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Then upload it to Kill Bill by going to your <a href="http://127.0.0.1:8080/kaui/admin_tenants/1">tenant configuration page</a> and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-stripe).</p>
+<p>Go to your <a href="http://127.0.0.1:8080/kaui/admin_tenants/1">tenant configuration page</a> and select the "Plugin Config" tab at the bottom. Enter stripe as the plugin name and the UI will prompt you for the secret key.</p>
 </div>
 </div>
 <div class="sect3">
 <h4 id="_paypal_setup">PayPal setup</h4>
 <div class="paragraph">
-<p>Configure the Stripe configuration file (replace your credentials accordingly):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="ruby"><span class="tok-ss">:paypal_express</span><span class="tok-p">:</span>
-  <span class="tok-ss">:signature</span><span class="tok-p">:</span> <span class="tok-s1">&#39;your-paypal-signature&#39;</span>
-  <span class="tok-ss">:login</span><span class="tok-p">:</span> <span class="tok-s1">&#39;your-username-facilitator.something.com&#39;</span>
-  <span class="tok-ss">:password</span><span class="tok-p">:</span> <span class="tok-s1">&#39;your-password&#39;</span>
-  <span class="tok-ss">:test</span><span class="tok-p">:</span> <span class="tok-kp">true</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Similarly, upload it to Kill Bill by going to your <a href="http://127.0.0.1:8080/kaui/admin_tenants/1">tenant configuration page</a> and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-paypal-express).</p>
+<p>Similarly, go to your <a href="http://127.0.0.1:8080/kaui/admin_tenants/1">tenant configuration page</a> and select the "Plugin Config" tab at the bottom. Enter paypal as the plugin name and the UI will prompt you for the signature, login and password.</p>
 </div>
 </div>
 </div>
@@ -757,6 +738,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>This will create a new payment method and set is as the default for the account. If you load the account page in Kaui, you should now see the payment method.</p>
 </div>
+<div class="paragraph">
+<p>A demo of that integration is available <a href="https://github.com/killbill/killbill-stripe-demo">here</a>.</p>
+</div>
 </div>
 <div class="sect3">
 <h4 id="_paypal_2">PayPal</h4>
@@ -790,7 +774,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Kill Bill will return a 302 Found on success. The customer should be redirected to the url specified in the Location header, e.g. <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&amp;token=EC-20G53990M6953444J" class="bare">https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&amp;token=EC-20G53990M6953444J</a>.</p>
 </div>
 <div class="paragraph">
-<p>Follow the link to log to the paypal site: On the PayPal site, the user will be guided through the approval process to create a token for your website.</p>
+<p>Follow the link to log to the paypal site: on the PayPal site, the user will be guided through the approval process to create a token for your website.</p>
 </div>
 <div class="paragraph">
 <p>Once that step is completed, the customer comes back from the PayPal flow, you can now create the payment method in Kill Bill by specifyfing the token that was returned in the setup-checkout step (e.g. EC-20G53990M6953444J). Note that this token is now associated to the customer who was redirected to Paypal and accepted the agreement.</p>
@@ -820,6 +804,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div class="paragraph">
 <p>If you load the account page in Kaui, you should now see the two payment methods.</p>
+</div>
+<div class="paragraph">
+<p>A demo of that integration is available <a href="https://github.com/killbill/killbill-paypal-demo">here</a>.</p>
 </div>
 </div>
 </div>
@@ -1075,7 +1062,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-11-13 07:40:14 UTC
+Last updated 2016-12-08 07:20:15 UTC
 </div>
 </div>
 </body>
