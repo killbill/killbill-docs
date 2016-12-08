@@ -152,9 +152,9 @@ We also provide a collection of https://github.com/killbill/killbill-plugin-fram
 
 In its simplest form, deploying a plugin means placing the plugin binary at the right place on the filesystem. Kill Bill will scan the filesystem on startup and will start all the plugins that were detected.
 Kill Bill will use the value of the system property `org.killbill.osgi.bundle.install.dir` to determine the root of plugin directory structure.
-By default, this value is set to `/var/tmp/bundles`, as indicated by the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.22/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L44[Kill Bill OSGIConfig file].
+By default, this value is set to `/var/tmp/bundles`, as indicated by the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.36.2/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L44[Kill Bill OSGIConfig file].
 
-The directory structure looks like following:
+The directory structure looks like the following:
 
 ```
 root (org.killbill.osgi.bundle.install.dir)
@@ -168,10 +168,10 @@ root (org.killbill.osgi.bundle.install.dir)
 
 Under `platform`, we will find the following:
 
-* `jruby.jar` : the Runtime jruby jar that is loaded into killbill for each ruby plugin
-* A set of http://felix.apache.org/downloads.cgi[pure OSGI plugins] (unrelated to Kill Bill plugin) and required for things like OSGI logging, OSGI console, ...
+* `jruby.jar` : the Runtime JRuby jar that is loaded into killbill for each ruby plugin
+* A set of http://felix.apache.org/downloads.cgi[pure OSGI bundles] (unrelated to Kill Bill plugins) and required for things like OSGI logging, OSGI console, ...
 
-Under `java` and `ruby`, we will find one entry per plugin, and then followed by one entry per version.
+Under `java` and `ruby`, we will find one entry per plugin per version.
 For instance, if we had installed two versions for the ruby `stripe` plugin, we would see the following (`SET_DEFAULT` is a symbolic link that point to the default active version):
 
 ```
@@ -182,24 +182,19 @@ ruby
   |_ SET_DEFAULT
 ```
 
-The file `sha1.yml` is a used by the `KPM` tool to keep track of artifacts that were already downloaded to avoid dwonloading things already present on the filesystem. KPM also offers the `--force-download` to overide that behavior.
-
+The file `sha1.yml` is a used by the `KPM` tool to keep track of artifacts that were already downloaded to avoid dwonloading binaries already present on the filesystem. KPM also offers the `--force-download` to override that behavior.
 
 The file `plugin_identifiers.json` is used to keep a mapping between the `pluginKey` (the user visible plugin identifer), and the `pluginName` (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.
 
-=== Plugin Coordinates, Plugin Key, Plugin Name...
+=== Plugin Coordinates, Plugin Key, Plugin Name, ...
 
-Today, both our `ruby` and `java` plugins are released through maven and are therefore identified through their maven coordinates.
-We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins.
-Plugin Coordinates are a bit heavy to manipulate after the download was made, and also they don't solve the case of a non published plugins (typical use case for a plugin being developed), so we introduced some identifers.
+Today, both our `ruby` and `java` plugins are released through maven and are therefore identified through their maven coordinates. We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins. Plugin Coordinates are too cumbersome to manipulate though and are unsuitable for non-published plugins (typical use case for a plugin being developed), so we introduced some identifers.
 
+As mentioned earlier, Kill Bill will scan the filesystem (`org.killbill.osgi.bundle.install.dir`) on start-up to detect and then start all the plugins. The name on the filesystem (e.g. in our previous example `killbill-stripe`) constitutes what we call the **`pluginName`**.
 
-As mentioned earlier, Kill Bill will scan the filesystem (`org.killbill.osgi.bundle.install.dir`) on start-up to detect and then start all the plugins. The name on the filesystem (e.g in our previous example `killbill-stripe`) constitutes what we call the **`pluginName`**
-When installing using KPM, the `pluginName` is dependent on how the plugin was packaged and also differs between ruby and java. For well known publicly available Kill Bill plugins, we adopted a (sane) convention, but we have no way to enforce that convention for third party plugins.
-Also, note that we could change the name of `killbill-stripe` to `foo` on the filesystem (`mv killbill-stripe foo`) and then suddenly Kill Bill would see that plugin as being the `foo` plugin.
-Therefore, the `pluginName` is not a reliable way to identify the plugin, and is used solely by Kill Bill as an runtime identifier.
+When installing using KPM, the `pluginName` is dependent on how the plugin was packaged and also differs between ruby and java. For well known publicly available Kill Bill plugins, we adopted a (sane) convention, but we have no way to enforce that convention for third party plugins. Also, note that we could change the name of `killbill-stripe` to `foo` on the filesystem (`mv killbill-stripe foo`) and then suddenly Kill Bill would see that plugin as being the `foo` plugin. Therefore, the `pluginName` is not a reliable way to identify the plugin, and is used solely by Kill Bill as an runtime identifier.
 
-The `pluginKey` is the identifier for the plugin and is used for all the user visible operations, whether through KPM command line tool or whether using the http://docs.killbill.io/0.16/plugin_management.html[Plugin Management APIs].
+The `pluginKey` is the identifier for the plugin and is used for all the user visible operations, whether through the KPM command line tool or whether using the http://docs.killbill.io/0.16/plugin_management.html[Plugin Management APIs].
 There is a distinction to be made between publicly released Kill Bill plugins and third party plugins:
 
 * (Publicly Released) Kill Bill Plugins: All the plugins developed by the Kill Bill core team are maintained in a https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[repository] (we provide today a simple file-based repository, but this may change in the future as we start accepting certified third-party plugins).
@@ -211,7 +206,7 @@ Each entry in that repository is identified by a key, and that key is the `plugi
 
 === Java Plugins
 
-For `java` plugins, deploying by hand consists in building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
+For `java` plugins, deploying by hand consists of building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
 
 ```
 java
@@ -261,20 +256,20 @@ The https://github.com/killbill/killbill-cloud/blob/master/kpm/README.md[KPM REA
 
 == System Properties
 
-As described previoulsy, Kill Bill plugins are started with access to system properties through the use of a special interface https://github.com/killbill/killbill-platform/blob/master/osgi-api/src/main/java/org/killbill/billing/osgi/api/OSGIConfigProperties.java[OSGIConfigProperties]. System properties passed to the JVM are then accessible to the plugins and can be used to tweak the behavior of the plugin as needed.
+Kill Bill plugins can access Kill Bill properties through the use of a special interface https://github.com/killbill/killbill-platform/blob/master/osgi-api/src/main/java/org/killbill/billing/osgi/api/OSGIConfigProperties.java[OSGIConfigProperties]. System properties passed to the JVM and properties from the `killbill.properties` configuration file are then accessible to the plugins and can be used to tweak the behavior of the plugin as needed.
 
 == Configuration File
 
-Property files can be used to configure global settings for a plugin. Those property files need to be part of the archive (and OSGI mechanism) will make sure these are only visible to the particular plugin:
+Property files can be used to configure global settings for a plugin. Those property files need to be part of the archive (the OSGI mechanism will make sure these are only visible to the particular plugin):
 
 * For `java` plugins, the property file needs to be on the classpath (`resource` directory)
 * For `ruby` plugins, the property file is often located at the root of the archive
 
-There is no restriction on the format of the propery file, but often the case, `ruby` plugins will use `yml` files and `java` plugins will rely on `key-value`, `json` or `xml` files. 
+There is no restriction on the format of the propery file, but typically `ruby` plugins will use `yml` files and `java` plugins will rely on `key-value` properties, `json` or `xml` files. 
 
 == Per-tenant Configuration
 
-The two previous mechanisms work well for global settings, but are inadequate to configure the plugins on a per-tenant fashion (e.g for a payment plugin interacting with a payment gateway, different credentials might be needed for different tenants). In those situations, Kill Bill provides apis to upload/retrieve/delete per-tenant plugin configurations:
+The two previous mechanisms work well for global settings, but are inadequate to configure the plugins on a per-tenant fashion (e.g for a payment plugin interacting with a payment gateway, different credentials might be needed for different tenants). In those situations, Kill Bill provides APIs to upload/retrieve/delete per-tenant plugin configurations:
 
 ```
 # Upload new config
@@ -289,7 +284,7 @@ curl -v \
      http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
 ```
 
-The `<CONFIG>` is treaded as a string and it could be the content of an `xml` or `json` file, a lit of `key-value` parameters,...
+The `<CONFIG>` is treaded as a string and it could be the content of an `xml` or `json` file, a list of `key-value` parameters, ...
 
 ```
 # Retrieve config
@@ -313,18 +308,17 @@ curl -v \
      http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
 ```
 
-In a nutshell, the mechanism works in the following way:
+At a high level, the mechanism works in the following way:
 
-1. The adminstrator uses the kill bill api to upload the configuration
+1. The administrator uses the kill bill API (or Kaui) to upload the configuration
 2. Kill Bill stores the config in the `tenant_kvs` table using a `tenant_key` of `PLUGIN_CONFIG_<pluginName>` and sets the `tenant_value` with the config provided
-3. Kill Bill broadcasts the change across the cluster of nodes and emit a configuration bus event: `TENANT_CONFIG_CHANGE` or `TENANT_CONFIG_DELETION`
+3. Kill Bill broadcasts the change across the cluster of nodes and emits a configuration bus event: `TENANT_CONFIG_CHANGE` or `TENANT_CONFIG_DELETION`
 4. The plugin code is *responsible to listen to these events* and take appropriate action to reload/delete its configuration for that specific tenant.
 
 Note that when relying on the plugin frameworks, some amount of work is already provided:
 
-* For `java` plugins we can see the listener https://github.com/killbill/killbill-plugin-framework-java/blob/killbill-base-plugin-0.3.2/src/main/java/org/killbill/billing/plugin/api/notification/PluginConfigurationEventHandler.java#L37[here],
-* For `ruby` plugins, the https://github.com/killbill/killbill-plugin-framework-java/blob/killbill-base-plugin-0.3.2/src/main/java/org/killbill/billing/plugin/api/notification/PluginConfigurationEventHandler.java#L33[code exists] for payment plugins created through the https://github.com/killbill/killbill-plugin-framework-ruby#how-to-write-a-payment-plugin-integrated-with-activemerchant[generator].
-
+* For `java` plugins we can see the listener https://github.com/killbill/killbill-plugin-framework-java/blob/killbill-base-plugin-1.1.0/src/main/java/org/killbill/billing/plugin/api/notification/PluginConfigurationEventHandler.java#L37[here]
+* For `ruby` plugins, this is done automatically for https://github.com/killbill/killbill-plugin-framework-ruby/blob/v8.3.1/lib/killbill/helpers/active_merchant/payment_plugin.rb#L48[ActiveMerchant payment plugins]
 
 = Debugging Plugins
 
