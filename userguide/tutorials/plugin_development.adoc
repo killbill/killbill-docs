@@ -1,4 +1,4 @@
-= Overview
+= Plugin development
 
 == Scope
 
@@ -6,51 +6,44 @@ This document is indented to provide some information about plugin development:
 
 * What are plugins and what can be achieved through plugins?
 * Where to start the development?
-* Tooling and apis to deploy plugins
+* Tooling and APIs to deploy plugins
 * Debugging
 
 == Kill Bill Plugins
 
-Kill Bill Plugins are based on the https://www.osgi.org/[OSGI standard] and so they provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:
+Kill Bill Plugins are based on the https://www.osgi.org/[OSGI standard] to provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:
 
-* They can be called from the Kill Bill platform through https://github.com/killbill/killbill-plugin-api[plugin apis]. This happens when a plugin that implements one of those api (or 'spi' to be more precise) was correctly registered in the system.
+* They can be called from the Kill Bill platform through https://github.com/killbill/killbill-plugin-api[plugin APIs]. This happens when a plugin that implements one of those APIs (or 'SPI' to be more precise) was correctly registered in the system.
 * They can receive notifications (bus events) from the Kill Bill platform
-* They can make https://github.com/killbill/killbill-api[api calls] to Kill Bill
+* They can make https://github.com/killbill/killbill-api[API calls] to Kill Bill
 
-Here are a few examples of typical flow of operations:
+Here are a few examples:
 
-* Notification Plugin: A plugin registered to receive bus events. When a bus event is being delivered to the plugin, the plugin calls back Kill Bill through api call to retrieve additional state for this event or to change the state in the system
-* Plugin that registered as an implementor of a specific https://github.com/killbill/killbill-plugin-api[plugin api]: A payment plugin for instance would have registered itself as an implementor of the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the payment system would then invoke that plugin for issuing payment operations. The plugin would have the ability to call back Kill Bill using apis to retrieve more state or create/change state in the system.
+* Notification Plugin: A plugin registered to receive bus events. When a bus event is being delivered to the plugin, the plugin calls back Kill Bill through API calls to retrieve additional state for this event or to change the state in the system
+* Plugin that registered as an implementor of a specific https://github.com/killbill/killbill-plugin-api[plugin API]: A payment plugin for instance would have registered itself as an implementor of the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the payment system would then invoke that plugin for issuing payment operations. The plugin would have the ability to call back Kill Bill using APIs to retrieve more state or create/change state in the system.
 
-A Kill Bill plugin will either implement one (or several) plugin api(s) and/or also listen to Kill Bill bus events to be notified of changes and take appropriate action.
-It often makes sense to specialize plugins and have them implement only one of the https://github.com/killbill/killbill-plugin-api[plugin apis], but this is a design choice, and there is nothing preventing a plugin to implement multiple of those apis.
-Also we don't recommend it, a plugin could implement the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[PaymentControlPluginApi], and that would qualify it as a 'payment and payment control plugin'.
+A Kill Bill plugin will either implement one (or several) plugin API(s) and/or also listen to Kill Bill bus events to be notified of changes and take appropriate actions. It often makes sense to specialize plugins and have them implement only one of the https://github.com/killbill/killbill-plugin-api[plugin APIs], but this is a design choice, and there is nothing preventing a plugin from implementing multiple of those APIs. Although we don't recommend it, a plugin could implement the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[PaymentControlPluginApi], and that would qualify it as a 'payment and payment control plugin'.
 
 Kill Bill Plugins can be used in a variety of ways:
 
 * Extend Kill Bill subsytem: Payment plugins are a good example of such plugins; they extend the core payment functionality by connecting to third party systems
-* Provide additional business logic: Payment control plugins, invoice plugins allow to intercept the requests so as to modify it, abort it, or change state on the fly.
+* Provide additional business logic: Payment control plugins and invoice plugins allow to intercept the requests so as to modify it, abort it, or change state on the fly.
 * Listen to system events: The analytics plugin is a good example of such plugin
 
 Kill Bill Plugins have full power (and therefore need to be designed and tested carefully):
 
-* They have access to the database so as to maintain their own state. However they **should not interact with the Kill Bill core tables directly** but rely on apis to retrieve and change state,
+* They have access to the database so as to maintain their own state. However they **should not interact with the Kill Bill core tables directly** but rely on APIs to retrieve and change state,
 * They have access to system properties
-* They have the ability to export their own endpoints under a `/plugins/<pluginName>` (see https://github.com/killbill/killbill-hello-world-java-plugin/blob/master/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldActivator.java#L37[Hello World plugin])
+* They have the ability to export their own HTTP endpoints under a `/plugins/<pluginName>` namespace
 * They receive all events in the system
-* They are isolated from the rest of the code and can use their own library (versions) without risk of conflict
-
-
-== Plugin Activation
-
-The way to invoke a specific plugin varies across the types of plugins. Please refer to the plugin documentation specified in the next section and look for the section `Plugin Activation` in those documentations.
+* They are isolated from the rest of the code and can use their own libraries (versions) without risk of conflict
 
 
 == Where to Start?
 
 A good starting point is to assess what the plugin should do and then based on that, read the various http://docs.killbill.io/[plugin docs in the developer guide section] that describe the different types of plugins offered in Kill Bill:
 
-* http://docs.killbill.io/0.16/catalog_plugin.html[Catalog Plugin]:
+* http://docs.killbill.io/0.16/catalog_plugin.html[Catalog Plugin]
 * http://docs.killbill.io/0.16/payment_plugin.html[Payment Plugin]
 * http://docs.killbill.io/0.16/payment_control_plugin.html[(Payment) Control Plugin]
 * Entitlement plugin
@@ -61,14 +54,14 @@ The next stage is to identify existing (similar) plugins which could be used as 
 
 = Development
 
-It is recommened to clone some of our existing plugins to get started. For `java`, the https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] is a good starting point. For `ruby`, we also provide a https://github.com/killbill/killbill-hello-world-ruby-plugin[hello world plugin], but depending on the type of plugin to be built there may be a better example to look at.
+It is recommened to clone some of our existing plugins to get started. For `java`, the https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] is a good starting point. For `ruby`, we also provide a https://github.com/killbill/killbill-hello-world-ruby-plugin[hello world plugin]. Depending on the type of plugin to be built, there may be a better example to look at (e.g. look at an existing payment plugin if you are building a new gateway integration).
 
 We provide two plugin frameworks that can be used to implement some of the work that plugins need to do:
 
 * https://github.com/killbill/killbill-plugin-framework-java[`java plugin framework`]
 * https://github.com/killbill/killbill-plugin-framework-ruby[`ruby plugin framework`]
 
-Also, for internal reference you might want to take a look at the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.22/osgi-bundles/libs/killbill/src/main/java/org/killbill/killbill/osgi/libs/killbill/KillbillActivatorBase.java#L59[KillbillActivatorBase], that most plugins inherit and that provide all the abstractions that plugin require (access to java apis, database handle, system properties, logging,...)
+Also, for internal reference, you might want to take a look at https://github.com/killbill/killbill-platform/blob/killbill-platform-0.36.2/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/KillbillActivatorBase.java#L59[KillbillActivatorBase], which provides all the abstractions that plugins require (access to java APIs, database connections, system properties, logging, ...).
 
 == Java Plugins
 
@@ -78,9 +71,9 @@ Java versions 6+ are supported.
 
 === Build
 
-`java` plugins rely on the http://felix.apache.org/documentation/subprojects/apache-felix-maven-bundle-plugin-bnd.html[`maven-bundle-plugin`] to produce the correct OSGI plugin (with the correct `MANIFEST.MF`). It is recommened to start from a plugin that already works, as the build configuration can be quite tricky. A good example is to look at the `pom.xml` from the https://github.com/killbill/killbill-hello-world-java-plugin/blob/master/pom.xml[hello world plugin]
+`java` plugins rely on the http://felix.apache.org/documentation/subprojects/apache-felix-maven-bundle-plugin-bnd.html[`maven-bundle-plugin`] to produce the correct OSGI plugin (with the correct `MANIFEST.MF`). It is recommended to start from a plugin that already works, as the build configuration can be quite tricky. A good example is to look at the `pom.xml` from the https://github.com/killbill/killbill-hello-world-java-plugin/blob/master/pom.xml[hello world plugin]
 
-The build will produce a `jar` under the `target` directory and this should contain all the classes and configuration files directly accessible for that plugin. OSGI also provides a way to import classes that are exported by other plugins and this is configured in the `Import-Package` section of the `maven-bundle-plugin`. The hello world plugin provides some default based on the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.22/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L49[classes exported by the system bundle in Kill Bill]. Kill Bill offers a system property, `org.killbill.osgi.system.bundle.export.packages.extra`, to specify additional packages to be exported by the system bundle and that could in turn be imported by the plugin. Desiging which packages are served by the plugin jar and which one are imported from other bundle (and mostly the system bundle inside Kill Bill) is one of the challenges of the OSGI mechanism.
+The build will produce a `jar` under the `target` directory which should contain all the classes and configuration files directly accessible for that plugin. OSGI also provides a way to import classes that are exported by other plugins and this is configured in the `Import-Package` section of the `maven-bundle-plugin`. The hello world plugin provides some default based on the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.36.2/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L49[classes exported by the system bundle in Kill Bill]. Kill Bill offers a system property, `org.killbill.osgi.system.bundle.export.packages.extra`, to specify additional packages to be exported by the system bundle and that could in turn be imported by the plugin. Desiging which packages are served by the plugin jar and which one are imported from another bundle (and mostly the system bundle inside Kill Bill) is one of the challenges of the OSGI mechanism.
 
 Once the pom is correctly written, building the plugin is straightforward:
 
@@ -92,7 +85,12 @@ mvn clean install
 
 === Examples of Java Plugins
 
-* The https://github.com/killbill/killbill-avatax-plugin[Avalara plugin] is a good example to look at to implement an invoice plugin (one that implements the https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[InvoicePluginApi]).
+* https://github.com/killbill/killbill-analytics-plugin[Analytics plugin] (https://github.com/killbill/killbill-plugin-api/blob/master/notification/src/main/java/org/killbill/billing/notification/plugin/api/NotificationPluginApi.java[notification plugin])
+* https://github.com/killbill/killbill-adyen-plugin[Adyen plugin] (https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[payment plugin])
+* https://github.com/killbill/killbill-accertify-plugin[Accertify plugin] (https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[payment control plugin])
+* https://github.com/killbill/killbill-coupon-plugin-demo[Coupon plugin] (https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[entitlement plugin])
+* https://github.com/killbill/killbill-avatax-plugin[Avalara plugin] (https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[invoice plugin])
+* https://github.com/killbill/killbill-catalog-plugin-test[catalog test plugin] (https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[catalog plugin])
 
 == Ruby Plugins
 
