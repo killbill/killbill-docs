@@ -1,4 +1,4 @@
-= Kill Bill tutorial
+= Recurring subscriptions with multiple payment gateways
 
 [[intro]]
 == Introduction
@@ -10,7 +10,9 @@ This tutorial will help you put all of the pieces of the Subscription Billing an
 
 Let's assume you want to build a site similar to Amazon Prime, i.e. an e-commerce website which offers a shopping cart and where paying subscribers have extra benefits (discounts, free shipping, etc.). You want to accept both credit cards and PayPal as means of payment.
 
-Note that we won't go into the details of building the actual website, we will assume you already have a front-end (Rails app, JSP webapp, etc.). Kill Bill will handle all subscriptions and payments as a separate service, and your application  will communicate with Kill Bill over HTTP APIs.
+Kill Bill will handle all subscriptions and payments as a separate service, and your application will communicate with Kill Bill over HTTP APIs.
+
+Note that we won't go into the details of building the actual website, we will assume you already have a front-end (Rails app, JSP webapp, etc.). You can also take a look at the following https://github.com/killbill/killbill-stripe-demo[Stripe] and https://github.com/killbill/killbill-paypal-demo[PayPal] demo websites, to help you with the front-end integration.
 
 [[requirements]]
 === Requirements
@@ -19,7 +21,7 @@ We will assume:
 
 * You already went through the Getting started tutorial
 * You have MySQL installed and have created a killbill database
-* You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our http://killbill.io/userguide/[client libraries]
+* You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our http://docs.killbill.io/[client libraries]
 
 [[setup]]
 == Setup
@@ -38,12 +40,12 @@ To accept credit cards, we will integrate with https://stripe.com[Stripe]: they 
 ==== PayPal
 
 * Create a free account at https://developer.paypal.com[paypal.com]
-* Go to your https://developer.paypal.com/webapps/developer/applications/account[Dashboard] and click Create Account (You need both a Personal and one Business account). The Business account is for the merchant that will receive the money and the Personal account is for the customer that will purchase the subscription.
+* Go to your https://developer.paypal.com/webapps/developer/applications/account[Dashboard] and click Create Account (You need both a Personal and a Business account). The Business account is for the merchant that will receive the money and the Personal account is for the customer that will purchase the subscription.
 * Login to the sandbox using the Personal account credentials and add some money
 
 You then need to contact support so they can enable recurring payments on your sandbox:
 
-* Go to https://ppmts.custhelp.com[PayPal Technical Support]
+* Go to https://www.paypal-techsupport.com/[PayPal Technical Support]
 * Create a ticket and ask to "Enable reference transactions for the Sandbox account XXXXX". Replace XXX with the API username of the Business test account you created (to see the username, click on Profile in the dashboard under the email address of the account, then click on the API credentials tab)
 
 This process can take up to 48 hours. In the meantime, while you will be able to test one-time purchases, you won't be able to test recurring transactions in PayPal.
@@ -70,31 +72,11 @@ Plugins are installed under /var/tmp/bundles/plugins. You should see one sub-dir
 
 ==== Stripe setup
 
-Create the Stripe configuration file (replace your credentials accordingly):
-
-[source,ruby]
-----
-:stripe:
-  :api_secret_key: 'sk_test_aaaabbbbccccdddd'
-  :test: true
-----
-
-Then upload it to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-stripe).
+Go to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and select the "Plugin Config" tab at the bottom. Enter stripe as the plugin name and the UI will prompt you for the secret key.
 
 ==== PayPal setup
 
-Configure the Stripe configuration file (replace your credentials accordingly):
-
-[source,ruby]
-----
-:paypal_express:
-  :signature: 'your-paypal-signature'
-  :login: 'your-username-facilitator.something.com'
-  :password: 'your-password'
-  :test: true
-----
-
-Similarly, upload it to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-paypal-express).
+Similarly, go to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and select the "Plugin Config" tab at the bottom. Enter paypal as the plugin name and the UI will prompt you for the signature, login and password.
 
 [[integration]]
 == Shopping cart integration
@@ -151,6 +133,8 @@ curl -v \
 
 This will create a new payment method and set is as the default for the account. If you load the account page in Kaui, you should now see the payment method.
 
+A demo of that integration is available https://github.com/killbill/killbill-stripe-demo[here].
+
 ==== PayPal
 
 The PayPal flow is a bit different. You first need to tell PayPal you are going to create a token:
@@ -180,7 +164,7 @@ curl -v \
 
 Kill Bill will return a 302 Found on success. The customer should be redirected to the url specified in the Location header, e.g. https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=EC-20G53990M6953444J.
 
-Follow the link to log to the paypal site: On the PayPal site, the user will be guided through the approval process to create a token for your website.
+Follow the link to log to the paypal site: on the PayPal site, the user will be guided through the approval process to create a token for your website.
 
 Once that step is completed, the customer comes back from the PayPal flow, you can now create the payment method in Kill Bill by specifyfing the token that was returned in the setup-checkout step (e.g. EC-20G53990M6953444J). Note that this token is now associated to the customer who was redirected to Paypal and accepted the agreement.
 
@@ -209,6 +193,8 @@ curl -v \
 ----
 
 If you load the account page in Kaui, you should now see the two payment methods.
+
+A demo of that integration is available https://github.com/killbill/killbill-paypal-demo[here].
 
 === Processing payments
 
