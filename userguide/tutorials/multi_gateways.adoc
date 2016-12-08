@@ -236,76 +236,19 @@ Now that your users are able to purchase their products, we want to offer a buy-
 
 Plans are defined in an XML configuration file. This file is really powerful and offers various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the Subscription Billing user guide.
 
-For this tutorial, here is what the catalog looks like:
+For simplicity, Kaui lets you configure simple plans through the UI, so you don't have to generate the catalog manually. This is available on your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page].
 
-[source,xml]
-----
-<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CatalogSchema.xsd ">
-    <effectiveDate>2014-11-01T00:00:00+00:00</effectiveDate>
-    <catalogName>ShoppiShop</catalogName>
-    <recurringBillingMode>IN_ADVANCE</recurringBillingMode>
-    <currencies>
-        <currency>USD</currency>
-    </currencies>
-    <products>
-        <product name="Standard">
-            <category>BASE</category>
-        </product>
-    </products>
-    <rules>
-    </rules>
-    <plans>
-        <plan name="standard-free">
-            <product>Standard</product>
-            <finalPhase type="EVERGREEN">
-                <duration>
-                    <unit>UNLIMITED</unit>
-                </duration>
-                <fixed>
-                </fixed>
-            </finalPhase>
-        </plan>
-        <plan name="standard-monthly">
-            <product>Standard</product>
-            <finalPhase type="EVERGREEN">
-                <duration>
-                    <unit>UNLIMITED</unit>
-                </duration>
-                <recurring>
-                    <billingPeriod>MONTHLY</billingPeriod>
-                    <recurringPrice>
-                        <price>
-                            <currency>USD</currency>
-                            <value>24.95</value>
-                        </price>
-                    </recurringPrice>
-                </recurring>
-            </finalPhase>
-        </plan>
-    </plans>
-    <priceLists>
-        <defaultPriceList name="DEFAULT">
-            <plans>
-                <plan>standard-free</plan>
-                <plan>standard-monthly</plan>
-            </plans>
-        </defaultPriceList>
-    </priceLists>
-</catalog>
-----
+For this tutorial, create 2 plans: standard-free (free plan) and standard-monthly (premium plan), associated with a single Standard product (the product category is BASE). We could have just defined standard-monthly, but that way you could make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
 
-While each section is described in greater detail in the user guide, here are the important points to notice:
+Note that we haven't defined any trial period.
 
-* recurringBillingMode is set to IN_ADVANCE, meaning we will invoice at the beginning of a billing period
-* We have defined a single Standard product. The category is BASE (as opposed to ADD_ON)
-* There are two plans defined: standard-free and standard-monthly. We could have just defined the latter, but we will make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
-* There is no trial period
-
-Upload the catalog to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page].
+image:https://github.com/killbill/killbill-docs/raw/v3-0.18/userguide/assets/img/tutorials/multi_gateways_standard-free_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3-0.18/userguide/assets/img/tutorials/multi_gateways_standard-monthly_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3-0.18/userguide/assets/img/tutorials/multi_gateways_catalog_kaui.png[align=center]
 
 === Creating and retrieving subscriptions
 
-Let's now try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section otherwise):
+Let's now try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section):
 
 [source,bash]
 ----
@@ -316,7 +259,7 @@ curl -v \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: demo" \
      -X POST \
-     --data-binary '{"accountId":"<ACCOUNT_ID>","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     --data-binary '{"accountId":"<ACCOUNT_ID>","planName":"standard-monthly"}' \
      "http://127.0.0.1:8080/1.0/kb/subscriptions"
 ----
 
@@ -357,14 +300,14 @@ curl -v \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: demo" \
      -X POST \
-     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=<ACCOUNT_ID>&targetDate=2014-12-21"
+     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=<ACCOUNT_ID>&targetDate=2017-12-21"
 ----
 
 === Premium feature example: applying 10% discount at checkout
 
-We are able to charge customers one a one-time basis, and subscribe them to the premium plan. We now need to bring it together: as an example, we will apply a 10% discount in the shopping cart, when users are premium subscribers.
+We are able to charge customers on a one-time basis, and subscribe them to the premium plan. We now need to bring it together: as an example, we will apply a 10% discount in the shopping cart, when users are premium subscribers.
 
-In the basket view, retrieve the list of bundles the user is subscribed to:
+In the basket view, retrieve the list of subscription bundles the user is subscribed to:
 
 [source,bash]
 ----
@@ -373,16 +316,16 @@ curl -v \
      -H "X-Killbill-ApiKey: bob" \
      -H "X-Killbill-ApiSecret: lazar" \
      -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID</bundles"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/bundles"
 ----
 
-The subscription list will show the cancellation status: cancelledDate. If it's null or in the future, the subscriber is still a paying customer, in which case you can apply the 10% discount.
+The subscriptions list will show the cancellation status (see cancelledDate). If it's null or in the future, the subscriber is still a paying customer, in which case you can apply the 10% discount.
 
 
 [[conclusion]]
 == Conclusion
 
-In this tutorial, we've shown you how to leverage the basic features of the Kill Bill platform, how to provide recurring and one-off billing, as well as integrate with various payment processors. Kill Bill has many more features to offer, make sure to read the http://docs.killbill.io[user guide].
+In this tutorial, we've shown you how to leverage the basic features of the Kill Bill platform, how to provide recurring and one-off billing, as well as integrate with various payment processors. Kill Bill has many more features to offer, make sure to read the full http://docs.killbill.io[user guide].
 
 === Next steps: exercises for the reader
 
