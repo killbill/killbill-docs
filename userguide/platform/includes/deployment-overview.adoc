@@ -1,3 +1,5 @@
+=== Best practices
+
 Kill Bill (whether used as a Billing System and/or Payment System) is fundamentally a backend system, so the following considerations should apply:
 
 * Don't make the system visible to the outside world, instead you should have a front end system, or a reverse proxy in front of it; if you need to handle gateway notifications (e.g. IPN/Internal Payment Notification), we developed an https://github.com/killbill/killbill-notifications-proxy[app] for that specific purpose
@@ -7,6 +9,7 @@ Kill Bill (whether used as a Billing System and/or Payment System) is fundamenta
 * Look at the all the existing Kill Bill JMX metrics (using VisualVM, jconsole, ...) and set some alerts (for instance by using the following https://github.com/killbill/nagios-jmx-plugin[script])
 * Configure your system properly, especially when it comes to the https://github.com/killbill/killbill/wiki/Kill-Bill-Bus-and-Notification-Queue-Configuration[settings of the bus and notification queue].
 
+=== Deployment options
 
 When deploying Kill Bill, the following pieces will need to be deployed in addition to your OS, VM or container (Docker, ...):
 
@@ -21,3 +24,12 @@ In order to ease the deployment, we created https://github.com/killbill/killbill
 In addition to KPM, we also provide https://registry.hub.docker.com/u/killbill/killbill[Docker images]. Those images internally rely on KPM for fetching the various artifacts and install them at the right location on the image. The docker `run` command allows to override existing Kill Bill system properties.
 
 Note that one can decide to only use KPM for fetching and installing artifacts, and bypass docker to deploy on VMs or bare metal. Or alternatively one can use other tools, manual steps to fetch those artifacts from http://search.maven.org/[Maven Central], or by using our convenient http://killbill.io/downloads[download page].
+
+=== Pre- and Post-deployment checklist
+
+* Test, test, test: we work hard to make the core of the platform solid. But your deployment, with your own combination of plugins and configuration (catalog, overdue, etc.) is unique. Write business-level regression tests that you can run before each upgrade.
+* Timezone of your servers and databases has to be UTC and ensure NTP is properly configured to avoid any drift between instances.
+* Make sure the servers have enough entropy: `/proc/sys/kernel/random/entropy_avail` should be > 3k (otherwise install rngtools). Kill Bill should also be started with `-Djava.security.egd=file:/dev/.urandom`.
+* Make sure your database and https://github.com/killbill/killbill/wiki/Kill-Bill-Bus-and-Notification-Queue-Configuration[queues configuration] are adequate: the `bus_events` table should almost always be empty and the `notifications` table should never have any `AVAILABLE` entry with an effective date in the past. Otherwise, in both cases, the system will be late (invoices not generated, etc.). These two metrics should always be monitored in production (potentially a paging event).
+* Monitor your logs constantly: any `WARN` or `ERROR` entry should be reviewed, as well as stacktraces.
+* Join our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] to get notified of new releases.
