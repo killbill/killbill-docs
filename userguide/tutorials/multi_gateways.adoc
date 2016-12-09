@@ -1,4 +1,4 @@
-= Kill Bill tutorial
+= Step-by-step integration with Stripe and PayPal
 
 [[intro]]
 == Introduction
@@ -10,7 +10,11 @@ This tutorial will help you put all of the pieces of the Subscription Billing an
 
 Let's assume you want to build a site similar to Amazon Prime, i.e. an e-commerce website which offers a shopping cart and where paying subscribers have extra benefits (discounts, free shipping, etc.). You want to accept both credit cards and PayPal as means of payment.
 
-Note that we won't go into the details of building the actual website, we will assume you already have a front-end (Rails app, JSP webapp, etc.). Kill Bill will handle all subscriptions and payments as a separate service, and your application  will communicate with Kill Bill over HTTP APIs.
+Kill Bill will handle all subscriptions and payments as a separate service, and your application will communicate with Kill Bill over HTTP APIs.
+
+Note that we won't go into the details of building the actual website, we will assume you already have a front-end (Rails app, JSP webapp, etc.). You can also take a look at the following https://github.com/killbill/killbill-stripe-demo[Stripe] and https://github.com/killbill/killbill-paypal-demo[PayPal] demo websites, to help you with the front-end integration.
+
+image:https://github.com/killbill/killbill-docs/raw/v3-0.18/userguide/assets/img/tutorials/multi_gateways_overview.png[align=center]
 
 [[requirements]]
 === Requirements
@@ -19,7 +23,7 @@ We will assume:
 
 * You already went through the Getting started tutorial
 * You have MySQL installed and have created a killbill database
-* You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our http://killbill.io/userguide/[client libraries]
+* You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the examples from this tutorial. In practice, your application will use one of our http://docs.killbill.io/[client libraries]
 
 [[setup]]
 == Setup
@@ -38,12 +42,12 @@ To accept credit cards, we will integrate with https://stripe.com[Stripe]: they 
 ==== PayPal
 
 * Create a free account at https://developer.paypal.com[paypal.com]
-* Go to your https://developer.paypal.com/webapps/developer/applications/account[Dashboard] and click Create Account (You need both a Personal and one Business account). The Business account is for the merchant that will receive the money and the Personal account is for the customer that will purchase the subscription.
+* Go to your https://developer.paypal.com/webapps/developer/applications/account[Dashboard] and click Create Account (You need both a Personal and a Business account). The Business account is for the merchant that will receive the money and the Personal account is for the customer that will purchase the subscription.
 * Login to the sandbox using the Personal account credentials and add some money
 
 You then need to contact support so they can enable recurring payments on your sandbox:
 
-* Go to https://ppmts.custhelp.com[PayPal Technical Support]
+* Go to https://www.paypal-techsupport.com/[PayPal Technical Support]
 * Create a ticket and ask to "Enable reference transactions for the Sandbox account XXXXX". Replace XXX with the API username of the Business test account you created (to see the username, click on Profile in the dashboard under the email address of the account, then click on the API credentials tab)
 
 This process can take up to 48 hours. In the meantime, while you will be able to test one-time purchases, you won't be able to test recurring transactions in PayPal.
@@ -70,31 +74,11 @@ Plugins are installed under /var/tmp/bundles/plugins. You should see one sub-dir
 
 ==== Stripe setup
 
-Create the Stripe configuration file (replace your credentials accordingly):
-
-[source,ruby]
-----
-:stripe:
-  :api_secret_key: 'sk_test_aaaabbbbccccdddd'
-  :test: true
-----
-
-Then upload it to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-stripe).
+Go to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and select the "Plugin Config" tab at the bottom. Enter stripe as the plugin name and the UI will prompt you for the secret key.
 
 ==== PayPal setup
 
-Configure the Stripe configuration file (replace your credentials accordingly):
-
-[source,ruby]
-----
-:paypal_express:
-  :signature: 'your-paypal-signature'
-  :login: 'your-username-facilitator.something.com'
-  :password: 'your-password'
-  :test: true
-----
-
-Similarly, upload it to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and selecting the "Plugin Config" file at the bottom (the plugin name is killbill-paypal-express).
+Similarly, go to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page] and select the "Plugin Config" tab at the bottom. Enter paypal as the plugin name and the UI will prompt you for the signature, login and password.
 
 [[integration]]
 == Shopping cart integration
@@ -151,6 +135,8 @@ curl -v \
 
 This will create a new payment method and set is as the default for the account. If you load the account page in Kaui, you should now see the payment method.
 
+A demo of that integration is available https://github.com/killbill/killbill-stripe-demo[here].
+
 ==== PayPal
 
 The PayPal flow is a bit different. You first need to tell PayPal you are going to create a token:
@@ -180,7 +166,7 @@ curl -v \
 
 Kill Bill will return a 302 Found on success. The customer should be redirected to the url specified in the Location header, e.g. https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=EC-20G53990M6953444J.
 
-Follow the link to log to the paypal site: On the PayPal site, the user will be guided through the approval process to create a token for your website.
+Follow the link to log to the paypal site: on the PayPal site, the user will be guided through the approval process to create a token for your website.
 
 Once that step is completed, the customer comes back from the PayPal flow, you can now create the payment method in Kill Bill by specifyfing the token that was returned in the setup-checkout step (e.g. EC-20G53990M6953444J). Note that this token is now associated to the customer who was redirected to Paypal and accepted the agreement.
 
@@ -209,6 +195,8 @@ curl -v \
 ----
 
 If you load the account page in Kaui, you should now see the two payment methods.
+
+A demo of that integration is available https://github.com/killbill/killbill-paypal-demo[here].
 
 === Processing payments
 
@@ -250,76 +238,19 @@ Now that your users are able to purchase their products, we want to offer a buy-
 
 Plans are defined in an XML configuration file. This file is really powerful and offers various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the Subscription Billing user guide.
 
-For this tutorial, here is what the catalog looks like:
+For simplicity, Kaui lets you configure simple plans through the UI, so you don't have to generate the catalog manually. This is available on your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page].
 
-[source,xml]
-----
-<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CatalogSchema.xsd ">
-    <effectiveDate>2014-11-01T00:00:00+00:00</effectiveDate>
-    <catalogName>ShoppiShop</catalogName>
-    <recurringBillingMode>IN_ADVANCE</recurringBillingMode>
-    <currencies>
-        <currency>USD</currency>
-    </currencies>
-    <products>
-        <product name="Standard">
-            <category>BASE</category>
-        </product>
-    </products>
-    <rules>
-    </rules>
-    <plans>
-        <plan name="standard-free">
-            <product>Standard</product>
-            <finalPhase type="EVERGREEN">
-                <duration>
-                    <unit>UNLIMITED</unit>
-                </duration>
-                <fixed>
-                </fixed>
-            </finalPhase>
-        </plan>
-        <plan name="standard-monthly">
-            <product>Standard</product>
-            <finalPhase type="EVERGREEN">
-                <duration>
-                    <unit>UNLIMITED</unit>
-                </duration>
-                <recurring>
-                    <billingPeriod>MONTHLY</billingPeriod>
-                    <recurringPrice>
-                        <price>
-                            <currency>USD</currency>
-                            <value>24.95</value>
-                        </price>
-                    </recurringPrice>
-                </recurring>
-            </finalPhase>
-        </plan>
-    </plans>
-    <priceLists>
-        <defaultPriceList name="DEFAULT">
-            <plans>
-                <plan>standard-free</plan>
-                <plan>standard-monthly</plan>
-            </plans>
-        </defaultPriceList>
-    </priceLists>
-</catalog>
-----
+For this tutorial, create 2 plans: standard-free (free plan) and standard-monthly (premium plan), associated with a single Standard product (the product category is BASE). We could have just defined standard-monthly, but that way you could make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
 
-While each section is described in greater detail in the user guide, here are the important points to notice:
+Note that we haven't defined any trial period.
 
-* recurringBillingMode is set to IN_ADVANCE, meaning we will invoice at the beginning of a billing period
-* We have defined a single Standard product. The category is BASE (as opposed to ADD_ON)
-* There are two plans defined: standard-free and standard-monthly. We could have just defined the latter, but we will make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
-* There is no trial period
-
-Upload the catalog to Kill Bill by going to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant configuration page].
+image:https://github.com/killbill/killbill-docs/raw/v3-0.18/userguide/assets/img/tutorials/multi_gateways_standard-free_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3-0.18/userguide/assets/img/tutorials/multi_gateways_standard-monthly_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3-0.18/userguide/assets/img/tutorials/multi_gateways_catalog_kaui.png[align=center]
 
 === Creating and retrieving subscriptions
 
-Let's now try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section otherwise):
+Let's now try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section):
 
 [source,bash]
 ----
@@ -330,7 +261,7 @@ curl -v \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: demo" \
      -X POST \
-     --data-binary '{"accountId":"<ACCOUNT_ID>","productName":"Standard","productCategory":"BASE","billingPeriod":"MONTHLY","priceList":"DEFAULT"}' \
+     --data-binary '{"accountId":"<ACCOUNT_ID>","planName":"standard-monthly"}' \
      "http://127.0.0.1:8080/1.0/kb/subscriptions"
 ----
 
@@ -371,14 +302,14 @@ curl -v \
      -H "Content-Type: application/json" \
      -H "X-Killbill-CreatedBy: demo" \
      -X POST \
-     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=<ACCOUNT_ID>&targetDate=2014-12-21"
+     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=<ACCOUNT_ID>&targetDate=2017-12-21"
 ----
 
 === Premium feature example: applying 10% discount at checkout
 
-We are able to charge customers one a one-time basis, and subscribe them to the premium plan. We now need to bring it together: as an example, we will apply a 10% discount in the shopping cart, when users are premium subscribers.
+We are able to charge customers on a one-time basis, and subscribe them to the premium plan. We now need to bring it together: as an example, we will apply a 10% discount in the shopping cart, when users are premium subscribers.
 
-In the basket view, retrieve the list of bundles the user is subscribed to:
+In the basket view, retrieve the list of subscription bundles the user is subscribed to:
 
 [source,bash]
 ----
@@ -387,16 +318,16 @@ curl -v \
      -H "X-Killbill-ApiKey: bob" \
      -H "X-Killbill-ApiSecret: lazar" \
      -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID</bundles"
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/bundles"
 ----
 
-The subscription list will show the cancellation status: cancelledDate. If it's null or in the future, the subscriber is still a paying customer, in which case you can apply the 10% discount.
+The subscriptions list will show the cancellation status (see cancelledDate). If it's null or in the future, the subscriber is still a paying customer, in which case you can apply the 10% discount.
 
 
 [[conclusion]]
 == Conclusion
 
-In this tutorial, we've shown you how to leverage the basic features of the Kill Bill platform, how to provide recurring and one-off billing, as well as integrate with various payment processors. Kill Bill has many more features to offer, make sure to read the http://docs.killbill.io[user guide].
+In this tutorial, we've shown you how to leverage the basic features of the Kill Bill platform, how to provide recurring and one-off billing, as well as integrate with various payment processors. Kill Bill has many more features to offer, make sure to read the full http://docs.killbill.io[user guide].
 
 === Next steps: exercises for the reader
 

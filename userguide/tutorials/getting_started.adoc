@@ -3,13 +3,17 @@
 [[intro]]
 == Introduction
 
-Kill Bill is an open-source subscription billing and payment platform.
+Kill Bill is the open-source subscription billing and payments platform.
 
 The *subscription billing* features let you create recurring subscriptions (e.g. "gold plan subscription at $9.99/month") and manage upgrades and downgrades. The system will take care of generating invoices, managing credits and triggering payments.
 
 The *payment* features let you connect with virtually any payment gateway and processor (Stripe, Braintree, PayPal, Adyen, CyberSource, etc.) to charge your customers (using credit or debit cards, ACH, wire transfers, Bitcoin, etc.) for their subscriptions or one-off payments (type shopping cart).
 
-We refer to Kill Bill as a *platform* because of its extensibility: you can write plugins to modify the behavior of the system or to integrate with third-party systems, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). A lot of open-source plugins are available on our GitHub.
+Check this video for a quick tour:
+
+https://www.youtube.com/watch?v=f2IHcz3OLYo[image:http://img.youtube.com/vi/f2IHcz3OLYo/0.jpg[align=center]]
+
+We refer to Kill Bill as a *platform* because of its extensibility: you can write plugins to modify the behavior of the system or to integrate with third-party vendors, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). A lot of open-source plugins are available on our GitHub.
 
 Kill Bill is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, instead your website will trigger REST API calls (over HTTP) to process subscriptions or orders. We also provide Kaui, the Kill Bill administrative UI, an interface to interact with Kill Bill for your support and finance teams (to manage refunds, invoice adjustments, etc.).
 
@@ -74,7 +78,7 @@ To verify your installation, check that Kaui is running by going to http://127.0
 
 By default, Kill Bill writes its data to a file-based h2 database (you can browse the data by going to http://127.0.0.1:8082/[http://127.0.0.1:8082/]: JDBC URL jdbc:h2:file:/var/tmp/killbill, username killbill, password killbill), while Kaui to a file-based SQLite database (you can browser the data with http://sqlitebrowser.org/[DB4S], the database is at /var/tmp/kaui.sqlite3).
 
-When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL (PostgreSQL support is still experimental though). The Kill Bill DDL is available on our http://killbill.io/downloads/[downloads] page and the Kaui DDL is available on https://raw.github.com/killbill/killbill-admin-ui/master/db/ddl.sql[GitHub].
+When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL. The Kill Bill DDL is available on our http://killbill.io/downloads/[downloads] page and the Kaui DDL is available on https://raw.github.com/killbill/killbill-admin-ui/master/db/ddl.sql[GitHub].
 
 To do so, add the following to the bottom of conf/catalina.properties (update urls and credentials as needed):
 
@@ -118,56 +122,11 @@ By going to the invoices tab, you should see that an $0 invoice has been automat
 
 ==== Modifying the catalog
 
-The default catalog only contains monthly plans. Let's add another plan for the Sports car, but billed yearly (and without any trial period).
+Your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant] configuration screen lets you create your own plans.
 
-Download the https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml[SpyCarBasic] catalog. Find the "sports-monthly" plan section and duplicate it. Rename it to "sports-annual", remove the TRIAL phase, modify the recurring billing period to ANNUAL and update the prices. The new plan should look like:
+For more details on the catalog and its concepts, check out our main http://docs.killbill.io/[subscription billing userguide].
 
-[source,xml]
-----
-<plan name="sports-annual">
-    <product>Sports</product>
-    <finalPhase type="EVERGREEN">
-        <duration>
-            <unit>UNLIMITED</unit>
-        </duration>
-        <recurring>
-            <billingPeriod>ANNUAL</billingPeriod>
-            <recurringPrice>
-                <price>
-                    <currency>GBP</currency>
-                    <value>4500.00</value>
-                </price>
-                <price>
-                    <currency>USD</currency>
-                    <value>6000.00</value>
-                </price>
-            </recurringPrice>
-        </recurring>
-    </finalPhase>
-</plan>
-----
-
-Finally, add your entry in the defaultPriceList section at the bottom of the file:
-
-[source,xml]
-----
-<priceLists>
-    <defaultPriceList name="DEFAULT">
-        <plans>
-            <plan>standard-monthly</plan>
-            <plan>sports-monthly</plan>
-            <plan>sports-annual</plan>
-            <plan>super-monthly</plan>
-        </plans>
-    </defaultPriceList>
-</priceLists>
-----
-
-Go to your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant] configuration screen and upload the full catalog modified.
-
-Try to add a new subscription bundle to the account. You should now be able to see the new sports-annual plan. Upon creation, an invoice for the full year is automatically generated, because there is no trial period and the plan is billed in advance.
-
-For more details on the catalog and its concepts, check out our main http://killbill.io/userguide/[subscription billing userguide].
+We also have various screencasts on our https://www.youtube.com/channel/UChXICgGipKvJbtzKfM1SNoQ[Youtube] channel to help.
 
 === Triggering your first payment
 
@@ -225,10 +184,7 @@ account = account.create(user, reason, comment, options)
 # Add a subscription
 subscription = KillBillClient::Model::Subscription.new
 subscription.account_id = account.account_id
-subscription.product_name = 'Sports'
-subscription.product_category = 'BASE'
-subscription.billing_period = 'MONTHLY'
-subscription.price_list = 'DEFAULT'
+subscription.plan_name = 'sports-monthly'
 subscription = subscription.create(user, reason, comment, nil, true, options)
 
 # List invoices
@@ -291,10 +247,7 @@ public class KillBillDemo {
         // Add a subscription
         Subscription subscription = new Subscription();
         subscription.setAccountId(account.getAccountId());
-        subscription.setProductName("Sports");
-        subscription.setProductCategory(ProductCategory.BASE);
-        subscription.setBillingPeriod(BillingPeriod.MONTHLY);
-        subscription.setPriceList(PriceListSet.DEFAULT_PRICELIST_NAME);
+        subscription.setPlanName("sports-monthly");
         subscription = killBillClient.createSubscription(subscription, 5, user, reason, comment);
 
         // List invoices

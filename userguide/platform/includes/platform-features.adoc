@@ -18,7 +18,7 @@ curl -v \
 
 The call above will create the tenant and that tenant will be identified with its own `tenantId`. The supplied `apiKey` needs to be unique across all the tenants. The `tenantId` is immutable but the `apiKey` and `apiSecret` can be updated in the event they are compromised.
 
-Each subsequent (REST) api call will require the following two headers (for Kill Bill to identity which tenant that call is targeted to, and verify the user has the right to access that tenant):
+Each subsequent (REST) API call will require the following two headers (for Kill Bill to identity which tenant that call is targeted to, and verify the user has the right to access that tenant):
 
 * *X-Killbill-ApiKey*
 * *X-Killbill-ApiSecret*
@@ -33,9 +33,9 @@ Kill Bill (through Shiro) supports the following types of configuration:
 
 * File based configuration (https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/shiro.ini[shiro.ini]). This is the default configuration embedded in Kill Bill, which provides you with one `admin` user having all the rights.
 * Database configuration: Kill Bill offers a https://github.com/killbill/killbill/blob/master/jaxrs/src/main/java/org/killbill/billing/jaxrs/resources/SecurityResource.java[set of endpoints] to add users, roles, and permissions
-* LDAP:  Kill Bill also offers to interact with LDAP to retrieve all the users, roles, permissions. The configuration happens though https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/SecurityConfig.java[system properties].
+* LDAP:  Kill Bill can also interact with a LDAP directory to retrieve the users, roles and permissions. The configuration happens through https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/SecurityConfig.java[system properties].
 
-Note that all those 3 mechanisms can coexist, and often need to coexist to solve the chicken and egg problem of having permissions to add new users, roles, ... through APIs.
+Note that all those 3 mechanisms can coexist, and often need to coexist to solve the chicken and egg problem of requiring permissions to add new users, roles, ... through APIs.
 
 The following http://killbill.io/blog/multi-tenancy-authorization/[blog post] gives an overview of how our https://github.com/killbill/killbill-admin-ui[admin UI] interacts with Kill Bill and takes advantage of the RBAC features.
 
@@ -46,34 +46,34 @@ The following http://killbill.io/blog/multi-tenancy-authorization/[blog post] gi
 
 Kill Bill supports a powerful plugin framework based on the http://www.osgi.org/Main/HomePage[OSGI standard].
 The purpose of OSGI based plugins is to ensure that they are isolated from each other and from the core platform, allowing Kill Bill users to extend the system with minimal knowledge about the system.
-Kill Bill supports writing plugins in various languages to address a wider audience of developers, and also leverage existing libraries in other languages than java. In theory, plugins could be written in all JVM based languages. In practice, Kill Bill currently supports:
+Kill Bill supports writing plugins in various languages to address a wide audience of developers, and also leverage existing libraries in other languages than Java. In theory, plugins could be written in all JVM based languages. In practice, Kill Bill currently supports:
 
 * Java based plugins (pure OSGI plugins)
-* Ruby plugins. They rely on a https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/bundles/jruby/src/main/java/org/killbill/billing/osgi/bundles/jruby/JRubyActivator.java[built-in framework] on top of OSGI to make sure ruby code will be fully isolated. In addition to that, each ruby plugin is based on a https://github.com/killbill/killbill-plugin-framework-ruby[ruby skeleton] whose code is partially https://github.com/killbill/killbill-java-parser[automatically generated] and whose purpose is to allow developers to write pure ruby code.
+* Ruby plugins. They rely on a https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/bundles/jruby/src/main/java/org/killbill/billing/osgi/bundles/jruby/JRubyActivator.java[built-in framework] on top of OSGI to make sure ruby code will be fully isolated. In addition to that, each ruby plugin is based on a https://github.com/killbill/killbill-plugin-framework-ruby[Ruby skeleton] with https://github.com/killbill/killbill-java-parser[automatically generated code] which purpose is to allow developers to write pure Ruby code.
 * Scala (a prototype has been been built showing the feasibility of such plugins)
 
-The purpose of the plugins is multiple:
+The purpose of plugins is multiple:
 
-* Provide hooks to third party systems (for e.g: payment gateways, tax systems, fraud detection systems, CRM, proprietary systems, ...)
+* Provide hooks to third party systems (such as payment gateways, tax systems, fraud detection systems, CRM, proprietary systems, ...)
 * Modify the behavior of the core Kill Bill system to address specific needs (for example intercept ongoing payments to route them differently, intercept ongoing invoices to customize them, perform on the fly currency conversion, ...)
 * Add specific business logic when certain types of events occur (notify customers of upcoming invoices, perform automatic action for dunning, ...)
 
 In order to achieve those goals, Kill Bill supports a mechanism for the plugin to register for any type of events occurring in the system.
-In addition to that, plugins can also implement certain types of https://github.com/killbill/killbill-plugin-api[plugin apis], and register/unregister in the system during the start/stop sequence.
+In addition to that, plugins can also implement certain types of https://github.com/killbill/killbill-plugin-api[plugin APIs], and register/unregister in the system during the start/stop sequence.
 
 The following set of plugin APIs is currently supported:
 
-* https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[Payment plugin api]: Those APIs are used by plugins interacting with third party payment gateways or payment processors.
-* https://github.com/killbill/killbill-plugin-api/blob/master/currency/src/main/java/org/killbill/billing/currency/plugin/api/CurrencyPluginApi.java[Currency plugin api]: By implementing this API, the plugin would provide the business logic for currency conversion, which is then available to payment plugins for real time currency conversion.
-* https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[Invoice plugin api]: Plugins implementing this API would be called during invoice generation when Kill Bill's invoicing code computes the items but prior the invoice is persisted, to provide the ability for the plugin to modify the items (for example to add extra tax items).
-* https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[Payment routing plugin api]: The purpose of this API is to intercept payments and as a result abort them (fraud use case) or reroute them to a different payment plugin (payment gateway downtime, or cost optimization scenario).
-
-Note that some of these APIs are still a work in progress as we understand better the requirements; we are also working on additional plugin APIs to provide access to other parts of the system.
+* https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[Payment plugin API]: Those APIs are used by plugins interacting with third party payment gateways or payment processors.
+* https://github.com/killbill/killbill-plugin-api/blob/master/currency/src/main/java/org/killbill/billing/currency/plugin/api/CurrencyPluginApi.java[Currency plugin API]: By implementing this API, the plugin would provide the business logic for currency conversion, which is then available to payment plugins for real time currency conversion.
+* https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[Invoice plugin API]: Plugins implementing this API would be called during invoice generation when Kill Bill's invoicing code computes the items but prior the invoice is persisted, to provide the ability for the plugin to modify the items (for example to add extra tax items).
+* https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[Payment control plugin API]: The purpose of this API is to intercept payments and as a result abort them (fraud use case) or reroute them to a different payment plugin (payment gateway downtime, or cost optimization scenario).
+* https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[Catalog plugin API]: If the XML-based catalog configuration doesn't suit your needs, you can implement your own catalog engine through this API.
+* https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[Entitlement plugin API]: this API lets you intercept entitlement APIs (such as subscription creation or change) to inject your own subscription business logic (use-cases include coupons management or price overrides).
 
 ==== Lifecycle and Layout Internals
 
 Kill Bill Plugins will be started and stopped during the Kill Bill https://github.com/killbill/killbill-platform/blob/master/platform-api/src/main/java/org/killbill/billing/platform/api/LifecycleHandlerType.java[lifecycle initialization stages].
-Each plugin will need to provide an https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/killbill/osgi/libs/killbill/KillbillActivatorBase.java[activator] with a `start` and `stop` method.
+Each plugin will need to provide an https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/KillbillActivatorBase.java[activator] with a `start` and `stop` method.
 During initialization and when all the foundation and core services have started, Kill Bill will automatically discover the existing plugins (based on the filesystem layout described below) and it will invoke the `start` method to initialize the plugins.
 During shutdown sequence, each plugin will first be stopped and then the rest of the foundation and core services will be stopped.
 
@@ -103,15 +103,13 @@ bundles/
           plugin-b.jar
 ----
 
-The `bundles/platform` directory is used for non Kill Bill specific OSGI plugins. For example, you can drop in it the http://felix.apache.org/site/apache-felix-web-console.html[Apache Felix Web Console] jar, and Kill Bill will automatically start it during its initialization sequence. https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles[Here] is a recommended set of convenience plugins to run.
+The `bundles/platform` directory is used for non Kill Bill specific OSGI plugins. For example, you can drop in it the Apache Felix Web Console jar, and Kill Bill will automatically start it during its initialization sequence. https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles[Here] is a recommended set of convenience plugins to run.
 Note that in the case of Ruby plugins (see below), you need to copy the correct version of the `org.kill-bill.billing:killbill-platform-osgi-bundles-jruby` artifact and name it as `bundles/platform/jruby.jar`.
 
-Also, in the case of java based plugins, it is enough to just copy the jar under the correct directory entry, but in the case of the ruby plugins, the layout is a bit more complex: it expects a top level `killbill.properties` file describing the type of plugin and special libraries to load, as well as a `gems` directory containing all the dependencies.
+Also, in the case of Java based plugins, it is enough to just copy the jar under the correct directory entry, but in the case of the ruby plugins, the layout is a bit more complex: it expects a top level `killbill.properties` file describing the type of plugin and special libraries to load, as well as a `gems` directory containing all the dependencies.
 Fortunately, if you are using one of the official Ruby plugins, you don't need to worry about this. You can download http://search.maven.org/#search%7Cga%7C1%7Corg.kill-bill.billing.plugin.ruby[tar.gz packages] with the correct layout. Simply unpack them and restart Kill Bill.
 
-If you want to develop your own ruby plugin, check our instructions https://github.com/killbill/killbill-plugin-framework-ruby/wiki/Build-Release[here] and https://github.com/killbill/killbill-plugin-framework-ruby/wiki/How-to-vendor-a-plugin-gem-for-Killbill-deployment[here].
-
-We also provide hello world skeleton of plugins in https://github.com/killbill/killbill-hello-world-java-plugin[java] and https://github.com/killbill/killbill-hello-world-ruby-plugin[ruby] to get started.
+Check our plugin development and management guides in our http://docs.killbill.io/[main documentation] for more details.
 
 
 
