@@ -83,7 +83,7 @@ The migration code consists of several pieces:
 
 The choice of where those pieces are implemented really depends on the current architecture of the system. For instance, if the code interacting with the existing billing system is well isolated, those new functions could take place at this level (client side). Conversely, if there are many components already interacting with the existing billing system, it might make sense to provide a new proxy server that encapsulates all of that logic and have those components go through that proxy (and from an implementation point of view, that proxy server could live in the same webapp as Kill Bill and access some new tables in the same database). 
 
-The figure below shows that the migration logic owns its own migration state. It is also able to make api calls to both the old billing system and Kill Bill and provide an interface to the existing Billing&Payment Components (systems that currently interact with the old billing system). From a logical point of view, the migration logic has been shown in a seprate box, but again, this could be implemented in various ways.
+The figure below shows that the migration logic owns its own migration state. It is also able to make api calls to both the old billing system and Kill Bill and provide an interface to the existing Billing&Payment Components (systems that currently interact with the old billing system). From a logical point of view, the migration logic has been shown in a separate box, but again, this could be implemented in various ways.
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/migration/migration_logic.png[align=center]
 
@@ -100,11 +100,11 @@ As discussed previously, each existing account would be migrated independently f
 
 == Pre-Requisites
 
-Before we can dig into more details on how the migration works, it is important to be ready to migrate these accounts. The readiness is something to be defined on a case by case basis, but there are a some things that are pretty much mandatory in all situations:
+Before we can dig into more details on how the migration works, it is important to be ready to migrate these accounts. The readiness is something to be defined on a case by case basis, but there are some things that are pretty much mandatory in all situations:
 
 === Setting up Kill Bill
 
-Migrating accounts to Kill Bill first implies that Kill Bill has been deployed and configured correctly. The point of that doc does not describe those steps (we have other http://docs.killbill.io/[docs] to explain that), but let's go through a few items that require special care:
+Migrating accounts to Kill Bill first implies that Kill Bill has been deployed and configured correctly. The goal of that doc is not to describe those steps (we have other http://docs.killbill.io/[docs] to explain that), but let's go through a few items that require special care:
 
 * **Catalog Creation**: The catalog should include all the `Plans` that were configured in the old billing system, so that subscription migration works. Special care should be made for billing alignments to ensure that customer ends up being billed at the same dates as they used to. Most probably the abstractions between the two worlds are slightly different (e.g in Kill Bill world we have the concept of a `PlanPhase` while in the old billing system each `PlanPhase` may correspond to a different `Plan` or even implemented differently).
 
@@ -192,7 +192,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/migr
 
 At t = `cutOverDate`, the account is being migrated and for each existing active subscription in the old billing system, we create a subscription by specifying both the `entitlementDate` = `originalSubscriptionStartDate` and the `billingDate` = `nextBillingDate`.
 
-**Note:** The subscription api have been modified recently to allow specifying both the `entitlementDate` and `billingDate`, and will be fully released as part of `killbill-0.17.0`. Some examples on how to use those apis to achieve the migration goal can be found https://github.com/killbill/killbill/blob/work-for-release-0.17.0/beatrix/src/test/java/org/killbill/billing/beatrix/integration/TestMigrationSubscriptions.java[here].
+**Note:** The subscription api have been modified recently to allow specifying both the `entitlementDate` and `billingDate`, and will be fully released as part of `killbill-0.18.x`. Some examples on how to use those apis to achieve the migration goal can be found https://github.com/killbill/killbill/blob/work-for-release-0.18.0/beatrix/src/test/java/org/killbill/billing/beatrix/integration/TestMigrationSubscriptions.java[here].
 
 For information, it is still interesting to show how things were done prior the introduction of those new apis. The sequence was a bit more complex, but this shows that in very complex scenario there is a lot of flexibility through the use of the http://killbill.io/blog/blockingstate-abstractions[`BlockingState`] events. Below is a description of how things could work using `BlockingState`:
 
