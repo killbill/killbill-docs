@@ -539,7 +539,7 @@ The <code>admin_shakti</code> user will have full privileges for its Shakti tena
 <p>Of course, for our own purpose of providing the service, we will also create a very first tenant to invoice our merchants (e.g the Shakti business). That tenant will be called <code>saas</code> ('Subscription As A Service'), and the associated admin user will be called <strong>admin_saas</strong>.</p>
 </div>
 <div class="paragraph">
-<p>Also, for sake of simplicity, we will setup Kill Bill to use a static <a href="http://shiro.apache.org/configuration.html">Shiro configuration file</a> to configure the various admin users/roles. In real life, it would be more practical to rely on LDAP rather than static configuration, which requires restarting Kill Bill when creating new users/roles. The LDAP configuration is supported by Shiro but we will not describe the steps in that tutorial to keep it simple.</p>
+<p>Also, for sake of simplicity, we will setup Kill Bill to use a static <a href="http://shiro.apache.org/configuration.html">Shiro configuration file</a> to configure the various admin users/roles. In real life, it would be more practical to rely on LDAP rather than static configuration, or use <a href="http://docs.killbill.io/latest/user_management.html">the Database configuration approach</a> to avoid having to restart Kill Bill when creating new users/roles. The LDAP configuration is supported by Shiro but we will not describe the steps in that tutorial to keep it simple.</p>
 </div>
 </div>
 </div>
@@ -550,8 +550,10 @@ The <code>admin_shakti</code> user will have full privileges for its Shakti tena
 <div class="sect2">
 <h3 id="_overview_of_aws_deployment_steps">Overview of AWS Deployment Steps</h3>
 <div class="paragraph">
-<p>We already described the lengthy steps required to configure the various EC2 instances in that <a href="http://killbill.io/tutorials/aws">tutorial</a> so we won&#8217;t go into details here again, which means that all the setup related to the VPC, security groups, spawning of the EC2 and RDS instances is considered a prerequisite.
-In particular, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI. In addition with started our EC2 zone with with a special script that configured and started <code>dockerd</code> on the zones.</p>
+<p>In order to install Kill Bill on AWS you can use <a href="https://github.com/killbill/killbill-cloud/tree/master/docker">our docker</a> images and rely on the <code>aws</code> from <code>docker-machine</code>. Alternatively you can setup things by hand, for instance by following <a href="https://blog.axcess.io/2016/10/24/installing-killbill-on-aws-amazon-linux-based-ec2/">the following steps</a>.</p>
+</div>
+<div class="paragraph">
+<p>The important piece is that=, the port 8080 should be publicly available for Kill Bill (in that simple setup with no firewall) and the port 3000 should be publicly available for KAUI.</p>
 </div>
 <div class="paragraph">
 <p>Notes:</p>
@@ -617,10 +619,10 @@ In particular, the port 8080 should be publicly available for Kill Bill (in that
 <div class="sect2">
 <h3 id="_configuration_files">Configuration Files</h3>
 <div class="paragraph">
-<p>Kill Bill and its plugins will rely on a set of configuration files and those will be first uploaded on the docker host (that is, the EC2 instance where the docker container runs), and then we will use the docker <code>mapping</code> mechanism to make those configuration files visible into the docker data volume. The configuration files will need to be uploaded under <code>/home/ubuntu/killbill/etc/&lt;config&gt;</code>, and then that directory will be mapped to the <code>/etc/killbill/&lt;config&gt;</code> by specifying the option <code>-v</code> when we <code>run</code> the container.</p>
+<p>Since we want to realy on the static <code>shiro.ini</code> file, we need to make sure such a file exists and is available. Fortunately, there is config variable, <code>KILLBILL_SHIRO_RESOURCE_PATH</code>, that we can pass to our docker image, to take of that.</p>
 </div>
 <div class="paragraph">
-<p>The following configurations files will be needed:</p>
+<p>The <code>shiro.ini</code> file will look like the following:</p>
 </div>
 <div class="listingblock">
 <div class="title">shiro.ini</div>
@@ -633,31 +635,6 @@ In particular, the port 8080 should be publicly available for Kill Bill (in that
 <span class="tok-nv">root</span> <span class="tok-o">=</span> *:*
 <span class="tok-nv">root_tenant</span> <span class="tok-o">=</span> account,catalog,custom_field,entitlement,invoice,overdue,payment,payment_method,tag,usage</code></pre>
 </div>
-</div>
-<div class="paragraph">
-<p>Note: PWD is a specific password for each of those users.</p>
-</div>
-<div class="listingblock">
-<div class="title">stripe.yml</div>
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">:stripe:
-  :api_secret_key: <span class="tok-s1">&#39;INVALID&#39;</span>
-  :api_publishable_key: <span class="tok-s1">&#39;INVALID&#39;</span>
-  :test: <span class="tok-nb">true</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Notes:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>We set the <code>api_secret_key</code> and <code>api_publishable_key</code> to INVALID explicitly since those settings will be overridden on a per tenant basis in the last section. However the database section is global for all tenant so we need to specify it as a global level here.</p>
-</li>
-<li>
-<p>RDS_USERNAME, RDS_PWD, RDS_URL are respectively the username, password and url of your RDS instance.</p>
-</li>
-</ul>
 </div>
 </div>
 <div class="sect2">
@@ -743,7 +720,7 @@ kaui_ec2&gt; sudo docker logs -f kaui-saas</code></pre>
 <div class="sect2">
 <h3 id="_creating_the_tenants_and_configuring_allowed_users">Creating the tenants and configuring allowed users</h3>
 <div class="paragraph">
-<p>KAUI has been enhanced with new <code>admin screens</code>, that are described in the Multi-tenancy screens section <a href="https://github.com/killbill/killbill-admin-ui">of that doc</a>.</p>
+<p>KAUI has been enhanced with new <code>admin screens</code>, that are described in the Multi-tenancy screens section <a href="https://github.com/killbill/killbill-admin-ui">of that documentation</a>.</p>
 </div>
 <div class="paragraph">
 <p>The first step is to login as <code>superadmin</code> to have the rights to create new tenants and configure all allowed users.</p>
@@ -811,7 +788,7 @@ If the user has more than one tenant, the user will be prompted to chose which t
 <p>The plugins get notified when such config occurs so they can take action if needed</p>
 </li>
 <li>
-<p>In multi-node scenario, there is a mechanism to make sure other nodes, that did not process the per tenant config change will be notified and refresh their view</p>
+<p>In multi-node scenario, there is a mechanism to make sure all nodes will be notified and refresh their view</p>
 </li>
 </ul>
 </div>
@@ -1087,7 +1064,7 @@ If the user has more than one tenant, the user will be prompted to chose which t
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-12 20:29:21 UTC
+Last updated 2016-12-12 23:51:18 UTC
 </div>
 </div>
 </body>
