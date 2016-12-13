@@ -703,7 +703,7 @@ processing_available_date: NULL
 </div>
 </div>
 <div class="paragraph">
-<p>The entitlement subsystem has also a record of the start of the entitlement, in the <code>blocking_states</code> table:</p>
+<p>The entitlement subsystem has also a record of the start of the entitlement, in the <code>blocking_states</code> table (on older Kill Bill versions, this was not present so you could still see some data were this is missing and this is fine, the system knows how to handle this case):</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -842,10 +842,20 @@ Empty set (0.00 sec)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>What happens is that the payment subsystem calls the <code>createPurchaseWithPaymentControl</code> API and specifies <code><em>INVOICE_PAYMENT_CONTROL_PLUGIN</em></code> as the control plugin to use (you can add your own via the system property <code>org.killbill.payment.invoice.plugin</code>). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the <code>invoice_payments</code> table (<code>success</code> is set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to <code>true</code>. Upon failure, the next payment retry date is computed, based on the system configuration.</p>
+<p>What happens is that the payment subsystem calls the <code>createPurchaseWithPaymentControl</code> API and specifies <code><em>INVOICE_PAYMENT_CONTROL_PLUGIN</em></code> as the control plugin to use (you can add your own via the system property <code>org.killbill.payment.invoice.plugin</code>). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the <code>invoice_payments</code> table (<code>success</code> is first set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to <code>true</code>. In case of failure, <code>success</code> would remain set to false and the next payment retry date would be computed, based on the system configuration.</p>
 </div>
 <div class="paragraph">
-<p>While the link between invoice and payments is encapsulated in the <code>invoice_payments</code> table, there is one level of indirection with the <code>payments</code> table through the <code>payment_attempts</code> table, to manage retries: in case of retries because of payment failures (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a <code>PAYMENT_FAILURE</code> status). Each of these transactions will be associated with an attempt in a <code>RETRIED</code> state.</p>
+<p>While the link between invoice and payments is encapsulated in the <code>invoice_payments</code> table, there is one level of indirection with the <code>payments</code> table through the <code>payment_attempts</code> table, to manage aborted payments and retries:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Aborted payments: In a situation where the invocie was already paid (or there is a $0 balance), the invoice control plugin would abort the payment. In such situations, we would end up with a row in the <code>payment_attempts</code> table with an <code>ABORTED</code> state and no row in the <code>payments</code> and <code>payment_transactions</code> table.</p>
+</li>
+<li>
+<p>Payment Retries: In a situation where we see a payment failure (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a <code>PAYMENT_FAILURE</code> status). Each of these transactions will be associated with an attempt in a <code>RETRIED</code> state.</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
 <p>Note also that the <code>payment_attempts</code> entry is linked to the invoice via the plugin property <code>IPCD_INVOICE_ID</code> (which points to the invoice id).</p>
@@ -946,7 +956,7 @@ charged_through_date: 2012-06-01 00:00:00
 </div>
 </div>
 <div class="paragraph">
-<p>And a new notification, for the invoice subsystem this time, is created for 2012-06-01:</p>
+<p>The system will also generate a new (future) notification on 2012-06-01. This invoice notification will be the trigger for the next invoice generation:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1064,7 +1074,7 @@ transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
 <p>In this case, a <code>PURCHASE</code> (i.e. auto-capture) payment was performed. The <code>invoice_payments</code> entry is linked to the <code>payments</code> entry via <code>payment_id</code> and to the <code>transactions</code> table via <code>payment_cookie_id</code> (which is the transaction external key).</p>
 </div>
 <div class="paragraph">
-<p>If the payment didn&#8217;t go through the first time (e.g. insufficient funds on the credit card), but is successful after a retry 8 days later, the data would look like this:</p>
+<p>If the payment didn&#8217;t go through the first time (e.g. insufficient funds on the credit card), and the system was configured to retry the payments 8 days after, the data would look like this on a successful retry:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1294,7 +1304,7 @@ account_record_id: 1
 </div>
 </div>
 <div class="paragraph">
-<p>The <code>ITEM_ADJ</code> of $-10 points to the recurring item (see <code>linked_item_id</code>). Because the balance of the invoice was $0, a credit item (<code>CBA_ADJ</code>) of $10 is also added.</p>
+<p>The <code>ITEM_ADJ</code> of $-10 points to the recurring item (see <code>linked_item_id</code>). Because the balance of the invoice was $0, a credit item (<code>CBA_ADJ</code>) of $10 is also added and will be available when the next invoice is being generated.</p>
 </div>
 <div class="sect2">
 <h3 id="_refund_with_invoice_item_adjustment">Refund with invoice item adjustment</h3>
@@ -1740,7 +1750,7 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-13 19:14:50 UTC
+Last updated 2016-12-13 23:45:05 UTC
 </div>
 </div>
 </body>
