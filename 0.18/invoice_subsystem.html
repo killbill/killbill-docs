@@ -681,7 +681,7 @@ DefaultBillingEvent{type=PHASE, effectiveDate=2012-05-01T00:01:14.000Z, planPhas
 </div>
 </div>
 <div class="paragraph">
-<p>The target date being 2012-04-01, only the first one matters. Based on the catalog configuration, the following invoice and invoice item are generated:</p>
+<p>The target date being 2012-04-01, only the first one matters. Based on the catalog configuration, the following invoice and invoice item are generated (an invoice has always 1 or more invoice items associated with it):</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -732,7 +732,7 @@ account_record_id: 1
 <p>There is only a single <code>FIXED</code> item with a start date of 2012-04-01.</p>
 </div>
 <div class="paragraph">
-<p>Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice:</p>
+<p>Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice (using the default payment method on the account):</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -784,7 +784,16 @@ Empty set (0.00 sec)</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Not payment was actually processed, since the invoice amount is zero (trial).</p>
+<p>What happens is that the payment subsystem calls the <code>createPurchaseWithPaymentControl</code> API and specifies <code><em>INVOICE_PAYMENT_CONTROL_PLUGIN</em></code> as the control plugin to use (you can add your own via the system property <code>org.killbill.payment.invoice.plugin</code>). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the <code>invoice_payments</code> table (<code>success</code> is set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to <code>true</code>. Upon failure, the next payment retry date is computed, based on the system configuration.</p>
+</div>
+<div class="paragraph">
+<p>While the link between invoice and payments is encapsulated in the <code>invoice_payments</code> table, there is one level of indirection with the <code>payments</code> table through the <code>payment_attempts</code> table, to manage retries: in case of retries because of payment failures (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a <code>PAYMENT_FAILURE</code> status). Each of these transactions will be associated with an attempt in a <code>RETRIED</code> state.</p>
+</div>
+<div class="paragraph">
+<p>Note also that the <code>payment_attempts</code> entry is linked to the invoice via the plugin property <code>IPCD_INVOICE_ID</code> (which points to the invoice id).</p>
+</div>
+<div class="paragraph">
+<p>In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the <code>ABORTED</code> state. See below for an example of an actual payment.</p>
 </div>
 </div>
 </div>
@@ -992,6 +1001,9 @@ transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
         tenant_record_id: 0
 1 row in set (0.00 sec)</code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>In this case, a <code>PURCHASE</code> (i.e. auto-capture) payment was performed. The <code>invoice_payments</code> entry is linked to the <code>payments</code> entry via <code>payment_id</code> and to the <code>transactions</code> table via <code>payment_cookie_id</code> (which is the transaction external key).</p>
 </div>
 </div>
 </div>
@@ -1353,7 +1365,7 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-13 15:41:41 UTC
+Last updated 2016-12-13 16:19:36 UTC
 </div>
 </div>
 </body>
