@@ -482,7 +482,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <ul class="sectlevel1">
 <li><a href="#_initial_subscription_creation">Initial subscription creation</a></li>
 <li><a href="#_phase_transition">Phase transition</a></li>
-<li><a href="#_invoice_item_adjustment">Invoice item adjustment</a></li>
+<li><a href="#_invoice_item_adjustment">Invoice item adjustment</a>
+<ul class="sectlevel2">
+<li><a href="#_refund_with_invoice_item_adjustment">Refund with invoice item adjustment</a></li>
+</ul>
+</li>
 <li><a href="#_change_plan">Change plan</a></li>
 </ul>
 </div>
@@ -1238,6 +1242,176 @@ account_record_id: 1
 <div class="paragraph">
 <p>The <code>ITEM_ADJ</code> of $-10 points to the recurring item (see <code>linked_item_id</code>). Because the balance of the invoice was $0, a credit item (<code>CBA_ADJ</code>) of $10 is also added.</p>
 </div>
+<div class="sect2">
+<h3 id="_refund_with_invoice_item_adjustment">Refund with invoice item adjustment</h3>
+<div class="paragraph">
+<p>A variation of the invoice item adjustment is refund with invoice item adjustment, i.e. refund the customer instead of generating a credit.</p>
+</div>
+<div class="paragraph">
+<p>This time, there would only be a single <code>ITEM_ADJ</code> (no <code>CBA_ADJ</code> item):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>MySQL [killbill]&gt; select * from invoice_items where invoice_id = 'fa759cb6-6702-4a1c-85a3-9df7b101d3bc'\G
+*************************** 1. row ***************************
+        record_id: 2
+               id: 2326d3ff-e90d-43f0-b611-6c028bb88c71
+             type: RECURRING
+       invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+  subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+      description: shotgun-monthly-evergreen
+        plan_name: shotgun-monthly
+       phase_name: shotgun-monthly-evergreen
+       usage_name: NULL
+       start_date: 2012-05-01
+         end_date: 2012-06-01
+           amount: 249.950000000
+             rate: 249.950000000
+         currency: USD
+   linked_item_id: NULL
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:14:43
+account_record_id: 1
+ tenant_record_id: 0
+*************************** 2. row ***************************
+        record_id: 3
+               id: aadfc291-0981-4e20-b231-8ae047e5514b
+             type: ITEM_ADJ
+       invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: NULL
+  subscription_id: NULL
+      description: NULL
+        plan_name: NULL
+       phase_name: NULL
+       usage_name: NULL
+       start_date: 2012-05-02
+         end_date: 2012-05-02
+           amount: -10.000000000
+             rate: NULL
+         currency: USD
+   linked_item_id: 2326d3ff-e90d-43f0-b611-6c028bb88c71
+       created_by: kaui-through-http-client
+     created_date: 2012-05-02 00:15:25
+account_record_id: 1
+ tenant_record_id: 0
+2 rows in set (0.01 sec)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that the refund would have actually happened first and the <code>invoice_items</code> and <code>invoice_payments</code> tables would have been updated upon success.</p>
+</div>
+<div class="paragraph">
+<p>Here is the state of the payment related tables:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>MySQL [killbill]&gt; select * from invoice_payments where record_id &gt; 2\G
+*************************** 1. row ***************************
+                record_id: 3
+                       id: 35159bde-7bf0-4b77-a506-43aa1f37a29d
+                     type: REFUND
+               invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+               payment_id: b0e61973-a921-413d-a04b-84e36e3ad6bf
+             payment_date: 2012-05-02 00:15:25
+                   amount: -10.000000000
+                 currency: USD
+       processed_currency: USD
+        payment_cookie_id: 212ce168-526e-4f23-85a5-ffaa67b189a8
+linked_invoice_payment_id: e6e534e1-2ffa-4d5e-bcac-6905d4d26f61
+                  success: 1
+               created_by: kaui-through-http-client
+             created_date: 2012-05-02 00:15:25
+        account_record_id: 1
+         tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]&gt; select * from payment_attempts where record_id &gt; 2\G
+*************************** 1. row ***************************
+               record_id: 3
+                      id: 45e7adfc-7549-4f81-8562-8c6907485275
+              account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+       payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+    payment_external_key: d04ce5ad-e667-4113-8eb3-6d7f87f92bca
+          transaction_id: 0d6b12b6-b54a-4092-a977-9d950214d4e4
+transaction_external_key: 212ce168-526e-4f23-85a5-ffaa67b189a8
+        transaction_type: REFUND
+              state_name: SUCCESS
+                  amount: 10.000000000
+                currency: USD
+             plugin_name: __INVOICE_PAYMENT_CONTROL_PLUGIN__
+       plugin_properties: ZV j s[{"IPCD_REFUND_WITH_ADJUSTMENTS:"true"},�'IDS_AMOU`"{"2326d3ff-e90d-43f0-b611-6c028bb88c71":null}}]
+              created_by: kaui-through-http-client
+            created_date: 2012-05-02 00:15:25
+              updated_by: kaui-through-http-client
+            updated_date: 2012-05-02 00:15:25
+       account_record_id: 1
+        tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]&gt; select * from payments\G
+*************************** 1. row ***************************
+              record_id: 1
+                     id: b0e61973-a921-413d-a04b-84e36e3ad6bf
+             account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+      payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+           external_key: d04ce5ad-e667-4113-8eb3-6d7f87f92bca
+             state_name: REFUND_SUCCESS
+last_success_state_name: REFUND_SUCCESS
+             created_by: PaymentRequestProcessor
+           created_date: 2012-05-02 00:14:44
+             updated_by: kaui-through-http-client
+           updated_date: 2012-05-02 00:15:25
+      account_record_id: 1
+       tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]&gt; select * from payment_transactions where record_id &gt; 1\G
+*************************** 1. row ***************************
+               record_id: 2
+                      id: 0d6b12b6-b54a-4092-a977-9d950214d4e4
+              attempt_id: 45e7adfc-7549-4f81-8562-8c6907485275
+transaction_external_key: 212ce168-526e-4f23-85a5-ffaa67b189a8
+        transaction_type: REFUND
+          effective_date: 2012-05-02 00:15:25
+      transaction_status: SUCCESS
+                  amount: 10.000000000
+                currency: USD
+        processed_amount: 10.000000000
+      processed_currency: USD
+              payment_id: b0e61973-a921-413d-a04b-84e36e3ad6bf
+      gateway_error_code:
+       gateway_error_msg:
+              created_by: kaui-through-http-client
+            created_date: 2012-05-02 00:15:25
+              updated_by: kaui-through-http-client
+            updated_date: 2012-05-02 00:15:25
+       account_record_id: 1
+        tenant_record_id: 0
+1 row in set (0.00 sec)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A few things to notice:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>There is a new <code>invoice_payments</code> entry of type <code>REFUND</code>, linking to the attempt through <code>linked_invoice_payment_id</code></p>
+</li>
+<li>
+<p>There is still a single <code>payments</code> entry, but the state is now <code>REFUND_SUCCESS</code></p>
+</li>
+<li>
+<p>The payment has an additional <code>payment_transactions</code> entry of type <code>REFUND</code>, linking to a new <code>payment_attempts</code> entry</p>
+</li>
+</ul>
+</div>
+</div>
 </div>
 </div>
 <div class="sect1">
@@ -1512,7 +1686,7 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-13 17:16:55 UTC
+Last updated 2016-12-13 17:52:16 UTC
 </div>
 </div>
 </body>
