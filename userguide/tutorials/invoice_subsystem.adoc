@@ -173,7 +173,7 @@ DefaultBillingEvent{type=CREATE, effectiveDate=2012-04-01T00:01:14.000Z, planPha
 DefaultBillingEvent{type=PHASE, effectiveDate=2012-05-01T00:01:14.000Z, planPhaseName=shotgun-monthly-evergreen, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=2}
 ```
 
-The target date being 2012-04-01, only the first one matters. Based on the catalog configuration, the following invoice and invoice item are generated:
+The target date being 2012-04-01, only the first one matters. Based on the catalog configuration, the following invoice and invoice item are generated (an invoice has always 1 or more invoice items associated with it):
 
 ```
 MySQL [killbill]> select * from invoices\G
@@ -221,7 +221,7 @@ account_record_id: 1
 
 There is only a single `FIXED` item with a start date of 2012-04-01.
 
-Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice:
+Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice (using the default payment method on the account):
 
 ```
 MySQL [killbill]> select * from invoice_payments\G
@@ -271,7 +271,13 @@ MySQL [killbill]> select * from payments\G
 Empty set (0.00 sec)
 ```
 
-Not payment was actually processed, since the invoice amount is zero (trial).
+What happens is that the payment subsystem calls the `createPurchaseWithPaymentControl` API and specifies `__INVOICE_PAYMENT_CONTROL_PLUGIN__` as the control plugin to use (you can add your own via the system property `org.killbill.payment.invoice.plugin`). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the `invoice_payments` table (`success` is set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to `true`. Upon failure, the next payment retry date is computed, based on the system configuration.
+
+While the link between invoice and payments is encapsulated in the `invoice_payments` table, there is one level of indirection with the `payments` table through the `payment_attempts` table, to manage retries: in case of retries because of payment failures (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated with an attempt in a `RETRIED` state.
+
+Note also that the `payment_attempts` entry is linked to the invoice via the plugin property `IPCD_INVOICE_ID` (which points to the invoice id).
+
+In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the `ABORTED` state. See below for an example of an actual payment.
 
 == Phase transition
 
@@ -464,6 +470,8 @@ transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
         tenant_record_id: 0
 1 row in set (0.00 sec)
 ```
+
+In this case, a `PURCHASE` (i.e. auto-capture) payment was performed. The `invoice_payments` entry is linked to the `payments` entry via `payment_id` and to the `transactions` table via `payment_cookie_id` (which is the transaction external key).
 
 == Invoice item adjustment
 
