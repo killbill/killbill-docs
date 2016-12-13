@@ -1,0 +1,791 @@
+= Invoice subsystem
+
+Driven by the entitlement and subscription modules, along with the catalog configuration, the invoice subsystem is core to Kill Bill. This manual will walk you through a couple of use-cases, to help you understand how it works under the covers and how to make sense of the data on disk.
+
+== Initial subscription creation
+
+Let's assume a new user subscribes to the shotgun-monthly plan on 2012-04-01.
+
+The plan is defined as follows:
+
+```
+<plan name="shotgun-monthly">
+    <product>Shotgun</product>
+    <initialPhases>
+        <phase type="TRIAL">
+            <duration>
+                <unit>DAYS</unit>
+                <number>30</number>
+            </duration>
+        </phase>
+    </initialPhases>
+    <finalPhase type="EVERGREEN">
+        <duration>
+            <unit>UNLIMITED</unit>
+            <number>-1</number>
+        </duration>
+        <recurring>
+            <billingPeriod>MONTHLY</billingPeriod>
+            <recurringPrice>
+                <price>
+                    <currency>USD</currency>
+                    <value>249.95</value>
+                </price>
+            </recurringPrice>
+        </recurring>
+    </finalPhase>
+</plan>
+```
+
+Upon subscription creation, a new entry is added to the `bundles` and `subscriptions` tables, which look like this:
+
+```
+MySQL [killbill]> select * from bundles\G
+*************************** 1. row ***************************
+            record_id: 1
+                   id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+         external_key: externalKey
+           account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ last_sys_update_date: 2012-04-01 00:01:15
+original_created_date: 2012-04-01 00:01:14
+           created_by: website-through-http-client
+         created_date: 2012-04-01 00:01:14
+           updated_by: SubscriptionBaseTransition
+         updated_date: 2012-04-01 00:01:15
+    account_record_id: 1
+     tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from subscriptions\G
+*************************** 1. row ***************************
+           record_id: 1
+                  id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+           bundle_id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+            category: BASE
+          start_date: 2012-04-01 00:01:14
+   bundle_start_date: 2012-04-01 00:01:14
+charged_through_date: 2012-04-01 00:00:00
+            migrated: 0
+          created_by: website-through-http-client
+        created_date: 2012-04-01 00:01:15
+          updated_by: SubscriptionBaseTransition
+        updated_date: 2012-04-01 00:01:15
+   account_record_id: 1
+    tenant_record_id: 0
+1 row in set (0.00 sec)
+```
+
+Associated with the subscription are a couple of subscription events, one `CREATE` marking the beginning of the subscription at the effective date `2012-04-01 00:01:14` and one `PHASE` event marking the date at which the `EVERGREEN` phase starts:
+
+```
+MySQL [killbill]> select * from subscription_events\G
+*************************** 1. row ***************************
+              record_id: 1
+                     id: 55d5cc5e-2c58-4560-9042-f3c7115d6ccd
+             event_type: API_USER
+              user_type: CREATE
+         effective_date: 2012-04-01 00:01:14
+        subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+              plan_name: shotgun-monthly
+             phase_name: shotgun-monthly-trial
+        price_list_name: DEFAULT
+billing_cycle_day_local: 0
+              is_active: 1
+             created_by: website-through-http-client
+           created_date: 2012-04-01 00:01:15
+             updated_by: website-through-http-client
+           updated_date: 2012-04-01 00:01:15
+      account_record_id: 1
+       tenant_record_id: 0
+*************************** 2. row ***************************
+              record_id: 2
+                     id: 8751c48e-686b-4eea-b959-52676e1bb9da
+             event_type: PHASE
+              user_type: NULL
+         effective_date: 2012-05-01 00:01:14
+        subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+              plan_name: NULL
+             phase_name: shotgun-monthly-evergreen
+        price_list_name: NULL
+billing_cycle_day_local: 0
+              is_active: 1
+             created_by: website-through-http-client
+           created_date: 2012-04-01 00:01:15
+             updated_by: website-through-http-client
+           updated_date: 2012-04-01 00:01:15
+      account_record_id: 1
+       tenant_record_id: 0
+2 rows in set (0.00 sec)
+```
+
+The subscription service has also recorded a future notification effective when the `EVERGREEN` phase starts:
+
+```
+MySQL [killbill]> select * from notifications\G
+*************************** 1. row ***************************
+                record_id: 1
+               class_name: org.killbill.billing.subscription.engine.core.SubscriptionNotificationKey
+               event_json: {"eventId":"8751c48e-686b-4eea-b959-52676e1bb9da","seqId":0}
+               user_token: f291917d-ce03-428f-9e58-e538db057d37
+             created_date: 2012-04-01 00:01:15
+           creating_owner: 127.0.0.1
+         processing_owner: NULL
+processing_available_date: NULL
+         processing_state: AVAILABLE
+              error_count: 0
+              search_key1: 1
+              search_key2: 0
+               queue_name: subscription-service:subscription-events
+           effective_date: 2012-05-01 00:01:14
+        future_user_token: 892a1fdf-45b5-404d-a492-99f612ba8b55
+1 row in set (0.00 sec)
+```
+
+The entitlement subsystem has also a record of the start of the entitlement, in the `blocking_states` table:
+
+```
+MySQL [killbill]> select * from blocking_states\G
+*************************** 1. row ***************************
+        record_id: 1
+               id: 18696a69-bcb0-40c4-98b5-9c13bc00307e
+     blockable_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+             type: SUBSCRIPTION
+            state: ENT_STARTED
+          service: entitlement-service
+     block_change: 0
+block_entitlement: 0
+    block_billing: 0
+   effective_date: 2012-04-01 00:01:15
+        is_active: 1
+     created_date: 2012-04-01 00:01:14
+       created_by: website-through-http-client
+     updated_date: 2012-04-01 00:01:14
+       updated_by: website-through-http-client
+account_record_id: 1
+ tenant_record_id: 0
+1 row in set (0.00 sec)
+```
+
+Upon subscription creation, a bus event is triggered and caught by the invoicing subsystem, which invoices the account with a target date of 2012-04-01. To do so, it computes the billing events from these subscription events and blocking states (they are effectively markers between billable periods). In our case, these billing events are:
+
+```
+DefaultBillingEvent{type=CREATE, effectiveDate=2012-04-01T00:01:14.000Z, planPhaseName=shotgun-monthly-trial, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=1}
+DefaultBillingEvent{type=PHASE, effectiveDate=2012-05-01T00:01:14.000Z, planPhaseName=shotgun-monthly-evergreen, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=2}
+```
+
+The target date being 2012-04-01, only the first one matters. Based on the catalog configuration, the following invoice and invoice item are generated:
+
+```
+MySQL [killbill]> select * from invoices\G
+*************************** 1. row ***************************
+        record_id: 1
+               id: 5c6369d2-cd18-489f-9fe5-748e72f9938e
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+     invoice_date: 2012-04-01
+      target_date: 2012-04-01
+         currency: USD
+           status: COMMITTED
+         migrated: 0
+   parent_invoice: 0
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-04-01 00:01:15
+account_record_id: 1
+ tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from invoice_items\G
+*************************** 1. row ***************************
+        record_id: 1
+               id: 19667140-fa16-48e0-b04e-579b9972f612
+             type: FIXED
+       invoice_id: 5c6369d2-cd18-489f-9fe5-748e72f9938e
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+  subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+      description: shotgun-monthly-trial
+        plan_name: shotgun-monthly
+       phase_name: shotgun-monthly-trial
+       usage_name: NULL
+       start_date: 2012-04-01
+         end_date: NULL
+           amount: 0.000000000
+             rate: NULL
+         currency: USD
+   linked_item_id: NULL
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-04-01 00:01:15
+account_record_id: 1
+ tenant_record_id: 0
+```
+
+There is only a single `FIXED` item with a start date of 2012-04-01.
+
+Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice:
+
+```
+MySQL [killbill]> select * from invoice_payments\G
+*************************** 1. row ***************************
+                record_id: 1
+                       id: ac421b90-b13b-461f-bfd7-517807a895f0
+                     type: ATTEMPT
+               invoice_id: 5c6369d2-cd18-489f-9fe5-748e72f9938e
+               payment_id: NULL
+             payment_date: 2012-04-01 00:01:15
+                   amount: 0.000000000
+                 currency: USD
+       processed_currency: USD
+        payment_cookie_id: ae53501e-c9dd-45e3-8ec6-78da4e9f8d99
+linked_invoice_payment_id: NULL
+                  success: 0
+               created_by: PaymentRequestProcessor
+             created_date: 2012-04-01 00:01:15
+        account_record_id: 1
+         tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from payment_attempts\G
+*************************** 1. row ***************************
+               record_id: 1
+                      id: 16f869b1-c5c9-41ed-a776-87f3ce4e5bb5
+              account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+       payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+    payment_external_key: 6bd135f7-8a7d-4448-9ce9-3889055af9e3
+          transaction_id: NULL
+transaction_external_key: ae53501e-c9dd-45e3-8ec6-78da4e9f8d99
+        transaction_type: PURCHASE
+              state_name: ABORTED
+                  amount: NULL
+                currency: USD
+             plugin_name: __INVOICE_PAYMENT_CONTROL_PLUGIN__
+       plugin_properties: ZV  <[{"IPCD_INVOICE_ID":"5c6369d2-cd18-489f-9fe5-748e72f9938e"}]
+              created_by: PaymentRequestProcessor
+            created_date: 2012-04-01 00:01:15
+              updated_by: PaymentRequestProcessor
+            updated_date: 2012-04-01 00:01:15
+       account_record_id: 1
+        tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from payments\G
+Empty set (0.00 sec)
+```
+
+Not payment was actually processed, since the invoice amount is zero (trial).
+
+== Phase transition
+
+Let's fast forward the time to 2012-05-02.
+
+The notification for the phase event is processed by the subscription subsystem. There is nothing to be done in that case (in other scenarios, add-ons may need to be cancelled or a future phase event may need to be computed): it simply sends a message on the bus letting the system know about the phase transition.
+
+The invoicing subsystem picks it up and re-compute the billing events:
+
+```
+DefaultBillingEvent{type=CREATE, effectiveDate=2012-04-01T00:01:14.000Z, planPhaseName=shotgun-monthly-trial, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=1}
+DefaultBillingEvent{type=PHASE, effectiveDate=2012-05-01T00:01:14.000Z, planPhaseName=shotgun-monthly-evergreen, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=2}
+```
+
+Nothing has changed but since the target date is now 2012-05-01, both events need to be taken into account. The invoice subsystem recomputes all invoice items since the beginning of time, and come up with a `FIXED` item (trial period) and a `RECURRING` item (for the service period 2012-05-01 to 2012-06-01). Because the `FIXED` item is already present in the database, only the second one is persisted on disk, on a new invoice:
+
+```
+MySQL [killbill]> select * from invoices order by record_id desc limit 1\G
+*************************** 1. row ***************************
+        record_id: 2
+               id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+     invoice_date: 2012-05-02
+      target_date: 2012-05-01
+         currency: USD
+           status: COMMITTED
+         migrated: 0
+   parent_invoice: 0
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:14:43
+account_record_id: 1
+ tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from invoice_items order by record_id desc limit 1\G
+*************************** 1. row ***************************
+        record_id: 2
+               id: 2326d3ff-e90d-43f0-b611-6c028bb88c71
+             type: RECURRING
+       invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+  subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+      description: shotgun-monthly-evergreen
+        plan_name: shotgun-monthly
+       phase_name: shotgun-monthly-evergreen
+       usage_name: NULL
+       start_date: 2012-05-01
+         end_date: 2012-06-01
+           amount: 249.950000000
+             rate: 249.950000000
+         currency: USD
+   linked_item_id: NULL
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:14:43
+account_record_id: 1
+ tenant_record_id: 0
+1 row in set (0.00 sec)
+```
+
+The subscription `charged_through_date` is updated to 2012-06-01:
+
+```
+MySQL [killbill]> select * from subscriptions\G
+*************************** 1. row ***************************
+           record_id: 1
+                  id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+           bundle_id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+            category: BASE
+          start_date: 2012-04-01 00:01:14
+   bundle_start_date: 2012-04-01 00:01:14
+charged_through_date: 2012-06-01 00:00:00
+            migrated: 0
+          created_by: website-through-http-client
+        created_date: 2012-04-01 00:01:15
+          updated_by: SubscriptionBaseTransition
+        updated_date: 2012-05-02 00:14:44
+   account_record_id: 1
+    tenant_record_id: 0
+```
+
+And a new notification, for the invoice subsystem this time, is created for 2012-06-01:
+
+```
+MySQL [killbill]>  select * from notifications\G
+*************************** 1. row ***************************
+                record_id: 2
+               class_name: org.killbill.billing.invoice.notification.NextBillingDateNotificationKey
+               event_json: {"uuidKey":"d9c7bb57-675e-4419-a340-5f6b4fd612f4","targetDate":"2012-06-01T00:00:00.000Z","isDryRunForInvoiceNotification":false}
+               user_token: 892a1fdf-45b5-404d-a492-99f612ba8b55
+             created_date: 2012-05-02 00:14:44
+           creating_owner: 127.0.0.1
+         processing_owner: NULL
+processing_available_date: NULL
+         processing_state: AVAILABLE
+              error_count: 0
+              search_key1: 1
+              search_key2: 0
+               queue_name: invoice-service:next-billing-date-queue
+           effective_date: 2012-06-01 00:00:00
+        future_user_token: aa2c96e2-71b4-4149-abdc-2889256c2b34
+1 row in set (0.00 sec)
+```
+
+After the invoice is generated, an event is sent to the bus, which makes the payment subsystem react to it:
+
+```
+MySQL [killbill]> select * from invoice_payments order by record_id desc limit 1\G
+*************************** 1. row ***************************
+                record_id: 2
+                       id: e6e534e1-2ffa-4d5e-bcac-6905d4d26f61
+                     type: ATTEMPT
+               invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+               payment_id: b0e61973-a921-413d-a04b-84e36e3ad6bf
+             payment_date: 2012-05-02 00:14:44
+                   amount: 249.950000000
+                 currency: USD
+       processed_currency: USD
+        payment_cookie_id: 943d005c-5f89-4664-88f5-c65f39a3a9c8
+linked_invoice_payment_id: NULL
+                  success: 1
+               created_by: PaymentRequestProcessor
+             created_date: 2012-05-02 00:14:44
+        account_record_id: 1
+         tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from payment_attempts order by record_id desc limit 1\G
+*************************** 1. row ***************************
+               record_id: 2
+                      id: 090fa541-7b69-42b2-bec7-a16f3c616071
+              account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+       payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+    payment_external_key: d04ce5ad-e667-4113-8eb3-6d7f87f92bca
+          transaction_id: 8b671a2e-6556-4aa8-8464-ef1cb99e5189
+transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
+        transaction_type: PURCHASE
+              state_name: SUCCESS
+                  amount: NULL
+                currency: USD
+             plugin_name: __INVOICE_PAYMENT_CONTROL_PLUGIN__
+       plugin_properties: ZV  <[{"IPCD_INVOICE_ID":"fa759cb6-6702-4a1c-85a3-9df7b101d3bc"}]
+              created_by: PaymentRequestProcessor
+            created_date: 2012-05-02 00:14:44
+              updated_by: PaymentRequestProcessor
+            updated_date: 2012-05-02 00:14:44
+       account_record_id: 1
+        tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from payments\G
+*************************** 1. row ***************************
+              record_id: 1
+                     id: b0e61973-a921-413d-a04b-84e36e3ad6bf
+             account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+      payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+           external_key: d04ce5ad-e667-4113-8eb3-6d7f87f92bca
+             state_name: PURCHASE_SUCCESS
+last_success_state_name: PURCHASE_SUCCESS
+             created_by: PaymentRequestProcessor
+           created_date: 2012-05-02 00:14:44
+             updated_by: PaymentRequestProcessor
+           updated_date: 2012-05-02 00:14:44
+      account_record_id: 1
+       tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from payment_transactions\G
+*************************** 1. row ***************************
+               record_id: 1
+                      id: 8b671a2e-6556-4aa8-8464-ef1cb99e5189
+              attempt_id: 090fa541-7b69-42b2-bec7-a16f3c616071
+transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
+        transaction_type: PURCHASE
+          effective_date: 2012-05-02 00:14:44
+      transaction_status: SUCCESS
+                  amount: 249.950000000
+                currency: USD
+        processed_amount: 249.950000000
+      processed_currency: USD
+              payment_id: b0e61973-a921-413d-a04b-84e36e3ad6bf
+      gateway_error_code:
+       gateway_error_msg:
+              created_by: PaymentRequestProcessor
+            created_date: 2012-05-02 00:14:44
+              updated_by: PaymentRequestProcessor
+            updated_date: 2012-05-02 00:14:44
+       account_record_id: 1
+        tenant_record_id: 0
+1 row in set (0.00 sec)
+```
+
+== Invoice item adjustment
+
+Let's consider the case where the administrator item adjusts for $10 the recurring item (for the service period 2012-05-01 to 2012-06-01). The second invoice now has 2 new items:
+
+```
+MySQL [killbill]> select * from invoice_items where invoice_id = 'fa759cb6-6702-4a1c-85a3-9df7b101d3bc'\G
+*************************** 1. row ***************************
+        record_id: 2
+               id: 2326d3ff-e90d-43f0-b611-6c028bb88c71
+             type: RECURRING
+       invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+  subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+      description: shotgun-monthly-evergreen
+        plan_name: shotgun-monthly
+       phase_name: shotgun-monthly-evergreen
+       usage_name: NULL
+       start_date: 2012-05-01
+         end_date: 2012-06-01
+           amount: 249.950000000
+             rate: 249.950000000
+         currency: USD
+   linked_item_id: NULL
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:14:43
+account_record_id: 1
+ tenant_record_id: 0
+*************************** 2. row ***************************
+        record_id: 3
+               id: e702518e-2da1-4d1a-8939-316a2fef4df3
+             type: ITEM_ADJ
+       invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: NULL
+  subscription_id: NULL
+      description: Invoice item adjustment
+        plan_name: NULL
+       phase_name: NULL
+       usage_name: NULL
+       start_date: 2012-05-02
+         end_date: 2012-05-02
+           amount: -10.000000000
+             rate: NULL
+         currency: USD
+   linked_item_id: 2326d3ff-e90d-43f0-b611-6c028bb88c71
+       created_by: kaui-through-http-client
+     created_date: 2012-05-02 00:30:41
+account_record_id: 1
+ tenant_record_id: 0
+*************************** 3. row ***************************
+        record_id: 4
+               id: 74d1d3eb-d4b7-4b45-93ac-01805156d3db
+             type: CBA_ADJ
+       invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: NULL
+  subscription_id: NULL
+      description: Adjustment (account credit)
+        plan_name: NULL
+       phase_name: NULL
+       usage_name: NULL
+       start_date: 2012-05-02
+         end_date: 2012-05-02
+           amount: 10.000000000
+             rate: NULL
+         currency: USD
+   linked_item_id: NULL
+       created_by: kaui-through-http-client
+     created_date: 2012-05-02 00:30:41
+account_record_id: 1
+ tenant_record_id: 0
+3 rows in set (0.00 sec)
+```
+
+The `ITEM_ADJ` of $-10 points to the recurring item (see `linked_item_id`). Because the balance of the invoice was $0, a credit item (`CBA_ADJ`) of $10 is also added.
+
+== Change plan
+
+Let's assume the user changes on 2012-05-02 to the blowdart-monthly plan.
+
+The plan is defined as follows:
+
+```
+<plan name="blowdart-monthly">
+    <product>Blowdart</product>
+    <initialPhases>
+        <phase type="TRIAL">
+            <duration>
+                <unit>DAYS</unit>
+                <number>30</number>
+            </duration>
+        </phase>
+        <phase type="DISCOUNT">
+            <duration>
+                <unit>MONTHS</unit>
+                <number>6</number>
+            </duration>
+            <recurring>
+                <billingPeriod>MONTHLY</billingPeriod>
+                <recurringPrice>
+                    <price>
+                        <currency>USD</currency>
+                        <value>9.95</value>
+                    </price>
+                </recurringPrice>
+            </recurring>
+        </phase>
+    </initialPhases>
+    <finalPhase type="EVERGREEN">
+        <duration>
+            <unit>UNLIMITED</unit>
+        </duration>
+        <recurring>
+            <billingPeriod>MONTHLY</billingPeriod>
+            <recurringPrice>
+                <price>
+                    <currency>USD</currency>
+                    <value>29.95</value>
+                </price>
+            </recurringPrice>
+        </recurring>
+    </finalPhase>
+</plan>
+```
+
+For this scenario, we assume a `START_OF_SUBSCRIPTION` change alignment. Conceptually, the timeline for the subscriptions are as follows:
+
+* shotgun-monthly:  `[TRIAL 2012-04-01 -> 2012-05-01][EVERGREEN 2012-05-01 -> ...]`
+* blowdart-monthly: `[TRIAL 2012-04-01 -> 2012-05-01][DISCOUNT 2012-05-01 -> 2012-11-01][EVERGREEN 2012-11-01 -> ...]`
+
+With a `START_OF_SUBSCRIPTION` change alignment, both timelines align on the start of the subscription (2012-04-01). On 2012-05-02, the target phase is hence the `DISCOUNT` one. If we had chosen a `CHANGE_OF_PLAN` alignment instead, the `blowdart-monthly` timeline would have been aligned on the date of the change (2012-05-02) and the target phase would have been the `TRIAL` one.
+
+Two new subscription events are recorded, one for the change and one for the future phase change:
+
+```
+MySQL [killbill]> select * from subscription_events where record_id > 2\G
+*************************** 1. row ***************************
+              record_id: 3
+                     id: c3a87783-b6fc-41bd-acc9-130aba08dc5c
+             event_type: API_USER
+              user_type: CHANGE
+         effective_date: 2012-05-02 00:37:59
+        subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+              plan_name: blowdart-monthly
+             phase_name: blowdart-monthly-discount
+        price_list_name: DEFAULT
+billing_cycle_day_local: 0
+              is_active: 1
+             created_by: website-through-http-client
+           created_date: 2012-05-02 00:37:59
+             updated_by: website-through-http-client
+           updated_date: 2012-05-02 00:37:59
+      account_record_id: 1
+       tenant_record_id: 0
+*************************** 2. row ***************************
+              record_id: 4
+                     id: 0f448b11-b705-4074-b6a6-ecc62cc2b305
+             event_type: PHASE
+              user_type: NULL
+         effective_date: 2012-11-01 00:01:14
+        subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+              plan_name: NULL
+             phase_name: blowdart-monthly-evergreen
+        price_list_name: NULL
+billing_cycle_day_local: 0
+              is_active: 1
+             created_by: website-through-http-client
+           created_date: 2012-05-02 00:37:59
+             updated_by: website-through-http-client
+           updated_date: 2012-05-02 00:37:59
+      account_record_id: 1
+       tenant_record_id: 0
+2 rows in set (0.00 sec)
+```
+
+And a new invoice is generated with 3 items:
+
+```
+MySQL [killbill]> select * from invoices order by record_id desc limit 1\G
+*************************** 1. row ***************************
+        record_id: 3
+               id: 742a1a60-58f8-4ed2-b9db-b1816a741f44
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+     invoice_date: 2012-05-02
+      target_date: 2012-05-02
+         currency: USD
+           status: COMMITTED
+         migrated: 0
+   parent_invoice: 0
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:37:59
+account_record_id: 1
+ tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from invoice_items where record_id > 4\G
+*************************** 1. row ***************************
+        record_id: 5
+               id: d6b71f66-d54a-4cfc-bb73-ba55c91d8429
+             type: RECURRING
+       invoice_id: 742a1a60-58f8-4ed2-b9db-b1816a741f44
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: a7a1370e-1fa4-4c32-abd5-223e1da97339
+  subscription_id: d9c7bb57-675e-4419-a340-5f6b4fd612f4
+      description: blowdart-monthly-discount
+        plan_name: blowdart-monthly
+       phase_name: blowdart-monthly-discount
+       usage_name: NULL
+       start_date: 2012-05-02
+         end_date: 2012-06-01
+           amount: 9.630000000
+             rate: 9.950000000
+         currency: USD
+   linked_item_id: NULL
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:37:59
+account_record_id: 1
+ tenant_record_id: 0
+*************************** 2. row ***************************
+        record_id: 6
+               id: 592d7318-8fea-4e3b-b843-f6d444857132
+             type: REPAIR_ADJ
+       invoice_id: 742a1a60-58f8-4ed2-b9db-b1816a741f44
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: NULL
+  subscription_id: NULL
+      description: Adjustment (subscription change)
+        plan_name: NULL
+       phase_name: NULL
+       usage_name: NULL
+       start_date: 2012-05-02
+         end_date: 2012-06-01
+           amount: -239.950000000
+             rate: NULL
+         currency: USD
+   linked_item_id: 2326d3ff-e90d-43f0-b611-6c028bb88c71
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:37:59
+account_record_id: 1
+ tenant_record_id: 0
+*************************** 3. row ***************************
+        record_id: 7
+               id: 3413d964-90d3-4aa0-8b0e-406d02eb231e
+             type: CBA_ADJ
+       invoice_id: 742a1a60-58f8-4ed2-b9db-b1816a741f44
+       account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+ child_account_id: NULL
+        bundle_id: NULL
+  subscription_id: NULL
+      description: Adjustment (account credit)
+        plan_name: NULL
+       phase_name: NULL
+       usage_name: NULL
+       start_date: 2012-05-02
+         end_date: 2012-05-02
+           amount: 230.320000000
+             rate: NULL
+         currency: USD
+   linked_item_id: NULL
+       created_by: SubscriptionBaseTransition
+     created_date: 2012-05-02 00:37:59
+account_record_id: 1
+ tenant_record_id: 0
+3 rows in set (0.00 sec)
+```
+
+The `REPAIR_ADJ` item on the new invoice points to the `RECURRING` item on the second invoice that is being adjusted (repaired). The amount repaired is only $239.95 because of the previous item adjustment.
+
+Because the new rate is only $9.95, the account has extra credit of $239.95 - $9.63 (pro-rated) = $230.32 (new `CBA_ADJ` item).
+
+Note that the previous invoices have not been updated in that case.
+
+A new payment attempt is triggered, but aborted since the invoice balance is $0:
+
+```
+MySQL [killbill]> select * from invoice_payments order by record_id desc limit 1\G
+*************************** 1. row ***************************
+                record_id: 3
+                       id: e7f6b1d0-3823-4c5b-9226-12327af64492
+                     type: ATTEMPT
+               invoice_id: 742a1a60-58f8-4ed2-b9db-b1816a741f44
+               payment_id: NULL
+             payment_date: 2012-05-02 00:37:59
+                   amount: 0.000000000
+                 currency: USD
+       processed_currency: USD
+        payment_cookie_id: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
+linked_invoice_payment_id: NULL
+                  success: 0
+               created_by: PaymentRequestProcessor
+             created_date: 2012-05-02 00:37:59
+        account_record_id: 1
+         tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]> select * from payment_attempts order by record_id desc limit 1\G
+*************************** 1. row ***************************
+               record_id: 3
+                      id: 0703a3de-9216-4601-95cd-8540e0687bf5
+              account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+       payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+    payment_external_key: dff4c517-b229-4796-afe2-112aa4ba35e5
+          transaction_id: NULL
+transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
+        transaction_type: PURCHASE
+              state_name: ABORTED
+                  amount: NULL
+                currency: USD
+             plugin_name: __INVOICE_PAYMENT_CONTROL_PLUGIN__
+       plugin_properties: ZV  <[{"IPCD_INVOICE_ID":"742a1a60-58f8-4ed2-b9db-b1816a741f44"}]
+              created_by: PaymentRequestProcessor
+            created_date: 2012-05-02 00:37:59
+              updated_by: PaymentRequestProcessor
+            updated_date: 2012-05-02 00:37:59
+       account_record_id: 1
+        tenant_record_id: 0
+1 row in set (0.00 sec)
+```
