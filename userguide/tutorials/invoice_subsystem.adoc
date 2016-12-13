@@ -167,7 +167,7 @@ processing_available_date: NULL
 1 row in set (0.00 sec)
 ```
 
-The entitlement subsystem has also a record of the start of the entitlement, in the `blocking_states` table:
+The entitlement subsystem has also a record of the start of the entitlement, in the `blocking_states` table (on older Kill Bill versions, this was not present so you could still see some data were this is missing and this is fine, the system knows how to handle this case):
 
 ```
 MySQL [killbill]> select * from blocking_states\G
@@ -297,9 +297,12 @@ MySQL [killbill]> select * from payments\G
 Empty set (0.00 sec)
 ```
 
-What happens is that the payment subsystem calls the `createPurchaseWithPaymentControl` API and specifies `__INVOICE_PAYMENT_CONTROL_PLUGIN__` as the control plugin to use (you can add your own via the system property `org.killbill.payment.invoice.plugin`). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the `invoice_payments` table (`success` is set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to `true`. Upon failure, the next payment retry date is computed, based on the system configuration.
+What happens is that the payment subsystem calls the `createPurchaseWithPaymentControl` API and specifies `__INVOICE_PAYMENT_CONTROL_PLUGIN__` as the control plugin to use (you can add your own via the system property `org.killbill.payment.invoice.plugin`). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the `invoice_payments` table (`success` is first set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to `true`. In case of failure, `success` would remain set to false and the next payment retry date would be computed, based on the system configuration.
 
-While the link between invoice and payments is encapsulated in the `invoice_payments` table, there is one level of indirection with the `payments` table through the `payment_attempts` table, to manage retries: in case of retries because of payment failures (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated with an attempt in a `RETRIED` state.
+While the link between invoice and payments is encapsulated in the `invoice_payments` table, there is one level of indirection with the `payments` table through the `payment_attempts` table, to manage aborted payments and retries:
+
+* Aborted payments: In a situation where the invocie was already paid (or there is a $0 balance), the invoice control plugin would abort the payment. In such situations, we would end up with a row in the `payment_attempts` table with an `ABORTED` state and no row in the `payments` and `payment_transactions` table.
+* Payment Retries: In a situation where we see a payment failure (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated with an attempt in a `RETRIED` state. 
 
 Note also that the `payment_attempts` entry is linked to the invoice via the plugin property `IPCD_INVOICE_ID` (which points to the invoice id).
 
@@ -386,7 +389,7 @@ charged_through_date: 2012-06-01 00:00:00
     tenant_record_id: 0
 ```
 
-And a new notification, for the invoice subsystem this time, is created for 2012-06-01:
+The system will also generate a new (future) notification on 2012-06-01. This invoice notification will be the trigger for the next invoice generation:
 
 ```
 MySQL [killbill]>  select * from notifications\G
@@ -499,7 +502,7 @@ transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
 
 In this case, a `PURCHASE` (i.e. auto-capture) payment was performed. The `invoice_payments` entry is linked to the `payments` entry via `payment_id` and to the `transactions` table via `payment_cookie_id` (which is the transaction external key).
 
-If the payment didn't go through the first time (e.g. insufficient funds on the credit card), but is successful after a retry 8 days later, the data would look like this:
+If the payment didn't go through the first time (e.g. insufficient funds on the credit card), and the system was configured to retry the payments 8 days after, the data would look like this on a successful retry:
 
 ```
 MySQL [killbill]> select * from invoice_payments order by record_id desc limit 1\G
@@ -712,7 +715,7 @@ account_record_id: 1
 3 rows in set (0.00 sec)
 ```
 
-The `ITEM_ADJ` of $-10 points to the recurring item (see `linked_item_id`). Because the balance of the invoice was $0, a credit item (`CBA_ADJ`) of $10 is also added.
+The `ITEM_ADJ` of $-10 points to the recurring item (see `linked_item_id`). Because the balance of the invoice was $0, a credit item (`CBA_ADJ`) of $10 is also added and will be available when the next invoice is being generated.
 
 === Refund with invoice item adjustment
 
