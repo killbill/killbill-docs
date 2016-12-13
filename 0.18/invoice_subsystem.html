@@ -793,7 +793,7 @@ Empty set (0.00 sec)</code></pre>
 <p>Note also that the <code>payment_attempts</code> entry is linked to the invoice via the plugin property <code>IPCD_INVOICE_ID</code> (which points to the invoice id).</p>
 </div>
 <div class="paragraph">
-<p>In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the <code>ABORTED</code> state. See below for an example of an actual payment.</p>
+<p>In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the <code>ABORTED</code> state. See below for an example of an actual payment and what would happen in case of payment failures.</p>
 </div>
 </div>
 </div>
@@ -1004,6 +1004,153 @@ transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
 </div>
 <div class="paragraph">
 <p>In this case, a <code>PURCHASE</code> (i.e. auto-capture) payment was performed. The <code>invoice_payments</code> entry is linked to the <code>payments</code> entry via <code>payment_id</code> and to the <code>transactions</code> table via <code>payment_cookie_id</code> (which is the transaction external key).</p>
+</div>
+<div class="paragraph">
+<p>If the payment didn&#8217;t go through the first time (e.g. insufficient funds on the credit card), but is successful after a retry 8 days later, the data would look like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>MySQL [killbill]&gt; select * from invoice_payments order by record_id desc limit 1\G
+*************************** 1. row ***************************
+                record_id: 2
+                       id: 6a45a92e-72ee-4415-9c5a-8066d4448cc5
+                     type: ATTEMPT
+               invoice_id: fa759cb6-6702-4a1c-85a3-9df7b101d3bc
+               payment_id: d0a6b1c4-44b0-4e84-8883-4ec4cf8a3b2a
+             payment_date: 2012-05-09 00:00:49
+                   amount: 249.950000000
+                 currency: USD
+       processed_currency: USD
+        payment_cookie_id: 6a5b6c15-0a8b-43ae-8b82-f6d66568eb8f
+linked_invoice_payment_id: NULL
+                  success: 1
+               created_by: PaymentRequestProcessor
+             created_date: 2012-05-02 00:14:44
+        account_record_id: 1
+         tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]&gt; select * from payment_attempts where record_id &gt; 1\G
+*************************** 1. row ***************************
+               record_id: 2
+                      id: be5f3706-105d-4874-9857-2b0d197b7ff3
+              account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+       payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+    payment_external_key: 73035f59-9364-408f-a41f-d89b3483cd26
+          transaction_id: 4935d163-7f3a-4b5d-8ad2-13dcb6d4b540
+transaction_external_key: 6a5b6c15-0a8b-43ae-8b82-f6d66568eb8f
+        transaction_type: PURCHASE
+              state_name: RETRIED
+                  amount: NULL
+                currency: USD
+             plugin_name: __INVOICE_PAYMENT_CONTROL_PLUGIN__
+       plugin_properties: ZV  &lt;[{"IPCD_INVOICE_ID":"fa759cb6-6702-4a1c-85a3-9df7b101d3bc"}]
+              created_by: PaymentRequestProcessor
+            created_date: 2012-05-01 00:00:46
+              updated_by: PaymentRequestProcessor
+            updated_date: 2012-05-01 00:00:46
+       account_record_id: 1
+        tenant_record_id: 0
+*************************** 2. row ***************************
+               record_id: 3
+                      id: 672bc1a2-189a-4615-9619-544977cca8ea
+              account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+       payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+    payment_external_key: 73035f59-9364-408f-a41f-d89b3483cd26
+          transaction_id: 49ff12b5-7dfc-408d-956e-3d5335818738
+transaction_external_key: 6a5b6c15-0a8b-43ae-8b82-f6d66568eb8f
+        transaction_type: PURCHASE
+              state_name: SUCCESS
+                  amount: NULL
+                currency: USD
+             plugin_name: __INVOICE_PAYMENT_CONTROL_PLUGIN__
+       plugin_properties: ZV  &lt;[{"IPCD_INVOICE_ID":"fa759cb6-6702-4a1c-85a3-9df7b101d3bc"}]
+              created_by: payment-service-retry
+            created_date: 2012-05-09 00:00:49
+              updated_by: payment-service-retry
+            updated_date: 2012-05-09 00:00:49
+       account_record_id: 1
+        tenant_record_id: 0
+2 rows in set (0.00 sec)
+
+MySQL [killbill]&gt; select * from payments\G
+*************************** 1. row ***************************
+              record_id: 1
+                     id: d0a6b1c4-44b0-4e84-8883-4ec4cf8a3b2a
+             account_id: 8e4f353f-ddbb-4155-b52d-9fe77b8e96e3
+      payment_method_id: c046e5be-e632-444a-905f-c4bc0c5c0086
+           external_key: 73035f59-9364-408f-a41f-d89b3483cd26
+             state_name: PURCHASE_SUCCESS
+last_success_state_name: PURCHASE_SUCCESS
+             created_by: PaymentRequestProcessor
+           created_date: 2012-05-01 00:00:46
+             updated_by: payment-service-retry
+           updated_date: 2012-05-09 00:00:49
+      account_record_id: 1
+       tenant_record_id: 0
+1 row in set (0.00 sec)
+
+MySQL [killbill]&gt; select * from payment_transactions\G
+*************************** 1. row ***************************
+               record_id: 1
+                      id: 4935d163-7f3a-4b5d-8ad2-13dcb6d4b540
+              attempt_id: be5f3706-105d-4874-9857-2b0d197b7ff3
+transaction_external_key: 6a5b6c15-0a8b-43ae-8b82-f6d66568eb8f
+        transaction_type: PURCHASE
+          effective_date: 2012-05-01 00:00:46
+      transaction_status: PAYMENT_FAILURE
+                  amount: 249.950000000
+                currency: USD
+        processed_amount: 0.000000000
+      processed_currency: USD
+              payment_id: d0a6b1c4-44b0-4e84-8883-4ec4cf8a3b2a
+      gateway_error_code: 500
+       gateway_error_msg: Insufficient funds
+              created_by: PaymentRequestProcessor
+            created_date: 2012-05-01 00:00:46
+              updated_by: PaymentRequestProcessor
+            updated_date: 2012-05-01 00:00:46
+       account_record_id: 1
+        tenant_record_id: 0
+*************************** 2. row ***************************
+               record_id: 2
+                      id: 49ff12b5-7dfc-408d-956e-3d5335818738
+              attempt_id: 672bc1a2-189a-4615-9619-544977cca8ea
+transaction_external_key: 6a5b6c15-0a8b-43ae-8b82-f6d66568eb8f
+        transaction_type: PURCHASE
+          effective_date: 2012-05-09 00:00:49
+      transaction_status: SUCCESS
+                  amount: 249.950000000
+                currency: USD
+        processed_amount: 249.950000000
+      processed_currency: USD
+              payment_id: d0a6b1c4-44b0-4e84-8883-4ec4cf8a3b2a
+      gateway_error_code:
+       gateway_error_msg:
+              created_by: payment-service-retry
+            created_date: 2012-05-09 00:00:49
+              updated_by: payment-service-retry
+            updated_date: 2012-05-09 00:00:49
+       account_record_id: 1
+        tenant_record_id: 0
+2 rows in set (0.00 sec)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A few things to notice:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>There is a single <code>invoice_payments</code> entry pointing to a single <code>payments</code> entry</p>
+</li>
+<li>
+<p>There are two <code>payment_attempts</code>, one <code>RETRIED</code> and one <code>SUCCESS</code>, pointing to two transactions in <code>PAYMENT_FAILURE</code> and <code>SUCCESS</code> respectfully</p>
+</li>
+<li>
+<p>The transaction external key is shared for both transactions</p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -1365,7 +1512,7 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-13 16:19:36 UTC
+Last updated 2016-12-13 17:16:55 UTC
 </div>
 </div>
 </body>
