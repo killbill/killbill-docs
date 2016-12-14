@@ -1114,3 +1114,25 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
         tenant_record_id: 0
 1 row in set (0.00 sec)
 ```
+
+== Summary
+
+The Kill Bill invoicing system generates invoices on a per account level based on some system trigger:
+
+* Bus event: Those are usually subscription events like when a subscription starts, when there is a phase transition (trial -> evergreen), upon plan change or cancellation (there are also other bus events in the system that could trigger an invoice generation, but not discussed for sake of simplicity).
+* Future notfications: The recurring piece of the invoiving is based on the invoice system inserting future notfication on the right date (so as to be called back at the right time and generate the next invoice).
+
+Note also that invoice generation can be triggered through api but this is not the default use case.
+
+The computation of next invoice (and matching invoice items) is based upon the following:
+
+* A billing mode (e.g `IN_ADVANCE`)
+* A set of billing events (mostly aggregated across `subscritpion_events` and `blocking_states` tables)
+* A `targetDate` specifying upon which point to bill (and which billing events to consider)
+
+The invoicing algorithm recomputes the full view at each invocation and compares the **exisiting** view on disk (what was already billed) with the new set of **proposed** items, and based on the difference generates the next invoice (or nothing if there is no change since previous invocation). If a new invoice was generated, it also inserts a new future notification and updates the `chargedThroughDate` for all subscriptions.
+
+
+In terms of payments, the source of truth resides on the  side  in the `payments` (and associated `payments_transactions`) tables. However, the payment view of the invoicing subsystem relies on the `invoice_payments` table and is used to compute things like invoice and account balance: The `invoice_payments` table is updated using a 2-phase commit algorithm where a row is first inserted with a `status` set to false and then upon payment completion is updated to `true`.
+
+
