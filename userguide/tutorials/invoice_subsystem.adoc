@@ -4,19 +4,19 @@ Driven by the entitlement and subscription modules, along with the catalog confi
 
 == Overview
 
-Before we dig into examples, let's review some of the characteristics of the invoicing algorithm. The first thing to recall is that there are different ways to invoice customers and this is specified inside the catalog configuration. For the sake of simplicity we will discard usage-billing altogether here and focus on recurring subscriptions (along with fixed charge).
+Before we dig into examples, let's review some of the characteristics of the invoicing algorithm. The first thing to recall is that there are different ways to invoice customers and this is specified inside the catalog configuration. For the sake of simplicity we will discard usage-billing altogether here and focus on recurring subscriptions (along with fixed-term charges).
 
 Invoicing for recurring subscriptions also comes in two different fashions, or so called `billing modes`. Such a mode is defined at the catalog level, and there are 2 options:
 
-* `IN_ADVANCE`: In a such a configuration, each recuring subscription is charged at the begining of the period (in advance), and as a consequence, this can lead to pro-ration credits upon certain cancellation or change of `Plan` (e.g special policies can be configured to make the system generate or not such pro-ration credits).
-* `IN_ARREAR`: In a such a configuration, each recuring subscription is charged at the end of the period (in arrear), and as a consequence there is never any pro-ration credit generated because the system always know what to bill for (things can't change back in time).
+* `IN_ADVANCE`: In such a configuration, each recurring subscription is charged at the begining of the period (in advance), and as a consequence, this can lead to pro-ration credits upon certain cancellation or change of `Plan` (special policies can be configured to make the system generate or not such pro-ration credits).
+* `IN_ARREAR`: In such a configuration, each recurring subscription is charged at the end of the period (in arrear), and as a consequence there is never any pro-ration credit generated because the system always know what to bill for (things can't change back in time).
 
 
 In the rest of this documentation, **we will assume an `IN_ADVANCE` billing mode** because this is the most common and most complex to deal with.
 
 Let's revisit some of the terminology:
 
-* `chargedThroughDate` or `CTD`: We call `chargedThroughDate` the last day of the recurring period associated to a given subscription that has been charged for; there is one such date for each subscription in the system.
+* `chargedThroughDate` or `CTD`: We call `chargedThroughDate` the last day of the recurring period associated with a given subscription that has been charged for; there is one such date for each subscription in the system.
 * `targetDate`: We call `targetDate` the date up to which we want the invoiving system to bill for. Let's assume a monthly subscription and a current date of `2012-05-01` (which corresponds to our `PHASE` event in our example below), and let's look at the impact of the `targetDate`:
 
 ** `targetDate` < `2012-05-01` : Nothing happens
@@ -301,8 +301,8 @@ What happens is that the payment subsystem calls the `createPurchaseWithPaymentC
 
 While the link between invoice and payments is encapsulated in the `invoice_payments` table, there is one level of indirection with the `payments` table through the `payment_attempts` table, to manage aborted payments and retries:
 
-* Aborted payments: In a situation where the invocie was already paid (or there is a $0 balance), the invoice control plugin would abort the payment. In such situations, we would end up with a row in the `payment_attempts` table with an `ABORTED` state and no row in the `payments` and `payment_transactions` table.
-* Payment Retries: In a situation where we see a payment failure (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated with an attempt in a `RETRIED` state. 
+* Aborted payments: In a situation where the invocie was already paid (or there is a $0 balance), the invoice control plugin would abort the payment. In such situations, we would end up with a row in the `payment_attempts` table with an `ABORTED` state and no row in the `payments` and `payment_transactions` tables.
+* Payment Retries: In a situation where we see a payment failure (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated with an attempt in a `RETRIED` state.
 
 Note also that the `payment_attempts` entry is linked to the invoice via the plugin property `IPCD_INVOICE_ID` (which points to the invoice id).
 
@@ -1120,17 +1120,17 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 The Kill Bill invoicing system generates invoices on a per account level based on some system trigger:
 
 * Bus event: Those are usually subscription events like when a subscription starts, when there is a phase transition (trial -> evergreen), upon plan change or cancellation (there are also other bus events in the system that could trigger an invoice generation, but not discussed for sake of simplicity).
-* Future notfications: The recurring piece of the invoiving is based on the invoice system inserting future notfication on the right date (so as to be called back at the right time and generate the next invoice).
+* Future notfications: The recurring piece of the invoiving is based on the invoice system inserting future notfications on the right date (so as to be called back at the right time and generate the next invoice).
 
-Note also that invoice generation can be triggered through api but this is not the default use case.
+Note also that invoice generation can be triggered through API but this is not the default use case.
 
-The computation of next invoice (and matching invoice items) is based upon the following:
+The computation of the next invoice (and matching invoice items) is based upon the following:
 
 * A billing mode (e.g `IN_ADVANCE`)
 * A set of billing events (mostly aggregated across `subscritpion_events` and `blocking_states` tables)
 * A `targetDate` specifying upon which point to bill (and which billing events to consider)
 
-The invoicing algorithm recomputes the full view at each invocation and compares the **exisiting** view on disk (what was already billed) with the new set of **proposed** items, and based on the difference generates the next invoice (or nothing if there is no change since previous invocation). If a new invoice was generated, it also inserts a new future notification and updates the `chargedThroughDate` for all subscriptions.
+The invoicing algorithm recomputes the full view at each invocation and compares the **exisiting** view on disk (what was already billed) with the new set of **proposed** items, and based on the difference generates the next invoice (or nothing if there is no change since the previous invocation). If a new invoice was generated, it also inserts a new future notification and updates the `chargedThroughDate` for all subscriptions.
 
 
 In terms of payments, the source of truth resides in the `payments` (and associated `payments_transactions`) tables. However, the payment view of the invoicing subsystem relies on the `invoice_payments` table and is used to compute things like invoice and account balance: The `invoice_payments` table is updated using a 2-phase commit algorithm where a row is first inserted with a `status` set to false and then upon payment completion is updated to `true`.
