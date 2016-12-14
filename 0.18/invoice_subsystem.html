@@ -489,6 +489,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </li>
 <li><a href="#_change_plan">Change plan</a></li>
+<li><a href="#_summary">Summary</a></li>
 </ul>
 </div>
 </div>
@@ -1747,10 +1748,53 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_summary">Summary</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The Kill Bill invoicing system generates invoices on a per account level based on some system trigger:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Bus event: Those are usually subscription events like when a subscription starts, when there is a phase transition (trial &#8594; evergreen), upon plan change or cancellation (there are also other bus events in the system that could trigger an invoice generation, but not discussed for sake of simplicity).</p>
+</li>
+<li>
+<p>Future notfications: The recurring piece of the invoiving is based on the invoice system inserting future notfication on the right date (so as to be called back at the right time and generate the next invoice).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Note also that invoice generation can be triggered through api but this is not the default use case.</p>
+</div>
+<div class="paragraph">
+<p>The computation of next invoice (and matching invoice items) is based upon the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A billing mode (e.g <code>IN_ADVANCE</code>)</p>
+</li>
+<li>
+<p>A set of billing events (mostly aggregated across <code>subscritpion_events</code> and <code>blocking_states</code> tables)</p>
+</li>
+<li>
+<p>A <code>targetDate</code> specifying upon which point to bill (and which billing events to consider)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The invoicing algorithm recomputes the full view at each invocation and compares the <strong>exisiting</strong> view on disk (what was already billed) with the new set of <strong>proposed</strong> items, and based on the difference generates the next invoice (or nothing if there is no change since previous invocation). If a new invoice was generated, it also inserts a new future notification and updates the <code>chargedThroughDate</code> for all subscriptions.</p>
+</div>
+<div class="paragraph">
+<p>In terms of payments, the source of truth resides on the  side  in the <code>payments</code> (and associated <code>payments_transactions</code>) tables. However, the payment view of the invoicing subsystem relies on the <code>invoice_payments</code> table and is used to compute things like invoice and account balance: The <code>invoice_payments</code> table is updated using a 2-phase commit algorithm where a row is first inserted with a <code>status</code> set to false and then upon payment completion is updated to <code>true</code>.</p>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-13 23:45:05 UTC
+Last updated 2016-12-14 00:05:20 UTC
 </div>
 </div>
 </body>
