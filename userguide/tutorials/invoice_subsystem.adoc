@@ -308,6 +308,16 @@ Note also that the `payment_attempts` entry is linked to the invoice via the plu
 
 In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the `ABORTED` state. See below for an example of an actual payment and what would happen in case of payment failures.
 
+=== Reference time and fixed offset timezone
+
+Each account in Kill Bill has a reference time associated with it. It is the `created_date` value associated with the `accounts` row (you cannot change this). Additionally, it is associated with a fixed offset timezone, a special timezone used by the system for dates manipulation which ignores changes like DST (you cannot change it either). This timezone depends on the account timezone (UTC if none specified) and if DST was in effect at the reference time (this lets us handle gracefully DST gaps throughout the year with respect to invoicing, handling subscription changes, etc.).
+
+For example, if the account timezone is America/Los_Angeles and the reference time is 2015-03-07T10:00:01.000Z, DST was not in effect and the fixed offset timezone is -08:00. If the reference time however is 2015-03-08T10:00:01.000Z, DST was in effect and the fixed offset timezone is -07:00.
+
+While most subsystems (entitlement, subscription, etc.) work at the time level (i.e. you could have several upgrades during the day), invoicing works at the day boundary level (Kill Bill doesn't invoice for granularities smaller than a day). Both of these parameters help us convert `LocalDate` (i.e. a specify day in a year, like 2012-04-01) to a `DateTime` (i.e. a specific point in time, in a specific timezone), and vice versa. The former conversion is required for instance when computing the next notification time (based on the invoice item end date for instance). The latter can happen during invoice generation, when transforming a `BillingEvent` effective `DateTime` to a `LocalDate` for the invoice item (service period).
+
+A nice side effect of using this fixed reference time is that most system-driven operations will always happen at the same time during the day for a given account. It also helps spreading the load on the system since the distribution of these reference times should be uniform.
+
 == Phase transition
 
 Let's fast forward the time to 2012-05-02.
