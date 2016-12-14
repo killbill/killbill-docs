@@ -481,7 +481,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
 <li><a href="#_overview">Overview</a></li>
-<li><a href="#_initial_subscription_creation">Initial subscription creation</a></li>
+<li><a href="#_initial_subscription_creation">Initial subscription creation</a>
+<ul class="sectlevel2">
+<li><a href="#_reference_time_and_fixed_offset_timezone">Reference time and fixed offset timezone</a></li>
+</ul>
+</li>
 <li><a href="#_phase_transition">Phase transition</a></li>
 <li><a href="#_invoice_item_adjustment">Invoice item adjustment</a>
 <ul class="sectlevel2">
@@ -863,6 +867,21 @@ Empty set (0.00 sec)</code></pre>
 </div>
 <div class="paragraph">
 <p>In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the <code>ABORTED</code> state. See below for an example of an actual payment and what would happen in case of payment failures.</p>
+</div>
+<div class="sect2">
+<h3 id="_reference_time_and_fixed_offset_timezone">Reference time and fixed offset timezone</h3>
+<div class="paragraph">
+<p>Each account in Kill Bill has a reference time associated with it. It is the <code>created_date</code> value associated with the <code>accounts</code> row (you cannot change this). Additionally, it is associated with a fixed offset timezone, a special timezone used by the system for dates manipulation which ignores changes like DST (you cannot change it either). This timezone depends on the account timezone (UTC if none specified) and if DST was in effect at the reference time (this lets us handle gracefully DST gaps throughout the year with respect to invoicing, handling subscription changes, etc.).</p>
+</div>
+<div class="paragraph">
+<p>For example, if the account timezone is America/Los_Angeles and the reference time is 2015-03-07T10:00:01.000Z, DST was not in effect and the fixed offset timezone is -08:00. If the reference time however is 2015-03-08T10:00:01.000Z, DST was in effect and the fixed offset timezone is -07:00.</p>
+</div>
+<div class="paragraph">
+<p>While most subsystems (entitlement, subscription, etc.) work at the time level (i.e. you could have several upgrades during the day), invoicing works at the day boundary level (Kill Bill doesn&#8217;t invoice for granularities smaller than a day). Both of these parameters help us convert <code>LocalDate</code> (i.e. a specify day in a year, like 2012-04-01) to a <code>DateTime</code> (i.e. a specific point in time, in a specific timezone), and vice versa. The former conversion is required for instance when computing the next notification time (based on the invoice item end date for instance). The latter can happen during invoice generation, when transforming a <code>BillingEvent</code> effective <code>DateTime</code> to a <code>LocalDate</code> for the invoice item (service period).</p>
+</div>
+<div class="paragraph">
+<p>A nice side effect of using this fixed reference time is that most system-driven operations will always happen at the same time during the day for a given account. It also helps spreading the load on the system since the distribution of these reference times should be uniform.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1797,7 +1816,7 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-14 09:16:04 UTC
+Last updated 2016-12-14 10:42:55 UTC
 </div>
 </div>
 </body>
