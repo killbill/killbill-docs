@@ -493,6 +493,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </li>
 <li><a href="#_change_plan">Change plan</a></li>
+<li><a href="#_invoicing_internals">Invoicing internals</a></li>
 <li><a href="#_summary">Summary</a></li>
 </ul>
 </div>
@@ -1768,6 +1769,99 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 </div>
 <div class="sect1">
+<h2 id="_invoicing_internals">Invoicing internals</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The invoice subsystem computes new invoices in several stages.</p>
+</div>
+<div class="paragraph">
+<p>First, it loads all existing invoices on disk for the account being processed, and creates a tree per subscription (<code>SubscriptionItemTree</code>) containing all of these invoice items. Each node in the tree represents all invoice items for a given service period. The service period of a parent node overlaps all service periods of its children.</p>
+</div>
+<div class="paragraph">
+<p>For example, let&#8217;s assume a subscription was billed in advance from 2012-05-01 to 2012-06-01, and a change plan occured on 2012-05-07. There would be 3 items on disk, one recurring for the first plan (2012-05-01 to 2012-06-01), a second recurring for the second plan (2012-05-07 to 2012-06-01) and a repair adjustment (from 2012-05-07 to 2012-06-01) associated with the initial item.</p>
+</div>
+<div class="paragraph">
+<p>The tree would look like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>  A
+ /
+ B
+/
+C
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-06-01](A)
+C: [2012-05-07,2012-06-01](A,C)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>A</code> is the root node, it doesn&#8217;t contain any item and the service period is the largest period containing all items in the tree. Node <code>B</code> represents the initial recurring period (the node has one <code>ADD</code>&#8201;&#8212;&#8201;or <code>A</code>&#8201;&#8212;&#8201;invoice item). <code>B</code> has one child node&#8201;&#8212;&#8201;<code>C</code>&#8201;&#8212;&#8201;which has two items, the <code>ADD</code> item representing the new recurring item, and the <code>CANCEL</code> item, pointing to the <code>ADD</code> item in the node <code>B</code>, representing the repair.</p>
+</div>
+<div class="paragraph">
+<p>The next step is to build the tree: resulting invoice items for each service period are computed and item adjustments processed (if any). In this case, 2 items would be generated (one from 2012-05-01 to 2012-05-07 and one from 2012-05-07 to 2012-06-01). The original tree is then replaced (flatten phase) by a shallow one containing these items (it&#8217;s really a list at this point):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code> A
+/
+Bc
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-05-07](C)
+c: [2012-05-07,2012-06-01](C)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The items already invoiced are also reversed and labeled as <code>C</code> (<code>CANCEL</code>) before the next step.</p>
+</div>
+<div class="paragraph">
+<p>Billing events are then processed and a list of proposed invoice items is generated. Each item will either be matched to an (existing) item in the flattened list, trigger a repair (in case of new change plan for instance) or kept as-is.</p>
+</div>
+<div class="paragraph">
+<p>For example, if a proposed <code>RECURRING</code> item from 2012-05-01 to 2012-05-07 is merged, the flattened list becomes:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code> A
+/
+Bc
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-05-07]
+c: [2012-05-07,2012-06-01](C)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that node <code>B</code> is empty now, the existing item has been removed (matched).</p>
+</div>
+<div class="paragraph">
+<p>If a change plan would occur on 2012-05-08 and a proposed <code>RECURRING</code> item from 2012-05-07 to 2012-05-08 is merged, the list would become:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code> A
+/
+B-c
+ /
+ D
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-05-07]
+c: [2012-05-07,2012-06-01](C)
+D: [2012-05-07,2012-05-08](A)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A new node <code>D</code>, child of <code>c</code>, is inserted representing that period. After the <code>RECURRING</code> from 2012-05-08 to 2012-06-01 is merged, the list would be unchanged (no match found and no repair to create) and the <code>RECURRING</code> item kept on the side.</p>
+</div>
+<div class="paragraph">
+<p>Finally, one last time, the tree is built and the computed invoice items become the resulting items, i.e. the items for the resulting invoice. In our case, two items are generated: the <code>RECURRING</code> kept as-is (outside the tree), and a repair from 2012-05-08 to 2012-06-01.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="_summary">Summary</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -1816,7 +1910,7 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-12-22 19:18:26 UTC
+Last updated 2016-12-27 18:31:21 UTC
 </div>
 </div>
 </body>
