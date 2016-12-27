@@ -1125,6 +1125,80 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
 1 row in set (0.00 sec)
 ```
 
+== Invoicing internals
+
+
+The invoice subsystem computes new invoices in several stages.
+
+First, it loads all existing invoices on disk for the account being processed, and creates a tree per subscription (`SubscriptionItemTree`) containing all of these invoice items. Each node in the tree represents all invoice items for a given service period. The service period of a parent node overlaps all service periods of its children.
+
+For example, let's assume a subscription was billed in advance from 2012-05-01 to 2012-06-01, and a change plan occured on 2012-05-07. There would be 3 items on disk, one recurring for the first plan (2012-05-01 to 2012-06-01), a second recurring for the second plan (2012-05-07 to 2012-06-01) and a repair adjustment (from 2012-05-07 to 2012-06-01) associated with the initial item.
+
+The tree would look like this:
+
+```
+  A
+ /
+ B
+/
+C
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-06-01](A)
+C: [2012-05-07,2012-06-01](A,C)
+```
+
+`A` is the root node, it doesn't contain any item and the service period is the largest period containing all items in the tree. Node `B` represents the initial recurring period (the node has one `ADD` -- or `A` -- invoice item). `B` has one child node -- `C` -- which has two items, the `ADD` item representing the new recurring item, and the `CANCEL` item, pointing to the `ADD` item in the node `B`, representing the repair.
+
+The next step is to build the tree: resulting invoice items for each service period are computed and item adjustments processed (if any). In this case, 2 items would be generated (one from 2012-05-01 to 2012-05-07 and one from 2012-05-07 to 2012-06-01). The original tree is then replaced (flatten phase) by a shallow one containing these items (it's really a list at this point):
+
+```
+ A
+/
+Bc
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-05-07](C)
+c: [2012-05-07,2012-06-01](C)
+```
+
+The items already invoiced are also reversed and labeled as `C` (`CANCEL`) before the next step.
+
+Billing events are then processed and a list of proposed invoice items is generated. Each item will either be matched to an (existing) item in the flattened list, trigger a repair (in case of new change plan for instance) or kept as-is.
+
+For example, if a proposed `RECURRING` item from 2012-05-01 to 2012-05-07 is merged, the flattened list becomes:
+
+```
+ A
+/
+Bc
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-05-07]
+c: [2012-05-07,2012-06-01](C)
+```
+
+Note that node `B` is empty now, the existing item has been removed (matched).
+
+If a change plan would occur on 2012-05-08 and a proposed `RECURRING` item from 2012-05-07 to 2012-05-08 is merged, the list would become:
+
+```
+ A
+/
+B-c
+ /
+ D
+
+A: [2012-05-01,2012-06-01]
+B: [2012-05-01,2012-05-07]
+c: [2012-05-07,2012-06-01](C)
+D: [2012-05-07,2012-05-08](A)
+```
+
+A new node `D`, child of `c`, is inserted representing that period. After the `RECURRING` from 2012-05-08 to 2012-06-01 is merged, the list would be unchanged (no match found and no repair to create) and the `RECURRING` item kept on the side.
+
+Finally, one last time, the tree is built and the computed invoice items become the resulting items, i.e. the items for the resulting invoice. In our case, two items are generated: the `RECURRING` kept as-is (outside the tree), and a repair from 2012-05-08 to 2012-06-01.
+
 == Summary
 
 The Kill Bill invoicing system generates invoices on a per account level based on some system trigger:
