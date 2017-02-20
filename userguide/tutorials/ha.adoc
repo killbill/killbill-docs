@@ -2,45 +2,59 @@
 
 == Overview
 
-Starting with Kill Bill 0.18.x, we have introduced support of HA (Hierarchical Accounts), and so in this tutorial we will review first what the feature is about, and then explore how it works and which apis to use.
+Starting with Kill Bill 0.18.x, we have introduced support for Hierarchical Accounts (HA). In this tutorial, we will review what the feature is about, and then explore how it works and which APIs to use.
 
-Let's review first what we have prior to introducing the HA feature: In the Kill Bill terminology, a customer will be represented as a Kill Bill `Account`, and such `Account` will then be invoiced based on its current subscriptions and one-off charges. Payments will also be made by using the default payment method associated with the `Account`.
+Let's first review what we have prior to introducing the HA feature: In the Kill Bill terminology, a customer will be represented as a Kill Bill `Account`, and such `Account` will then be invoiced based on its current subscriptions and one-off charges. Payments will also be made by using the default payment method associated with the `Account`.
 
-The idea with the HA feature is to delegate some of the payment operations associated to an `Account` to a `parent Account`. Some typical use case for the feature are:
+The idea of the HA feature is to delegate some of the payment operations associated with an `Account` to a `parent Account`. Some typical use cases are:
 
-* Affiliate model: In the affiliate model, payments associated to some customers are made through the `parent Account` but each individual `Account` will manage its own subscriptions and will have access to the associated invoices.
-* Sub-Organization: In large organizations, it is common to see sub organizations that work independently, and yet parent organization is responsible for the payments.
+* Affiliate model: In this scenario, payments associated with some customers are made through the `parent Account` but each individual `Account` will manage its own subscriptions and will have access to its associated invoices.
+* Sub-Organization: In large organizations, it is common to see sub-organizations working independently, and yet the parent organization is responsible for the payments.
 
 The new HA feature allows for the following:
 
 * Ability to set an `Account` as the child of another `Account`
-* Ability to specify on an `Account` that it will be responsible for paying its own invoice (current behaviour)
+* Ability to specify on an `Account` that it will be responsible for paying its own invoices (default behaviour)
 * Ability to specify on an `Account` that the parent will be responsible for the payments
-* Ability to transfer credit from child 'Account' to parent 'Account'
+* Ability to transfer credit from child `Account` to parent `Account`
 * Ability to list all children `Account`
 
 == How does it work?
 
-The Kill Bill `Account` abstraction has been enhanced to allow specifying a parent `Account` and whether or not that parent `Account` is responsible to pay children's invoices. A parent `Account` is an `Account` that contains one or more children `Account`. When such a parent `Account` exists and when its children have been configured to delegate their payments, the following happens:
+The Kill Bill `Account` abstraction has been enhanced to allow specifying a parent `Account` and whether or not that parent `Account` is responsible to pay its children's invoices. A parent `Account` is an `Account` that contains one or more children `Account`. When such a parent `Account` exists and when its children have been configured to delegate their payments, the following happens:
 
-1. Every time the system computes a new invoice (or adjusts an existing one) for a given child `Account`, the parent gets notified and also computes a special summary invoice that will include all the items for all the children on a given day.
+1. Every time the system computes a new invoice (or adjusts an existing one) for a given child `Account`, the parent gets notified and also computes a special summary invoice that will include all of the items for all the children on a given day.
 2. The payment system will ignore the child invoice as it knows this should be paid by the parent.
-3. At the end of each day (UTC time), the summary invoice will transition from `DRAFT` to `COMMITTED`
-4. As a result, the payment system will attempt to make a payment for the parent summary invoice using the default payment method associated to the parent `Account`.
+3. At the end of each day (UTC time), the summary invoice will transition from `DRAFT` to `COMMITTED`.
+4. As a result, the payment system will attempt to make a payment for the parent summary invoice using the default payment method associated with the parent `Account`.
 
 As we can see, each child `Account` can still have its own subscriptions and matching invoices, but associated payments are delegated to the parent through the daily computation of a summary invoice.
 
-The balance associated with both the child invoice and parent summary invoice will be zero until the end of the day when the transition from `DRAFT` to `COMMITTED` occurs. At this point, if the payment succeeds, then such invoice balances remain to zero. If not, then each invoice balance (child and parent) becomes equal to its invoice amount.
+The balance associated with both the child invoice and parent summary invoice will be zero until the end of the day when the transition from `DRAFT` to `COMMITTED` occurs. At this point, if the payment succeeds, then such invoice balances remain at zero. If not, then each invoice balance (child and parent) becomes equal to its invoice amount.
 
-In terms of dunning (overdue), since parent `Account` are the one making the payments, then overdue system will compute dunning state based on the per-tenant overdue configuration and parent `Account` 's payment state. The children `Account` will inherit the same dunning state as their parent. As a result one unpaid parent invoice that did not contain any invoice item for a given child would still put this child in an overdue state.
+In terms of dunning (overdue), since the parent `Account` is the one making the payments, then overdue system will compute dunning state based on the per-tenant overdue configuration and parent `Account`'s payment state. The children `Account` will inherit the same dunning state as their parent. As a result, one unpaid parent invoice that did not contain any invoice item for a given child would still put this child in an overdue state.
 
+=== Un- and Re-parenting
+
+Children can be un-parented or re-parented to a different parent `Account`.
+
+Common use-cases:
+
+* Affiliate parent goes out of business but the child would like to continue using the service without interruption
+* Ownership transfer: a service provider company (parent `Account`) created a child account for a specific customer or project. During the Proof Of Concept (POC) phase, the service provider pays the bills. Past the POC stage, the company transfers ownership to the customer so it starts paying its own bills
+
+When this occurs, any unpaid invoice is still owed by the previous parent. For instance, if the child had an unpaid invoice of $10, both parent and child still have an account balance of $10 after un-parenting. Payment retries will continue, i.e. if a retry (by the parent) is scheduled after un-parenting occurs, and if the payment retry is successful, the parent will pay the child invoice (and bring back both account balances to $0), even though the relationship doesn't exist anymore. Any new invoice generated after un-parenting would only be owed by the child though.
+
+To put it differently, un- and re-parenting don't affect past invoices: children can return to do their own billing, in which case the parent is responsible for things billed up to un-parenting and children are responsible for things billed after that. Similarly, children will continue to be responsible for payments against anything that has already been billed before (re-)parenting but the parent will be responsible for bills moving forward.
+
+To avoid this behavior, child invoices should be adjusted (or written off) prior to un- or re-parenting, to start from a clean state.
 
 == Tutorial
 
-Let's create a child `Account` associated to one parent `Account` to see what happens (we assume the defauly demo bob/lazar tenant already exists):
+We will generate a child `Account` associated with one parent `Account` to see what happens (we assume the defauly demo bob/lazar tenant already exists).
 
 
-Let's create first the parent `Account` (we can see its ID in the `Location` header that is being returned) and also add a default payment method:
+Let's first create the parent `Account` (we can see its ID in the `Location` header that is being returned) and also add a default payment method:
 
 [source,bash]
 ----
@@ -101,7 +115,7 @@ curl -v \
 ----
 
 
-If we inspect our DB entries, we see that there is a COMMITTED invoice for the child and a DRAFT invoice for the parent:
+If we inspect our database entries, we see that there is a COMMITTED invoice for the child and a DRAFT invoice for the parent:
 
 
 [source,bash]
@@ -141,7 +155,7 @@ account_record_id: 6749
 1 row in set (0.00 sec)
 ----
 
-Let's now move the clock to the end of the day to trigger the transition from  `DRAFT` to `COMMITTED`:
+Let's now move the clock to the end of the day to trigger the transition from `DRAFT` to `COMMITTED`:
 
 [source,bash]
 ----
@@ -226,10 +240,10 @@ Let's now verify what happens on the payment side:
         tenant_record_id: 338
  1 row in set (0.00 sec)
 
- mysql> 
+ mysql>
  mysql> select * from payments where account_id = 'ea58b7dd-eb23-4065-a3e5-980291d45ab8'\G
  Empty set (0.01 sec)
- 
+
 ----
 
 
@@ -238,6 +252,3 @@ As expected we see one payment for the parent invoice and no payment for the chi
 == Conclusion
 
 There is a lot more to demo (regarding dunning, invoice adjustment, ...), but this should provide a highlight of what the feature is about. Note that this is a new feature in 0.18 and as such it should be seen as Beta (you are responsible to verify it works accordingly to your use case, load, ...).
-
-In the future, we may want to add the ability to unparent children (feature is not supported yet).
-
