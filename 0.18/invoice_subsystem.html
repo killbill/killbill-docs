@@ -494,6 +494,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 <li><a href="#_change_plan">Change plan</a></li>
 <li><a href="#_invoicing_internals">Invoicing internals</a></li>
+<li><a href="#_parked_accounts">Parked Accounts</a></li>
 <li><a href="#_summary">Summary</a></li>
 </ul>
 </div>
@@ -1862,6 +1863,23 @@ D: [2012-05-07,2012-05-08](A)</code></pre>
 </div>
 </div>
 <div class="sect1">
+<h2 id="_parked_accounts">Parked Accounts</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Because invoicing drives payments, any issue in the system or misconfiguration leading to wrong invoices could have a direct impact on your customers. In order to avoid bad invoicing (and potentially invalid customer payment) we have introduced a mechanism to PARK the accounts. Once an account has been parked, no more invoicing will happen until its state has been fixed (or until safety bounds have been removed). A account can become parked in the following scenarii:</p>
+</div>
+<div class="paragraph">
+<p>First, the system now has a safety bound mechanism on the upper limit of invoice items generated for a given subscription on a given day. This safety bound is controlled by a system property <code>org.killbill.invoice.maxDailyNumberOfItemsSafetyBound</code> whose default value is set to <code>15</code> but that can also be disabled by setting it to <code>-1</code>. The safety bound will kick-in if a customer tries to buy too many things during a single day or in situations where the customer has not been invoiced for a while and the system is catching up (could happen if the account was tagged with <code>AUTO_INVOICING_OFF</code> and the tag gets removed).</p>
+</div>
+<div class="paragraph">
+<p>Second, the invoicing system will automatically park an account when an illegal state is reached during invoicing. This could be because the data associated with the account looks corrupted (which could happen because of previous bugs that did corrupt the data, manual data manipulation, or existing bug in the system).</p>
+</div>
+<div class="paragraph">
+<p>The way to get out of that state is to fix the issue that lead to that state in the first place and trigger a new invoice generation. For cases where there are many parked acounts, we have added an administrative <a href="https://github.com/killbill/killbill/blob/killbill-0.18.6/jaxrs/src/main/java/org/killbill/billing/jaxrs/resources/AdminResource.java#L262">api</a> to go through all parked accounts and issue an invoice generation for each of those, only leaving in the parked state, accounts whose state has not been fixed yet. If you think the issue that lead into that state is not a problem with the account state (data) but a bug in the system, please report to the <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing list</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="_summary">Summary</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -1902,15 +1920,12 @@ D: [2012-05-07,2012-05-08](A)</code></pre>
 <div class="paragraph">
 <p>In terms of payments, the source of truth resides in the <code>payments</code> (and associated <code>payments_transactions</code>) tables. However, the payment view of the invoicing subsystem relies on the <code>invoice_payments</code> table and is used to compute things like invoice and account balance: The <code>invoice_payments</code> table is updated using a 2-phase commit algorithm where a row is first inserted with a <code>status</code> set to false and then upon payment completion is updated to <code>true</code>.</p>
 </div>
-<div class="paragraph">
-<p>Because invoicing drives payments, any issue in the system or misconfiguration leading to wrong invoices could have a direct impact on your customers. There are a number of internal safety checks to ensure the correctness of invoices (e.g. to prevent any service period from being double billed). One worth mentioning is the safety bound on the upper limit of invoice items generated for a given subscription on a given day. This upper bound is 15 by default and should be plenty to handle scenarios where there are multiple plan changes during the day for instance, but it could be not enough in cases where the system needs to catch-up (e.g. an account was in <code>AUTO_INVOICING_OFF</code> for a few months). In such cases, you can increase (maybe temporarily) the limit through the system property <code>org.killbill.invoice.maxDailyNumberOfItemsSafetyBound</code>. To completely disable this behavior, set the value to <code>-1</code>.</p>
-</div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2017-04-05 13:44:19 UTC
+Last updated 2017-04-05 22:03:21 UTC
 </div>
 </div>
 </body>
