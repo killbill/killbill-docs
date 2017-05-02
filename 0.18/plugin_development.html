@@ -531,6 +531,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_ruby_plugins_3">Ruby plugins</a></li>
 </ul>
 </li>
+<li><a href="#_faq">FAQ</a>
+<ul class="sectlevel1">
+<li><a href="#_org_apache_shiro_authz_unauthenticatedexception_this_subject_is_anonymous">org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -1102,10 +1107,50 @@ Make sure logging is correctly configured so that plugins logs are sent to the m
 </div>
 </div>
 </div>
+<h1 id="_faq" class="sect0">FAQ</h1>
+<div class="sect1">
+<h2 id="_org_apache_shiro_authz_unauthenticatedexception_this_subject_is_anonymous">org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>If you need to call back Kill Bill through an endpoint requiring authentication, you will need to use the <code>SecurityApi#login</code> API first.</p>
+</div>
+<div class="paragraph">
+<p>Here is how it can be used in a Servlet for instance:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>private void login(final HttpServletRequest req) {
+    String authHeader = req.getHeader("Authorization");
+    if (authHeader == null) {
+        return;
+    }
+
+    final String[] authHeaderChunks = authHeader.split(" ");
+    if (authHeaderChunks.length &lt; 2) {
+        return;
+    }
+
+    try {
+        final String credentials = new String(BaseEncoding.base64().decode(authHeaderChunks[1]), "UTF-8");
+        int p = credentials.indexOf(":");
+        if (p == -1) {
+            return;
+        }
+
+        final String login = credentials.substring(0, p).trim();
+        final String password = credentials.substring(p + 1).trim();
+        killbillAPI.getSecurityApi().login(login, password);
+    } catch (UnsupportedEncodingException ignored) {
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2017-04-05 22:03:21 UTC
+Last updated 2017-05-02 20:23:02 UTC
 </div>
 </div>
 </body>
