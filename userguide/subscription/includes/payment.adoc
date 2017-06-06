@@ -1,0 +1,25 @@
+
+=== Overview
+
+Kill Bill provides a core payment system, that is used in the subscription billing use case to issue payment requests against the generated invoices.
+
+In order to accomodate for that use case, the payment logic has been split into two pieces:
+
+First, there is a core payment system whose role is to manage the payment states, and route the operation to the correct payment plugin, which in turn interracts with the third party payment gateway. 
+This core payment system is not specific to the subscription billing use case, and can actually be used as a standalone system to provide a layer in front of various payment gateways.
+For an overview of the payment subsystem in Kill Bill, please check http://docs.killbill.io/latest/userguide_payment.html[the payment guide].
+
+In addition, there is a payment control plugin -- see http://docs.killbill.io/latest/payment_control_plugin.html[payment control plugin guide]-- whose role is to provide the necessary logic to map the payments with the invoice:
+
+* The plugin is called prior the payment system attempts to make the payment call to provide the necessary sanity, such as verifying that invoice has a positive balance and is not marked as AUTO_PAY_OFF --and if not abort payment--, and also to interract with the invoicing system to record the payment attempt.
+* The plugin is then called after the payment attempt to update the invoicing system about success/failure:
+** In the case of success, this makes the invoice balance drops to zero.
+** The the case of failure, this provides the plugin with the opportunity to schedule a payment retry
+
+=== Payment Retries
+
+Upon payment failure, the plugin will attempt a payment retry by looking at the system configuration
+
+
+
+
