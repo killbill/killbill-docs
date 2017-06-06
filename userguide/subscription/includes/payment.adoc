@@ -7,18 +7,25 @@ In order to accomodate for that use case, the payment logic has been split into 
 
 First, there is a core payment system whose role is to manage the payment states, and route the operation to the correct payment plugin, which in turn interracts with the third party payment gateway. 
 This core payment system is not specific to the subscription billing use case, and can actually be used as a standalone system to provide a layer in front of various payment gateways.
-For an overview of the payment subsystem in Kill Bill, please check http://docs.killbill.io/latest/userguide_payment.html[the payment guide].
+For an overview of the payment system in Kill Bill, please check http://docs.killbill.io/latest/userguide_payment.html[the payment guide].
 
 In addition, there is a payment control plugin -- see http://docs.killbill.io/latest/payment_control_plugin.html[payment control plugin guide]-- whose role is to provide the necessary logic to map the payments with the invoice:
 
-* The plugin is called prior the payment system attempts to make the payment call to provide the necessary sanity, such as verifying that invoice has a positive balance and is not marked as AUTO_PAY_OFF --and if not abort payment--, and also to interract with the invoicing system to record the payment attempt.
+* The plugin is called prior the payment system attempts to make the payment call to provide the necessary sanity, such as verifying that invoice has a positive balance and is not marked as AUTO_PAY_OFF --and if not, it would abort the payment--, and also to interract with the invoicing system to record the payment attempts.
 * The plugin is then called after the payment attempt to update the invoicing system about success/failure:
 ** In the case of success, this makes the invoice balance drops to zero.
-** The the case of failure, this provides the plugin with the opportunity to schedule a payment retry
+** In the the case of failure, this provides the plugin with the opportunity to schedule a payment retry
+
+
+Note: The plugin linking the payment view to the invoice view has not been implemented as a standalone plugin, but instead it is part of the core Kill Bill source code. However, it implements the _PaymentControlPluginApi_ so logically it acts as such. It is possible to extend/change the behavior of such plugin by registering a standalone payment control plugin that would override the behavior of that default plugin, but this should only be used for advanced use case and extra caution would be required to not break the contract between the invoicing and payment system.
+
 
 === Payment Retries
 
-Upon payment failure, the plugin will attempt a payment retry by looking at the system configuration
+Upon payment failure, the plugin may attempt a payment retry: There are 2 system properties, that will control the payment retry mechanism:
+
+* Upon _PAYMENT_FAILURE_ -- when the payment plugin returns a _ERROR_ status --, the payment system will look at the property _org.killbill.payment.retry.days_, and possibly schedule some retries based on that value. By default, this property is set with a default value of _8,8,8_, which means that a first retry would happen 8 days after the intial failure, and then if the first retry attempt failed, another attempt would be scheduled 8 days later and then finally a last one 8 days later. If last attempt fails, then payment remains in that state.
+* Upon _PLUGIN_FAILURE_ -- when the payment plugin returns a _CANCELED_ status --,  the payment system will look at the property _org.killbill.payment.failure.retry.start.sec_, and possibly schedule some retries based on that value. By default, this property is set with a default value of _300_, which means that the payment would be scheduled to be retried one time 300 seconds -- or 5 minutes -- after the failure. _PLUGIN_FAILURE_ are often linked to transient errors from third party gateway and so it often make sense to retry those fairly soon after the initial failure was seen, but of course this all depends on use case.
 
 
 
