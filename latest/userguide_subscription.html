@@ -579,7 +579,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 </ul>
 </li>
-<li><a href="#components-payment">Payment</a></li>
+<li><a href="#components-payment">Payment</a>
+<ul class="sectlevel2">
+<li><a href="#_overview_3">Overview</a></li>
+<li><a href="#_payment_retries">Payment Retries</a></li>
+</ul>
+</li>
 <li><a href="#components-overdue">Overdue</a>
 <ul class="sectlevel2">
 <li><a href="#components-overdue-overview">Overview</a></li>
@@ -2707,8 +2712,61 @@ whose purpose would have been to bring the balance to 0, and provide the custome
 <div class="sect1">
 <h2 id="components-payment">Payment</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="_overview_3">Overview</h3>
 <div class="paragraph">
-<p>For an overview of the payment subsystem in Kill Bill, check <a href="http://killbill.io/userguide/payments-userguide/">this guide</a>.</p>
+<p>Kill Bill provides a core payment system, that is used in the subscription billing use case to issue payment requests against the generated invoices.</p>
+</div>
+<div class="paragraph">
+<p>In order to accomodate for that use case, the payment logic has been split into two pieces:</p>
+</div>
+<div class="paragraph">
+<p>First, there is a core payment system whose role is to manage the payment states, and route the operation to the correct payment plugin, which in turn interracts with the third party payment gateway.
+This core payment system is not specific to the subscription billing use case, and can actually be used as a standalone system to provide a layer in front of various payment gateways.
+For an overview of the payment system in Kill Bill, please check <a href="http://docs.killbill.io/latest/userguide_payment.html">the payment guide</a>.</p>
+</div>
+<div class="paragraph">
+<p>In addition, there is a payment control plugin&#8201;&#8212;&#8201;see <a href="http://docs.killbill.io/latest/payment_control_plugin.html">payment control plugin guide</a>-- whose role is to provide the necessary logic to map the payments with the invoice:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The plugin is called prior the payment system attempts to make the payment call to provide the necessary sanity, such as verifying that invoice has a positive balance and is not marked as AUTO_PAY_OFF --and if not, it would abort the payment--, and also to interract with the invoicing system to record the payment attempts.</p>
+</li>
+<li>
+<p>The plugin is then called after the payment attempt to update the invoicing system about success/failure:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>In the case of success, this makes the invoice balance drops to zero.</p>
+</li>
+<li>
+<p>In the the case of failure, this provides the plugin with the opportunity to schedule a payment retry</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Note: The plugin linking the payment view to the invoice view has not been implemented as a standalone plugin, but instead it is part of the core Kill Bill source code. However, it implements the <em>PaymentControlPluginApi</em> so logically it acts as such. It is possible to extend/change the behavior of such plugin by registering a standalone payment control plugin that would override the behavior of that default plugin, but this should only be used for advanced use case and extra caution would be required to not break the contract between the invoicing and payment system.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_payment_retries">Payment Retries</h3>
+<div class="paragraph">
+<p>Upon payment failure, the plugin may attempt a payment retry: There are 2 system properties, that will control the payment retry mechanism:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Upon <em>PAYMENT_FAILURE</em>&#8201;&#8212;&#8201;when the payment plugin returns a <em>ERROR</em> status --, the payment system will look at the property <em>org.killbill.payment.retry.days</em>, and possibly schedule some retries based on that value. By default, this property is set with a default value of <em>8,8,8</em>, which means that a first retry would happen 8 days after the intial failure, and then if the first retry attempt failed, another attempt would be scheduled 8 days later and then finally a last one 8 days later. If last attempt fails, then payment remains in that state.</p>
+</li>
+<li>
+<p>Upon <em>PLUGIN_FAILURE</em>&#8201;&#8212;&#8201;when the payment plugin returns a <em>CANCELED</em> status --,  the payment system will look at the property <em>org.killbill.payment.failure.retry.start.sec</em>, and possibly schedule some retries based on that value. By default, this property is set with a default value of <em>300</em>, which means that the payment would be scheduled to be retried one time 300 seconds&#8201;&#8212;&#8201;or 5 minutes&#8201;&#8212;&#8201;after the failure. <em>PLUGIN_FAILURE</em> are often linked to transient errors from third party gateway and so it often make sense to retry those fairly soon after the initial failure was seen, but of course this all depends on use case.</p>
+</li>
+</ul>
+</div>
 </div>
 </div>
 </div>
@@ -2886,7 +2944,7 @@ java -jar killbill-overdue-*-xsd-tool.jar schema.xsd</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2017-06-06 23:39:05 UTC
+Last updated 2017-06-06 23:39:51 UTC
 </div>
 </div>
 </body>
