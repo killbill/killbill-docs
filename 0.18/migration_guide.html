@@ -531,7 +531,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sectionbody">
 <div class="paragraph">
 <p>This guide is intended to provide some guidelines for running migrations from an <strong>existing billing system</strong> to <strong>Kill Bill</strong>.
-It is by no mean an exact recipe book to follow, but it provides some recommendations on how to do things (based on previous experiences) and highlights some specific areas of concern. The assumption is that there is already an internal or third party billing system in place, and so the goal of the migration is to preserve the current state of the system and yet reach a point where this old system can be fully unplugged. The old billing system currently:</p>
+It is by no means an exact recipe book to follow, but it provides some recommendations on how to do things (based on previous experiences) and highlights some specific areas of concern. The assumption is that there is already an internal or third party billing system in place, and so the goal of the migration is to preserve the current state of the system and yet reach a point where this old system can be fully unplugged. The old billing system currently:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -556,7 +556,7 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 <p>The end goal of the migration is to make sure that we can <strong>unplug completely the old billing system</strong> and yet provide the same level of service (or better) for the customers and the various departments in the organization.</p>
 </div>
 <div class="paragraph">
-<p>This is a fairly ambitious goal, which may require some tradeoffs and a gradual shutdwon of the old system.</p>
+<p>This is a fairly ambitious goal, which may require some tradeoffs and a gradual shutdown of the old system.</p>
 </div>
 </div>
 </div>
@@ -564,7 +564,7 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 <h2 id="_strategy">Strategy</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Like most complicated projects, it makes sense to cut the project in separate stages and also look for any amount of simplifications. Also, it makes sense to first make a migration while preserving things the way they are so as to not mix the migration itself with enhancements. Those could come at a later phase when things are stable.</p>
+<p>Like most complicated projects, it makes sense to divide the project in stages and to look for opportunities to simplify the requirements.  Also, it makes sense to first make a migration while preserving existing functionality to keep the number of changing parts to a minimum. Additional functional modifications can come at a later phase when things are stable.</p>
 </div>
 <div class="sect2">
 <h3 id="_what_really_needs_to_be_migrated">What (Really) Needs to be Migrated?</h3>
@@ -587,12 +587,12 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 <div class="sect3">
 <h4 id="_historical_data_invoices_and_payments">Historical Data, Invoices and Payments</h4>
 <div class="paragraph">
-<p>Other state such as non active subscriptions, past invoices, and payments <strong>don&#8217;t need</strong> to be migrated into Kill Bill to have the system function correctly, but <strong>that data may still need to be available in some fashion</strong>. By not migrating that data into Kill Bill, this simplifies the problem:</p>
+<p>Other state such as non-active subscriptions, past invoices, and payments <strong>don&#8217;t need</strong> to be migrated into Kill Bill to have the system function correctly, but <strong>that data may still need to be available in some fashion</strong>. By not migrating that data into Kill Bill, this simplifies the problem:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Non active subscriptions</strong>: Migrating those means migrating more data; also it is often the case that the older the data, the less 'clean' it is and the harder it is to migrate (associated <code>Plans</code> may not be active anymore, previous bugs from existing billing systems may create data that is difficult to migrate, &#8230;&#8203;). Also, while this is feasible, this does not add too much value unless one wants to also migrate past invoices.</p>
+<p><strong>Non active subscriptions</strong>: Migrating those means migrating more data; also it is often the case that the older the data, the less 'clean' it is and the harder it is to migrate (associated <code>Plans</code> may not be active anymore, previous bugs from existing billing systems may create data that is difficult to migrate, &#8230;&#8203;). Also, while this is feasible, this does not add much value unless one wants to also migrate past invoices.</p>
 </li>
 <li>
 <p><strong>Past Invoices</strong>: Those are difficult to migrate as such, because they can&#8217;t simply be replayed by Kill Bill (if we were to migrate all subscriptions with their historical state and let Kill Bill catch up with invoices, the result would be a set of invoices not exactly identical to the original system (pro-ration logic would be different, catalog may have been configured slightly differently in the old system and in Kill Bill, &#8230;&#8203;) and so those would not be useful as they could not provide a real replacement for past invoices. Another strategy would be to insert them manually in the Kill Bill invoice table to make sure they exactly match, but then invoices and subscriptions would not correspond exactly and the system would try to correct the state. Also, such a route would require inserting data directly or providing custom endpoints to touch these tables, both of which are risky and error prone initiatives.</p>
@@ -603,16 +603,16 @@ It is by no mean an exact recipe book to follow, but it provides some recommenda
 </ul>
 </div>
 <div class="paragraph">
-<p>We identified the minimal state that neeeded to be migrated and also explored why migrating more is a difficult endeavor. So, the next question is whether this is a realistic strategy. One way to answer is to look at the use cases for this data (that we don&#8217;t plan to migrate directly into Kill Bill), and the way we can make that info available in some fashion:</p>
+<p>We identified the minimal state that needs to be migrated and also explored why migrating more is a difficult endeavor. The next question is whether this is a realistic strategy. One way to answer is to look at the use cases for this data (that we don&#8217;t plan to migrate directly into Kill Bill), and the way we can make that info available in some fashion:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
 <p><strong>Customer Use Case</strong>: Customers may still need to access their old invoices and payments. Assuming this data is static, one could keep those (past invoices and payments) outside of the pure Kill Bill tables (that could still be in the same database with additional tables, or using an entirely different database) and <strong>provide new apis that would fetch existing invoices and payments by merging old data with the new one from Kill Bill</strong>.
-However, keeping that data completely static is a challenge because customers may still require some invoice adjustements, payment refunds associated with this old data, &#8230;&#8203; So, a good strategy here is to keep the old billing system alive for a while after the migration has been completed and serve those invoices/payments from the old system, allowing customer service to still make the changes through the old system. After a while (maybe a few months), there will be very few such adjustments to make on those old invoices/payments and that data can be fetched and served from a static source. Isolated cases where customers still require some changes associated with these old invoices/payments cannot be made anymore but customer could still be satisfied by generating invoice or payment credit. At this point Accounting/Finance departments would be impacted minimally because the number of such requests becomes very small. So finally the old system can be fully unplugged.</p>
+However, keeping that data completely static is a challenge because customers may still require some invoice adjustments, payment refunds associated with this old data, etc.  A good strategy is to keep the old billing system alive for a while after the migration has been completed and serve those invoices/payments from the old system, allowing customer service to still make the changes through the old system. After a while (maybe a few months), there will be very few such adjustments to make on those old invoices/payments and that data can be fetched and served from a static source. Isolated cases where customers still require some changes associated with these old invoices/payments cannot be made anymore but customer could still be satisfied by generating invoice or payment credit. At this point Accounting/Finance departments would be impacted minimally because the number of such requests becomes very small. So finally the old system can be fully unplugged.</p>
 </li>
 <li>
-<p><strong>Finance/Acounting departement</strong>: These teams will still require old invoice and payment data to run reports but it does not necessarily need to be part of Kill Bill. A good alternative is to provide some kind of view that will merge both the old data (from the old billing system) and the new data coming from Kill Bill. The old data could be ETL&#8217;ed from the old billing system as long as it is alive and then that data could be frozen after it has been turned off.</p>
+<p><strong>Finance/Accounting department</strong>: These teams will still require old invoice and payment data to run reports but it does not necessarily need to be part of Kill Bill. A good alternative is to provide some kind of view that will merge both the old data (from the old billing system) and the new data coming from Kill Bill. The old data could be ETL&#8217;ed from the old billing system as long as it is alive and then that data could be frozen after it has been turned off.</p>
 </li>
 </ul>
 </div>
@@ -623,22 +623,22 @@ However, keeping that data completely static is a challenge because customers ma
 <p>A corollary of what we described earlier is that we should only migrate clean accounts, i.e accounts that have a $0 balance. Any other account would have unpaid invoices, and since we don&#8217;t plan on migrating invoices, that balance is hard to carry over in a clean form.</p>
 </div>
 <div class="paragraph">
-<p>A good and easy strategy here is to do the migration is several batches making sure we reach a point of convergence:</p>
+<p>A good and easy strategy here is to do the migration in several batches, making sure we reach a point of convergence:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>A first migration batch with all clean accounts (hopefully, the bulk of them)</p>
+<p>A first migration batch with all clean accounts (preferably, the bulk of them)</p>
 </li>
 <li>
-<p>The current dunning strategy should be in place to first email customers, and moving through a gradual degrade of the service up to the point where subscriptions either become paid (and then accounts can be migrated) or subscriptions become cancelled (invoices are written off), and there is nothing to migrate for that account. This means unplugging the system will not happen overnight, this will be a gradual process (typicall most accounts are migrated within a week, and then the system stays up for a few more months).</p>
+<p>The current dunning strategy should be in place to first email customers, and moving through a gradual degrade of the service up to the point where subscriptions either become paid (and then accounts can be migrated) or subscriptions become cancelled (invoices are written off), and there is nothing to migrate for that account. This means unplugging the system will not happen overnight, this will be a gradual process (typically most accounts are migrated within a week, and then the system stays up for a few more months).</p>
 </li>
 <li>
 <p>The point of convergence is eventually reached because:</p>
 <div class="ulist">
 <ul>
 <li>
-<p>existing customers who have unpaid invoices either pay and get migrated or don&#8217;t pay and 'die' in the old system</p>
+<p>existing customers who have unpaid invoices either pay and get migrated or don&#8217;t pay and become inactive in the old system</p>
 </li>
 <li>
 <p>new customers are already on the new system and so they will not impact the final date at which the old system could be unplugged (more on that later)</p>
@@ -660,7 +660,7 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="ulist">
 <ul>
 <li>
-<p>The first consequence is that there needs to be a point in time where <strong>new accounts</strong> will be created in Bill Bill. While this is not a migration data issue (because those new accounts would never see the old system, so there is no data to migrate per say), we still need to define when is that <strong>newAccountCutOverDate</strong></p>
+<p>The first consequence is that there needs to be a point in time where <strong>new accounts</strong> will be created in Kill Bill. While this is not a migration data issue (because those new accounts would never see the old system, so there is no data to migrate per say), we still need to define when is that <strong>newAccountCutOverDate</strong></p>
 </li>
 <li>
 <p>The second consequence is that because we will make that migration work with no downtime, it does not need to happen all at once. In fact, we propose to migrate the existing accounts on a per account basis. That way, each account is migrated independently (and occasional failures can be investigated and retried). So, we will have one <strong>cutOverDate</strong> per account.</p>
@@ -668,7 +668,7 @@ However, keeping that data completely static is a challenge because customers ma
 </ul>
 </div>
 <div class="paragraph">
-<p>So, assuming we have N existing accounts to migrate, we end up with one <strong>newAccountCutOverDate</strong> and N <strong>cutOverDate</strong>. We first need to move new accounts to Kill Bill before migrating any of the  existing accounts (i.e. <code>newAccountCutOverDate</code> &lt; <code>cutOverDate{i, i E [1, N]}</code> because:</p>
+<p>Assuming we have N existing accounts to migrate, we end up with one <strong>newAccountCutOverDate</strong> and N <strong>cutOverDate</strong>. We first need to move new accounts to Kill Bill before migrating any of the existing accounts (i.e. <code>newAccountCutOverDate</code> &lt; <code>cutOverDate{i, i E [1, N]}</code> because:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -773,13 +773,13 @@ However, keeping that data completely static is a challenge because customers ma
 <p><strong>Templates and Translations</strong>: Kill Bill allows to configure the system using templates (e.g. invoice html visible to customer) and for <a href="http://docs.killbill.io/latest/internationalization.html">internationalization</a> (e.g translating plan names in different languages).</p>
 </li>
 <li>
-<p><strong>Payment plugins</strong>: Kill Bill typically interacts with a payment gateway or processor through a <a href="http://docs.killbill.io/latest/payment_plugin.html">playment plugin</a>. We already have quite a few tested integrations out there so the work is either to test one of our payment plugin or to write a new one to integrate with the desired gateway/processor.</p>
+<p><strong>Payment plugins</strong>: Kill Bill typically interacts with a payment gateway or processor through a <a href="http://docs.killbill.io/latest/payment_plugin.html">playment plugin</a>. We already have quite a few tested integrations out there so the work is either to test one of our payment plugins or to write a new one to integrate with the desired gateway/processor.</p>
 </li>
 <li>
-<p><strong>Overdue Configuration</strong>: Often called dunning in billing systems, this <a href="http://docs.killbill.io/latest/overdue.html">feature</a> lets you control what is happening when customers don&#8217;t pay. Note that there is no obligation to try reproducing existing logic from the old billing system if this one was not satisfactory as this will not directly impact migration. Instead it is advised to configure it to provide the desired results. This step could also be ommitted and postponed until the end of the migration.</p>
+<p><strong>Overdue Configuration</strong>: Often called dunning in billing systems, this <a href="http://docs.killbill.io/latest/overdue.html">feature</a> lets you control what is happening when customers don&#8217;t pay. Note that there is no obligation to try reproducing existing logic from the old billing system if this one was not satisfactory as this will not directly impact migration. Instead it is advised to configure it to provide the desired results. This step could also be omitted and postponed until the end of the migration.</p>
 </li>
 <li>
-<p><strong>Analytics</strong>: This is also a good time to think about how financial reports will be computed and what kind of reports will be available for the C-level team. At this stage, one can become familiar with the data model and investigate how existing reports will be generated. Kill Bill also has an <a href="https://github.com/killbill/killbill-analytics-plugin">analytics plugin</a>, which provides the following benefits:</p>
+<p><strong>Analytics</strong>: This is also a good time to think about how financial reports will be computed and what kind of reports will be available for the financial team. At this stage, one can become familiar with the data model and investigate how existing reports will be generated. Kill Bill also has an <a href="https://github.com/killbill/killbill-analytics-plugin">analytics plugin</a>, which provides the following benefits:</p>
 <div class="ulist">
 <ul>
 <li>
@@ -789,7 +789,7 @@ However, keeping that data completely static is a challenge because customers ma
 <p>Ability to generate custom reports</p>
 </li>
 <li>
-<p>UI side for visulatization inside KAUI if needed</p>
+<p>UI side for visualization inside KAUI if needed</p>
 </li>
 </ul>
 </div>
@@ -811,7 +811,7 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>It creates production-like data (actually, data is exactly like production except for fields such as CC number, names, &#8230;&#8203; that should be obfuscated). It can be used to start computing reports and bringing confidence to the C-level team that the new system will provide similar type of data/results. We suggest to configure the system with a default payment plugin inside Kill Bill (to avoid any interaction with payment gateway). The reporting only happens on the subscriptions and invoices but this is enough to guarantee that the system behaves correctly.</p>
+<p>It creates production-like data (actually, data is exactly like production except for fields such as CC number, names, &#8230;&#8203; that should be obfuscated). It can be used to start computing reports and bringing confidence to the financial team that the new system will provide similar type of data/results. We suggest to configure the system with a default payment plugin inside Kill Bill (to avoid any interaction with payment gateway). The reporting only happens on the subscriptions and invoices but this is enough to guarantee that the system behaves correctly.</p>
 </li>
 <li>
 <p>It paves the way for the first stage of the migration where new accounts are directed towards Kill Bill.</p>
@@ -857,16 +857,16 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p><strong><code>migration_state</code> = <code>INIT</code></strong>: Create a an entry in the migration table.</p>
+<p><strong><code>migration_state</code> = <code>INIT</code></strong>: Create an entry in the migration table.</p>
 </li>
 <li>
-<p><strong><code>migration_state</code> = <code>ACCOUNT_MIGRATED</code></strong>: Migrate account data. This is relatively easy and low risk. The work consists in pulling account data from old billing system and mapping that to the Kill Bill data model. As mentioned before, additionnal info could be added as custom fields on the Kill Bill created <code>Account</code> (e.g ID of the account in the old system).</p>
+<p><strong><code>migration_state</code> = <code>ACCOUNT_MIGRATED</code></strong>: Migrate account data. This is relatively easy and low risk. The work consists of pulling account data from the old billing system and mapping that to the Kill Bill data model. As mentioned before, additional info could be added as custom fields on the Kill Bill created <code>Account</code> (e.g ID of the account in the old system).</p>
 </li>
 <li>
 <p><strong><code>migration_state</code> = <code>AUTO_INVOICING_OFF</code></strong>: Setup <code>AUTO_INVOICING_OFF</code> for the <code>Account</code> to prevent the system to trigger invoices when we start migrating the subscriptions.</p>
 </li>
 <li>
-<p><strong><code>migration_state</code> = <code>SUBSCRIPTIONS_MIGRATED</code></strong>: Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions from the old billing system and recreate them in Kill Bill using the right date and using the right <code>Plan</code>. The goal is to get a clean cutover and avoid any misbilling (double billing, loss of revenue) or service disruption. Also note that in a system where there are dependencies among subscriptions (e.g. ADD_ON subscriptions), special care should be made to migrate them in the right order.</p>
+<p><strong><code>migration_state</code> = <code>SUBSCRIPTIONS_MIGRATED</code></strong>: Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions from the old billing system and to recreate them in Kill Bill using the right date and using the right <code>Plan</code>. The goal is to get a clean cutover and avoid any misbilling (double billing, loss of revenue) or service disruption. Also note that in a system where there are dependencies among subscriptions (e.g. ADD_ON subscriptions), special care should be made to migrate them in the right order.</p>
 </li>
 <li>
 <p><strong><code>migration_state</code> = <code>OLD_SUBSCRIPTIONS_CANCELLED</code></strong>: Cancel all subscriptions in the old billing system at the right time (more detail in the next section). This is a fairly risky step because this changes the state in the old billing system. This is <strong>not</strong> a point of 'no-return' but a point when rollback becomes difficult. Needless to say that cancellation code for the old billing system should have been tested carefully.</p>
@@ -950,10 +950,10 @@ However, keeping that data completely static is a challenge because customers ma
 </ol>
 </div>
 <div class="paragraph">
-<p>Note that subscription apis to create subscription don&#8217;t allow to specify different dates for billing and entitlement, so additional apis calls to insert the <code>BlockingState</code> are required. While less practical, this is not really an issue because at that stage we have set <code>AUTO_INVOICING_OFF</code> at the account level so nothing will happen and atomicity is not required.</p>
+<p>Note that subscription apis to create subscription don&#8217;t allow you to specify different dates for billing and entitlement, so additional apis calls to insert the <code>BlockingState</code> are required. While less practical, this is not really an issue because at that stage we have set <code>AUTO_INVOICING_OFF</code> at the account level so nothing will happen and atomicity is not required.</p>
 </div>
 <div class="paragraph">
-<p>Finally, we should explore a bit more the choice of the per-account <code>cutOverDate</code>: is that better to choose that date close to <code>currentBillingDate</code> or <code>nextBillingDate</code>? A choice of <code>cutOverDate</code> close to <code>currentBillingDate</code> (right after), means that customer just got invoiced and so the chances for adjustements right after are bigger than if we were to wait. Since we want to minimize actions on the old system after the customer got migrated, it seems a better choice would be to pick <code>cutOverDate</code> right before <code>nextBillingDate</code>. Of course, in situations where customers have multiple subscriptions on different schedules (<code>SUBSCRIPTION</code> billing alignment), there is a choice to be made (probably favor the annual versus monthly and subscriptions on higer <code>Plans</code>).</p>
+<p>Finally, we should explore a bit more the choice of the per-account <code>cutOverDate</code>: is it better to choose that date close to <code>currentBillingDate</code> or <code>nextBillingDate</code>? A choice of <code>cutOverDate</code> close to <code>currentBillingDate</code> (right after), means that the customer just got invoiced and so the chances for adjustments right after are bigger than if we were to wait. Since we want to minimize actions on the old system after the customer got migrated, it seems a better choice would be to pick <code>cutOverDate</code> right before <code>nextBillingDate</code>. Of course, in situations where customers have multiple subscriptions on different schedules (<code>SUBSCRIPTION</code> billing alignment), there is a choice to be made (probably favor the annual versus monthly and subscriptions on higher <code>Plans</code>).</p>
 </div>
 </div>
 <div class="sect3">
@@ -975,7 +975,7 @@ However, keeping that data completely static is a challenge because customers ma
 </ul>
 </div>
 <div class="paragraph">
-<p>There is obviously some amount of work to understand the old system&#8217;s model, and how those will translate into the Kill Bill catalog (again part of the Pre-Requisites stage). So, assuming we are migrating a subscription into Kill Bill using a multi-phase <code>Plan</code>, we have to be cautious with the entitlement alignments and make sure we end up on the right phase.</p>
+<p>There is obviously some amount of work to understand the old system&#8217;s model, and how those will translate into the Kill Bill catalog (again part of the Pre-Requisites stage). Assuming we are migrating a subscription into Kill Bill using a multi-phase <code>Plan</code>, we have to be cautious with the entitlement alignments and make sure we end up on the right phase.</p>
 </div>
 <div class="paragraph">
 <p>One strategy is to define more <code>Plans</code> in the Kill Bill catalog to include mono-phase versions of the multi-phase <code>Plans</code>. For example, assuming a subscription with a 2 phases <code>Plan</code> (<code>TRIAL</code>=15 days, followed by <code>EVERGREEN</code>), we could also create another <code>Plan</code> with only the last phase so as to migrate subscriptions that are already on the <code>EVERGREEN</code> phase.</p>
@@ -986,23 +986,23 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>At t=<code>cutOverDate</code>, the subscription is already in the <code>EVERGREEN</code> phase; in this case we need to make sure we start directly into that phase. Fortunately, this is possible because the Kill Bill api to create subscription allows to specify on which phase to start (skipping previous phases).</p>
+<p>At t=<code>cutOverDate</code>, the subscription is already in the <code>EVERGREEN</code> phase; in this case we need to make sure we start directly into that phase. Fortunately, this is possible because the Kill Bill api to create a subscription allows you to specify on which phase to start (skipping previous phases).</p>
 </li>
 <li>
 <p>At t=<code>cutOverDate</code>, the subscription is still in TRIAL, but by chosing the <code>originalSubscriptionStartDate</code> as the start date of that subscription in Kill Bill we should end up exactly with the correct state. Let&#8217;s take an example to illustrate that point:</p>
 <div class="ulist">
 <ul>
 <li>
-<p>The subscription started on february 14th 2016 in the old system</p>
+<p>The subscription started on February 14th 2016 in the old system</p>
 </li>
 <li>
-<p>We decide on a <code>cutOverDate</code> of february 24th 2016, which means we are 10 days into the trial, so there should still be 5 days of trial  when migrating to Kill Bill</p>
+<p>We decide on a <code>cutOverDate</code> of February 24th 2016, which means we are 10 days into the trial, so there should still be 5 days of trial when migrating to Kill Bill</p>
 </li>
 <li>
-<p>The <code>nextBillingDate</code> is february 28th 2016 (date at which the trial ends, and billing would have started in old system)</p>
+<p>The <code>nextBillingDate</code> is February 28th 2016 (date at which the trial ends, and billing would have started in old system)</p>
 </li>
 <li>
-<p>We create the subscription in Kill Bill on <code>originalSubscriptionStartDate</code> (february 14th 2016), and because this is a 2 phases <code>Plan</code>, the system will generate a <code>PHASE</code> event on <code>nextBillingDate</code> (february 28th 2016), which is exactly what we need.</p>
+<p>We create the subscription in Kill Bill on <code>originalSubscriptionStartDate</code> (February 14th 2016), and because this is a 2 phases <code>Plan</code>, the system will generate a <code>PHASE</code> event on <code>nextBillingDate</code> (February 28th 2016), which is exactly what we need.</p>
 </li>
 </ul>
 </div>
@@ -1013,7 +1013,7 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="sect3">
 <h4 id="_pending_subscription_changes">Pending Subscription Changes</h4>
 <div class="paragraph">
-<p>Some billing systems will also allow to schedule future changes associated to a subscription (such as upgrading a subscription in the future or cancelling a subscription in the future, &#8230;&#8203;). During the migration, it is important to keep track of those future changes. Fortunately this is fairly straight-forward using the Kill Bill apis to change Plan or cancel in the future.</p>
+<p>Some billing systems also allow you to schedule future changes associated to a subscription (such as upgrading a subscription in the future or cancelling a subscription in the future, &#8230;&#8203;). During the migration, it is important to keep track of those future changes. Fortunately this is fairly straight-forward using the Kill Bill apis to change <code>Plan</code> or cancel in the future.</p>
 </div>
 </div>
 </div>
@@ -1023,7 +1023,7 @@ However, keeping that data completely static is a challenge because customers ma
 <h2 id="_conclusion">Conclusion</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Migrations are always a difficult, lengthy process and risky endeavor. We have highlighed some of issues that need to be thought of and suggested a possible design (based on a set of simplification and work-arounds). Obviously each use case is different (migration happens from different systems with different characteristics, data set may be very different, and business requirements may also be different, &#8230;&#8203;).</p>
+<p>Migrations are typically a difficult, lengthy and risky endeavor. We have highlighed some of issues that need to be thought of and suggested a possible design (based on a set of simplification and work-arounds). Obviously each use case is different (migration happens from different systems with different characteristics, data set may be very different, and business requirements may also be different, &#8230;&#8203;).</p>
 </div>
 <div class="paragraph">
 <p>However, migrating to Kill Bill simplifies greatly the process for the following reasons:</p>
@@ -1035,10 +1035,10 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="ulist">
 <ul>
 <li>
-<p>One can run the migration many times on a test system (except for the cancellation of the active subscriptions on the old system, which can only happen once for obvious reasons)</p>
+<p>One can run the migration many times on a test system (except for the cancellation of the active subscriptions on the old system in production, which can only happen once for obvious reasons)</p>
 </li>
 <li>
-<p>One can look closely at the data that was migrated and even run some tests by moving clock forward to ensure things will happen as expected in the future</p>
+<p>One can look closely at the data that was migrated and run some tests by moving the clock forward to ensure things will happen as expected in the future</p>
 </li>
 </ul>
 </div>
@@ -1048,7 +1048,7 @@ However, keeping that data completely static is a challenge because customers ma
 <div class="ulist">
 <ul>
 <li>
-<p>One can extend functionality through plugins (could intercept subscription calls, replace entirely catalog using catalog plugin api, modify invoice generation, &#8230;&#8203;)</p>
+<p>One can extend functionality through plugins (could intercept subscription calls, entirely replace catalog using catalog plugin api, modify invoice generation, &#8230;&#8203;)</p>
 </li>
 <li>
 <p>One can maintain a fork of Kill Bill (just during the time of the migration) where migration logic could be inserted as needed</p>
@@ -1079,7 +1079,7 @@ However, keeping that data completely static is a challenge because customers ma
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2017-06-06 23:39:51 UTC
+Last updated 2017-06-08 23:42:16 UTC
 </div>
 </div>
 </body>
