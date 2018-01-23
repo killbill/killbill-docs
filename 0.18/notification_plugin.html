@@ -481,7 +481,11 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
 <li><a href="#_overview">Overview</a></li>
-<li><a href="#_retries">Retries</a></li>
+<li><a href="#_retries">Retries</a>
+<ul class="sectlevel2">
+<li><a href="#_internals">Internals</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -498,17 +502,32 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_retries">Retries</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>By default, if your plugin triggers a runtime exception, the event is redispatched right away up to 3 times (or as configured by the <code>org.killbill.notificationq.external.max.failure.retry</code> global property). In some cases, you may want to retry at a later time (if for example a third-party provider is down). To do so, your plugin can throw a <code>QueueRetryException</code> with your own retry schedule.</p>
+<p>By default, if your plugin triggers a runtime exception, the event is redispatched right away up to 3 times (or as configured by the <code>org.killbill.notificationq.external.max.failure.retry</code> global property). In some cases, you may want to retry at a later time (if for example a third-party provider is down). To do so, your plugin can throw a <code>NotificationPluginApiRetryException</code> with your own retry schedule.</p>
+</div>
+<div class="paragraph">
+<p>For example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="java"><span class="tok-c1">// Retry in an hour and in 24hrs</span>
+<span class="tok-k">throw</span> <span class="tok-k">new</span> <span class="tok-nf">NotificationPluginApiRetryException</span><span class="tok-o">(</span><span class="tok-n">Arrays</span><span class="tok-o">.</span><span class="tok-na">asList</span><span class="tok-o">(</span><span class="tok-k">new</span> <span class="tok-n">Period</span><span class="tok-o">[]{</span><span class="tok-n">Period</span><span class="tok-o">.</span><span class="tok-na">hours</span><span class="tok-o">(</span><span class="tok-mi">1</span><span class="tok-o">),</span> <span class="tok-n">Period</span><span class="tok-o">.</span><span class="tok-na">days</span><span class="tok-o">(</span><span class="tok-mi">1</span><span class="tok-o">)}));</span></code></pre>
+</div>
 </div>
 <div class="paragraph">
 <p>Because of such behavior, any plugin can trigger retries at any time: it is hence important that your listener is idempotent.</p>
+</div>
+<div class="sect2">
+<h3 id="_internals">Internals</h3>
+<div class="paragraph">
+<p>When the <code>NotificationPluginApiRetryException</code> is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried (you don&#8217;t have to keep count in the plugin, Kill Bill will do it for you). Retriable events are serialized as <code>RetryNotificationEvent</code> objects and placed in the <code>notifications-retries:extBusEvent-listener-service</code> notification queue.</p>
+</div>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-01-23 14:09:21 UTC
+Last updated 2018-01-23 14:27:15 UTC
 </div>
 </div>
 </body>
