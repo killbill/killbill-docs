@@ -235,3 +235,108 @@ This will result the following dry-run invoice, and as expected we will see the 
 
 ==== Subscription Modification
 
+Finally, we 'll generate a dry-run invoice associated to a change in the subscription: We want to see what kind of invoice would be generated if we were to change to billing period from `ANNUAL` to `MONTHLY` -- note this changed was made on 
+
+[source,bash]
+----
+ curl \
+ -X POST \
+ -u admin:password \
+ -H 'Content-Type: application/json' \
+ -H 'X-Killbill-ApiKey: bob' \
+ -H 'X-Killbill-ApiSecret: lazar' \
+ -H 'X-Killbill-CreatedBy: demo' \
+ -d '{"bundleId":"c056fac0-1564-46cd-9e2a-d97e49e30177", "dryRunType":"SUBSCRIPTION_ACTION",  "phaseType":"EVERGREEN", "productName":"Basic", "productCategory":"BASE", "billingPeriod":"MONTHLY", "priceListName":"DEFAULT", "subscriptionId":"06b826ad-73e6-4bdd-92fe-c9770a1ba30a", "billingPolicy":"IMMEDIATE", "dryRunAction":"CHANGE"}' \
+ "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3";
+ ----
+ 
+ The result is an invoice with 3 items:
+ 
+ * `RECURRING` item to invoice the next MONTHLY period
+ * `REPAIR_ADJ` item to generate a credit for remaining part of the year
+ * `CBA_ADJ` item to bring back to balance to 0 and generate the resulting account credit.
+ 
+ More details below:
+ 
+[source,bash]
+----
+{
+  "amount": -5008.84,
+  "currency": "USD",
+  "status": "COMMITTED",
+  "creditAdj": 5008.84,
+  "refundAdj": 0,
+  "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+  "invoiceDate": "2018-01-24",
+  "targetDate": "2018-01-24",
+  "invoiceNumber": null,
+  "balance": 0,
+  "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+  "bundleKeys": null,
+  "credits": null,
+  "items": [
+    {
+      "invoiceItemId": "f2156511-0273-4ef0-9c11-410a3f6f3872",
+      "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+      "linkedInvoiceItemId": null,
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": "c056fac0-1564-46cd-9e2a-d97e49e30177",
+      "subscriptionId": "06b826ad-73e6-4bdd-92fe-c9770a1ba30a",
+      "planName": "basic-monthly",
+      "phaseName": "basic-monthly-evergreen",
+      "usageName": null,
+      "itemType": "RECURRING",
+      "description": "basic-monthly-evergreen",
+      "startDate": "2018-01-24",
+      "endDate": "2018-01-25",
+      "amount": 32.26,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    },
+    {
+      "invoiceItemId": "f78a8843-3155-4f89-ae2a-ca4219936a2c",
+      "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+      "linkedInvoiceItemId": "1674c034-fcbe-46bb-9c04-f8825671f93f",
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": null,
+      "subscriptionId": null,
+      "planName": null,
+      "phaseName": null,
+      "usageName": null,
+      "itemType": "REPAIR_ADJ",
+      "description": "Adjustment (subscription change)",
+      "startDate": "2018-01-24",
+      "endDate": "2018-07-27",
+      "amount": -5041.1,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    },
+    {
+      "invoiceItemId": "4b13e745-eaa7-4fcd-bfc8-56a3ff3d5190",
+      "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+      "linkedInvoiceItemId": null,
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": null,
+      "subscriptionId": null,
+      "planName": null,
+      "phaseName": null,
+      "usageName": null,
+      "itemType": "CBA_ADJ",
+      "description": "Adjustment (account credit)",
+      "startDate": "2018-01-24",
+      "endDate": "2018-01-24",
+      "amount": 5008.84,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    }
+  ],
+  "isParentInvoice": false,
+  "auditLogs": null
+}
+----
