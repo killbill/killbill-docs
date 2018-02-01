@@ -571,6 +571,15 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_credit">Credit</a></li>
 </ul>
 </li>
+<li><a href="#invoicing-dry-run">Invoice Dry Run</a>
+<ul class="sectlevel3">
+<li><a href="#_dry_run_modes">Dry Run Modes</a></li>
+<li><a href="#_next_upcoming_invoice">Next Upcoming Invoice</a></li>
+<li><a href="#_next_upcoming_invoice_for_a_given_subscription">Next Upcoming Invoice for a Given Subscription</a></li>
+<li><a href="#_next_invoice_for_a_given_target_date">Next Invoice for a Given Target Date</a></li>
+<li><a href="#_subscription_modification">Subscription Modification</a></li>
+</ul>
+</li>
 <li><a href="#components-invoice-payments">Invoice Payments</a>
 <ul class="sectlevel3">
 <li><a href="#_refund">Refund</a></li>
@@ -2600,6 +2609,377 @@ whose purpose would have been to bring the balance to 0, and provide the custome
 </div>
 </div>
 <div class="sect2">
+<h3 id="invoicing-dry-run">Invoice Dry Run</h3>
+<div class="sect3">
+<h4 id="_dry_run_modes">Dry Run Modes</h4>
+<div class="paragraph">
+<p>In some situations, it is necessary to preview what a given customer will be invoiced for at a given date or after making a subscription change.
+Kill Bill provides dry-run invoices apis to accomplish such goal, and there are a few flavours for different use cases:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Next upcoming invoice: When is the next upcoming invoice for a given customer, and what will such invoice contain (items, amount, date, &#8230;&#8203;)?</p>
+</li>
+<li>
+<p>Next upcoming invoice associated with a given subscription or bundle: When is the next upcoming invoice for a given subscription/bundle, and what will such invoice contain (items, amount, date, &#8230;&#8203;)?</p>
+</li>
+<li>
+<p>Given a targetDate, what invoice will the system generate ?</p>
+</li>
+<li>
+<p>Subscription modification: Given a change in a subscription (new subscription, change of plan, cancellation, &#8230;&#8203;), which invoice will the system generate ?</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s assume a scenario where we created 2 annual subscriptions, the first one <code>261fe7b1-ff09-49c8-bbef-61d6e3ab876b</code> aligned
+on July 25 and the second one <code>06b826ad-73e6-4bdd-92fe-c9770a1ba30a</code> aligned on July 27.
+If we look at the existing invoice items we see the following:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">*************************** 1. row ***************************
+             id: 079e572e-a26c-42e4-8676-7213ad542af3
+     account_id: 704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3
+     invoice_id: 5725c77f-44af-409c-a32a-e36ed3c57283
+subscription_id: 261fe7b1-ff09-49c8-bbef-61d6e3ab876b
+           <span class="tok-nb">type</span>: RECURRING
+         amount: 10000.000000000
+     start_date: 2017-07-25
+       end_date: 2018-07-25
+*************************** 2. row ***************************
+             id: 1674c034-fcbe-46bb-9c04-f8825671f93f
+     account_id: 704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3
+     invoice_id: 65c5b4b8-67e6-4066-8699-70b0f49ee6df
+subscription_id: 06b826ad-73e6-4bdd-92fe-c9770a1ba30a
+           <span class="tok-nb">type</span>: RECURRING
+         amount: 10000.000000000
+     start_date: 2017-07-27
+       end_date: 2018-07-27</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>From this scenario, let&#8217;s now look at various use cases for dry-run options:</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_next_upcoming_invoice">Next Upcoming Invoice</h4>
+<div class="paragraph">
+<p>Let&#8217;s start with a dry-run invoice with <code>UPCOMING_INVOICE</code>, to see what is the next invoice that the system will generate for this account:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl  <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;dryRunType&quot;:&quot;UPCOMING_INVOICE&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will result the following dry-run invoice, and as expected we only see the item for the first subscription aligned on the 25th:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
+  <span class="tok-s2">&quot;amount&quot;</span>: 10000,
+  <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+  <span class="tok-s2">&quot;status&quot;</span>: <span class="tok-s2">&quot;COMMITTED&quot;</span>,
+  <span class="tok-s2">&quot;creditAdj&quot;</span>: 0,
+  <span class="tok-s2">&quot;refundAdj&quot;</span>: 0,
+  <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;3bbd33da-39c7-4748-a5a8-94d53e40cadc&quot;</span>,
+  <span class="tok-s2">&quot;invoiceDate&quot;</span>: <span class="tok-s2">&quot;2017-12-14&quot;</span>,
+  <span class="tok-s2">&quot;targetDate&quot;</span>: <span class="tok-s2">&quot;2018-07-25&quot;</span>,
+  <span class="tok-s2">&quot;invoiceNumber&quot;</span>: null,
+  <span class="tok-s2">&quot;balance&quot;</span>: 10000,
+  <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+  <span class="tok-s2">&quot;bundleKeys&quot;</span>: null,
+  <span class="tok-s2">&quot;credits&quot;</span>: null,
+  <span class="tok-s2">&quot;items&quot;</span>: <span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;invoiceItemId&quot;</span>: <span class="tok-s2">&quot;937ac911-b51c-48a8-a004-4789bd3e0726&quot;</span>,
+      <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;3bbd33da-39c7-4748-a5a8-94d53e40cadc&quot;</span>,
+      <span class="tok-s2">&quot;linkedInvoiceItemId&quot;</span>: null,
+      <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+      <span class="tok-s2">&quot;childAccountId&quot;</span>: null,
+      <span class="tok-s2">&quot;bundleId&quot;</span>: <span class="tok-s2">&quot;54c2d76e-e84d-412d-8eac-afb6d0ea1a35&quot;</span>,
+      <span class="tok-s2">&quot;subscriptionId&quot;</span>: <span class="tok-s2">&quot;261fe7b1-ff09-49c8-bbef-61d6e3ab876b&quot;</span>,
+      <span class="tok-s2">&quot;planName&quot;</span>: <span class="tok-s2">&quot;basic-annual&quot;</span>,
+      <span class="tok-s2">&quot;phaseName&quot;</span>: <span class="tok-s2">&quot;basic-annual-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;usageName&quot;</span>: null,
+      <span class="tok-s2">&quot;itemType&quot;</span>: <span class="tok-s2">&quot;RECURRING&quot;</span>,
+      <span class="tok-s2">&quot;description&quot;</span>: <span class="tok-s2">&quot;basic-annual-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;startDate&quot;</span>: <span class="tok-s2">&quot;2018-07-25&quot;</span>,
+      <span class="tok-s2">&quot;endDate&quot;</span>: <span class="tok-s2">&quot;2019-07-25&quot;</span>,
+      <span class="tok-s2">&quot;amount&quot;</span>: 10000,
+      <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+      <span class="tok-s2">&quot;childItems&quot;</span>: null,
+      <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+    <span class="tok-o">}</span>
+  <span class="tok-o">]</span>,
+  <span class="tok-s2">&quot;isParentInvoice&quot;</span>: <span class="tok-nb">false</span>,
+  <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+<span class="tok-o">}</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_next_upcoming_invoice_for_a_given_subscription">Next Upcoming Invoice for a Given Subscription</h4>
+<div class="paragraph">
+<p>Let&#8217;s now do a dry-run invoice with <code>UPCOMING_INVOICE</code> but with a filter on the subscription <code>06b826ad-73e6-4bdd-92fe-c9770a1ba30a</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl  <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;dryRunType&quot;:&quot;UPCOMING_INVOICE&quot;, &quot;subscriptionId&quot;:&quot;06b826ad-73e6-4bdd-92fe-c9770a1ba30a&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will result in the following dry-run invoice, and as expected we only see the item for the second subscription <code>06b826ad-73e6-4bdd-92fe-c9770a1ba30a</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
+  <span class="tok-s2">&quot;amount&quot;</span>: 10000,
+  <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+  <span class="tok-s2">&quot;status&quot;</span>: <span class="tok-s2">&quot;COMMITTED&quot;</span>,
+  <span class="tok-s2">&quot;creditAdj&quot;</span>: 0,
+  <span class="tok-s2">&quot;refundAdj&quot;</span>: 0,
+  <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;25fbf3f9-2b5b-4389-a940-84864fe5cd88&quot;</span>,
+  <span class="tok-s2">&quot;invoiceDate&quot;</span>: <span class="tok-s2">&quot;2017-12-14&quot;</span>,
+  <span class="tok-s2">&quot;targetDate&quot;</span>: <span class="tok-s2">&quot;2018-07-27&quot;</span>,
+  <span class="tok-s2">&quot;invoiceNumber&quot;</span>: null,
+  <span class="tok-s2">&quot;balance&quot;</span>: 10000,
+  <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+  <span class="tok-s2">&quot;bundleKeys&quot;</span>: null,
+  <span class="tok-s2">&quot;credits&quot;</span>: null,
+  <span class="tok-s2">&quot;items&quot;</span>: <span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;invoiceItemId&quot;</span>: <span class="tok-s2">&quot;a4f525c4-014b-474b-85a9-6ccf4742fe5e&quot;</span>,
+      <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;25fbf3f9-2b5b-4389-a940-84864fe5cd88&quot;</span>,
+      <span class="tok-s2">&quot;linkedInvoiceItemId&quot;</span>: null,
+      <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+      <span class="tok-s2">&quot;childAccountId&quot;</span>: null,
+      <span class="tok-s2">&quot;bundleId&quot;</span>: <span class="tok-s2">&quot;c056fac0-1564-46cd-9e2a-d97e49e30177&quot;</span>,
+      <span class="tok-s2">&quot;subscriptionId&quot;</span>: <span class="tok-s2">&quot;06b826ad-73e6-4bdd-92fe-c9770a1ba30a&quot;</span>,
+      <span class="tok-s2">&quot;planName&quot;</span>: <span class="tok-s2">&quot;basic-annual&quot;</span>,
+      <span class="tok-s2">&quot;phaseName&quot;</span>: <span class="tok-s2">&quot;basic-annual-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;usageName&quot;</span>: null,
+      <span class="tok-s2">&quot;itemType&quot;</span>: <span class="tok-s2">&quot;RECURRING&quot;</span>,
+      <span class="tok-s2">&quot;description&quot;</span>: <span class="tok-s2">&quot;basic-annual-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;startDate&quot;</span>: <span class="tok-s2">&quot;2018-07-27&quot;</span>,
+      <span class="tok-s2">&quot;endDate&quot;</span>: <span class="tok-s2">&quot;2019-07-27&quot;</span>,
+      <span class="tok-s2">&quot;amount&quot;</span>: 10000,
+      <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+      <span class="tok-s2">&quot;childItems&quot;</span>: null,
+      <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+    <span class="tok-o">}</span>
+  <span class="tok-o">]</span>,
+  <span class="tok-s2">&quot;isParentInvoice&quot;</span>: <span class="tok-nb">false</span>,
+  <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+<span class="tok-o">}</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_next_invoice_for_a_given_target_date">Next Invoice for a Given Target Date</h4>
+<div class="paragraph">
+<p>Next, let&#8217;s run a dry-run invoice with <code>TARGET_DATE</code> set to <code>2018-07-27</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl  <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;dryRunType&quot;:&quot;TARGET_DATE&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&amp;targetDate=2018-07-27&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will result the following dry-run invoice, and as expected we will see the same result as the previous example. However, while the previous use case answered the question about the next upcoming invoice for subscription <code>06b826ad-73e6-4bdd-92fe-c9770a1ba30a</code>, in this scenario we answer a different question: Given a targetDate what will the system generate?</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
+  <span class="tok-s2">&quot;amount&quot;</span>: 10000,
+  <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+  <span class="tok-s2">&quot;status&quot;</span>: <span class="tok-s2">&quot;COMMITTED&quot;</span>,
+  <span class="tok-s2">&quot;creditAdj&quot;</span>: 0,
+  <span class="tok-s2">&quot;refundAdj&quot;</span>: 0,
+  <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;d89d776a-b13e-4c53-baad-519bdd9ba6d0&quot;</span>,
+  <span class="tok-s2">&quot;invoiceDate&quot;</span>: <span class="tok-s2">&quot;2017-12-14&quot;</span>,
+  <span class="tok-s2">&quot;targetDate&quot;</span>: <span class="tok-s2">&quot;2018-07-27&quot;</span>,
+  <span class="tok-s2">&quot;invoiceNumber&quot;</span>: null,
+  <span class="tok-s2">&quot;balance&quot;</span>: 10000,
+  <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+  <span class="tok-s2">&quot;bundleKeys&quot;</span>: null,
+  <span class="tok-s2">&quot;credits&quot;</span>: null,
+  <span class="tok-s2">&quot;items&quot;</span>: <span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;invoiceItemId&quot;</span>: <span class="tok-s2">&quot;9a872df2-1ab9-4250-8f34-8b2cf49ebbb9&quot;</span>,
+      <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;d89d776a-b13e-4c53-baad-519bdd9ba6d0&quot;</span>,
+      <span class="tok-s2">&quot;linkedInvoiceItemId&quot;</span>: null,
+      <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+      <span class="tok-s2">&quot;childAccountId&quot;</span>: null,
+      <span class="tok-s2">&quot;bundleId&quot;</span>: <span class="tok-s2">&quot;c056fac0-1564-46cd-9e2a-d97e49e30177&quot;</span>,
+      <span class="tok-s2">&quot;subscriptionId&quot;</span>: <span class="tok-s2">&quot;06b826ad-73e6-4bdd-92fe-c9770a1ba30a&quot;</span>,
+      <span class="tok-s2">&quot;planName&quot;</span>: <span class="tok-s2">&quot;basic-annual&quot;</span>,
+      <span class="tok-s2">&quot;phaseName&quot;</span>: <span class="tok-s2">&quot;basic-annual-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;usageName&quot;</span>: null,
+      <span class="tok-s2">&quot;itemType&quot;</span>: <span class="tok-s2">&quot;RECURRING&quot;</span>,
+      <span class="tok-s2">&quot;description&quot;</span>: <span class="tok-s2">&quot;basic-annual-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;startDate&quot;</span>: <span class="tok-s2">&quot;2018-07-27&quot;</span>,
+      <span class="tok-s2">&quot;endDate&quot;</span>: <span class="tok-s2">&quot;2019-07-27&quot;</span>,
+      <span class="tok-s2">&quot;amount&quot;</span>: 10000,
+      <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+      <span class="tok-s2">&quot;childItems&quot;</span>: null,
+      <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+    <span class="tok-o">}</span>
+  <span class="tok-o">]</span>,
+  <span class="tok-s2">&quot;isParentInvoice&quot;</span>: <span class="tok-nb">false</span>,
+  <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+<span class="tok-o">}</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_subscription_modification">Subscription Modification</h4>
+<div class="paragraph">
+<p>Finally, we&#8217;ll generate a dry-run invoice associated to a change in the subscription: We want to see what kind of invoice would be generated if we were to change the billing period from <code>ANNUAL</code> to <code>MONTHLY</code>. Also note that this changed was made on 2018-01-24:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -X POST <span class="tok-se">\</span>
+ -u admin:password <span class="tok-se">\</span>
+ -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
+ -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
+ -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+ -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: demo&#39;</span> <span class="tok-se">\</span>
+ -d <span class="tok-s1">&#39;{&quot;bundleId&quot;:&quot;c056fac0-1564-46cd-9e2a-d97e49e30177&quot;, &quot;dryRunType&quot;:&quot;SUBSCRIPTION_ACTION&quot;,  &quot;phaseType&quot;:&quot;EVERGREEN&quot;, &quot;productName&quot;:&quot;Basic&quot;, &quot;productCategory&quot;:&quot;BASE&quot;, &quot;billingPeriod&quot;:&quot;MONTHLY&quot;, &quot;priceListName&quot;:&quot;DEFAULT&quot;, &quot;subscriptionId&quot;:&quot;06b826ad-73e6-4bdd-92fe-c9770a1ba30a&quot;, &quot;billingPolicy&quot;:&quot;IMMEDIATE&quot;, &quot;dryRunAction&quot;:&quot;CHANGE&quot;}&#39;</span> <span class="tok-se">\</span>
+ <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The result is an invoice with 3 items:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>RECURRING</code> item to invoice the next MONTHLY period</p>
+</li>
+<li>
+<p><code>REPAIR_ADJ</code> item to generate a credit for remaining part of the year</p>
+</li>
+<li>
+<p><code>CBA_ADJ</code> item to bring back to balance to 0 and generate the resulting account credit.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>More details below:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
+  <span class="tok-s2">&quot;amount&quot;</span>: -5008.84,
+  <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+  <span class="tok-s2">&quot;status&quot;</span>: <span class="tok-s2">&quot;COMMITTED&quot;</span>,
+  <span class="tok-s2">&quot;creditAdj&quot;</span>: 5008.84,
+  <span class="tok-s2">&quot;refundAdj&quot;</span>: 0,
+  <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;e85306e2-2753-4888-b7df-543c308c367c&quot;</span>,
+  <span class="tok-s2">&quot;invoiceDate&quot;</span>: <span class="tok-s2">&quot;2018-01-24&quot;</span>,
+  <span class="tok-s2">&quot;targetDate&quot;</span>: <span class="tok-s2">&quot;2018-01-24&quot;</span>,
+  <span class="tok-s2">&quot;invoiceNumber&quot;</span>: null,
+  <span class="tok-s2">&quot;balance&quot;</span>: 0,
+  <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+  <span class="tok-s2">&quot;bundleKeys&quot;</span>: null,
+  <span class="tok-s2">&quot;credits&quot;</span>: null,
+  <span class="tok-s2">&quot;items&quot;</span>: <span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;invoiceItemId&quot;</span>: <span class="tok-s2">&quot;f2156511-0273-4ef0-9c11-410a3f6f3872&quot;</span>,
+      <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;e85306e2-2753-4888-b7df-543c308c367c&quot;</span>,
+      <span class="tok-s2">&quot;linkedInvoiceItemId&quot;</span>: null,
+      <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+      <span class="tok-s2">&quot;childAccountId&quot;</span>: null,
+      <span class="tok-s2">&quot;bundleId&quot;</span>: <span class="tok-s2">&quot;c056fac0-1564-46cd-9e2a-d97e49e30177&quot;</span>,
+      <span class="tok-s2">&quot;subscriptionId&quot;</span>: <span class="tok-s2">&quot;06b826ad-73e6-4bdd-92fe-c9770a1ba30a&quot;</span>,
+      <span class="tok-s2">&quot;planName&quot;</span>: <span class="tok-s2">&quot;basic-monthly&quot;</span>,
+      <span class="tok-s2">&quot;phaseName&quot;</span>: <span class="tok-s2">&quot;basic-monthly-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;usageName&quot;</span>: null,
+      <span class="tok-s2">&quot;itemType&quot;</span>: <span class="tok-s2">&quot;RECURRING&quot;</span>,
+      <span class="tok-s2">&quot;description&quot;</span>: <span class="tok-s2">&quot;basic-monthly-evergreen&quot;</span>,
+      <span class="tok-s2">&quot;startDate&quot;</span>: <span class="tok-s2">&quot;2018-01-24&quot;</span>,
+      <span class="tok-s2">&quot;endDate&quot;</span>: <span class="tok-s2">&quot;2018-01-25&quot;</span>,
+      <span class="tok-s2">&quot;amount&quot;</span>: 32.26,
+      <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+      <span class="tok-s2">&quot;childItems&quot;</span>: null,
+      <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+    <span class="tok-o">}</span>,
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;invoiceItemId&quot;</span>: <span class="tok-s2">&quot;f78a8843-3155-4f89-ae2a-ca4219936a2c&quot;</span>,
+      <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;e85306e2-2753-4888-b7df-543c308c367c&quot;</span>,
+      <span class="tok-s2">&quot;linkedInvoiceItemId&quot;</span>: <span class="tok-s2">&quot;1674c034-fcbe-46bb-9c04-f8825671f93f&quot;</span>,
+      <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+      <span class="tok-s2">&quot;childAccountId&quot;</span>: null,
+      <span class="tok-s2">&quot;bundleId&quot;</span>: null,
+      <span class="tok-s2">&quot;subscriptionId&quot;</span>: null,
+      <span class="tok-s2">&quot;planName&quot;</span>: null,
+      <span class="tok-s2">&quot;phaseName&quot;</span>: null,
+      <span class="tok-s2">&quot;usageName&quot;</span>: null,
+      <span class="tok-s2">&quot;itemType&quot;</span>: <span class="tok-s2">&quot;REPAIR_ADJ&quot;</span>,
+      <span class="tok-s2">&quot;description&quot;</span>: <span class="tok-s2">&quot;Adjustment (subscription change)&quot;</span>,
+      <span class="tok-s2">&quot;startDate&quot;</span>: <span class="tok-s2">&quot;2018-01-24&quot;</span>,
+      <span class="tok-s2">&quot;endDate&quot;</span>: <span class="tok-s2">&quot;2018-07-27&quot;</span>,
+      <span class="tok-s2">&quot;amount&quot;</span>: -5041.1,
+      <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+      <span class="tok-s2">&quot;childItems&quot;</span>: null,
+      <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+    <span class="tok-o">}</span>,
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;invoiceItemId&quot;</span>: <span class="tok-s2">&quot;4b13e745-eaa7-4fcd-bfc8-56a3ff3d5190&quot;</span>,
+      <span class="tok-s2">&quot;invoiceId&quot;</span>: <span class="tok-s2">&quot;e85306e2-2753-4888-b7df-543c308c367c&quot;</span>,
+      <span class="tok-s2">&quot;linkedInvoiceItemId&quot;</span>: null,
+      <span class="tok-s2">&quot;accountId&quot;</span>: <span class="tok-s2">&quot;704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&quot;</span>,
+      <span class="tok-s2">&quot;childAccountId&quot;</span>: null,
+      <span class="tok-s2">&quot;bundleId&quot;</span>: null,
+      <span class="tok-s2">&quot;subscriptionId&quot;</span>: null,
+      <span class="tok-s2">&quot;planName&quot;</span>: null,
+      <span class="tok-s2">&quot;phaseName&quot;</span>: null,
+      <span class="tok-s2">&quot;usageName&quot;</span>: null,
+      <span class="tok-s2">&quot;itemType&quot;</span>: <span class="tok-s2">&quot;CBA_ADJ&quot;</span>,
+      <span class="tok-s2">&quot;description&quot;</span>: <span class="tok-s2">&quot;Adjustment (account credit)&quot;</span>,
+      <span class="tok-s2">&quot;startDate&quot;</span>: <span class="tok-s2">&quot;2018-01-24&quot;</span>,
+      <span class="tok-s2">&quot;endDate&quot;</span>: <span class="tok-s2">&quot;2018-01-24&quot;</span>,
+      <span class="tok-s2">&quot;amount&quot;</span>: 5008.84,
+      <span class="tok-s2">&quot;currency&quot;</span>: <span class="tok-s2">&quot;USD&quot;</span>,
+      <span class="tok-s2">&quot;childItems&quot;</span>: null,
+      <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+    <span class="tok-o">}</span>
+  <span class="tok-o">]</span>,
+  <span class="tok-s2">&quot;isParentInvoice&quot;</span>: <span class="tok-nb">false</span>,
+  <span class="tok-s2">&quot;auditLogs&quot;</span>: null
+<span class="tok-o">}</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
 <h3 id="components-invoice-payments">Invoice Payments</h3>
 <div class="paragraph">
 <p>The invoice payment table is the bridge between the invoice and payment subsystems, and is used to compute invoice balances. It will contain the payments, refunds and chargebacks made against an invoice.</p>
@@ -2944,7 +3324,7 @@ java -jar killbill-overdue-*-xsd-tool.jar schema.xsd</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-01-24 07:22:39 UTC
+Last updated 2018-02-01 22:49:10 UTC
 </div>
 </div>
 </body>
