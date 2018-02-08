@@ -127,11 +127,39 @@ So the total amount would be 739.4.
 For more information on this model see our http://docs.killbill.io/latest/consumable_in_arrear.html[tutorial].
 
 
-
-
 ===== Capacity In Arrear Mode
 
+In the `CAPACITY` mode, each `tier` definition contains a list of `limit`, specifying for each `unit` (type) what is the maxium value for this tier. *In contrary to `CONSUMABLE` mode, the billing happens across the units*. Let's assume the following definition for one tier, with 2 different types of units, `bandwith-meg-sec` and `members`:
 
+[source,bash]
+----
+<tier>
+   <limits>
+       <limit>
+           <unit>bandwith-meg-sec</unit>
+           <max>100</max>
+       </limit>
+       <limit>
+           <unit>members</unit>
+           <max>500</max>
+       </limit>
+   </limits>
+   <recurringPrice>
+       <price>
+           <currency>EUR</currency>
+           <value>5.00</value>
+       </price>
+   </recurringPrice>
+</tier>
+----
 
+Given the following usage data for the period:
 
+* `bandwith-meg-sec`: A peak of 50 in the period
+* `members`: A peak of 350 active members in the period
 
+The user would be charged 5.00 EUR.
+
+However if the `members` peak data was 501, this would move to the next tier -- not shown for simplicity.
+
+So, in this model, the peak data for each unit is used to *define which tier to use*, and based on the tier we simply apply the pricing defined. 
