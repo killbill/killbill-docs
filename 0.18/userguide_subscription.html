@@ -508,7 +508,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_catalog_documentation">Catalog Documentation</a></li>
 </ul>
 </li>
-<li><a href="#components-catalog-basic">Basic Catalog Tutorial</a>
+<li><a href="#components-catalog-basic">Basic Catalog</a>
 <ul class="sectlevel3">
 <li><a href="#_creating_the_catalog">Creating the Catalog</a></li>
 <li><a href="#_products">Products</a></li>
@@ -520,7 +520,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_rules">Rules</a></li>
 </ul>
 </li>
-<li><a href="#components-catalog-advanced">Advanced Catalog Tutorial</a>
+<li><a href="#components-catalog-advanced">Advanced Catalog</a>
 <ul class="sectlevel3">
 <li><a href="#_overview">Overview</a></li>
 <li><a href="#_add_ons">Add-ons</a></li>
@@ -542,6 +542,16 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_catalog_versions">Catalog Versions</a>
 <ul class="sectlevel4">
 <li><a href="#_deferred_price_change">Deferred Price Change</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#components-catalog-usage">Usage Billing</a>
+<ul class="sectlevel3">
+<li><a href="#_usage_modes">Usage Modes</a>
+<ul class="sectlevel4">
+<li><a href="#_consumable_in_arrear_mode">Consumable In Arrear Mode</a></li>
+<li><a href="#_capacity_in_arrear_mode">Capacity In Arrear Mode</a></li>
 </ul>
 </li>
 </ul>
@@ -1062,7 +1072,7 @@ Different billing systems use these same words to mean subtly different things s
 </div>
 </div>
 <div class="sect2">
-<h3 id="components-catalog-basic">Basic Catalog Tutorial</h3>
+<h3 id="components-catalog-basic">Basic Catalog</h3>
 <div class="paragraph">
 <p>In this tutorial we set about creating a catalog to represent the Spy Car products illustrated above. The tutorial will go through the creation of the following:</p>
 </div>
@@ -1328,7 +1338,7 @@ It is important to have a default rule even if you don’t expect to use it just
 </div>
 </div>
 <div class="sect2">
-<h3 id="components-catalog-advanced">Advanced Catalog Tutorial</h3>
+<h3 id="components-catalog-advanced">Advanced Catalog</h3>
 <div class="sect3">
 <h4 id="_overview">Overview</h4>
 <div class="paragraph">
@@ -2105,6 +2115,231 @@ The semantics is simply that the changes to that plan will only take effect for 
 </div>
 <div class="paragraph">
 <p><span class="image"><img src="https://drive.google.com/uc?&amp;id=0Bw8rymjWckBHZGlqWGpGRnVDeVE&amp;w=960&amp;h=480" alt="uc?&amp;id=0Bw8rymjWckBHZGlqWGpGRnVDeVE&amp;w=960&amp;h=480"></span></p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="components-catalog-usage">Usage Billing</h3>
+<div class="sect3">
+<h4 id="_usage_modes">Usage Modes</h4>
+<div class="paragraph">
+<p>Kill Bill supports invoicing customers based on their usage data, and the definition of such pricing scheme is defined in the catalog.
+The <code>Plan</code> section of the Kill Bill catalog can contain one or several <code>usage</code> section(s) to define how customers will be billed.
+These sections can be defined in addition to other non usage based billing pricing scheme, such as fixed or recurring price.</p>
+</div>
+<div class="paragraph">
+<p>Each usage section will need to specify a <code>billingMode</code>:
+The only billing mode supported today is the <code>IN_ARREAR</code> mode, which allows to bill customer based on usage data from previous periods.
+We plan to add the <code>IN_ADVANCE</code> mode in the future to support prepaids like scenario&#8201;&#8212;&#8201;e.g toll bridge pass-- where consumer purchases a
+certain number of units <strong>in advance</strong> and such units are decremented as consumer uses the service.</p>
+</div>
+<div class="paragraph">
+<p>Each usage section will also need to specify a <code>usageType</code> and along with it, specify the <code>unit</code> (types) for which customer is being billed for&#8201;&#8212;&#8201;e.g cell phone/minutes.
+The usage type can be one of the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>CONSUMABLE</code> : This is is used for defining prices that are based on the number of units (of a certain types) being consumed&#8201;&#8212;&#8201;e.g water consumed in the last period.</p>
+</li>
+<li>
+<p><code>CAPACITY</code> : This is used for defining prices that are based on rates or upper bound values. In this scheme, we bill based on the maxium value seeing over the period&#8201;&#8212;&#8201;e.g MBytes/sec</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The following <a href="http://killbill.io/blog/usage-billing"> blog post</a> provides additional context about this use cases.</p>
+</div>
+<div class="paragraph">
+<p>For each usage section, we support defining pricing <strong>tiers</strong> to allow billing customer differently based on their usage.
+Such tiers work differently depending of the usage type, <code>CONSUMABLE</code> versus <code>CAPACITY</code>.</p>
+</div>
+<div class="paragraph">
+<p>Each usage section also needs to define the <code>billingPeriod</code>,&#8201;&#8212;&#8201;e.g <code>MONTHLY</code>&#8201;&#8212;&#8201;to define how often and for which period consumers are being billed.</p>
+</div>
+<div class="sect4">
+<h5 id="_consumable_in_arrear_mode">Consumable In Arrear Mode</h5>
+<div class="paragraph">
+<p>In the <code>CONSUMABLE</code> mode, each <code>tier</code> definition contains a <code>tieredBlock</code>, that defines the limits and price associated to a particular <code>unit</code> type.
+So for example, the following tier block section defines the pricing for the <code>cell-phone-minutes</code> unit, and can ne understood the following way:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&lt;tieredBlock&gt;
+    &lt;unit&gt;cell-phone-minutes&lt;/unit&gt;
+    &lt;size&gt;10&lt;/size&gt;
+    &lt;prices&gt;
+        &lt;price&gt;
+            &lt;currency&gt;EUR&lt;/currency&gt;
+            &lt;value&gt;1.00&lt;/value&gt;
+        &lt;/price&gt;
+    &lt;/prices&gt;
+    &lt;max&gt;100&lt;/max&gt;
+&lt;/tieredBlock&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This defines a block of size <code>10</code>, where each block is priced at 1.00 EUR</p>
+</li>
+<li>
+<p>The first <code>100</code> blocks of this size will be priced at 1.00 EUR</p>
+</li>
+<li>
+<p>If a consumer uses more than <code>100</code> blocks of this size, he will be charged at the price of the next tier.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>As mentionned previously, such usage section can contain multiple tiers and also charge for multiple unit types.
+The following section shows the defintion for 2 units, <strong>cell-phone-minutes</strong> and <strong>Mbytes</strong>, and define two tiers.
+The <code>max</code> value for the last tier is defined with <strong>-1</strong> to allow for unbounded value:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&lt;tiers&gt;
+    &lt;tier&gt;
+        &lt;blocks&gt;
+            &lt;tieredBlock&gt;
+                &lt;unit&gt;cell-phone-minutes&lt;/unit&gt;
+                &lt;size&gt;10&lt;/size&gt;
+                &lt;prices&gt;
+                    &lt;price&gt;
+                        &lt;currency&gt;EUR&lt;/currency&gt;
+                        &lt;value&gt;1.00&lt;/value&gt;
+                    &lt;/price&gt;
+                &lt;/prices&gt;
+                &lt;max&gt;100&lt;/max&gt;
+            &lt;/tieredBlock&gt;
+            &lt;tieredBlock&gt;
+                &lt;unit&gt;Mbytes&lt;/unit&gt;
+                &lt;size&gt;1&lt;/size&gt;
+                &lt;prices&gt;
+                    &lt;price&gt;
+                        &lt;currency&gt;EUR&lt;/currency&gt;
+                        &lt;value&gt;0.5&lt;/value&gt;
+                    &lt;/price&gt;
+                &lt;/prices&gt;
+                &lt;max&gt;1024&lt;/max&gt;
+            &lt;/tieredBlock&gt;
+        &lt;/blocks&gt;
+    &lt;/tier&gt;
+    &lt;tier&gt;
+        &lt;blocks&gt;
+            &lt;tieredBlock&gt;
+                &lt;unit&gt;cell-phone-minutes&lt;/unit&gt;
+                &lt;size&gt;10&lt;/size&gt;
+                &lt;prices&gt;
+                    &lt;price&gt;
+                        &lt;currency&gt;EUR&lt;/currency&gt;
+                        &lt;value&gt;0.50&lt;/value&gt;
+                    &lt;/price&gt;
+                &lt;/prices&gt;
+                &lt;max&gt;-1&lt;/max&gt;
+            &lt;/tieredBlock&gt;
+            &lt;tieredBlock&gt;
+                &lt;unit&gt;Mbytes&lt;/unit&gt;
+                &lt;size&gt;1&lt;/size&gt;
+                &lt;prices&gt;
+                    &lt;price&gt;
+                        &lt;currency&gt;EUR&lt;/currency&gt;
+                        &lt;value&gt;0.1&lt;/value&gt;
+                    &lt;/price&gt;
+                &lt;/prices&gt;
+                &lt;max&gt;-1&lt;/max&gt;
+            &lt;/tieredBlock&gt;
+        &lt;/blocks&gt;
+    &lt;/tier&gt;
+&lt;/tiers&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>In the <code>CONSUMABLE</code> mode, when defining usage section with multiple unit (types), it is important to realize that the consumer <strong>is charged independently
+for each unit</strong>, so for example, with the definition provided above:</p>
+</div>
+<div class="paragraph">
+<p>Given the following usage data for the period:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>1500 cell-phone-minutes</p>
+</li>
+<li>
+<p>2048 Mbytes</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The consumer would be charged for:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>cell-phone-minutes: 100 blocks of size 10 at 1.00 EUR + 50 blocks of size 10 at 0.50 EUR = 100 * 1.00 + 50 * 0.5 = 125</p>
+</li>
+<li>
+<p>Mbytes: 1024 blocks of size 1 at 0.50 EUR + 1024 blocks of size 1 at 0.10 EUR = 1024 * 0.5 + 1024 * 0.1 = 614.4</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>So the total amount would be 739.4.</p>
+</div>
+<div class="paragraph">
+<p>For more information on this model see our <a href="http://docs.killbill.io/latest/consumable_in_arrear.html">tutorial</a>.</p>
+</div>
+</div>
+<div class="sect4">
+<h5 id="_capacity_in_arrear_mode">Capacity In Arrear Mode</h5>
+<div class="paragraph">
+<p>In the <code>CAPACITY</code> mode, each <code>tier</code> definition contains a list of <code>limit</code>, specifying for each <code>unit</code> (type) what is the maxium value for this tier. <strong>In contrary to <code>CONSUMABLE</code> mode, the billing happens across the units</strong>. Let&#8217;s assume the following definition for one tier, with 2 different types of units, <code>bandwith-meg-sec</code> and <code>members</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">&lt;tier&gt;
+   &lt;limits&gt;
+       &lt;limit&gt;
+           &lt;unit&gt;bandwith-meg-sec&lt;/unit&gt;
+           &lt;max&gt;100&lt;/max&gt;
+       &lt;/limit&gt;
+       &lt;limit&gt;
+           &lt;unit&gt;members&lt;/unit&gt;
+           &lt;max&gt;500&lt;/max&gt;
+       &lt;/limit&gt;
+   &lt;/limits&gt;
+   &lt;recurringPrice&gt;
+       &lt;price&gt;
+           &lt;currency&gt;EUR&lt;/currency&gt;
+           &lt;value&gt;5.00&lt;/value&gt;
+       &lt;/price&gt;
+   &lt;/recurringPrice&gt;
+&lt;/tier&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Given the following usage data for the period:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>bandwith-meg-sec</code>: A peak of 50 in the period</p>
+</li>
+<li>
+<p><code>members</code>: A peak of 350 active members in the period</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The user would be charged 5.00 EUR.</p>
+</div>
+<div class="paragraph">
+<p>However if the <code>members</code> peak data was 501, this would move to the next tier&#8201;&#8212;&#8201;not shown for simplicity.</p>
+</div>
+<div class="paragraph">
+<p>So, in this model, the peak data for each unit is used to <strong>define which tier to use</strong>, and based on the tier we simply apply the pricing defined.</p>
 </div>
 </div>
 </div>
@@ -3324,7 +3559,7 @@ java -jar killbill-overdue-*-xsd-tool.jar schema.xsd</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-02-08 19:08:24 UTC
+Last updated 2018-02-09 00:37:23 UTC
 </div>
 </div>
 </body>
