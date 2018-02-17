@@ -1,0 +1,125 @@
+==== Usage Invoice Items
+
+As described in the section http://docs.killbill.io/latest/userguide_subscription.html#components-catalog-usage[Usage Billing],
+Kill Bill supports invoicing customers based on different usage type. The usage billing is always done on a per subscription
+level and for a given billing period; in addition, if the active `Plan` associated with the subscription contains multiple usage
+sections, each usage section is billed independently: As a result, we may see one or several `USAGE` invoice items per invoice,
+each associated with a given subscription, usage section and billing period.
+
+So regarless of the usage type the following basic fields will always be seen:
+
+* `planName`: The name of the `Plan` in the catalog
+* `phaseName`: The name of the `PlanPhase` in the catalog
+* `subscriptionId`: The ID of the subscription
+* `usageName`: The name of the usage section in the catalog
+* `startDate`: The start date for the period being invoiced
+* `endDate`: The end date for the period being invoiced
+
+In addition, depending on the usage type for the usage section (e.g `CONSUMABLE`), and depending on the configuration of the system,
+we will see additional information. 
+
+==== Capacity In Arrear Mode
+
+For each capacity in arrear usage section, we will see some json in the field `itemDetails`, to provide additional information:
+
+[source,bash]
+----
+{
+  "tierDetails": [
+    {
+      "tier": 2,
+      "tierUnit": "bandwith-meg-sec",
+      "tierPrice": 10,
+      "quantity": 200
+    },
+    {
+      "tier": 3,
+      "tierUnit": "members",
+      "tierPrice": 100,
+      "quantity": 60
+    }
+  ],
+  "amount": 100
+}
+----
+
+In this example we see that we were invoiced for 2 different units, provide details for each unit, and the amount that will be charged.
+Note that because unit `members` reached tier 3, the amount will be based on the pricing for that tier.
+
+==== Consumable In Arrear Mode
+
+In this mode, we are going through tier level to compute the price based on the tier price and quantity.
+We can configure the invoicing system to output one item per tier, or one aggregate item for all tiers.
+
+==== Agrregate Mode
+
+In the aggregate mode, we will see some json in the field `itemDetails`, to summarize the usage on a per tier basis and per unit basis:
+
+[source,bash]
+----
+{
+  "tierDetails": [
+    {
+      "tier": 1,
+      "tierUnit": "cell-phone-minutes",
+      "tierPrice": 2,
+      "tierBlockSize": 1,
+      "quantity": 20,
+      "amount": 40
+    },
+    {
+      "tier": 2,
+      "tierUnit": "cell-phone-minutes",
+      "tierPrice": 20,
+      "tierBlockSize": 1,
+      "quantity": 100,
+      "amount": 2000
+    },
+    {
+      "tier": 1,
+      "tierUnit": "Mbytes",
+      "tierPrice": 10,
+      "tierBlockSize": 1,
+      "quantity": 10,
+      "amount": 100
+    }
+  ],
+  "amount": 2140
+}
+----
+
+In this example, we see that we billed for two units `cell-phone-minutes` and `Mbytes`: For the `cell-phone-minutes`, the quantity
+recorded for the period was such, that we reached the maxium for tier 1 and started to bill some units for tier 2; for `Mbytes`, we billed 
+everything in the tier 1. The amount reported is the sum of the amount : 40 + 2000 + 100 = 2140.
+
+==== Detail Mode
+
+Sometimes it is desirable to output one `USAGE`item per unit type and tier, so in this case the detail for the billing is inside each
+invoice item -- and the aggregate amount is computed by summing the sum amount. In order to activate this mode, one needs to set
+the system property `org.killbill.invoice.item.result.behavior.mode` to `DETAIL`.
+
+Each of `USAGE` item will contain the following field:
+
+* `quantity`: Quantity consumed for the unit (type) and on the given tier
+* `rate`: We reused the `rate` field normally reserved for `RECURING` type to output the price of the tier
+
+Also we add some detail about this given unit and tier as json in the `itemDetails` field:
+
+[source,bash]
+----
+{
+  "tier": 1,
+  "tierUnit": "cell-phone-minutes",
+  "tierPrice": 2,
+  "tierBlockSize": 1,
+  "quantity": 20,
+  "amount": 40
+}
+----
+
+
+==== Late Usage Data
+
+TODO
+
+
