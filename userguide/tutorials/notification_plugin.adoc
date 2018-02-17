@@ -1,0 +1,23 @@
+= Developing a Notification Plugin
+
+== Overview
+
+Notification plugins implement the `OSGIKillbillEventDispatcher.OSGIKillbillEventHandler` interface. Each Kill Bill event from the external message bus is dispatched to the `public void handleKillbillEvent(final ExtBusEvent killbillEvent)` method. Such plugins can be a great alternative to http://docs.killbill.io/latest/push_notifications.html[Push Notifications] in performance demanding environments.
+
+== Retries
+
+By default, if your plugin triggers a runtime exception, the event is redispatched right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property). In some cases, you may want to retry at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` with your own retry schedule.
+
+For example:
+
+[source,java]
+----
+// Retry in an hour and in 24hrs
+throw new NotificationPluginApiRetryException(Arrays.asList(new Period[]{Period.hours(1), Period.days(1)}));
+----
+
+Because of such behavior, any plugin can trigger retries at any time: it is hence important that your listener is idempotent.
+
+=== Internals
+
+When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried (you don't have to keep count in the plugin, Kill Bill will do it for you). Retriable events are serialized as `RetryNotificationEvent` objects and placed in the `notifications-retries:extBusEvent-listener-service` notification queue.
