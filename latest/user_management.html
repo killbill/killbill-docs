@@ -489,10 +489,17 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 <li><a href="#_kaui">KAUI</a>
 <ul class="sectlevel1">
-<li><a href="#_summary">Summary</a></li>
-<li><a href="#_default_code_admin_code_user">Default <code>admin</code> user</a></li>
+<li><a href="#_users">Users</a>
+<ul class="sectlevel2">
+<li><a href="#_database">Database</a></li>
+<li><a href="#_ldap_and_okta">LDAP and Okta</a></li>
 </ul>
 </li>
+<li><a href="#_users_and_tenants">Users and tenants</a></li>
+<li><a href="#_super_user">Super user</a></li>
+</ul>
+</li>
+<li><a href="#_summary">Summary</a></li>
 </ul>
 </div>
 </div>
@@ -511,6 +518,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the <code>api_key</code>/<code>api_secret</code> for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant.</p>
 </div>
+<div class="paragraph">
+<p>The full list of available permissions can be found <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/security/Permission.java">here</a>.</p>
+</div>
 </div>
 </div>
 <h1 id="_user_management_apis" class="sect0">User Management APIs</h1>
@@ -518,7 +528,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_configuration_of_the_user_role_permissions">Configuration of the User/Role/Permissions</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Shiro supports multiple backend implementations, and we integrated 3 of them:</p>
+<p>Shiro supports multiple backend implementations, and we integrated a few of them including:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -531,10 +541,19 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li>
 <p>LDAP integration</p>
 </li>
+<li>
+<p>Okta integration</p>
+</li>
 </ul>
 </div>
 <div class="paragraph">
-<p>For simple deployments where only few static users/roles need to be assigned, the <code>shiro.ini</code> file is the simplest and the best option. For large entreprise solution, an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle ground is to rely on a mixed solution between the <code>shiro.ini</code> file and the database backend. This is what the rest of this section will describe:</p>
+<p>For simple deployments where only few static users/roles need to be assigned, the <code>shiro.ini</code> file is the simplest and the best option. By default both Kill Bill (<code>shiro.ini</code>) and Kaui ship with an <code>admin</code> user (and its password <code>password</code>) that has all the permissions. One can immediatley log-in to Kaui using such user, and start configuring tenants as needed.</p>
+</div>
+<div class="paragraph">
+<p>Changing such user (e.g to use <code>superadmin</code>), would require editing <code>shiro.ini</code> on the Kill Bill side to making sure this initial user can log-in to Kaui (see below).</p>
+</div>
+<div class="paragraph">
+<p>For a large entreprise solution, an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle ground is to rely on a mixed solution between the <code>shiro.ini</code> file and the database backend. This is what the rest of this section will describe:</p>
 </div>
 <div class="paragraph">
 <p>Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:</p>
@@ -571,12 +590,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u <span class="tok-s2">&quot;superadmin:superadmin123&quot;</span>  <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{ &quot;role&quot;: &quot;customer_support&quot;, &quot;permissions&quot;: [&quot;account:create&quot;, &quot;account:update&quot;, &quot;entitlement:change_plan&quot;, &quot;entitlement:pause_resume&quot;, &quot;entitlement:cancel&quot;, &quot;entitlement:transfer&quot;, &quot;invoice:credit&quot;, &quot;invoice:item_adjust&quot;, &quot;tag:create_tag_definition&quot;, &quot;tag:delete_tag_definition&quot;, &quot;tag:add&quot;, &quot;tag:delete&quot;] }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/roles&#39;</span></code></pre>
+-u <span class="tok-s2">&quot;superadmin:superadmin123&quot;</span>  <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{ &quot;role&quot;: &quot;customer_support&quot;, &quot;permissions&quot;: [&quot;account:create&quot;, &quot;account:update&quot;, &quot;entitlement:change_plan&quot;, &quot;entitlement:pause_resume&quot;, &quot;entitlement:cancel&quot;, &quot;entitlement:transfer&quot;, &quot;invoice:credit&quot;, &quot;invoice:item_adjust&quot;, &quot;tag:create_tag_definition&quot;, &quot;tag:delete_tag_definition&quot;, &quot;tag:add&quot;, &quot;tag:delete&quot;] }&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/roles&#39;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -585,12 +604,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u <span class="tok-s1">&#39;superadmin:superadmin123&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support&quot;] }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/users&#39;</span></code></pre>
+-u <span class="tok-s1">&#39;superadmin:superadmin123&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support&quot;] }&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/users&#39;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -599,12 +618,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u <span class="tok-s1">&#39;superadmin:superadmin123&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -X PUT <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support_manager&quot;] }&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/users/cs/roles&#39;</span></code></pre>
+-u <span class="tok-s1">&#39;superadmin:superadmin123&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: stephane&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-X PUT <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{ &quot;username&quot;: &quot;cs&quot;, &quot;password&quot;: &quot;cs123&quot;, &quot;roles&quot;: [&quot;customer_support_manager&quot;] }&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/security/users/cs/roles&#39;</span></code></pre>
 </div>
 </div>
 </div>
@@ -618,12 +637,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u superadmin:superadmin123 <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
+-X POST <span class="tok-se">\</span>
+-u superadmin:superadmin123 <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+-d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
 </div>
 </div>
 </div>
@@ -640,14 +659,14 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u cs:cs123 <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;John Doe&quot;,&quot;email&quot;:&quot;john@example.com&quot;,&quot;externalKey&quot;:&quot;john-doe-1234&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span></code></pre>
+-u cs:cs123 <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;John Doe&quot;,&quot;email&quot;:&quot;john@example.com&quot;,&quot;externalKey&quot;:&quot;john-doe-1234&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -656,14 +675,14 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u cs:cs123 <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;amount&quot;:&quot;12.4&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1/refunds&quot;</span></code></pre>
+-u cs:cs123 <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;amount&quot;:&quot;12.4&quot;}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1/refunds&quot;</span></code></pre>
 </div>
 </div>
 </div>
@@ -671,53 +690,85 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h1 id="_kaui" class="sect0">KAUI</h1>
 <div class="openblock partintro">
 <div class="content">
+KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in <a href="http://killbill.io/blog/multi-tenancy-authorization">our previous blog post</a>.
+</div>
+</div>
+<div class="sect1">
+<h2 id="_users">Users</h2>
+<div class="sectionbody">
 <div class="paragraph">
-<p>KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in <a href="http://killbill.io/blog/multi-tenancy-authorization">our previous blog post</a>.</p>
+<p>To configure users allowed to use Kaui, go to <code>/admin_allowed_users</code>:</p>
 </div>
 <div class="paragraph">
-<p>As far as user configuration goes, this is all done on the server side and so KAUI does not export a way to add users, configure roles and associated permissions. As long as the user is correctly configured on the server side (either statically in <code>shiro.ini</code>, or in the database through the use of the apis we have shown previously, or by relying on an external LDAP configuration), the login process through KAUI should work.</p>
+<p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_NewAllowedUser.png" alt="KAUI_NewAllowedUser"></span></p>
 </div>
 <div class="paragraph">
-<p>However, KAUI needs to be told about the relationship between user and tenants. This mapping is specific to the UI and on the server side, as long as the user connects using the right credentials, and specifying the right tenant <code>api_key</code> and <code>api_secret</code>, things will work. The idea, is that a super admin would first configure the allowed users for each specific tenant on the KAUI side, in such a way that later when a specific user logs in, he only sees the tenants he has access to.</p>
+<p>Fields to populate will depend on which back-end realm is configured.</p>
+</div>
+<div class="sect2">
+<h3 id="_database">Database</h3>
+<div class="paragraph">
+<p>If you are storing roles, usernames and passwords in the Kill Bill database, leave the "Managed externally" checkbox unchecked and fill-in all details. Kaui will create these users locally and in Kill Bill (if they don&#8217;t exist on the server already).</p>
 </div>
 <div class="paragraph">
-<p>As far as tenant configuration goes, it is possible to create tenants directly from KAUI, or such tenants can also be created using apis (outside of KAUI). In the later case, KAUI needs to be told that such tenants exists (there is no auto-discovery); and then as discussed earlier mappings between tenants and allowed users need to be made inside KAUI.</p>
+<p>Roles can be created by going to <code>/role_definitions/new</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_ldap_and_okta">LDAP and Okta</h3>
+<div class="paragraph">
+<p>If you are delegating roles and users management to a third-party system, Kaui only needs to know the login of the users. Password and roles being managed outside of Kill Bill, you need to access your third-party system to set and update these.</p>
+</div>
+<div class="paragraph">
+<p>Note that there is no auto-discovery of logins: you need to enter all logins from your system manually in Kaui before such users can access the UI.</p>
+</div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_summary">Summary</h2>
+<h2 id="_users_and_tenants">Users and tenants</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>Kaui needs to be told about the relationship between user and tenants (this mapping is specific to the UI). The idea, is that a super admin would first configure the allowed users for each specific tenant on the KAUI side, in such a way that later on, when a specific user logs in, he only sees the tenants he has access to.</p>
+</div>
+<div class="paragraph">
+<p>This mapping can be configured by going to each user page (e.g. <code>/admin_allowed_users/1</code>).</p>
+</div>
+<div class="paragraph">
+<p>As far as tenant configuration goes, it is possible to create tenants directly from Kaui. If you already have created a tenant in Kill Bill using APIs, you can safely re-create it from Kaui, which will discover it on the server side and simply sync it locally.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_super_user">Super user</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Kaui has the concept of a super user (<strong>root</strong>) for critical, cross-tenants, operations. By default, it assumes that the <code>admin</code> user is the super user, but you can change this by setting the system property <code>kaui.root_username</code> (<code>KAUI_ROOT_USERNAME</code> Docker environment variable). The password doesn&#8217;t need to be specified as it is stored on the server side (<code>shiro.ini</code>, etc.).</p>
+</div>
+</div>
+</div>
+<h1 id="_summary" class="sect0">Summary</h1>
+<div class="openblock partintro">
+<div class="content">
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>User, roles, permissions need to be configured on the server side (<code>shiro.ini</code>, database, LDAP)</p>
+<p>User, roles, permissions need to be configured on the server side (<code>shiro.ini</code>, database, LDAP, Okta, &#8230;&#8203;)</p>
 </li>
 <li>
 <p>Tenants can then be created (using a user whole role&#8217;s permissions allow such operation)</p>
 </li>
 <li>
-<p>Mapping between tenant and allowed users need to be defined in KAUI</p>
+<p>Mapping between tenant and allowed users need to be defined in Kaui</p>
 </li>
 </ol>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_default_code_admin_code_user">Default <code>admin</code> user</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>By default both Kill Bill (<code>shiro.ini</code>) and KAUI ship with an <code>admin</code> user (and its password <code>password</code>) that has all the permissions. One can immediatley log-in to KAUI using such user, and start configuring tenants as needed.</p>
-</div>
-<div class="paragraph">
-<p>Changing such user (e.g to use <code>superadmin</code>), would require editing <code>shiro.ini</code> on the Kill Bill side to making sure this initial user can log-in to KAUI.</p>
 </div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-02-22 14:31:30 UTC
+Last updated 2018-04-05 09:02:56 UTC
 </div>
 </div>
 </body>
