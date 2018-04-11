@@ -20,7 +20,6 @@ pushd $BUILD/killbill-docs
 git config user.name "Travis-CI"
 git config user.email "travis@killbill.io"
 git add $VERSION
-git add latest
 git commit -m "Docs update"
 git push -fq "https://${GH_TOKEN}@${GH_REF}" gh-pages:gh-pages > /dev/null 2>&1
 popd
