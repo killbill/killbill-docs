@@ -1,0 +1,44 @@
+= Debugging tips
+
+== Turning on DEBUG logging
+
+Using `jconsole` (default port 8989), you can set at runtime the log level of specific classes and packages (look for  the `ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator` MBean).
+
+== Following tokens
+
+To understand why a specific action was taken, it is often useful to follow tokens.
+
+When invoking a JAX-RS (HTTP) API, a `userToken` is automatically generated. You can also specify your own token via the `X-Request-Id` HTTP header (it *must* be a UUID).
+
+Once set, this token is:
+
+* attached to the processing thread
+* attached to SLF4J MDC context as `kb.userToken` and displayed by default in logs (`tok=`)
+* passed to all APIs as `CallContext#getUserToken()`
+* passed to internal bus events as `BusEvent#getUserToken()`
+* passed to external bus events as `ExtBusEvent#getUserToken()`
+* passed to future notifications as `userToken`
+
+Note that when a notification is created, a `futureUserToken` is auto-generated. That `futureUserToken` becomes the `userToken` when the notification is dispatched.
+
+You can search for these tokens in Kaui, on the _Queues_ screen, accessible from the tenant page or via the per-account sub-menu (you need to be logged-in as the Kaui root user).
+
+== Seeking help
+
+If all else fail, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] for help (*do not open a Github issue*).
+
+In your message, specify:
+
+* What you are seeing and what you are expecting
+* How to reproduce your scenario (cURL commands, code snippet, ...)
+* https://github.com/killbill/killbill-cloud[KPM] diagnostic output, e.g.
+
+```
+kpm diagnostic --killbill-api-credentials=bob lazar \
+               --killbill-credentials=admin password \
+               --killbill-url=http://127.0.0.1:8080 \
+               --killbill-web-path=/var/lib/tomcat7/webapps/ROOT/ \
+               --kaui-web-path=/var/lib/tomcat7/webapps/ROOT/ \
+               --log-dir=/var/lib/tomcat7/logs \
+               --account_export=ACCOUNT_ID
+```
