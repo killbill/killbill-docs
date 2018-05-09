@@ -1,297 +1,217 @@
 = Getting started
 
-[[intro]]
 == Introduction
 
 Kill Bill is the open-source subscription billing and payments platform.
 
-The *subscription billing* features let you create recurring subscriptions (e.g. "gold plan subscription at $9.99/month") and manage upgrades and downgrades. The system will take care of generating invoices, managing credits and triggering payments.
+The *subscription billing* features let you create recurring or usage based subscriptions (e.g. "gold plan subscription at $9.99/month") and manage upgrades and downgrades. The system will take care of generating invoices, managing credits and triggering payments.
 
-The *payment* features let you connect with virtually any payment gateway and processor (Stripe, Braintree, PayPal, Adyen, CyberSource, etc.) to charge your customers (using credit or debit cards, ACH, wire transfers, Bitcoin, etc.) for their subscriptions or one-off payments (type shopping cart).
+The *payment* features let you connect with virtually any payment gateway and processor (Stripe, Braintree, PayPal, Adyen, CyberSource, etc.) to charge your customers (using credit or debit cards, ACH, wire transfers, Bitcoin, etc.) for their subscriptions or one-off payments (e.g. shopping cart-type website).
+
+We refer to Kill Bill as a *platform* because of its extensibility: you can write plugins to modify the behavior of the system or to integrate with third-party vendors, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). A lot of open-source plugins are available on our http://github.com/killbill/killbill[GitHub organization].
+
+Kill Bill is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, instead your website (it could be a custom e-commerce website, a Drupal or WordPress deployment, etc.) will trigger REST API calls (over HTTP) to process subscriptions or orders. We also provide *Kaui*, the Kill Bill administrative UI, an interface to interact with Kill Bill for your support and finance teams (to manage refunds, invoice adjustments, etc.).
 
 Check this video for a quick tour:
 
 https://www.youtube.com/watch?v=f2IHcz3OLYo[image:http://img.youtube.com/vi/f2IHcz3OLYo/0.jpg[align=center]]
 
-We refer to Kill Bill as a *platform* because of its extensibility: you can write plugins to modify the behavior of the system or to integrate with third-party vendors, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). A lot of open-source plugins are available on our GitHub.
+=== The Kill Bill platform
 
-Kill Bill is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, instead your website will trigger REST API calls (over HTTP) to process subscriptions or orders. We also provide Kaui, the Kill Bill administrative UI, an interface to interact with Kill Bill for your support and finance teams (to manage refunds, invoice adjustments, etc.).
+Some of the features of the Kill Bill platform include:
 
-[[installation]]
+* Core Foundations
+** High level of integrity and robustness
+** Authentication and RBAC support
+** A plugin framework where open-source and proprietary plugins can be added to modify the behavior of the system, and/or to interact with third party systems
+** A robust persistent event bus, that is used both internally and externally (events are visible to plugins and to other services via HTTP push notifications)
+** An auditing framework that keeps track of all the changes that occurred (who?, when?, what?)
+* Core services (account management, invoicing, entitlement, dunning, ...) which are built and packaged as independent jars, each of which with its own APIs; those core services post a well defined set of events on the persistent bus which are then consumed by other core services or plugins
+* Plugins
+
+The core of the Kill Bill platform can be logically seen as such:
+
+// Bug for aligning the caption https://github.com/asciidoctor/asciidoctor/issues/857 [caption="Kill Bill Logical Architecture",align=center]
+image::https://docs.google.com/drawings/d/1OCYn6GTrmEbJi9daT8L9xPCgwp7n5FidTWH0nHpCYqE/pub?w=960&amp;h=480[align=center]
+
+Contrary to most billing solutions, Kill Bill is *not* a batch oriented system, but instead, it is driven by events occurring in the system (for example, the creation of a new subscription will create a new event that the invoicing core service will process and as result a new invoice may be created along with a new event, which the payment core service will then process, ...).
+
+Kill Bill is packaged as a WAR and is therefore executed within a web container (typically Tomcat). It offers https://killbill.github.io/slate/[REST APIs] to manage the state associated with accounts, subscriptions, invoices, payments, ...
+
+==== Multi-Tenancy
+
+Kill Bill supports multi-tenancy, meaning you can run multiple logical instances of Kill Bill with a single server and database. We posted a http://killbill.io/blog/subscription-service-using-kill-bill[blog post] which illustrates some of the use cases for running Kill Bill in such a multi-tenant fashion.
+
+Each (REST) API call will require the following two headers (for Kill Bill to identify which tenant that call is targeted to, and verify the API user has the rights to access that tenant):
+
+* *X-Killbill-ApiKey*
+* *X-Killbill-ApiSecret*
+
+==== RBAC
+
+Kill Bill's authentication and authorization relies on http://shiro.apache.org/[Apache Shiro]. In a nutshell, Shiro allows you to configure a set of `Users`, where each `User` is associated with a set of `Roles`, and each `Role` contains a set of https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/security/Permission.java[`Permissions`].
+
+Kill Bill (through Shiro) supports various configurations (LDAP, Okta, etc.). See http://docs.killbill.io/latest/user_management.html[our RBAC guide] for more details.
+
+==== Plugins
+
+Kill Bill supports a powerful plugin framework based on the http://www.osgi.org/Main/HomePage[OSGI standard]. The purpose of OSGI based plugins is to ensure that they are isolated from each other and from the core platform, allowing Kill Bill users to extend the system with minimal knowledge about the system.
+
+Kill Bill supports writing plugins in various languages to address a wide audience of developers, and also leverage existing libraries in other languages than Java. In theory, plugins could be written in all JVM based languages. In practice, Kill Bill currently supports Java, Ruby and Scala plugins.
+
+The purpose of plugins is multiple:
+
+* Provide hooks to third party systems (such as payment gateways, tax systems, fraud detection systems, CRM, proprietary systems, ...)
+* Modify the behavior of the core Kill Bill system to address specific needs (for example intercept ongoing payments to route them differently, intercept ongoing invoices to customize them, perform on the fly currency conversion, ...)
+* Add specific business logic when certain types of events occur (notify customers of upcoming invoices, perform automatic action for dunning, ...)
+
+In order to achieve those goals, Kill Bill supports a mechanism for the plugin to register for any type of events occurring in the system.
+In addition to that, plugins can also implement certain types of https://github.com/killbill/killbill-plugin-api[plugin APIs], and register/unregister in the system during the start/stop sequence.
+
+The following set of plugin APIs is currently supported:
+
+* https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[Payment plugin API]: Those APIs are used by plugins interacting with third party payment gateways or payment processors.
+* https://github.com/killbill/killbill-plugin-api/blob/master/currency/src/main/java/org/killbill/billing/currency/plugin/api/CurrencyPluginApi.java[Currency plugin API]: By implementing this API, the plugin would provide the business logic for currency conversion, which is then available to payment plugins for real time currency conversion.
+* https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[Invoice plugin API]: Plugins implementing this API would be called during invoice generation when Kill Bill's invoicing code computes the items but prior the invoice is persisted, to provide the ability for the plugin to modify the items (for example to add extra tax items).
+* https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[Payment control plugin API]: The purpose of this API is to intercept payments and as a result abort them (fraud use case) or reroute them to a different payment plugin (payment gateway downtime, or cost optimization scenario).
+* https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[Catalog plugin API]: If the XML-based catalog configuration doesn't suit your needs, you can implement your own catalog engine through this API.
+* https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[Entitlement plugin API]: this API lets you intercept entitlement APIs (such as subscription creation or change) to inject your own subscription business logic (use-cases include coupons management or price overrides).
+
+=== Where To Start?
+
+==== Layman's next steps
+
+If you are interested to know more about what Kill Bill is about, the following links will be of interest:
+
+* http://docs.killbill.io/latest/features.html[List of features]
+* http://docs.killbill.io/latest/faq.html[FAQ]
+* http://killbill.io/blog/[Our official blog]
+* https://www.capterra.com/p/159213/Kill-Bill/#reviews[User reviews on Capterra, a Gartner company]
+
+==== Technical guides
+
+To start integrating Kill Bill in your environment:
+
+1. Follow the installation tutorial below
+2. Integrate your application through our https://killbill.github.io/slate/[REST APIs]
+3. Configure Kill Bill to match your own set of requirements:
+ * http://killbill.io/subscription-billing[Billing System manual]
+ * http://killbill.io/payments-platform/[Payment System manual]
+
+*All of our documentation is hosted in a https://github.com/killbill/killbill-docs[GitHub repository], so please either submit a PR when obvious things are missing or wrong, or let us know so we can improve it!*
+
 == Installation
 
-Docker is the recommended way to run Kill Bill, both for developers and in production. Our Docker images rely on KPM, the Kill Bill Package Manager. It is a low-level tool to setup Kill Bill, its plugins and Kaui.
+Docker is the recommended way to run Kill Bill, both for developers and in production.
 
-For simplicity in this guide, we will install Kill Bill using KPM.
+If you are not yet familiar with Docker, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. It is quite easy to get it up and running, and will greatly simplify the Kill Bill stack setup.
 
-=== Prerequisites
-
-==== Java
-
-Kill Bill runs on the https://www.java.com/en/download/[Java] platform, version 6 and above (8 is recommended).
-
-==== KPM
-
-===== Pre-built binaries (recommended, Linux and MacOS only)
-
-Note that this installation method assumes `/bin/bash` to be available on your system.
-
-KPM builds are available on http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing.installer%22%20AND%20a%3A%22kpm%22[Maven Central] with coordinates `org.kill-bill.billing.installer:kpm`.
-
-Download the package matching your architecture and unpack the archive:
-
-```
-tar zxvf kpm-*.tar.gz
-# To verify KPM is working properly, run:
-./kpm-*/kpm info
-```
-===== Through Rubygems
-
-Ruby is required to run KPM itself (it is not a dependency of Kill Bill).
-
-Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don't have a Ruby installation yet, use https://rvm.io/rvm/install[RVM]:
+Assuming docker, docker-machine and docker-compose are https://docs.docker.com/install/[installed], the first step is to create a machine to run your containers. On a Mac, you would typically use the virtualbox driver:
 
 [source,bash]
 ----
-gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
-\curl -sSL https://get.rvm.io | bash -s stable --ruby
+docker-machine create -d virtualbox --virtualbox-memory "2048" killbill
+eval $(docker-machine env killbill)
 ----
 
-After following the post-installation instructions, you should have access to the `ruby` and `gem` executables.
+Next, create a docker-compose.yml file similar to the one below:
 
-To install KPM, run:
+[source,yaml]
+----
+version: '3.2'
+volumes:
+  db:
+services:
+  killbill:
+    image: killbill/killbill:0.19.6
+    ports:
+      - "8080:8080"
+      - "12345:12345"
+    environment:
+      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
+      - KILLBILL_DAO_USER=root
+      - KILLBILL_DAO_PASSWORD=killbill
+  kaui:
+    image: killbill/kaui:latest
+    ports:
+      - "9090:8080"
+    environment:
+      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
+      - KAUI_CONFIG_DAO_USER=root
+      - KAUI_CONFIG_DAO_PASSWORD=killbill
+      - KAUI_KILLBILL_URL=http://killbill:8080
+  db:
+    image: killbill/mariadb:0.19
+    volumes:
+      - type: volume
+        source: db
+        target: /var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=killbill
+----
 
-```
-gem install kpm
-# To verify KPM is working properly, run:
-kpm info
-```
-
-=== Kill Bill and Kaui installation
-
-To install Kill Bill and Kaui, run:
+and run:
 
 [source,bash]
 ----
-mkdir killbill
-cd killbill
-kpm install
+docker-compose up
 ----
 
-* http://tomcat.apache.org/[Tomcat] (open-source Java web server) is setup in the killbill directory
-* The Kill Bill application (war) is installed in the killbill/webapps directory
-* The Kill Bill UI (Kaui war) is installed in the killbill/webapps directory
-* Default plugins are installed in the /var/tmp/bundles directory, among them:
-** jruby.jar, required to run Ruby plugins
-** the https://github.com/killbill/killbill-kpm-plugin[KPM plugin], required to (un-)install plugins at runtime
+3 containers will start:
 
-To start Kill Bill, simply run
+* one for MariaDB (shared database, used by both Kill Bill and Kaui)
+* one for Kill Bill
+* one for Kaui
+
+The startup sequence lasts a few minutes. It is ready when you see the message "Kill Bill server has started".
+
+You can log-in to Kaui by going to http://192.168.99.100:9090 (username: admin, password: password).
+
+Note: make sure to replace 192.168.99.100 with the IP of your machine, which you can retrieve via:
 
 [source,bash]
 ----
-./bin/catalina.sh run
+docker-machine ip killbill
 ----
 
-To verify your installation, check that Kaui is running by going to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui].
-
-=== A note on the default installation
-
-==== Database
-
-By default, Kill Bill writes its data to a file-based h2 database (you can browse the data by going to http://127.0.0.1:8082/[http://127.0.0.1:8082/]: JDBC URL jdbc:h2:file:/var/tmp/killbill, username killbill, password killbill), while Kaui to a file-based SQLite database (you can browser the data with http://sqlitebrowser.org/[DB4S], the database is at /var/tmp/kaui.sqlite3).
-
-When you start to get more familiar with Kill Bill, we recommend you switch to MySQL or PostgreSQL. The Kill Bill DDL is available on our http://killbill.io/downloads/[downloads] page and the Kaui DDL is available on https://raw.github.com/killbill/killbill-admin-ui/master/db/ddl.sql[GitHub].
-
-To do so, add the following to the bottom of conf/catalina.properties (update urls and credentials as needed):
-
-[source,ini]
-----
-# Kill Bill properties
-org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.dao.user=killbill
-org.killbill.dao.password=killbill
-org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.billing.osgi.dao.user=killbill
-org.killbill.billing.osgi.dao.password=killbill
-
-# Kaui properties
-kaui.db.adapter=jdbcmysql
-kaui.db.url=jdbc:mysql://localhost/kaui
-kaui.db.username=killbill
-kaui.db.password=killbill
-----
-
-==== Catalog
-
-The default catalog, i.e. the configuration file which contains the list of plans available and their characteristics, is called https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarBasic.xml[SpyCarBasic]. It describes a shop that offers rental cars for spies (e.g. Sports car, rented monthly). We will describe later how you can configure your own catalog, containing your products and plans.
-
-[[kaui]]
 == Using Kill Bill with Kaui
 
-Go to http://127.0.0.1:8080/kaui[http://127.0.0.1:8080/kaui]. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is admin/password, which grants full access.
+Go to http://192.168.99.100:9090[http://192.168.99.100:9090] (update the IP address as needed). You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is admin/password, which grants full access.
 
 Because Kill Bill supports multi-tenancy (where each tenant has its own data, configuration, etc.), the next step is to create your own tenant. We will assume the api key is "bob" and api secret "lazar" in the rest of this guide.
 
-For more details on RBAC and multi-tenancy, check out this http://killbill.io/blog/multi-tenancy-authorization/[blog post].
+=== Modifying the catalog
 
-Once you are logged-in, create a new Kill Bill account by going to http://127.0.0.1:8080/accounts/new[http://127.0.0.1:8080/kaui/accounts/new]. All fields are optional. One field that might be of interest is "External key", that you can populate with a unique identified for that account.
+At the bottom of the tenant page (http://192.168.99.100:9090/admin_tenants/1[/admin_tenants/1]), you can configure your own plans. For example, try adding a gold-monthly plan for the Gold product, for $10 per month with a trial of 30 days.
+
+=== Creating your first account
+
+Create a new Kill Bill account by clicking CREATE NEW ACCOUNT at the top of the page. All fields are optional.
 
 === Creating your first subscription
 
 Once the account is created, go to the subscriptions tab and create a new subscription bundle: a subscription bundle is a collection (bundle) of subscriptions, containing one base subscription and zero or more add-ons.
 
-By going to the invoices tab, you should see that an $0 invoice has been automatically generated for the trial period.
-
-==== Modifying the catalog
-
-Your http://127.0.0.1:8080/kaui/admin_tenants/1[tenant] configuration screen lets you create your own plans.
-
-For more details on the catalog and its concepts, check out our main http://docs.killbill.io/[subscription billing userguide].
-
-We also have various screencasts on our https://www.youtube.com/channel/UChXICgGipKvJbtzKfM1SNoQ[Youtube] channel to help.
+By going to the invoices tab, you should see that a $0 invoice has been automatically generated for the trial period.
 
 === Triggering your first payment
 
 To trigger payments, the account must first have one or several payment methods (credit card, PayPal, etc.). These map to specific gateway plugins (e.g. a payment method could represent a credit card token in Stripe).
 
-Add a payment method by going to the main account screen, then click Add payment method in the Payment Methods section. By default, Kill Bill comes only with the __EXTERNAL_PAYMENT__ payment plugin, which is used to track offline payments made by checks or cash.
+Add a payment method by going to the main account screen, then click Add payment method in the Payment Methods section. By default, Kill Bill comes only with the $$__EXTERNAL_PAYMENT__$$ payment plugin, which is used to track offline payments made by checks or cash.
 
-Once created, you have several operations available on that payment method: authorize (as in credit card authorization), purchase (authorization with auto-capture) and credit (fund the payment method). These operations are gateway specific. In case of the __EXTERNAL_PAYMENT__, you would trigger a purchase. When creating the payment, you can specify the "Payment key", i.e. a unique identifier for that payment, as well as a "Transaction key": a payment can map to several transactions (for example, a purchase then a refund).
+Once created, you have several operations available on that payment method: authorize (as in credit card authorization), purchase (authorization with auto-capture) and credit (fund the payment method). These operations are gateway specific. In case of the $$__EXTERNAL_PAYMENT__$$, you would trigger a purchase. When creating the payment, you can specify the "Payment key", i.e. a unique identifier for that payment, as well as a "Transaction key": a payment can map to several transactions (for example, a purchase then a refund).
 
-Note that we charged the customer directly, regardless of his subscriptions and invoices: you would use these operations in case of one-off shopping cart scenarios. However, if a payment method is select as default (you can set it by clicking the star next to the payment method), the subscription system will use it to trigger payments automatically for outstanding invoices.
+Note that we charged the customer directly, regardless of his subscriptions and invoices: you would use these operations in case of one-off shopping cart scenarii. However, if a payment method is selected as default (you can set it by clicking the star next to the payment method), the subscription system will use it to trigger payments automatically for outstanding invoices.
 
-[[apis]]
+You can test this by clicking Trigger invoice generation at the bottom of the account screen (make sure that the Dry-run option is unchecked and that you specify a date at least one month in the future).
+
 == Using Kill Bill from your application
 
-Now that you are familiar with the basics, the next step is to integrate Kill Bill in your application using our APIs. We offer Ruby and Java clients that are officially supported. The open-source community is maintaining the https://github.com/killbill/killbill-client-php[PHP], https://github.com/killbill/killbill-client-python[python], https://github.com/killbill/killbill-client-js[NodeJS] and https://github.com/jgomez-vp/killbill-client-scala[Scala] versions.
+Now that you are familiar with the basics, the next step is to integrate Kill Bill in your application using our APIs. Our https://killbill.github.io/slate/[API documentation] contains snippets to help you get started.
 
-=== Ruby
+We also have lots of examples in our https://github.com/killbill/killbill-integration-tests[Ruby] and https://github.com/killbill/killbill/tree/master/profiles/killbill/src/test/java/org/killbill/billing/jaxrs[Java] integration tests
 
-Get the https://rubygems.org/gems/killbill-client[killbill-client] gem:
-
-[source,ruby]
-----
-gem install killbill-client
-----
-
-Here is a snippet creating your first account and subscription:
-
-[source,ruby]
-----
-require 'killbill_client'
-
-KillBillClient.url = 'http://127.0.0.1:8080'
-
-# Multi-tenancy and RBAC credentials
-options = {
-  :username => 'admin',
-  :password => 'password',
-  :api_key => 'bob',
-  :api_secret => 'lazar'
-}
-
-# Audit log data
-user = 'me'
-reason = 'Going through my first tutorial'
-comment = 'I like it!'
-
-# Create an account
-account = KillBillClient::Model::Account.new
-account.name = 'John Doe'
-account.first_name_length = 4
-account.external_key = 'john-doe'
-account.currency = 'USD'
-account = account.create(user, reason, comment, options)
-
-# Add a subscription
-subscription = KillBillClient::Model::Subscription.new
-subscription.account_id = account.account_id
-subscription.plan_name = 'sports-monthly'
-subscription = subscription.create(user, reason, comment, nil, true, options)
-
-# List invoices
-account.invoices(true, options).each do |invoice|
-  puts invoice.inspect
-end
-----
-
-We have lots of examples in our https://github.com/killbill/killbill-integration-tests[integration tests].
-
-=== Java
-
-Get the jar from http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing%22%20AND%20a%3A%22killbill-client-java%22[Maven Central]:
-
-[source,xml]
-----
-<dependency>
-    <groupId>org.kill-bill.billing</groupId>
-    <artifactId>killbill-client-java</artifactId>
-</dependency>
-----
-
-Here is a snippet creating your first account and subscription:
-
-[source,java]
-----
-import org.killbill.billing.catalog.api.BillingPeriod;
-import org.killbill.billing.catalog.api.PriceListSet;
-import org.killbill.billing.catalog.api.ProductCategory;
-import org.killbill.billing.client.KillBillClient;
-import org.killbill.billing.client.KillBillClientException;
-import org.killbill.billing.client.KillBillHttpClient;
-import org.killbill.billing.client.model.Account;
-import org.killbill.billing.client.model.Invoice;
-import org.killbill.billing.client.model.Subscription;
-
-public class KillBillDemo {
-
-    public static void main(final String[] args) throws KillBillClientException {
-        final KillBillHttpClient killBillHttpClient = new KillBillHttpClient("http://127.0.0.1:8080",
-                                                                             "admin",
-                                                                             "password",
-                                                                             "bob",
-                                                                             "lazar");
-        final KillBillClient killBillClient = new KillBillClient(killBillHttpClient);
-
-        // Audit log data
-        final String user = "me";
-        final String reason = "Going through my first tutorial";
-        final String comment = "I like it!";
-
-        // Create an account
-        Account account = new Account();
-        account.setName("John Doe");
-        account.setFirstNameLength(4);
-        account.setExternalKey("john-doe");
-        account.setCurrency("USD");
-        account = killBillClient.createAccount(account, user, reason, comment);
-
-        // Add a subscription
-        Subscription subscription = new Subscription();
-        subscription.setAccountId(account.getAccountId());
-        subscription.setPlanName("sports-monthly");
-        subscription = killBillClient.createSubscription(subscription, 5, user, reason, comment);
-
-        // List invoices
-        for (final Invoice invoice : killBillClient.getInvoicesForAccount(account.getAccountId())) {
-            System.out.println(invoice);
-        }
-        System.out.flush();
-    }
-}
-----
-
-We have lots of examples in our https://github.com/killbill/killbill/tree/master/profiles/killbill/src/test/java/org/killbill/billing/jaxrs[server tests].
-
-[[next]]
-== Next steps
-
-* Write your own catalog. Here are some examples:
-** https://github.com/killbill/killbill-integration-tests/blob/master/killbill-integration-tests/resources/newspaper.xml[newspaper] (with billing in arrear)
-** https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/SpyCarAdvanced.xml[SpyCarAdvanced] (with advanced alignment features)
-** https://github.com/killbill/killbill/blob/master/catalog/src/test/resources/UsageExperimental.xml[UsageExperimental] (with usage-based pricing)
-* Choose a payment gateway and install the corresponding plugin
-* Follow our tutorials to investigate specific topics, such as overdue (dunning) and usage billing
-* Go through our https://github.com/killbill/killbill/wiki/Kill-Bill-Demo[online demo], to get an overview of some of our advanced features
-* Get ready for production, by setting up https://github.com/killbill/killbill-cloud/tree/master/docker[Docker]
-* For support along the way, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[Google Groups]
+For support along the way, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[Google Groups].
