@@ -38,3 +38,44 @@ The following set of plugin APIs is currently supported:
 * https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[Payment control plugin API]: The purpose of this API is to intercept payments and as a result abort them (fraud use case) or reroute them to a different payment plugin (payment gateway downtime, or cost optimization scenario).
 * https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[Catalog plugin API]: If the XML-based catalog configuration doesn't suit your needs, you can implement your own catalog engine through this API.
 * https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[Entitlement plugin API]: this API lets you intercept entitlement APIs (such as subscription creation or change) to inject your own subscription business logic (use-cases include coupons management or price overrides).
+
+=== Lifecycle and Layout Internals
+
+Kill Bill Plugins will be started and stopped during the Kill Bill https://github.com/killbill/killbill-platform/blob/master/platform-api/src/main/java/org/killbill/billing/platform/api/LifecycleHandlerType.java[lifecycle initialization stages].
+Each plugin will need to provide an https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/KillbillActivatorBase.java[activator] with a `start` and `stop` method.
+During initialization and when all the foundation and core services have started, Kill Bill will automatically discover the existing plugins (based on the filesystem layout described below) and it will invoke the `start` method to initialize the plugins.
+During shutdown sequence, each plugin will first be stopped and then the rest of the foundation and core services will be stopped.
+
+Kill Bill looks for all plugins in a bundle directory, by default */var/tmp/bundles* (you can override it via the system property `org.killbill.osgi.bundle.install.dir`).
+The expected layout is the following:
+
+[source]
+----
+bundles/
+  platform/
+  plugins/
+    ruby/
+      ruby-plugin-a/
+        ruby-plugin-a-version/
+          boot.rb
+          killbill.properties
+      ruby-plugin-b/
+        ruby-plugin-b-version/
+          boot.rb
+          killbill.properties
+    java/
+      java-plugin-a/
+        java-plugin-a-version/
+          plugin-a.jar
+      java-plugin-b/
+        java-plugin-b-version/
+          plugin-b.jar
+----
+
+The `bundles/platform` directory is used for non Kill Bill specific OSGI plugins. For example, you can drop in it the Apache Felix Web Console jar, and Kill Bill will automatically start it during its initialization sequence. https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles[Here] is a recommended set of convenience plugins to run.
+Note that in the case of Ruby plugins (see below), you need to copy the correct version of the `org.kill-bill.billing:killbill-platform-osgi-bundles-jruby` artifact and name it as `bundles/platform/jruby.jar`.
+
+Also, in the case of Java based plugins, it is enough to just copy the jar under the correct directory entry, but in the case of the ruby plugins, the layout is a bit more complex: it expects a top level `killbill.properties` file describing the type of plugin and special libraries to load, as well as a `gems` directory containing all the dependencies.
+Fortunately, if you are using one of the official Ruby plugins, you don't need to worry about this. You can download http://search.maven.org/#search%7Cga%7C1%7Corg.kill-bill.billing.plugin.ruby[tar.gz packages] with the correct layout. Simply unpack them and restart Kill Bill.
+
+Check our plugin development and management guides in our http://docs.killbill.io/[main documentation] for more details.
