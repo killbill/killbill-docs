@@ -1,0 +1,75 @@
+= Introduction to recurring billing
+
+== Introduction
+
+=== Scenario
+
+You want to build an e-commerce website and offer a single `Standard` plan, at $24.95 per month.
+
+In this tutorial, we will interact with Kill Bill via Kaui. In practice however, your website willl integration with Kill Bill using our API clients. Our https://killbill.github.io/slate/[API documentation] contains snippets to help you get started.
+
+=== Requirements
+
+We will assume:
+
+* You already went through the Getting started tutorial and have MySQL, Kill Bill and Kaui setup and running in Docker containers
+
+== Setup
+
+=== Creating the catalog
+
+The Kill Bill catalog contains products and plans definitions. This XML configuration file is really powerful and offers various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the http://docs.killbill.io/latest/userguide_subscription.html[Subscription Billing manual].
+
+For basic usecases, Kaui also lets you configure *simple* plans through the UI, so you don't have to generate the catalog XML manually. This is available on your tenant configuration page.
+
+For this tutorial, create 2 plans: *standard-free* (free plan) and *standard-monthly* (premium plan), associated with a single `Standard` product (the product category is `BASE`). We could have just defined standard-monthly, but that way you could make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
+
+Note that we haven't defined any trial period.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_standard-free_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_standard-monthly_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_catalog_kaui.png[align=center]
+
+=== Creating an account
+
+We will assume that users going to your site have to create an account in your system. When they do, you will need to create a mirrored account in Kill Bill.
+
+To do so in Kaui, click the CREATE NEW ACCOUNT link at the top of the page.
+
+Notes:
+
+* The Kill Bill *External key* field should map to the unique id of the account in your system (should be unique and immutable). Kill Bill will auto-generate an id if you don't populate this field
+* There are many more fields you can store (phone number, address, etc.) -- all of them are optional. Keep local regulations in mind though when populating these (PII laws, GDPR, etc.).
+
+=== Adding a payment method
+
+To trigger payments, Kill Bill will need to integrate with a payment provider (such as Stripe or PayPal). Each means of payment (e.g. a credit card) will have a payment method associated with it.
+
+For simplicity in this tutorial, we will assume your customers send you checks. To create the payment method in Kaui, click the + by Payment Methods on the main account page. The plugin name should be set to `__EXTERNAL_PAYMENT__`, leave all other fields blank and make sure the checkbox Default Payment Method is checked.
+
+Once you are ready to integrate with a real payment processor (see http://docs.killbill.io/latest/multi_gateways.html[this tutorial]), all you'll have to do is to create a new payment method for that account. The rest of this tutorial will still apply.
+
+== Creating subscriptions
+
+Let's now try to subscribe a user to the Standard plan. This is the call that would need to be triggered from your website, when the user chooses the premium plan on the subscription checkout page.
+
+In Kaui, click the Subscriptions tab then the + by Subscription Bundles. Select the `standard-monthly` plan in the dropdown. You can also specify an optional (but unique) key to identify this subscription.
+
+Because there is no trial period and because billing is performed in advance by default, Kill Bill will have automatically billed the user for the first month.
+
+You should see the invoice and the payment by clicking on the Invoices and Payments tabs.
+
+Kill Bill will now automatically charge the user on a monthly basis. You can estimate the amount which will be billed at a future date by triggering a dry-run invoice. On the main account page, in the Billing Info section, click the Trigger invoice generation wand (specify a date in the future).
+
+== Conclusion
+
+In this tutorial, we've shown you the basic features of Kill Bill subscription billing.
+
+=== Next steps: exercises for the reader
+
+If you want to continue the tutorial, here are some next steps:
+
+* Configure the overdue system. What happens when premium subscribers don't pay?
+* Setup the Analytics plugin to create revenue dashboards and monitor your MRR.
+* Defer authorize and capture: if you are shipping physical goods, you are required to defer capture only when the product ships.
+* Add a second plan, with a discounted yearly pricing and try to upgrade/downgrade users between plans.

@@ -6,9 +6,7 @@ This tutorial will help you put all of the pieces of the Subscription Billing an
 
 === Scenario
 
-Let's assume you want to build a site similar to Amazon Prime, i.e. an e-commerce website which offers a shopping cart and where paying subscribers have extra benefits (discounts, free shipping, etc.). You want to accept both credit cards and PayPal as means of payment.
-
-Kill Bill will handle all subscriptions and payments as a separate service, and your application will communicate with Kill Bill over HTTP APIs.
+Let's assume you want to build an e-commerce website and you want to accept both credit cards and PayPal as means of payment. Kill Bill will handle all subscriptions and payments as a separate service, and your application will communicate with Kill Bill over HTTP APIs.
 
 Note that we won't go into the details of building the actual website, we will assume you already have a front-end (Rails app, JSP webapp, Drupal, etc.). You can also take a look at the following https://github.com/killbill/killbill-stripe-demo[Stripe] and https://github.com/killbill/killbill-paypal-demo[PayPal] demo websites, to help you with the front-end integration.
 
@@ -19,6 +17,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tuto
 We will assume:
 
 * You already went through the Getting started tutorial and have MySQL, Kill Bill and Kaui setup and running in Docker containers
+* You went through our documentation and are familiar with the concept of accounts, payment methods, subscriptions, invoices and payments in the Kill Bill environment
 * You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the setup steps and examples from this tutorial. In practice, your application will use one of our https://killbill.github.io/slate/[client libraries]
 
 == Setup
@@ -57,30 +56,15 @@ At this point, Kill Bill is ready and configured to create subscriptions and tri
 
 The next step is to integrate it with your e-commerce website.
 
-== Shopping cart integration
+== Storing payment methods for recurring billing
 
-In your website, we assume you have a shopping cart module: users can add items (goods, subscriptions, etc.) to their basket and when they are ready, go to the checkout page. This page will present various payment options (Stripe.js credit card form and PayPal button), and maybe even display their payment methods on file (i.e. previously used credit cards or linked PayPal accounts).
-
-=== Creating accounts
-
-We will assume that users going to your site have to create an account in your system. When they do, you will need to create a mirrored account in Kill Bill. This will let you do things like retrieve all payments for a given user.
-
-While your website will typically issue an API call to do it, let's simply use Kaui (`/accounts/new`, accessible via the CREATE NEW ACCOUNT link at the top of the page) in this tutorial to create the account manually.
-
-Notes:
-
-* The Kill Bill *External key* field should map to the unique id of the account in your system (should be unique and immutabloe). Kill Bill will auto-generate an id if you don't populate this field
-* There are many more fields you can store (phone number, address, etc.) -- all of them are optional. Keep local regulations in mind though when populating these (PII laws, GDPR, etc.).
-
-=== Storing payment methods
-
-At some point, the user will need to store his credit card information and/or his PayPal account. This can happen in a Profile section of your website, or maybe even during the checkout flow.
+At some point, the user will need to submit his credit card information and/or his PayPal account, so that Kill Bill can subsequently charge it on a recurring basis (e.g. every month). This could happen in a Profile section of your website, or maybe even during the checkout flow.
 
 This integration step is probably the most difficult one, as it is payment processor specific.
 
 ==== Stripe
 
-Handling credit card information is regulated by the PCI-DSS standard. Fortunately, Stripe lets your work around these requirements by providing a special form. Users will use this form to securely store their card into Stripe servers, while Stripe will give you a token you will use to charge these cards.
+Handling credit card information is regulated by the PCI-DSS standard. Fortunately, Stripe lets your work around these requirements by providing a special form (Stripe.js). Users will use this form to securely store their card into Stripe servers, while Stripe will give you a token you will use to charge these cards.
 
 For more details on the integration, checkout the https://stripe.com/docs/stripe-js/elements/quickstart[Stripe.js] documentation.
 
@@ -192,141 +176,7 @@ curl -v \
 
 A demo of that integration is available https://github.com/killbill/killbill-paypal-demo[here].
 
-=== Processing payments
-
-While storing a payment method is payment processor specific, triggering payments isn't (Kill Bill is hiding the complexity for you). When the user clicks "buy" on your checkout page, perform the following call (update the amount accordingly):
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     --data-binary '{"transactionType":"PURCHASE","amount":"10","currency":"USD"}' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/payments"
-----
-
-That's it! The call will synchronously go to Stripe or PayPal, depending on the default payment method on the account, and perform the payment.
-
-If you want to display payment methods information on the checkout page, you can retrieve them via:
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?pluginInfo=true"
-----
-
-This is useful if you want to let the user override the payment method to use during checkout. In that case, you can pass the query parameter paymentMethodId to the purchase call above.
-
-== Subscriptions integration
-
-Now that your users are able to purchase their products, we want to offer a buy-up subscription option, and offer free shipping to subscribed users. For simplicity, we will assume that we offer a single Standard plan, at $24.95 per month.
-
-=== Creating the catalog
-
-Plans are defined in an XML configuration file. This file is really powerful and offers various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the Subscription Billing user guide.
-
-For simplicity, Kaui lets you configure simple plans through the UI, so you don't have to generate the catalog manually. This is available on your tenant configuration page.
-
-For this tutorial, create 2 plans: standard-free (free plan) and standard-monthly (premium plan), associated with a single Standard product (the product category is BASE). We could have just defined standard-monthly, but that way you could make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
-
-Note that we haven't defined any trial period.
-
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_standard-free_kaui.png[align=center]
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_standard-monthly_kaui.png[align=center]
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_catalog_kaui.png[align=center]
-
-=== Creating and retrieving subscriptions
-
-Let's now try to subscribe a user to the Standard plan. This is the call that will need to be triggered from the website, when the user chooses the premium plan on the subscription checkout page (we assume the user has already an account and payment method on file, see the previous section):
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -X POST \
-     --data-binary '{"accountId":"<ACCOUNT_ID>","planName":"standard-monthly"}' \
-     "http://127.0.0.1:8080/1.0/kb/subscriptions"
-----
-
-Because there is no trial period and billing is performed in advance, Kill Bill will have automatically billed the user for the first month.
-
-To view the invoice:
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/invoices?withItems=true"
-----
-
-To view the payment:
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/payments"
-----
-
-Kill Bill will now automatically charge the user on a monthly basis. You can estimate the amount which will be billed at a future date (replace the targetDate parameter with a date in the future):
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -X POST \
-     "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=<ACCOUNT_ID>&targetDate=2017-12-21"
-----
-
-=== Premium feature example: applying 10% discount at checkout
-
-We are able to charge customers on a one-time basis, and subscribe them to the premium plan. We now need to bring it together: as an example, we will apply a 10% discount in the shopping cart, when users are premium subscribers.
-
-In the basket view, retrieve the list of subscription bundles the user is subscribed to:
-
-[source,bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/bundles"
-----
-
-The subscriptions list will show the cancellation status (see cancelledDate). If it's null or in the future, the subscriber is still a paying customer, in which case you can apply the 10% discount.
-
-
 == Conclusion
 
-In this tutorial, we've shown you how to leverage the basic features of the Kill Bill platform, how to provide recurring and one-off billing, as well as integrate with various payment processors. Kill Bill has many more features to offer, make sure to read the full http://docs.killbill.io[user guide].
+In this tutorial, we've shown you how to integrate with various payment processors and store payment methods on file. At this point, most of the Kill Bill features (subscriptions, invoicing, dunning and even payment APIs) are payment processor agnostic.
 
-=== Next steps: exercises for the reader
-
-If you want to continue the tutorial, here are some next steps:
-
-* Configure the overdue system. What happens when premium subscribers don't pay?
-* Setup the Analytics plugin to create revenue dashboards and monitor your MRR.
-* Defer authorize and capture: if you are shipping physical goods, you are required to defer capture only when the product ships.
-* Add a second plan, with a discounted yearly pricing and try to upgrade/downgrade users between plans.
