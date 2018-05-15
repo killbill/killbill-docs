@@ -1,0 +1,61 @@
+= Shopping carts and one-off payments
+
+== Introduction
+
+In your website, we assume you have a shopping cart module: users can add items (e.g. goods) to their basket and when they are ready, go to the checkout page. This page will present various payment options (e.g. Stripe.js credit card form or PayPal button), and maybe even display their payment methods on file (i.e. previously used credit cards or linked PayPal accounts).
+
+This scenario very similar to the one from the Getting Started guide, but instead of Kill Bill charging asynchronously recurring subscriptions, your website will trigger one-off payments synchronously.
+
+=== Requirements
+
+We will assume:
+
+* You already went through the Getting started tutorial and have MySQL, Kill Bill and Kaui setup and running in Docker containers
+* You went through our documentation and are familiar with the concept of accounts, payment methods, subscriptions, invoices and payments in the Kill Bill environment
+* You have http://curl.haxx.se/[cURL] installed. This is only to be able to run the setup steps and examples from this tutorial. In practice, your application will use one of our https://killbill.github.io/slate/[client libraries]
+
+== Triggering your first payment
+
+To trigger payments, the account must first have one or several payment methods on file (credit card, PayPal, etc.). These map to specific gateway plugins (e.g. a payment method could represent a credit card token in Stripe).
+
+=== Using Kaui
+
+In Kaui, you can add a payment method by going to the main account screen, then by clicking Add payment method in the Payment Methods section. By default, Kill Bill comes only with the $$__EXTERNAL_PAYMENT__$$ payment plugin, which is used to track offline payments made by checks or cash.
+
+See http://docs.killbill.io/latest/multi_gateways.html[this tutorial] for examples on how to integrate with real payment gateways like Stripe and PayPal.
+
+Once the payment method created, you have several operations available on that payment method: *authorize* (as in credit card authorization), purchase (authorization with auto-capture) and credit (fund the payment method). These operations are gateway specific. In case of the $$__EXTERNAL_PAYMENT__$$, you would trigger a purchase for example. When creating the payment, you can specify the "Payment key", i.e. a unique identifier for that payment, as well as a "Transaction key": a payment can map to several transactions (for example, a purchase then a refund).
+
+Note that we charged the customer directly, regardless of his existing subscriptions and invoices: you would use these operations in case of one-off shopping cart scenarii only. However, if a payment method is selected as default (you can set it by clicking the star next to the payment method), the subscription system will use it to trigger payments automatically for outstanding invoices.
+
+=== Via API
+
+When the user clicks "buy" on your checkout page, the equivalent API call that your website would issue is:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     --data-binary '{"transactionType":"PURCHASE","amount":"10","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/payments"
+----
+
+The call will synchronously look-up the default payment method (you can also specify a specific one in the API call, see below), go to the payment processor (e.g. Stripe or PayPal), and perform the payment.
+
+If you want to display payment methods information on the checkout page, you can retrieve them via:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?pluginInfo=true"
+----
+
+This is useful if you want to let the user override the payment method to use during checkout. In that case, you can pass the query parameter paymentMethodId to the purchase call above.
