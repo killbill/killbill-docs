@@ -2,29 +2,228 @@
 
 == Overview
 
-include::{sourcedir}/platform/includes/deployment-overview.adoc[]
+=== Best practices
 
-== Docker
+Kill Bill is fundamentally a backend system, so the following considerations should apply:
 
-include::{sourcedir}/platform/includes/deployment-docker.adoc[]
+* Don't make the system visible to the outside world, instead you should have a front end system, or a reverse proxy in front of it (e.g. if you need to handle gateway notifications like PayPal IPN/Internal Payment Notification).
+* Always deploy at least 2 instances (for reliability purposes) in front of a load balancer.
+* Setup your database with a master and a slave instances, and configure it to take regular snapshots.
+* Aggregate your logs across instances (for example using http://logstash.net/[LogStash] or https://www.graylog.org/[GrayLog2]).
+* Look at the all the existing Kill Bill JMX metrics (using VisualVM, jconsole, ...) and set some alerts (for instance by using the following https://github.com/killbill/nagios-jmx-plugin[script]).
+* Configure your system properly, especially when it comes to the settings of the bus and notification queue.
 
-== Manual deployment
+=== Pre- and Post-deployment checklist
 
-The following sections below will give manual instructions on how to deploy Kill Bill on various Java containers. This is for advanced users only.
+* Test, test, test: we work hard to make the core of the platform solid. But your deployment, with your own combination of plugins and configuration (catalog, overdue, etc.) is unique. Write business-level regression tests that you can run before each upgrade.
+* Timezone of your servers and databases has to be UTC and ensure NTP is properly configured to avoid any drift between instances.
+* Make sure the servers have enough entropy: `/proc/sys/kernel/random/entropy_avail` should be > 3k (otherwise install `haveged` / `rng-tools`). Kill Bill should also be started with `-Djava.security.egd=file:/dev/./urandom`.
+* Make sure your database and queues configuration are adequate: the `bus_events` table should almost always be empty and the `notifications` table should never have any `AVAILABLE` entry with an effective date in the past. Otherwise, in both cases, the system will be late (invoices not generated, etc.). These two metrics should always be monitored in production (potentially a paging event).
+* Verify the integration with your payment gateway(s): very few payment transactions (if any) should be in an `UNKNOWN` state. Make sure to fix these manually via the Payment Admin API, if the plugin is unable to do it automatically.
+* Have a monitoring system in place (we recommend https://github.com/killbill/killbill-cloud/tree/master/docker/compose[Elasticseach, Logstash, Kibana, InfluxDB and Grafana], which can be easily setup for Kill Bill) and watch your logs constantly: any `WARN` or `ERROR` entry should be reviewed, as well as stacktraces.
+* Monitor metrics at `/1.0/metrics` and integrate the healthcheck at `/1.0/healthcheck` with your load balancer.
+* Join our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] to get notified of new releases or ask questions. For inquiries regarding your specific setup, always attach a https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] diagnostic output:
 
-[[deployment-jetty]]
-=== Installation in Jetty
+[source]
+----
+kpm diagnostic --killbill-api-credentials=bob lazar \
+               --killbill-credentials=admin password \
+               --killbill-url=http://127.0.0.1:8080 \
+               --killbill-web-path=/var/lib/tomcat7/webapps/ROOT/ \
+               --kaui-web-path=/var/lib/tomcat7/webapps/ROOT/ \
+               --log-dir=/var/lib/tomcat7/logs \
+               --account_export=ACCOUNT_ID
+----
 
-include::{sourcedir}/platform/includes/deployment-jetty.adoc[]
+== Deployment options
 
+When deploying Kill Bill, the following pieces will need to be deployed in addition to your OS, VM or container (Docker, ...):
 
-[[deployment-tomcat]]
-=== Installation in Tomcat
+* A web container (Jetty, Tomcat, ...)
+* The killbill war
+* The plugins
+* The configuration files and system properties
+* The database along with the various schemas (see our http://docs.killbill.io/latest/database_migrations.html[database migrations guide])
 
-include::{sourcedir}/platform/includes/deployment-tomcat.adoc[]
+Because a lot of pieces need to be in place, and because a lot can go wrong, users are *strongly* encouraged to use our pre-built https://registry.hub.docker.com/u/killbill/killbill[Docker images] and https://github.com/killbill/killbill-cloud/tree/master/docker[Docker Compose] recipes.
 
+Experienced users can also opt for our https://github.com/killbill/killbill-cloud/tree/work-for-release-0.19.x[Ansible playbooks].
 
-[[deployment-glassfish]]
-=== Installation in Glassfish
+Note that both of these deployment options rely on https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM], the Kill Bill Package Manager. KPM can fetch existing (signed) artifacts for the main killbill war and for each of the plugins, and deploy them at the right place. Using KPM gives you the most flexibility without having to re-invent the wheel, but significantly increases the deployment complexity. To be directly used by our most advanced users only.
 
-include::{sourcedir}/platform/includes/deployment-glassfish.adoc[]
+=== Docker
+
+Make sure to get familiar with https://www.docker.com/[Docker] first, before attempting to install Kill Bill. The project has lots of great https://docs.docker.com/[docs] to help you get setup.
+
+Documentation for our images is available https://github.com/killbill/killbill-cloud/blob/master/docker/README.md[here]. Our http://killbill.io/blog/tag/docker/[blog] has also lots of tips on how to deploy to popular cloud providers.
+
+== Bus and Notification queues
+
+=== Bus events
+
+The notifications across Kill Bill core services rely on a proprietary http://killbill.io/blog/persistent-bus-in-kill-bill/[bus event]. There are actually 2 buses, the *main* bus which is used by core services and an *external* bus which is used by plugins. The main reason for having 2 buses is that the main bus is critical for internal operations to work, and so we want to prevent plugin code that could interact with 3rd party systems to block on long operations and impact the rest of the system.
+
+There are 2 sets of two tables to manage those bus events:
+
+* For the *main* bus, a `bus_events` and a `bus_events_history` table.
+* For the *external* bus, a `bus_ext_events` and a `bus_ext_events_history` table.
+
+Events are moved from the `bus_events` to the `bus_events_history` as they are processed. That allows to keep a history of what happened in the system and avoid having the `bus_events` table grow too much. The `bus_events_history` is only there for debugging and is never used by the system.
+
+==== Bus Event Modes
+
+The bus event can be run in multiple modes (`instanceName` below is either `main` or `external`):
+
+* *POLLING*: the bus will poll the database for new available entries and dispatch them across the nodes.
+* *STICKY_POLLING*: the bus will poll the database for new available entries and dispatch them to the same node that created the entry.
+* *STICKY_EVENTS* (default mode): in that mode, the bus now behaves as a blocking queue where entries are dispatched as soon as they have been committed to disk. This is a much more efficient mechanism both in terms of latency (because entries are picked up right away) and throughput (because there is no time for entries to accumulate).
+
+In a cloud environment, where nodes are more prone to appear and disappear, the following choices are available:
+
+* Use the *POLLING mode*
+* Use the *STICKY_EVENTS* (or *STICKY_POLLING*) mode. In that scenario, you need to be cautious of Kill Bill instances restarting on a different node:
+
+* Each instance can be started with a specific system property `org.killbill.queue.creator.name=<MY_VIRTUAL_INSTANCE_NAME>`, which overrides the `creating_owner` value string associated with each entry which defaults to the hostname of the machine. When using that property, an instance that restarts on a different node but with the same property will continue processing the same entries.
+
+* Or, alternatively if failovers don't occur too often, run a query to update rows associated with the instance that failed over so they get picked by an other node. Note that events are never lost because they are persistent, but in that case, they may linger until updated. The query to update the rows is the following (only showed for bus_events table, but similar query needs to happen for bus_events_history):
+
+```
+update bus_events set creating_owner='MY_NEW_NODE_HOSTNAME', processing_available_date=NULL, processing_state = 'AVAILABLE', processing_owner=NULL where creating_owner='MY_INSTANCE_NAME_THAT_FAILED';
+```
+
+=== Future Notifications
+
+==== Overview
+
+In addition to the bus events, which are dispatched immediately, Kill Bill also manages future notifications. The mechanism is very similar to the **POLLING** we described earlier, but the main difference is that those notifications are dispatched when the `effective_date` of the notification has been reached. There is no **STICKY_EVENTS** mode for the future notifications.
+
+The future notifications also rely on two tables: the `notifications` and `notifications_history`, and the mechanism to move processed entries is similar to what we described for the bus event.
+
+== Logging and GDPR
+
+If you are using Tomcat, `CATALINA_BASE/logs/catalina.out` does not rotate. Make sure to make your main appender `ch.qos.logback.core.rolling.RollingFileAppender` instead of the default `ch.qos.logback.core.ConsoleAppender` (`STDOUT`/`STDERR` is redirected to `CATALINA_BASE/logs/catalina.out`).
+
+Make sure also to install both the http://felix.apache.org/downloads.cgi[Felix Log bundle] and the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/bundles/logger[Kill Bill Log bundle] in your `platform` directory (`/var/tmp/bundles/platform` by default), otherwise OSGI logs (including from JRuby plugins) will end up in `STDOUT`/`STDERR` (hence in `CATALINA_BASE/logs/catalina.out`). Both bundles are included in the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles[defaultbundles package].
+
+=== Mask PANs
+
+Use the converter class `org.killbill.billing.server.log.obfuscators.ObfuscatorConverter`.
+
+If you are passing PANs via plugin properties, make sure to disable query parameters logging in Tomcat. Use the following `org.apache.catalina.valves.AccessLogValve` pattern: `%h %l %u %t &quot;%m %U&quot; %s %b %D`.
+
+=== Redirect plugin logs to a different file
+
+```
+<configuration debug="true">
+    <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator name="loggingTaskEval">
+                <expression>
+                <![CDATA[
+                    message!=null &&
+                    message.contains("[cybersource-plugin]")
+                ]]>
+                </expression>
+            </evaluator>
+            <OnMatch>DENY</OnMatch>
+        </filter>
+        <file>${LOGS_DIR:-./logs}/killbill.out</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+            <maxHistory>3</maxHistory>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%date [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="CYBERSOURCE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator name="loggingTaskEval">
+                <expression>
+                <![CDATA[
+                    message!=null &&
+                    message.contains("[cybersource-plugin]")
+                ]]>
+                </expression>
+            </evaluator>
+            <OnMismatch>DENY</OnMismatch>
+        </filter>
+        <file>${LOGS_DIR:-./logs}/cybersource.out</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_DIR:-./logs}/cybersource-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+            <maxHistory>3</maxHistory>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%date [%thread] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+       <appender-ref ref="MAIN" />
+       <appender-ref ref="CYBERSOURCE" />
+    </root>
+</configuration>
+```
+
+=== Handling plugin logs
+
+In order for plugin logs to be handled by the main logger, make sure to:
+
+* Install http://felix.apache.org/documentation/subprojects/apache-felix-log.html[Apache Felix Log] under `/var/tmp/bundles/platform` (provided in the default plugins package)
+* Install `killbill-platform-osgi-bundles-logger` under `/var/tmp/bundles/platform` (also provided in the default plugins package)
+* Add `org.osgi.service.log` to `Import-Package` in your `MANIFEST.MF`
+* Add the following dependencies in compile scope in your plugin:
+
+[source]
+----
+<dependency>
+    <groupId>org.kill-bill.billing</groupId>
+    <artifactId>killbill-platform-osgi-bundles-lib-killbill</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.kill-bill.billing</groupId>
+    <artifactId>killbill-platform-osgi-bundles-lib-slf4j-osgi</artifactId>
+</dependency>
+----
+
+== Reverse Proxy
+
+We recommend setting up NGINX to forward external notifications to Kill Bill.
+
+Here's a working example for Adyen:
+
+[source]
+----
+server {
+  listen       443;
+  server_name  killbill-public.acme.com;
+
+  location /notifications/killbill-adyen {
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+
+      proxy_set_header Authorization "Basic YWRtaW46cGFzc3dvcmQ=";
+      proxy_set_header X-Killbill-ApiKey bob;
+      proxy_set_header X-Killbill-ApiSecret lazar;
+      proxy_set_header X-Killbill-CreatedBy Adyen;
+      proxy_pass http://killbill-internal.acme.com:8080/1.0/kb/paymentGateways/notification/killbill-adyen;
+
+      proxy_hide_header Set-Cookie;
+      proxy_hide_header Access-Control-Allow-Origin;
+      proxy_hide_header Access-Control-Allow-Methods;
+      proxy_hide_header Access-Control-Allow-Headers;
+      proxy_hide_header Access-Control-Expose-Headers;
+      proxy_hide_header Access-Control-Allow-Credentials;
+  }
+}
+----

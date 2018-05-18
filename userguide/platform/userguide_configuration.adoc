@@ -1,10 +1,81 @@
 = Kill Bill configuration guide
 
-[[configuration-overview]]
 == Overview
 
-include::{sourcedir}/platform/includes/configuration-overview.adoc[]
+Kill Bill configuration is done via several means:
 
-== System Properties
+* Per-tenant, subsystem specific, configuration file (such as Catalog or Overdue XML configuration files, or Invoice and Payment properties).
+* The `killbill.properties` file, properties global to the system (specified via the Java System Property `-Dorg.killbill.server.properties=file:///path/to/killbill.properties`).
+* Java System Properties (rare cases).
+* Third Party configuration files (e.g. EhCache configuration file, location specified via the Java System Property `org.killbill.cache.config.location`).
 
-include::{sourcedir}/platform/includes/configuration-system-properties.adoc[]
+Properties and their defaults are defined in the Java linked below. In these files, the value of the annotation `@Config` is the configuration key to use in the `killbill.properties` file or in the per-tenant configuration JSON. The default value is specified by the annotation `@Default`.
+
+You *do not* have to modify these Java files to change the properties values.
+
+For example:
+
+[source,java]
+----
+@Config("org.killbill.invoice.enabled")
+@Default("true")
+@Description("Whether the invoicing system is enabled")
+boolean isInvoicingSystemEnabled();
+----
+
+* The configuration key `org.killbill.invoice.enabled` controls whether the invoicing system is enabled
+* The default value is `true`
+* Kill Bill, at runtime, can look up the property value via the method call `isInvoicingSystemEnabled()`
+
+== Per tenant properties
+
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/InvoiceConfig.java[Invoice configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/PaymentConfig.java[Payment configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/NotificationConfig.java[Push notifications configuration]
+
+You can upload these properties via the `/1.0/kb/tenants/uploadPerTenantConfig` endpoint, e.g.:
+
+[source]
+----
+curl -v \
+     -X POST \
+     -u 'admin:password' \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: text/plain" \
+     -H "X-Killbill-CreatedBy: configurator" \
+     -d '{"org.killbill.invoice.dryRunNotificationSchedule":"48h"}' \
+     "http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig"
+----
+
+You can also specify these values in your main `killbill.properties` file (used as a fallback, the per-tenant configuration takes precedence).
+
+== Global properties
+
+Kill Bill core services can be configured through properties defined in the following classes (specify custom values in your `killbill.properties` file):
+
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/BroadcastConfig.java[Broadcast service configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/CatalogConfig.java[Catalog configuration]: used to specify the location of the default catalog if no per-tenant catalog has been uploaded
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/CurrencyConfig.java[Currency provider configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/EhCacheConfig.java[Cache configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/JaxrsConfig.java[JAX-RS configuration]
+
+* https://github.com/killbill/killbill/blob/master/overdue/src/main/java/org/killbill/billing/overdue/OverdueProperties.java[Overdue configuration]: used to specify the location of the default overdue configuration if no per-tenant configuration has been uploaded
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/RbacConfig.java[Rbac configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/SecurityConfig.java[Shiro configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/TenantConfig.java[Per tenant broadcast service configuration]
+* https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/KillbillServerConfig.java[Kill Bill Web app configuration]
+* https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/MetricsGraphiteConfig.java[Metrics and Graphite configuration]
+* https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java[OSGI related configuration] - Kill Bill will look for ruby based OSGI related properties at the location specified by `org.killbill.billing.osgi.bundles.jruby.conf.dir` in the main killbill.properties file. This is usually in `/var/lib/killbill/config` so that configuration can be saved when plugins are removed or upgraded.
+
+
+The properties to configure the database are split between the core Kill Bill services and the plugins, to allow plugins to use a different database or configuration:
+
+* https://github.com/killbill/killbill-commons/blob/master/jdbi/src/main/java/org/killbill/commons/jdbi/guice/DaoConfig.java[Kill Bill Database configuration]
+* https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/glue/OSGIDataSourceConfig.java[Plugin   Database configuration]
+
+The properties to configure the persistent buses and notification queue are shown below. Those properties are built to be used across multiple instances (we have two persistent buses) which explains the substitution parameter `instanceName`.
+
+* https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/bus/api/PersistentBusConfig.java[Persistent bus configuration]
+* https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueConfig.java[Notification queue configuration]
+
