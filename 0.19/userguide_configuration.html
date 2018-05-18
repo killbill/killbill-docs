@@ -480,37 +480,109 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#configuration-overview">Overview</a></li>
-<li><a href="#_system_properties">System Properties</a></li>
+<li><a href="#_overview">Overview</a></li>
+<li><a href="#_per_tenant_properties">Per tenant properties</a></li>
+<li><a href="#_global_properties">Global properties</a></li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="configuration-overview">Overview</h2>
+<h2 id="_overview">Overview</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill configuration is done principally via Java system properties.</p>
+<p>Kill Bill configuration is done via several means:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Per-tenant, subsystem specific, configuration file (such as Catalog or Overdue XML configuration files, or Invoice and Payment properties).</p>
+</li>
+<li>
+<p>The <code>killbill.properties</code> file, properties global to the system (specified via the Java System Property <code>-Dorg.killbill.server.properties=file:///path/to/killbill.properties</code>).</p>
+</li>
+<li>
+<p>Java System Properties (rare cases).</p>
+</li>
+<li>
+<p>Third Party configuration files (e.g. EhCache configuration file, location specified via the Java System Property <code>org.killbill.cache.config.location</code>).</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p>These can be set on the command line (e.g. <code>java -Dkey1=value1 -Dkey2=value2 -jar killbill-server-jetty-console.war</code>) or in special <code>killbill.properties</code> file (via <code>-Dorg.killbill.server.properties=file:///path/to/killbill.properties</code>). If you are using a custom <code>kpm.yml</code> configuration file, you can also set them under the <code>properties</code> sub-entry like <a href="https://github.com/killbill/killbill-cloud/blob/master/docker/templates/killbill/latest/kpm.yml.erb">here</a>.</p>
+<p>Properties and their defaults are defined in the Java linked below. In these files, the value of the annotation <code>@Config</code> is the configuration key to use in the <code>killbill.properties</code> file or in the per-tenant configuration JSON. The default value is specified by the annotation <code>@Default</code>.</p>
 </div>
 <div class="paragraph">
-<p>Some properties are global to the system, and therefore will apply to all tenants. Others (such as Catalog and Overdue configuration, as well as Invoice templates and language translation resources) can also be configured on a per tenant basis.</p>
+<p>You <strong>do not</strong> have to modify these Java files to change the properties values.</p>
 </div>
 <div class="paragraph">
-<p>Most properties are accessible to the plugins through <a href="https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIConfigPropertiesService.java">OSGIConfigPropertiesService</a>.</p>
+<p>For example:</p>
 </div>
-<div class="paragraph">
-<p>Some parts of the system also rely on additional configuration files. The caching layer for instance, which is based on <a href="http://ehcache.org/">EhCache</a>, requires a specific <a href="https://github.com/killbill/killbill/blob/master/util/src/main/resources/ehcache.xml">xml configuration</a>. The location of the xml itself is specified via a system property though (<code>org.killbill.cache.config.location</code> in this case).</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="java"><span class="tok-nd">@Config</span><span class="tok-o">(</span><span class="tok-s">&quot;org.killbill.invoice.enabled&quot;</span><span class="tok-o">)</span>
+<span class="tok-nd">@Default</span><span class="tok-o">(</span><span class="tok-s">&quot;true&quot;</span><span class="tok-o">)</span>
+<span class="tok-nd">@Description</span><span class="tok-o">(</span><span class="tok-s">&quot;Whether the invoicing system is enabled&quot;</span><span class="tok-o">)</span>
+<span class="tok-kt">boolean</span> <span class="tok-nf">isInvoicingSystemEnabled</span><span class="tok-o">();</span></code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The configuration key <code>org.killbill.invoice.enabled</code> controls whether the invoicing system is enabled</p>
+</li>
+<li>
+<p>The default value is <code>true</code></p>
+</li>
+<li>
+<p>Kill Bill, at runtime, can look up the property value via the method call <code>isInvoicingSystemEnabled()</code></p>
+</li>
+</ul>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_system_properties">System Properties</h2>
+<h2 id="_per_tenant_properties">Per tenant properties</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/InvoiceConfig.java">Invoice configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/PaymentConfig.java">Payment configuration</a></p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/NotificationConfig.java">Push notifications configuration</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You can upload these properties via the <code>/1.0/kb/tenants/uploadPerTenantConfig</code> endpoint, e.g.:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>curl -v \
+     -X POST \
+     -u 'admin:password' \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: text/plain" \
+     -H "X-Killbill-CreatedBy: configurator" \
+     -d '{"org.killbill.invoice.dryRunNotificationSchedule":"48h"}' \
+     "http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can also specify these values in your main <code>killbill.properties</code> file (used as a fallback, the per-tenant configuration takes precedence).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_global_properties">Global properties</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kill Bill core services can be configured through system properties defined in the following files:</p>
+<p>Kill Bill core services can be configured through properties defined in the following classes (specify custom values in your <code>killbill.properties</code> file):</p>
 </div>
 <div class="ulist">
 <ul>
@@ -527,19 +599,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/EhCacheConfig.java">Cache configuration</a></p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/InvoiceConfig.java">Invoice configuration</a>: configurable globally or on a per-tenant basis</p>
-</li>
-<li>
 <p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/JaxrsConfig.java">JAX-RS configuration</a></p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/NotificationConfig.java">Push notifications configuration</a></p>
-</li>
-<li>
 <p><a href="https://github.com/killbill/killbill/blob/master/overdue/src/main/java/org/killbill/billing/overdue/OverdueProperties.java">Overdue configuration</a>: used to specify the location of the default overdue configuration if no per-tenant configuration has been uploaded</p>
-</li>
-<li>
-<p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/PaymentConfig.java">Payment configuration</a>: configurable globally or on a per-tenant basis</p>
 </li>
 <li>
 <p><a href="https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/RbacConfig.java">Rbac configuration</a></p>
@@ -557,7 +620,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p><a href="https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/MetricsGraphiteConfig.java">Metrics and Graphite configuration</a></p>
 </li>
 <li>
-<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java">OSGI related configuration</a> - Kill Bill will look for ruby based OSGI related properties at the location specified by org.killbill.billing.osgi.bundles.jruby.conf.dir in the main killbill.properties file. This is usually in "/etc/killbill" so that configuration can be saved when plugins are removed or upgraded.</p>
+<p><a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java">OSGI related configuration</a> - Kill Bill will look for ruby based OSGI related properties at the location specified by <code>org.killbill.billing.osgi.bundles.jruby.conf.dir</code> in the main killbill.properties file. This is usually in <code>/var/lib/killbill/config</code> so that configuration can be saved when plugins are removed or upgraded.</p>
 </li>
 </ul>
 </div>
@@ -575,8 +638,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </div>
 <div class="paragraph">
-<p>The properties to configure the persistent buses and notification queue are shown below. Those properties are built to be used across multiple instances (we have two persistent buses) which explains the substitution parameter <code>instanceName</code>. For more
-details on the configuration of the bus and notification queue, check <a href="https://github.com/killbill/killbill/wiki/Kill-Bill-Bus-and-Notification-Queue-Configuration">here</a>.</p>
+<p>The properties to configure the persistent buses and notification queue are shown below. Those properties are built to be used across multiple instances (we have two persistent buses) which explains the substitution parameter <code>instanceName</code>.</p>
 </div>
 <div class="ulist">
 <ul>
@@ -593,7 +655,7 @@ details on the configuration of the bus and notification queue, check <a href="h
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-05-09 06:29:54 UTC
+Last updated 2018-05-18 14:04:33 UTC
 </div>
 </div>
 </body>

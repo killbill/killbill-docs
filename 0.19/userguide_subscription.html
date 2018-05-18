@@ -482,15 +482,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <ul class="sectlevel1">
 <li><a href="#intro">Introduction</a>
 <ul class="sectlevel2">
-<li><a href="#five-minutes">Kill Bill Subscription Billing in 5 minutes</a>
-<ul class="sectlevel3">
-<li><a href="#five-minutes-create-tenant">Create your own tenant</a></li>
-<li><a href="#five-minutes-create-account">Create an account</a></li>
-<li><a href="#five-minutes-upload-catalog">Upload Catalog</a></li>
-<li><a href="#five-minutes-create-subscription">Create a subscription</a></li>
-<li><a href="#five-minutes-change-plan-and-cancel">Upgrade/Cancel the plan for the subscription</a></li>
-</ul>
-</li>
+<li><a href="#_requirements">Requirements</a></li>
 </ul>
 </li>
 <li><a href="#components-catalog">Catalog</a>
@@ -632,7 +624,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>This is the reference guide to get started with Kill Bill Subscription Billing. Make sure to also check our list of manuals <a href="http://killbill.io/userguide/">here</a>.</p>
+<p>This is the reference guide to get started with Kill Bill Subscription Billing.</p>
 </div>
 </div>
 </div>
@@ -689,208 +681,22 @@ Besides the main use case described above, there are other possible options if o
 </ul>
 </div>
 <div class="sect2">
-<h3 id="five-minutes">Kill Bill Subscription Billing in 5 minutes</h3>
+<h3 id="_requirements">Requirements</h3>
 <div class="paragraph">
-<p>Download the latest jetty-console.war from <a href="http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.kill-bill.billing%22%20AND%20a%3A%22killbill-profiles-killbill%22%20AND%20l%3A%22jetty-console%22%20AND%20p%3A%22war%22">Maven Central</a> (download the <strong>jetty-console.war</strong> artifact).</p>
+<p>We will assume:</p>
 </div>
-<div class="paragraph">
-<p>To start Kill Bill, either double click on the war file, or run the following in a terminal (recommended to check logs):</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">java -jar killbill-*-jetty-console.war</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>This will start Kill Bill with an embedded H2 database (data is persisted in a local killbill.h2.db file, so changes are preserved across restarts).</p>
-</div>
-<div class="paragraph">
-<p>After the system has started, you can experiment by following the simple scenario below. Note that each call creating an object in the system returns its URI, and so the curls below are using the UUID that was returned at the time the demo was created. You would need to replace the UUID with the one returned in each call if you were to follow that demo.</p>
-</div>
-<div class="paragraph">
-<p>If you get an error like the following at startup:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">16:12:23,432 <span class="tok-p">|</span>-ERROR in ch.qos.logback.core.util.ContextUtil@7a0c1f5f - Failed to get <span class="tok-nb">local </span>hostname java.net.UnknownHostException: HOSTNAME: HOSTNAME: nodename nor servname provided, or not known
-	at java.net.UnknownHostException: HOSTNAME: HOSTNAME: nodename nor servname provided, or not known</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>you may have an invalid hostname set. To work around it, add the following line in /etc/hosts:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">127.0.0.1 HOSTNAME localhost</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>and restart Kill Bill.</p>
-</div>
-<div class="sect3">
-<h4 id="five-minutes-create-tenant">Create your own tenant</h4>
-<div class="paragraph">
-<p>The default behavior of Kill Bill is to run with multi-tenancy enabled. In that mode, one needs to first create a tenant and specify the credentials that will be required subsequently on each call. Each call requires a default username and password that is used in the system for role base access control (RBAC). By default we are using the username 'admin' and its default password 'password'. The first operation is to create the tenant specifying the api key and secret that will need to be provided in each subsequent call:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
-     -d <span class="tok-s1">&#39;{&quot;apiKey&quot;: &quot;bob&quot;, &quot;apiSecret&quot;: &quot;lazar&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tenants&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>At this point, test your setup by making sure you can retrieve the default tag definitions:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/tagDefinitions&quot;</span></code></pre>
-</div>
-</div>
-</div>
-<div class="sect3">
-<h4 id="five-minutes-create-account">Create an account</h4>
-<div class="paragraph">
-<p>The next step will be to create an account:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;John Doe&quot;,&quot;email&quot;:&quot;john@example.com&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Now, let&#8217;s attach a payment method to that account. Since that demo does not have any real payment plugin attached to it, we will choose the default external payment method plugin that comes configured with the system (used to process checks for example). That default payment plugin does not require any payment method details such as Credit Card info, and so the pluginInfo parameter is an empty map:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;__EXTERNAL_PAYMENT__&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true&quot;</span>
-
-<span class="tok-o">{</span><span class="tok-s2">&quot;uri&quot;</span>:<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/paymentMethods/eef35072-f70e-43da-a614-3215dbc1e28a&quot;</span><span class="tok-o">}</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Note: the payment plugin associated with this payment method will mock all calls, so all payment calls will succeed.</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="five-minutes-upload-catalog">Upload Catalog</h4>
-<div class="paragraph">
-<p>In this tutorial, we will use the default test catalog that is shipped with Kill Bill. However, if you need to upload your own (per tenant) catalog, you can use the following endpoint:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u <span class="tok-s1">&#39;admin:password&#39;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/xml&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     -d @/ValidPath/catalog.xml <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/catalog&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>This will create a new version of the catalog for the tenant {bob, lazar}.</p>
-</div>
-</div>
-<div class="sect3">
-<h4 id="five-minutes-create-subscription">Create a subscription</h4>
-<div class="paragraph">
-<p>At this point we can create a subscription based on the default demo catalog:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;accountId&quot;:&quot;268983f2-5443-47e4-a967-b8962fc699c5&quot;,&quot;externalKey&quot;:&quot;myBundleName&quot;,&quot;planName&quot;:&quot;standard-monthly&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/subscriptions&quot;</span>
-
-<span class="tok-o">{</span><span class="tok-s2">&quot;uri&quot;</span>:<span class="tok-s2">&quot;/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35&quot;</span><span class="tok-o">}</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>It is interesting to verify that the system immediately invoiced for the subscription that was created. Because the subscription is using a Plan with trial phase of $0, there is no associated payment:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/invoices&quot;</span>
-
-<span class="tok-o">[{</span><span class="tok-s2">&quot;amount&quot;</span>:0.00,<span class="tok-s2">&quot;currency&quot;</span>:<span class="tok-s2">&quot;USD&quot;</span>,<span class="tok-s2">&quot;creditAdj&quot;</span>:0.00,<span class="tok-s2">&quot;refundAdj&quot;</span>:0.00,<span class="tok-s2">&quot;invoiceId&quot;</span>:<span class="tok-s2">&quot;15a0abc7-2489-493c-b098-7460afc21203&quot;</span>,<span class="tok-s2">&quot;invoiceDate&quot;</span>:<span class="tok-s2">&quot;2013-08-25&quot;</span>,<span class="tok-s2">&quot;targetDate&quot;</span>:<span class="tok-s2">&quot;2013-08-25&quot;</span>,<span class="tok-s2">&quot;invoiceNumber&quot;</span>:<span class="tok-s2">&quot;1&quot;</span>,<span class="tok-s2">&quot;balance&quot;</span>:0.00,<span class="tok-s2">&quot;accountId&quot;</span>:<span class="tok-s2">&quot;268983f2-5443-47e4-a967-b8962fc699c5&quot;</span>,<span class="tok-s2">&quot;auditLogs&quot;</span>:null<span class="tok-o">}]</span></code></pre>
-</div>
-</div>
-</div>
-<div class="sect3">
-<h4 id="five-minutes-change-plan-and-cancel">Upgrade/Cancel the plan for the subscription</h4>
-<div class="paragraph">
-<p>We will now upgrade the plan from the 'Standard' to the 'Sports' product:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X PUT <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;accountId&quot;:&quot;268983f2-5443-47e4-a967-b8962fc699c5&quot;,&quot;planName&quot;:&quot;sports-monthly&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>At then finally, we will cancel the subscription.</p>
-</div>
-<div class="paragraph">
-<p>Retrieving the invoices like we did in the previous step would show that a new invoice was automatically created after each change on the subscription. By default Kill Bill reacts to any change happening in the system automatically, creating invoices to match new state and trigerring payments when needed.</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X DELETE <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/subscriptions/b623e0bd-45fd-4636-b177-6528228c5f35&quot;</span></code></pre>
-</div>
-</div>
+<div class="ulist">
+<ul>
+<li>
+<p>You already went through the Getting started tutorial and have MySQL, Kill Bill and Kaui setup and running in Docker containers</p>
+</li>
+<li>
+<p>You have a tenant configured with API key <code>bob</code> and API secret <code>lazar</code></p>
+</li>
+<li>
+<p>You have <a href="http://curl.haxx.se/">cURL</a> installed. This is only to be able to run the setup steps and examples from this documentation. In practice, your application will use one of our <a href="https://killbill.github.io/slate/">client libraries</a></p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -3772,7 +3578,7 @@ java -jar killbill-overdue-*-xsd-tool.jar schema.xsd</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-05-09 06:29:54 UTC
+Last updated 2018-05-18 14:04:33 UTC
 </div>
 </div>
 </body>

@@ -5,7 +5,7 @@
 <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.2">
-<title>Kill Bill deployment guide</title>
+<title>Shopping carts and one-off payments</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -476,402 +476,111 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book">
 <div id="header">
-<h1>Kill Bill deployment guide</h1>
+<h1>Shopping carts and one-off payments</h1>
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_overview">Overview</a>
+<li><a href="#_introduction">Introduction</a>
 <ul class="sectlevel2">
-<li><a href="#_best_practices">Best practices</a></li>
-<li><a href="#_pre_and_post_deployment_checklist">Pre- and Post-deployment checklist</a></li>
+<li><a href="#_requirements">Requirements</a></li>
 </ul>
 </li>
-<li><a href="#_deployment_options">Deployment options</a>
+<li><a href="#_triggering_your_first_payment">Triggering your first payment</a>
 <ul class="sectlevel2">
-<li><a href="#_docker">Docker</a></li>
+<li><a href="#_using_kaui">Using Kaui</a></li>
+<li><a href="#_via_api">Via API</a></li>
 </ul>
 </li>
-<li><a href="#_bus_and_notification_queues">Bus and Notification queues</a>
-<ul class="sectlevel2">
-<li><a href="#_bus_events">Bus events</a>
-<ul class="sectlevel3">
-<li><a href="#_bus_event_modes">Bus Event Modes</a></li>
-</ul>
-</li>
-<li><a href="#_future_notifications">Future Notifications</a>
-<ul class="sectlevel3">
-<li><a href="#_overview_2">Overview</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><a href="#_logging_and_gdpr">Logging and GDPR</a>
-<ul class="sectlevel2">
-<li><a href="#_mask_pans">Mask PANs</a></li>
-<li><a href="#_redirect_plugin_logs_to_a_different_file">Redirect plugin logs to a different file</a></li>
-<li><a href="#_handling_plugin_logs">Handling plugin logs</a></li>
-</ul>
-</li>
-<li><a href="#_reverse_proxy">Reverse Proxy</a></li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
-<h2 id="_overview">Overview</h2>
+<h2 id="_introduction">Introduction</h2>
 <div class="sectionbody">
-<div class="sect2">
-<h3 id="_best_practices">Best practices</h3>
 <div class="paragraph">
-<p>Kill Bill is fundamentally a backend system, so the following considerations should apply:</p>
+<p>In your website, we assume you have a shopping cart module: users can add items (e.g. goods) to their basket and when they are ready, go to the checkout page. This page will present various payment options (e.g. Stripe.js credit card form or PayPal button), and maybe even display their payment methods on file (i.e. previously used credit cards or linked PayPal accounts).</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p>Don&#8217;t make the system visible to the outside world, instead you should have a front end system, or a reverse proxy in front of it (e.g. if you need to handle gateway notifications like PayPal IPN/Internal Payment Notification).</p>
-</li>
-<li>
-<p>Always deploy at least 2 instances (for reliability purposes) in front of a load balancer.</p>
-</li>
-<li>
-<p>Setup your database with a master and a slave instances, and configure it to take regular snapshots.</p>
-</li>
-<li>
-<p>Aggregate your logs across instances (for example using <a href="http://logstash.net/">LogStash</a> or <a href="https://www.graylog.org/">GrayLog2</a>).</p>
-</li>
-<li>
-<p>Look at the all the existing Kill Bill JMX metrics (using VisualVM, jconsole, &#8230;&#8203;) and set some alerts (for instance by using the following <a href="https://github.com/killbill/nagios-jmx-plugin">script</a>).</p>
-</li>
-<li>
-<p>Configure your system properly, especially when it comes to the settings of the bus and notification queue.</p>
-</li>
-</ul>
-</div>
+<div class="paragraph">
+<p>This scenario very similar to the one from the Getting Started guide, but instead of Kill Bill charging asynchronously recurring subscriptions, your website will trigger one-off payments synchronously.</p>
 </div>
 <div class="sect2">
-<h3 id="_pre_and_post_deployment_checklist">Pre- and Post-deployment checklist</h3>
+<h3 id="_requirements">Requirements</h3>
+<div class="paragraph">
+<p>We will assume:</p>
+</div>
 <div class="ulist">
 <ul>
 <li>
-<p>Test, test, test: we work hard to make the core of the platform solid. But your deployment, with your own combination of plugins and configuration (catalog, overdue, etc.) is unique. Write business-level regression tests that you can run before each upgrade.</p>
+<p>You already went through the Getting started tutorial and have MySQL, Kill Bill and Kaui setup and running in Docker containers</p>
 </li>
 <li>
-<p>Timezone of your servers and databases has to be UTC and ensure NTP is properly configured to avoid any drift between instances.</p>
+<p>You went through our documentation and are familiar with the concept of accounts, payment methods, subscriptions, invoices and payments in the Kill Bill environment</p>
 </li>
 <li>
-<p>Make sure the servers have enough entropy: <code>/proc/sys/kernel/random/entropy_avail</code> should be &gt; 3k (otherwise install <code>haveged</code> / <code>rng-tools</code>). Kill Bill should also be started with <code>-Djava.security.egd=file:/dev/./urandom</code>.</p>
-</li>
-<li>
-<p>Make sure your database and queues configuration are adequate: the <code>bus_events</code> table should almost always be empty and the <code>notifications</code> table should never have any <code>AVAILABLE</code> entry with an effective date in the past. Otherwise, in both cases, the system will be late (invoices not generated, etc.). These two metrics should always be monitored in production (potentially a paging event).</p>
-</li>
-<li>
-<p>Verify the integration with your payment gateway(s): very few payment transactions (if any) should be in an <code>UNKNOWN</code> state. Make sure to fix these manually via the Payment Admin API, if the plugin is unable to do it automatically.</p>
-</li>
-<li>
-<p>Have a monitoring system in place (we recommend <a href="https://github.com/killbill/killbill-cloud/tree/master/docker/compose">Elasticseach, Logstash, Kibana, InfluxDB and Grafana</a>, which can be easily setup for Kill Bill) and watch your logs constantly: any <code>WARN</code> or <code>ERROR</code> entry should be reviewed, as well as stacktraces.</p>
-</li>
-<li>
-<p>Monitor metrics at <code>/1.0/metrics</code> and integrate the healthcheck at <code>/1.0/healthcheck</code> with your load balancer.</p>
-</li>
-<li>
-<p>Join our <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing-list</a> to get notified of new releases or ask questions. For inquiries regarding your specific setup, always attach a <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a> diagnostic output:</p>
+<p>You have <a href="http://curl.haxx.se/">cURL</a> installed. This is only to be able to run the setup steps and examples from this tutorial. In practice, your application will use one of our <a href="https://killbill.github.io/slate/">client libraries</a></p>
 </li>
 </ul>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>kpm diagnostic --killbill-api-credentials=bob lazar \
-               --killbill-credentials=admin password \
-               --killbill-url=http://127.0.0.1:8080 \
-               --killbill-web-path=/var/lib/tomcat7/webapps/ROOT/ \
-               --kaui-web-path=/var/lib/tomcat7/webapps/ROOT/ \
-               --log-dir=/var/lib/tomcat7/logs \
-               --account_export=ACCOUNT_ID</code></pre>
-</div>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_deployment_options">Deployment options</h2>
+<h2 id="_triggering_your_first_payment">Triggering your first payment</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>When deploying Kill Bill, the following pieces will need to be deployed in addition to your OS, VM or container (Docker, &#8230;&#8203;):</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>A web container (Jetty, Tomcat, &#8230;&#8203;)</p>
-</li>
-<li>
-<p>The killbill war</p>
-</li>
-<li>
-<p>The plugins</p>
-</li>
-<li>
-<p>The configuration files and system properties</p>
-</li>
-<li>
-<p>The database along with the various schemas (see our <a href="http://docs.killbill.io/latest/database_migrations.html">database migrations guide</a>)</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>Because a lot of pieces need to be in place, and because a lot can go wrong, users are <strong>strongly</strong> encouraged to use our pre-built <a href="https://registry.hub.docker.com/u/killbill/killbill">Docker images</a> and <a href="https://github.com/killbill/killbill-cloud/tree/master/docker">Docker Compose</a> recipes.</p>
-</div>
-<div class="paragraph">
-<p>Experienced users can also opt for our <a href="https://github.com/killbill/killbill-cloud/tree/work-for-release-0.19.x">Ansible playbooks</a>.</p>
-</div>
-<div class="paragraph">
-<p>Note that both of these deployment options rely on <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a>, the Kill Bill Package Manager. KPM can fetch existing (signed) artifacts for the main killbill war and for each of the plugins, and deploy them at the right place. Using KPM gives you the most flexibility without having to re-invent the wheel, but significantly increases the deployment complexity. To be directly used by our most advanced users only.</p>
+<p>To trigger payments, the account must first have one or several payment methods on file (credit card, PayPal, etc.). These map to specific gateway plugins (e.g. a payment method could represent a credit card token in Stripe).</p>
 </div>
 <div class="sect2">
-<h3 id="_docker">Docker</h3>
+<h3 id="_using_kaui">Using Kaui</h3>
 <div class="paragraph">
-<p>Make sure to get familiar with <a href="https://www.docker.com/">Docker</a> first, before attempting to install Kill Bill. The project has lots of great <a href="https://docs.docker.com/">docs</a> to help you get setup.</p>
+<p>In Kaui, you can add a payment method by going to the main account screen, then by clicking Add payment method in the Payment Methods section. By default, Kill Bill comes only with the __EXTERNAL_PAYMENT__ payment plugin, which is used to track offline payments made by checks or cash.</p>
 </div>
 <div class="paragraph">
-<p>Documentation for our images is available <a href="https://github.com/killbill/killbill-cloud/blob/master/docker/README.md">here</a>. Our <a href="http://killbill.io/blog/tag/docker/">blog</a> has also lots of tips on how to deploy to popular cloud providers.</p>
+<p>See <a href="http://docs.killbill.io/latest/multi_gateways.html">this tutorial</a> for examples on how to integrate with real payment gateways like Stripe and PayPal.</p>
+</div>
+<div class="paragraph">
+<p>Once the payment method created, you have several operations available on that payment method: <strong>authorize</strong> (as in credit card authorization), purchase (authorization with auto-capture) and credit (fund the payment method). These operations are gateway specific. In case of the __EXTERNAL_PAYMENT__, you would trigger a purchase for example. When creating the payment, you can specify the "Payment key", i.e. a unique identifier for that payment, as well as a "Transaction key": a payment can map to several transactions (for example, a purchase then a refund).</p>
+</div>
+<div class="paragraph">
+<p>Note that we charged the customer directly, regardless of his existing subscriptions and invoices: you would use these operations in case of one-off shopping cart scenarii only. However, if a payment method is selected as default (you can set it by clicking the star next to the payment method), the subscription system will use it to trigger payments automatically for outstanding invoices.</p>
 </div>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_bus_and_notification_queues">Bus and Notification queues</h2>
-<div class="sectionbody">
 <div class="sect2">
-<h3 id="_bus_events">Bus events</h3>
+<h3 id="_via_api">Via API</h3>
 <div class="paragraph">
-<p>The notifications across Kill Bill core services rely on a proprietary <a href="http://killbill.io/blog/persistent-bus-in-kill-bill/">bus event</a>. There are actually 2 buses, the <strong>main</strong> bus which is used by core services and an <strong>external</strong> bus which is used by plugins. The main reason for having 2 buses is that the main bus is critical for internal operations to work, and so we want to prevent plugin code that could interact with 3rd party systems to block on long operations and impact the rest of the system.</p>
-</div>
-<div class="paragraph">
-<p>There are 2 sets of two tables to manage those bus events:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>For the <strong>main</strong> bus, a <code>bus_events</code> and a <code>bus_events_history</code> table.</p>
-</li>
-<li>
-<p>For the <strong>external</strong> bus, a <code>bus_ext_events</code> and a <code>bus_ext_events_history</code> table.</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>Events are moved from the <code>bus_events</code> to the <code>bus_events_history</code> as they are processed. That allows to keep a history of what happened in the system and avoid having the <code>bus_events</code> table grow too much. The <code>bus_events_history</code> is only there for debugging and is never used by the system.</p>
-</div>
-<div class="sect3">
-<h4 id="_bus_event_modes">Bus Event Modes</h4>
-<div class="paragraph">
-<p>The bus event can be run in multiple modes (<code>instanceName</code> below is either <code>main</code> or <code>external</code>):</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><strong>POLLING</strong>: the bus will poll the database for new available entries and dispatch them across the nodes.</p>
-</li>
-<li>
-<p><strong>STICKY_POLLING</strong>: the bus will poll the database for new available entries and dispatch them to the same node that created the entry.</p>
-</li>
-<li>
-<p><strong>STICKY_EVENTS</strong> (default mode): in that mode, the bus now behaves as a blocking queue where entries are dispatched as soon as they have been committed to disk. This is a much more efficient mechanism both in terms of latency (because entries are picked up right away) and throughput (because there is no time for entries to accumulate).</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>In a cloud environment, where nodes are more prone to appear and disappear, the following choices are available:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Use the <strong>POLLING mode</strong></p>
-</li>
-<li>
-<p>Use the <strong>STICKY_EVENTS</strong> (or <strong>STICKY_POLLING</strong>) mode. In that scenario, you need to be cautious of Kill Bill instances restarting on a different node:</p>
-</li>
-<li>
-<p>Each instance can be started with a specific system property <code>org.killbill.queue.creator.name=&lt;MY_VIRTUAL_INSTANCE_NAME&gt;</code>, which overrides the <code>creating_owner</code> value string associated with each entry which defaults to the hostname of the machine. When using that property, an instance that restarts on a different node but with the same property will continue processing the same entries.</p>
-</li>
-<li>
-<p>Or, alternatively if failovers don&#8217;t occur too often, run a query to update rows associated with the instance that failed over so they get picked by an other node. Note that events are never lost because they are persistent, but in that case, they may linger until updated. The query to update the rows is the following (only showed for bus_events table, but similar query needs to happen for bus_events_history):</p>
-</li>
-</ul>
+<p>When the user clicks "buy" on your checkout page, the equivalent API call that your website would issue is:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code>update bus_events set creating_owner='MY_NEW_NODE_HOSTNAME', processing_available_date=NULL, processing_state = 'AVAILABLE', processing_owner=NULL where creating_owner='MY_INSTANCE_NAME_THAT_FAILED';</code></pre>
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
+     --data-binary <span class="tok-s1">&#39;{&quot;transactionType&quot;:&quot;PURCHASE&quot;,&quot;amount&quot;:&quot;10&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/&lt;ACCOUNT_ID&gt;/payments&quot;</span></code></pre>
 </div>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_future_notifications">Future Notifications</h3>
-<div class="sect3">
-<h4 id="_overview_2">Overview</h4>
-<div class="paragraph">
-<p>In addition to the bus events, which are dispatched immediately, Kill Bill also manages future notifications. The mechanism is very similar to the <strong>POLLING</strong> we described earlier, but the main difference is that those notifications are dispatched when the <code>effective_date</code> of the notification has been reached. There is no <strong>STICKY_EVENTS</strong> mode for the future notifications.</p>
 </div>
 <div class="paragraph">
-<p>The future notifications also rely on two tables: the <code>notifications</code> and <code>notifications_history</code>, and the mechanism to move processed entries is similar to what we described for the bus event.</p>
-</div>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_logging_and_gdpr">Logging and GDPR</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>If you are using Tomcat, <code>CATALINA_BASE/logs/catalina.out</code> does not rotate. Make sure to make your main appender <code>ch.qos.logback.core.rolling.RollingFileAppender</code> instead of the default <code>ch.qos.logback.core.ConsoleAppender</code> (<code>STDOUT</code>/<code>STDERR</code> is redirected to <code>CATALINA_BASE/logs/catalina.out</code>).</p>
+<p>The call will synchronously look-up the default payment method (you can also specify a specific one in the API call, see below), go to the payment processor (e.g. Stripe or PayPal), and perform the payment.</p>
 </div>
 <div class="paragraph">
-<p>Make sure also to install both the <a href="http://felix.apache.org/downloads.cgi">Felix Log bundle</a> and the <a href="https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/bundles/logger">Kill Bill Log bundle</a> in your <code>platform</code> directory (<code>/var/tmp/bundles/platform</code> by default), otherwise OSGI logs (including from JRuby plugins) will end up in <code>STDOUT</code>/<code>STDERR</code> (hence in <code>CATALINA_BASE/logs/catalina.out</code>). Both bundles are included in the <a href="https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles">defaultbundles package</a>.</p>
-</div>
-<div class="sect2">
-<h3 id="_mask_pans">Mask PANs</h3>
-<div class="paragraph">
-<p>Use the converter class <code>org.killbill.billing.server.log.obfuscators.ObfuscatorConverter</code>.</p>
-</div>
-<div class="paragraph">
-<p>If you are passing PANs via plugin properties, make sure to disable query parameters logging in Tomcat. Use the following <code>org.apache.catalina.valves.AccessLogValve</code> pattern: <code>%h %l %u %t &quot;%m %U&quot; %s %b %D</code>.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_redirect_plugin_logs_to_a_different_file">Redirect plugin logs to a different file</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>&lt;configuration debug="true"&gt;
-    &lt;appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender"&gt;
-        &lt;filter class="ch.qos.logback.core.filter.EvaluatorFilter"&gt;
-            &lt;evaluator name="loggingTaskEval"&gt;
-                &lt;expression&gt;
-                &lt;![CDATA[
-                    message!=null &amp;&amp;
-                    message.contains("[cybersource-plugin]")
-                ]]&gt;
-                &lt;/expression&gt;
-            &lt;/evaluator&gt;
-            &lt;OnMatch&gt;DENY&lt;/OnMatch&gt;
-        &lt;/filter&gt;
-        &lt;file&gt;${LOGS_DIR:-./logs}/killbill.out&lt;/file&gt;
-        &lt;rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy"&gt;
-            &lt;fileNamePattern&gt;${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz&lt;/fileNamePattern&gt;
-            &lt;maxHistory&gt;3&lt;/maxHistory&gt;
-            &lt;cleanHistoryOnStart&gt;true&lt;/cleanHistoryOnStart&gt;
-            &lt;timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP"&gt;
-                &lt;maxFileSize&gt;100MB&lt;/maxFileSize&gt;
-            &lt;/timeBasedFileNamingAndTriggeringPolicy&gt;
-        &lt;/rollingPolicy&gt;
-        &lt;encoder&gt;
-            &lt;pattern&gt;%date [%thread] %-5level %logger{36} - %msg%n&lt;/pattern&gt;
-        &lt;/encoder&gt;
-    &lt;/appender&gt;
-
-    &lt;appender name="CYBERSOURCE" class="ch.qos.logback.core.rolling.RollingFileAppender"&gt;
-        &lt;filter class="ch.qos.logback.core.filter.EvaluatorFilter"&gt;
-            &lt;evaluator name="loggingTaskEval"&gt;
-                &lt;expression&gt;
-                &lt;![CDATA[
-                    message!=null &amp;&amp;
-                    message.contains("[cybersource-plugin]")
-                ]]&gt;
-                &lt;/expression&gt;
-            &lt;/evaluator&gt;
-            &lt;OnMismatch&gt;DENY&lt;/OnMismatch&gt;
-        &lt;/filter&gt;
-        &lt;file&gt;${LOGS_DIR:-./logs}/cybersource.out&lt;/file&gt;
-        &lt;rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy"&gt;
-            &lt;fileNamePattern&gt;${LOGS_DIR:-./logs}/cybersource-%d{yyyy-MM-dd}.%i.out.gz&lt;/fileNamePattern&gt;
-            &lt;maxHistory&gt;3&lt;/maxHistory&gt;
-            &lt;cleanHistoryOnStart&gt;true&lt;/cleanHistoryOnStart&gt;
-            &lt;timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP"&gt;
-                &lt;maxFileSize&gt;100MB&lt;/maxFileSize&gt;
-            &lt;/timeBasedFileNamingAndTriggeringPolicy&gt;
-        &lt;/rollingPolicy&gt;
-        &lt;encoder&gt;
-            &lt;pattern&gt;%date [%thread] %msg%n&lt;/pattern&gt;
-        &lt;/encoder&gt;
-    &lt;/appender&gt;
-
-    &lt;root level="INFO"&gt;
-       &lt;appender-ref ref="MAIN" /&gt;
-       &lt;appender-ref ref="CYBERSOURCE" /&gt;
-    &lt;/root&gt;
-&lt;/configuration&gt;</code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_handling_plugin_logs">Handling plugin logs</h3>
-<div class="paragraph">
-<p>In order for plugin logs to be handled by the main logger, make sure to:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>Install <a href="http://felix.apache.org/documentation/subprojects/apache-felix-log.html">Apache Felix Log</a> under <code>/var/tmp/bundles/platform</code> (provided in the default plugins package)</p>
-</li>
-<li>
-<p>Install <code>killbill-platform-osgi-bundles-logger</code> under <code>/var/tmp/bundles/platform</code> (also provided in the default plugins package)</p>
-</li>
-<li>
-<p>Add <code>org.osgi.service.log</code> to <code>Import-Package</code> in your <code>MANIFEST.MF</code></p>
-</li>
-<li>
-<p>Add the following dependencies in compile scope in your plugin:</p>
-</li>
-</ul>
+<p>If you want to display payment methods information on the checkout page, you can retrieve them via:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code>&lt;dependency&gt;
-    &lt;groupId&gt;org.kill-bill.billing&lt;/groupId&gt;
-    &lt;artifactId&gt;killbill-platform-osgi-bundles-lib-killbill&lt;/artifactId&gt;
-&lt;/dependency&gt;
-&lt;dependency&gt;
-    &lt;groupId&gt;org.kill-bill.billing&lt;/groupId&gt;
-    &lt;artifactId&gt;killbill-platform-osgi-bundles-lib-slf4j-osgi&lt;/artifactId&gt;
-&lt;/dependency&gt;</code></pre>
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/&lt;ACCOUNT_ID&gt;/paymentMethods?pluginInfo=true&quot;</span></code></pre>
 </div>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_reverse_proxy">Reverse Proxy</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>We recommend setting up NGINX to forward external notifications to Kill Bill.</p>
 </div>
 <div class="paragraph">
-<p>Here&#8217;s a working example for Adyen:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code>server {
-  listen       443;
-  server_name  killbill-public.acme.com;
-
-  location /notifications/killbill-adyen {
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-
-      proxy_set_header Authorization "Basic YWRtaW46cGFzc3dvcmQ=";
-      proxy_set_header X-Killbill-ApiKey bob;
-      proxy_set_header X-Killbill-ApiSecret lazar;
-      proxy_set_header X-Killbill-CreatedBy Adyen;
-      proxy_pass http://killbill-internal.acme.com:8080/1.0/kb/paymentGateways/notification/killbill-adyen;
-
-      proxy_hide_header Set-Cookie;
-      proxy_hide_header Access-Control-Allow-Origin;
-      proxy_hide_header Access-Control-Allow-Methods;
-      proxy_hide_header Access-Control-Allow-Headers;
-      proxy_hide_header Access-Control-Expose-Headers;
-      proxy_hide_header Access-Control-Allow-Credentials;
-  }
-}</code></pre>
+<p>This is useful if you want to let the user override the payment method to use during checkout. In that case, you can pass the query parameter paymentMethodId to the purchase call above.</p>
 </div>
 </div>
 </div>
