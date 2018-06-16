@@ -236,3 +236,42 @@ server {
   }
 }
 ----
+
+== Service Discovery with Eureka
+
+For easier integration into a microservice architecture, Kill Bill supports client-side service discovery via a https://github.com/Netflix/eureka/wiki/Eureka-at-a-glance[Eureka registry]. A module (disabled by default) is provided that allows Kill Bill to register with a Eureka server.
+
+To register as a Eureka client, first add the following dependency to your profile:
+[source]
+----
+<dependency>
+    <groupId>org.kill-bill.billing</groupId>
+    <artifactId>killbill-platform-service-registry</artifactId>
+</dependency>
+----
+
+Next, add the Eureka Guice module to the module list in your server module (i.e. KillbillServerModule.java)
+[source]
+----
+ install(new EurekaModule(configSource));
+----
+
+Finally, add the Eureka client config properties to `killbill.properties`. For example, assuming a Eureka server is running on port 8761 and Kill Bill is on port 8080:
+
+[source]
+----
+eureka.serviceUrl.default=http://localhost:8761/eureka
+
+eureka.registration.enabled=true
+eureka.name=killbill
+eureka.port=8080
+eureka.port.enabled=true
+eureka.securePort.enabled=false
+
+eureka.statusPageUrlPath=/1.0/metrics
+eureka.healthCheckUrlPath=/1.0/healthCheck
+
+eureka.decoderName=JacksonJson
+eureka.preferSameZone=true
+eureka.shouldUseDns=false
+----
