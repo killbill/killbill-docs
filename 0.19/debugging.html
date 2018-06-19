@@ -480,18 +480,59 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
+<li><a href="#_healthchecks_and_metrics">Healthchecks and metrics</a></li>
+<li><a href="#_remote_debugging">Remote debugging</a></li>
 <li><a href="#_turning_on_debug_logging">Turning on DEBUG logging</a></li>
-<li><a href="#_following_tokens">Following tokens</a></li>
+<li><a href="#_following_tokens">Following tokens</a>
+<ul class="sectlevel2">
+<li><a href="#_testing_changes_over_time">Testing changes over time</a></li>
+</ul>
+</li>
+<li><a href="#_docker_and_ansible">Docker and Ansible</a></li>
 <li><a href="#_seeking_help">Seeking help</a></li>
 </ul>
 </div>
 </div>
 <div id="content">
 <div class="sect1">
+<h2 id="_healthchecks_and_metrics">Healthchecks and metrics</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Kill Bill exposes both healthchecks and metrics. These can be accessed via:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>curl -v http://&lt;IP_ADDRESS&gt;:8080/1.0/healthcheck?pretty=true
+curl -v http://&lt;IP_ADDRESS&gt;:8080/1.0/metrics?pretty=true</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_remote_debugging">Remote debugging</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Specify <code>-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=12345</code> on startup in your JVM settings to enable remote debugging (this is set by default in our Docker images). You can then connect to Kill Bill on port 12345 from your debugger (e.g. Eclipse or IntelliJ).</p>
+</div>
+<div class="paragraph">
+<p>If Kill Bill is running locally, you can just specify <code>localhost</code> or <code>127.0.0.1</code> as the remote host in your debugger. To debug instances remotely (e.g. in the cloud), you need to specify the publicly accessible IP address of your instance. For Docker, this should be the public IP address of the container. If you are using docker-machine and your machine is named <code>default</code>, you can retrieve the IP address via <code>docker-machine inspect default -f '{{.Driver.IPAddress}}'</code>.</p>
+</div>
+<div class="paragraph">
+<p>Make sure also that the port <code>12345</code> is open (e.g. check your security groups in AWS). For Docker, expose the port via <code>-p12345:12345</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="_turning_on_debug_logging">Turning on DEBUG logging</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Using <code>jconsole</code> (default port 8989), you can set at runtime the log level of specific classes and packages (look for  the <code>ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator</code> MBean).</p>
+<p>Specify <code>-Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.port=8000 -Dcom.sun.management.jmxremote.rmi.port=8000 -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost</code> on startup in your JVM settings to enable access via <code>jconsole</code>.</p>
+</div>
+<div class="paragraph">
+<p>You can set at runtime the log level of specific classes and packages (look for  the <code>ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator</code> MBean).</p>
+</div>
+<div class="paragraph">
+<p>Similar considerations as the remote debugging section apply regarding the IP address and expose ports (see above).</p>
 </div>
 </div>
 </div>
@@ -535,6 +576,54 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="paragraph">
 <p>You can search for these tokens in Kaui, on the <em>Queues</em> screen, accessible from the tenant page or via the per-account sub-menu (you need to be logged-in as the Kaui root user).</p>
 </div>
+<div class="sect2">
+<h3 id="_testing_changes_over_time">Testing changes over time</h3>
+<div class="paragraph">
+<p>We have a clock abstraction in Kill Bill that can be manipulated through an API, as long as you start Kill Bill with <code>org.killbill.server.test.mode=true</code> (<code>-e KILLBILL_SERVER_TEST_MODE=true</code> in Docker):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/test/clock&quot;</span>
+
+curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;Accept: application/json&quot;</span> <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2015-12-14T23:02:15.000Z&quot;</span>
+
+curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s2">&quot;Accept: application/json&quot;</span> <span class="tok-se">\</span>
+     -X PUT <span class="tok-se">\</span>
+     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/test/clock?days=10&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Here is an <a href="https://github.com/killbill/killbill-integration-tests/blob/165b76b5864fb40f1a5774f64c145d56123a5e62/killbill-integration-tests/mixin-utils/helper.rb#L131-L145">example</a> how it could be used in tests.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_docker_and_ansible">Docker and Ansible</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Our Docker images use Ansible behind the scenes to install and configure Kill Bill in the container. The actual Ansible commands run are available in the images via the environment variables <code>$KPM_INSTALL_CMD</code> and <code>$START_TOMCAT_CMD</code>.</p>
+</div>
+<div class="paragraph">
+<p>If you need to debug this setup process, you can start a container via <code>docker run -ti killbill/killbill:0.20.0 bash</code> and execute these commands manually.</p>
+</div>
 </div>
 </div>
 <div class="sect1">
@@ -575,7 +664,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 03:40:08 UTC
+Last updated 2018-06-19 08:22:44 UTC
 </div>
 </div>
 </body>

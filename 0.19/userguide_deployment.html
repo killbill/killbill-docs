@@ -514,6 +514,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 <li><a href="#_reverse_proxy">Reverse Proxy</a></li>
 <li><a href="#_service_discovery_with_eureka">Service Discovery with Eureka</a></li>
+<li><a href="#_enabling_https">Enabling HTTPS</a></li>
+<li><a href="#_x_forwarded_headers_support">X-Forwarded headers support</a></li>
 </ul>
 </div>
 </div>
@@ -578,6 +580,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Make sure the servers have enough entropy: <code>/proc/sys/kernel/random/entropy_avail</code> should be &gt; 3k (otherwise install <code>haveged</code> / <code>rng-tools</code>). Kill Bill should also be started with <code>-Djava.security.egd=file:/dev/./urandom</code>.</p>
 </li>
 <li>
+<p>Adjust <code>org.killbill.security.shiroNbHashIterations</code> as needed. This setting configures the number of iterations run to hash API secrets and user passwords. The default value is high for security reasons, but can be adjusted down if required (e.g. for Docker <code>-e KILLBILL_SECURITY_SHIRO_NB_HASH_ITERATIONS=1</code>) as this can have a significant performance impact. Note that changing the value requires re-hashing manually all tenants secrets and user passwords.</p>
+</li>
+<li>
 <p>Make sure your database and queues configuration are adequate: the <code>bus_events</code> table should almost always be empty and the <code>notifications</code> table should never have any <code>AVAILABLE</code> entry with an effective date in the past. Otherwise, in both cases, the system will be late (invoices not generated, etc.). These two metrics should always be monitored in production (potentially a paging event).</p>
 </li>
 <li>
@@ -617,10 +622,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>A web container (Jetty, Tomcat, &#8230;&#8203;)</p>
+<p>A <a href="https://en.wikipedia.org/wiki/Web_container">Web container</a> (Jetty, Tomcat, &#8230;&#8203;)</p>
 </li>
 <li>
-<p>The killbill war</p>
+<p>The killbill <a href="https://en.wikipedia.org/wiki/WAR_(file_format)">web application</a></p>
 </li>
 <li>
 <p>The plugins</p>
@@ -634,10 +639,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </div>
 <div class="paragraph">
-<p>Because a lot of pieces need to be in place, and because a lot can go wrong, users are <strong>strongly</strong> encouraged to use our pre-built <a href="https://registry.hub.docker.com/u/killbill/killbill">Docker images</a> and <a href="https://github.com/killbill/killbill-cloud/tree/master/docker">Docker Compose</a> recipes.</p>
+<p>Because a lot of pieces need to be in place, and because a lot can go wrong, users are <strong>strongly</strong> encouraged to use our pre-built <a href="https://registry.hub.docker.com/u/killbill/killbill">Docker images</a> and <a href="https://github.com/killbill/killbill-cloud/tree/master/docker">Docker Compose</a> recipes. We also maintain recipes to deploy the open-source [Elastic stack](<a href="https://www.elastic.co/products" class="bare">https://www.elastic.co/products</a>) and the open-source [InfluxData stack](<a href="https://www.influxdata.com/time-series-platform/" class="bare">https://www.influxdata.com/time-series-platform/</a>) integrated with Kill Bill.</p>
 </div>
 <div class="paragraph">
-<p>Experienced users can also opt for our <a href="https://github.com/killbill/killbill-cloud/tree/work-for-release-0.19.x">Ansible playbooks</a>.</p>
+<p>Experienced users can also opt for our <a href="https://github.com/killbill/killbill-cloud/tree/work-for-release-0.19.x">Ansible playbooks</a> (Ansible is an open-source IT Automation tool), to install and configure [Apache Tomcat](<a href="https://tomcat.apache.org/" class="bare">https://tomcat.apache.org/</a>), [KPM](<a href="https://github.com/killbill/killbill-cloud/tree/master/kpm" class="bare">https://github.com/killbill/killbill-cloud/tree/master/kpm</a>) and Kill Bill individually.</p>
 </div>
 <div class="paragraph">
 <p>Note that both of these deployment options rely on <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm">KPM</a>, the Kill Bill Package Manager. KPM can fetch existing (signed) artifacts for the main killbill war and for each of the plugins, and deploy them at the right place. Using KPM gives you the most flexibility without having to re-invent the wheel, but significantly increases the deployment complexity. To be directly used by our most advanced users only.</p>
@@ -648,7 +653,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Make sure to get familiar with <a href="https://www.docker.com/">Docker</a> first, before attempting to install Kill Bill. The project has lots of great <a href="https://docs.docker.com/">docs</a> to help you get setup.</p>
 </div>
 <div class="paragraph">
-<p>Documentation for our images is available <a href="https://github.com/killbill/killbill-cloud/blob/master/docker/README.md">here</a>. Our <a href="http://killbill.io/blog/tag/docker/">blog</a> has also lots of tips on how to deploy to popular cloud providers.</p>
+<p>Documentation for our images is available <a href="https://github.com/killbill/killbill-cloud/blob/master/docker/README.md">here</a>. Our <a href="http://killbill.io/blog/tag/docker/">blog</a> has also lots of tips on how to deploy to popular cloud providers. Our Docker Compose recipes work with all [Docker Machine supported platform](<a href="https://docs.docker.com/machine/drivers/" class="bare">https://docs.docker.com/machine/drivers/</a>).</p>
 </div>
 </div>
 </div>
@@ -940,10 +945,82 @@ eureka.shouldUseDns=false</code></pre>
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_enabling_https">Enabling HTTPS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You first need to import your SSL certificate (see <a href="https://tomcat.apache.org/tomcat-8.5-doc/ssl-howto.html">docs</a>). For testing, you can just create a self-signed certificate. For example, on Ubuntu or our Docker images:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>sudo apt-get update
+sudo apt-get install ssl-cert
+sudo usermod -a -G ssl-cert tomcat</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then, update Tomcat’s configuration (<code>/var/lib/tomcat/conf/server.xml</code> in our Docker images):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>&lt;Connector executor="tomcatThreadPool"
+           port="8443"
+           connectionTimeout="20000"
+           acceptorThreadCount="2"
+           SSLEnabled="true"
+           SSLCertificateFile="/etc/ssl/certs/ssl-cert-snakeoil.pem"
+           SSLCertificateKeyFile="/etc/ssl/private/ssl-cert-snakeoil.key"
+           scheme="https"
+           secure="true" /&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Finally, make sure port 8443 is open (and exported from the Docker containers).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_x_forwarded_headers_support">X-Forwarded headers support</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When <code>org.killbill.jaxrs.location.full.url=true</code>, Kill Bill will build location headers using a full URL. In a typical load balancer scneario, which receives traffic on port 8443 and forwards it to port 8080 on the Kill Bill instances (i.e. SSL terminated at the load balancer), you probably want the headers to return something like <a href="https://killbill-vip.mycompany.net:8443" class="bare">https://killbill-vip.mycompany.net:8443</a> instead of <a href="http://10.1.2.3:8080" class="bare">http://10.1.2.3:8080</a>.</p>
+</div>
+<div class="paragraph">
+<p>To do so:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Enable the <code>RemoteIpValve</code> in your Tomcat’s configuration (<code>/var/lib/tomcat/conf/server.xml</code> in our Docker images). Make sure to configure correctly at least the <code>internalProxies</code> and <code>trustedProxies</code> attributes depending on your environment, see the <a href="https://tomcat.apache.org/tomcat-7.0-doc/config/valve.html#Proxies_Support">docs</a>.</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>&lt;Valve className="org.apache.catalina.valves.RemoteIpValve"
+       protocolHeader="x-forwarded-proto"
+       portHeader="x-forwarded-port" /&gt;</code></pre>
+</div>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Set <code>org.killbill.jaxrs.location.host=killbill-vip.mycompany.net</code></p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Without any X-Forwarded header, the default Location header will result to something like <code><a href="http://killbill-vip.mycompany.net:8080" class="bare">http://killbill-vip.mycompany.net:8080</a></code>. With <code>X-Forwarded-For: 10.0.0.0</code>, <code>X-Forwarded-Proto: https</code> and <code>X-Forwarded-Port: 8443</code>, the header will become something like <code><a href="https://killbill-vip.mycompany.net:8443" class="bare">https://killbill-vip.mycompany.net:8443</a></code>.</p>
+</div>
+<div class="paragraph">
+<p>You optionally also want to set <code>requestAttributesEnabled="true"</code> to <code>org.apache.catalina.valves.AccessLogValve</code>, to log the IP address from the <code>X-Forwarded-For</code> header in the access logs.</p>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 03:40:08 UTC
+Last updated 2018-06-19 08:22:44 UTC
 </div>
 </div>
 </body>
