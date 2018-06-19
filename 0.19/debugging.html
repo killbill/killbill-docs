@@ -489,6 +489,28 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </ul>
 </li>
 <li><a href="#_docker_and_ansible">Docker and Ansible</a></li>
+<li><a href="#_performance_and_profiling">Performance and profiling</a>
+<ul class="sectlevel2">
+<li><a href="#_types_of_profiling">Types of profiling</a>
+<ul class="sectlevel3">
+<li><a href="#_jaxrs_profiling">JAXRS Profiling</a></li>
+<li><a href="#_api_profiling">API Profiling</a></li>
+<li><a href="#_doa_profiling">DOA Profiling</a></li>
+<li><a href="#_glock_profiling">GLOCK Profiling</a></li>
+<li><a href="#_plugin_profiling">PLUGIN Profiling</a></li>
+</ul>
+</li>
+<li><a href="#_example">Example</a></li>
+<li><a href="#_client_side">Client Side</a></li>
+<li><a href="#_tips_and_tricks">Tips and tricks</a></li>
+<li><a href="#_load_tests">Load Tests</a>
+<ul class="sectlevel3">
+<li><a href="#_integration_tests">Integration Tests</a></li>
+<li><a href="#_gnu_parallel_simple_load_testing_script">GNU parallel: simple load testing script</a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li><a href="#_seeking_help">Seeking help</a></li>
 </ul>
 </div>
@@ -627,6 +649,360 @@ curl -v <span class="tok-se">\</span>
 </div>
 </div>
 <div class="sect1">
+<h2 id="_performance_and_profiling">Performance and profiling</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Kill Bill has some built-in support to profile incoming calls. The mechanism is based on HTTP headers that need to be set to specify what needs to be profiled, and as a result, a new HTTP header is returned.</p>
+</div>
+<div class="sect2">
+<h3 id="_types_of_profiling">Types of profiling</h3>
+<div class="paragraph">
+<p>In order to return profiling information, one needs to add the HTTP header <code>X-Killbill-Profiling-Req</code> and specify which calls should be instrumented. Today, we support:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>JAXRS: The HTTP call will be returned with the time spent in the call.</p>
+</li>
+<li>
+<p>API: Any Kill Bill API call will be returned with the time spent in the call</p>
+</li>
+<li>
+<p>DAO: Any Kill Bill DAO (request to database) call will be returned with the time spent in the call</p>
+</li>
+<li>
+<p>DAO_DETAILS: Any Kill Bill DAO (request to database) call along with specifics about time time spent for audit/history and caching will be returned with the time spent in the call</p>
+</li>
+<li>
+<p>DAO_CONNECTION: The time spent trying to acquire a database connection</p>
+</li>
+<li>
+<p>GLOCK: The time spent trying to acquire the global (<code>Account</code>) lock</p>
+</li>
+<li>
+<p>PLUGIN: Any Kill Bill call spent when calling a plugin will be returned with the time spent in the call</p>
+</li>
+</ul>
+</div>
+<div class="sect3">
+<h4 id="_jaxrs_profiling">JAXRS Profiling</h4>
+<div class="paragraph">
+<p>The time is extracted from a <a href="https://github.com/killbill/killbill/blob/killbill-0.19.3/profiles/killbill/src/main/java/org/killbill/billing/server/filters/ProfilingContainerResponseFilter.java#L53">Jersey filter</a>, so it should be very close to the time spent into the JAX-RS application handler, not taking into account the time spent in the container itself (i.e. Jetty, Tomcat, &#8230;&#8203;).</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_api_profiling">API Profiling</h4>
+<div class="paragraph">
+<p>We are relying on AOP to profile each of our API calls. We are injecting a <a href="https://github.com/killbill/killbill/blob/killbill-0.19.3/util/src/main/java/org/killbill/billing/util/glue/KillbillApiAopModule.java#L49">Guice AOP module</a> to profile each of our API calls. The time returned does not include the extra time spent to dispatch the request using the AOP handler.</p>
+</div>
+<div class="paragraph">
+<p>In addition, there is another <a href="https://github.com/killbill/killbill/blob/killbill-0.19.3/util/src/main/java/org/killbill/billing/util/glue/KillBillShiroAopModule.java#L45">AOP module</a> that is used to validate the user has the right set of permissions to execute this call. Since this occurs prior we do the profiling this time is currently not included in the profiling of the API call.</p>
+</div>
+<div class="paragraph">
+<p>Finally when making API calls from plugins, there may be also a small overhead to go through OSGI layer and this time is also not included.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_doa_profiling">DOA Profiling</h4>
+<div class="paragraph">
+<p>Most of the requests issued from Kill Bill Dao (e.g <code>DefaultPaymentDao</code>) classes follow the same mechanism:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>A transaction is started by calling the <code>execute</code> method of the <a href="https://github.com/killbill/killbill/blob/killbill-0.19.3/util/src/main/java/org/killbill/billing/util/entity/dao/EntitySqlDaoTransactionalJdbiWrapper.java#L84">EntitySqlDaoTransactionalJdbiWrapper</a>. Here, we create a <code>Handle</code>, essentially retrieving a database connection. The time taken to get the connection can be profiled by using the <code>DAO_CONNECTION</code> mask.</p>
+</li>
+<li>
+<p>Then, a jdbi transaction is started using cglib, and this transaction is actually run through a series of handlers, such as our <a href="https://github.com/killbill/killbill-commons/blob/killbill-commons-0.21.6/jdbi/src/main/java/org/killbill/commons/jdbi/transaction/RestartTransactionRunner.java">RestartTransactionRunner</a>. This extra time, is not being measured by our profiling layer.</p>
+</li>
+<li>
+<p>Finally, for each SQL operation within the transaction, we also proxy the calls using the java <code>Proxy</code> mechanism, and so all those calls are funneled trough the associated <code>EntitySqlDaoWrapperInvocationHandler</code>, and this is where the timing associated to the <code>DAO</code> (and <code>DAO_DETAILS</code>) mask is taken.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Note that the profiling time reported by the <code>API</code> mask&#8201;&#8212;&#8201;since it supersedes all dao calls&#8201;&#8212;&#8201;will include everything described above. Therefore it is possible to see an API that would only make a dao call take slightly longer than the dao call itself.</p>
+</div>
+<div class="paragraph">
+<p>The <code>DAO</code> mask will take the total time it takes to run the invocation handler invoke method. Because there are several paths, we also include the option to return <code>DAO_DETAILS</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>In most cases, we will have a profiling entry <code>DAO_DETAILS:&lt;method&gt; (raw)</code> that only profiles the call requested.</p>
+</li>
+<li>
+<p>In the case of an insert, update, deletion, the code will also update audit logs, and history table. In this case, we will also see a profiling entry <code>DAO_DETAILS:&lt;method&gt; (history/audit)</code> that will return the time it took to create the additional records in these tables.</p>
+</li>
+<li>
+<p>In the case of a cacheable query (e.g return a <code>record_id</code> associated to an object <code>uuid</code>), we may return the result from the cache and so this is the only case where <code>DAO_DETAILS:&lt;method&gt;:raw</code> will not be printed.</p>
+</li>
+<li>
+<p>In all other cases, the <code>DAO_DETAILS:&lt;method&gt; (raw)</code> should match the <code>DAO:&lt;method&gt;</code> time.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_glock_profiling">GLOCK Profiling</h4>
+<div class="paragraph">
+<p>The <code>GLOCK</code> mask will simply output the time it took to grab the database lock associated with a given <code>Account</code>&#8201;&#8212;&#8201;the only kind of global lock currently supported in Kill Bill.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_plugin_profiling">PLUGIN Profiling</h4>
+<div class="paragraph">
+<p>This mask can be used to profile the time it takes for Kill Bill to make calls to a given plugin using a given plugin api. Here again, such plugin calls are being proxied using the <code>Proxy</code> mechanism, and the timing is taken from the <a href="https://github.com/killbill/killbill-platform/blob/killbill-platform-0.37.7/osgi/src/main/java/org/killbill/billing/osgi/ContextClassLoaderHelper.java#L106">invocation handler</a>.</p>
+</div>
+<div class="paragraph">
+<p>The information will contain the name of the plugin api class and the method being invoked.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_example">Example</h3>
+<div class="paragraph">
+<p>Kill Bill will return a json object containing the hierarchy for the calls along with the time spent in uSec (1000 nanoseconds or 0.000001 seconds).</p>
+</div>
+<div class="paragraph">
+<p>Example (Note the piping to extract the response header, and format the json nicely):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>curl -v \
+     -u admin:password \
+     -H "Accept: application/json" \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H 'X-Killbill-Profiling-Req: JAXRS,API,DAO,DAO_DETAILS,DAO_CONNECTION,GLOCK' \
+     "http://127.0.0.1:8080/1.0/kb/paymentMethods/3dd4e9d3-2be3-4bf2-b1e4-64a1785afd53" 2&gt;&amp;1 \
+     | grep 'X-Killbill-Profiling-Resp' \
+     | awk '{$1=$2=""; print $0}' \
+     | jq '.'</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Response:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>{
+  "rawData": [
+    {
+      "name": "JAXRS:1.0/kb/paymentMethods/3dd4e9d3-2be3-4bf2-b1e4-64a1785afd53",
+      "durationUsec": 7654,
+      "calls": [
+        {
+          "name": "API:getPaymentMethodById",
+          "durationUsec": 4158,
+          "calls": [
+            {
+              "name": "DAO_CONNECTION:get",
+              "durationUsec": 60
+            },
+            {
+              "name": "DAO:PaymentMethodSqlDao: getById",
+              "durationUsec": 1371,
+              "calls": [
+                {
+                  "name": "DAO_DETAILS:PaymentMethodSqlDao (raw): getById",
+                  "durationUsec": 1364
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "API:getAccountById",
+          "durationUsec": 2593,
+          "calls": [
+            {
+              "name": "API:getAccountById",
+              "durationUsec": 2462,
+              "calls": [
+                {
+                  "name": "API:getAccountByRecordIdInternal",
+                  "durationUsec": 2408,
+                  "calls": [
+                    {
+                      "name": "DAO_CONNECTION:get",
+                      "durationUsec": 40
+                    },
+                    {
+                      "name": "DAO:AccountSqlDao: getByRecordId",
+                      "durationUsec": 877,
+                      "calls": [
+                        {
+                          "name": "DAO_DETAILS:AccountSqlDao (raw): getByRecordId",
+                          "durationUsec": 872
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "API:getAccountAuditLogs",
+          "durationUsec": 6
+        }
+      ]
+    }
+  ]
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>We can see that for each mask there is some profiling data and such data retains the struture of the calls being made.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_client_side">Client Side</h3>
+<div class="paragraph">
+<p>The Ruby client library (<a href="https://github.com/killbill/killbill-client-ruby" class="bare">https://github.com/killbill/killbill-client-ruby</a>) has been extended to support profiling data. By passing a additional options the library will send the correct header to Kill Bill and capture the resulting information.</p>
+</div>
+<div class="paragraph">
+<p>Currently, only JAXRS profilingData will be requested and returned for simplification.</p>
+</div>
+<div class="paragraph">
+<p>In the example below <code>per_thread_profiling_data</code> will contain the timing for the various calls, which in that scenario would be <code>post:/1.0/kb/payments/uuid</code> and <code>get:/1.0/kb/payments/uuid:</code>. The provided hash will contain one key per call and the values will be an array of timing data expressed in uSec:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code># Add the :profilingData option
+per_thread_profiling_data = {}
+options = {:username =&gt; 'admin', :password =&gt; 'password', :profilingData =&gt; per_thread_profiling_data}
+res = auth_capture_task.op_create_capture(payment_id, ext_key, amount, currency, username, options)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that Ruby client gem will not make any attempt to synchronize access the the profiling_data map, when multiple threads are making calls. It is recommended to use per-thread data and potentially merge the results from the different threads at the end.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_tips_and_tricks">Tips and tricks</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>In most cases, the client will be a bottleneck. Make sure to watch the number of sockets in <code>TIME_WAIT</code> (<code>watch 'netstat -an | grep 8080 | grep WAIT | wc -l'</code>) and speed up the recycling process:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>echo 2 &gt; /proc/sys/net/ipv4/tcp_fin_timeout
+echo 15000 65000 &gt; /proc/sys/net/ipv4/ip_local_port_range
+echo 1 &gt; /proc/sys/net/ipv4/tcp_tw_recycle
+echo 1 &gt; /proc/sys/net/ipv4/tcp_tw_reuse</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>On the server side, check the expected concurrency level by watching the number of sockets in <code>ESTABLISHED</code> (<code>watch 'netstat -an | grep 8080 | grep EST | wc -l'</code>)</p>
+</li>
+<li>
+<p>Make sure to allocate enough database (<code>org.killbill.dao.maxActive</code> / <code>org.killbill.billing.osgi.dao.maxActive</code>) and plugin (<code>org.killbill.payment.plugin.threads.nb</code>) threads. Check your container thread pool too (e.g. <code>conf/server.xml</code> for Tomcat)</p>
+</li>
+<li>
+<p>Use tools like Siege (<a href="http://www.joedog.org/siege-home/" class="bare">http://www.joedog.org/siege-home/</a>) to verify your basic setup: <code>siege -b -t30S -c100 <a href="http://127.0.0.1:8080/1.0/kb/test/clock" class="bare">http://127.0.0.1:8080/1.0/kb/test/clock</a></code> should yield at least 5k req./s.</p>
+</li>
+<li>
+<p>If Shiro is spending too many CPU cycles for authentication, lower the default number of iterations (e.g. <code>org.killbill.server.multitenant.hash_iterations=2000</code>).</p>
+</li>
+<li>
+<p>When using YourKit, turn off probes (especially the database ones). They cause a significant slowdown.</p>
+</li>
+<li>
+<p>Allow a warm-up period, before starting a full test, to avoid contention in the JRuby JIT.</p>
+</li>
+<li>
+<p>Use [mjprof](<a href="https://github.com/AdoptOpenJDK/mjprof" class="bare">https://github.com/AdoptOpenJDK/mjprof</a>) to extract stacktraces:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>java -jar target/mjprof-1.0.jar jmx/127.0.0.1:8989/.ncontains/name,RMI TCP/.ncontains/name,RMI Reaper/.ncontains/name,RMI RenewClean/.ncontains/name,RMI Scheduler/.ncontains/name,jruby-restarter/.ncontains/name,com.google.inject.internal.util.$Finalizer/.ncontains/name,Finalizer/.ncontains/name,Reference/.ncontains/name,FelixStartLevel/.ncontains/name,FelixDispatchQueue/.ncontains/name,http-nio-8080/.ncontains/name,Abandoned connection cleanup thread/.ncontains/name,CM Event Dispatcher/.ncontains/name,CM Configuration Updater/.ncontains/name,SCR Component Actor/.ncontains/name,Timer-/.ncontains/name,telnetconsole.Listener/.ncontains/name,O worker /.ncontains/name,O boss /.ncontains/name,NioBlockingSelector/.ncontains/name,Signal Dispatcher/.ncontains/name,main/.ncontains/name,JMX server connection timeout/.ncontains/state,WAITING/.sort/state/</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_load_tests">Load Tests</h3>
+<div class="sect3">
+<h4 id="_integration_tests">Integration Tests</h4>
+<div class="paragraph">
+<p>The <a href="https://github.com/killbill/killbill-integration-tests">integration tests repo</a> allows to run load tests against a running instance of Kill Bill. The <a href="https://github.com/killbill/killbill-integration-tests/blob/master/README.md">README</a> has a section explaining how they work.</p>
+</div>
+<div class="paragraph">
+<p>Note: It is difficult to rely on single process MT threaded Ruby script to generate enough load.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_gnu_parallel_simple_load_testing_script">GNU parallel: simple load testing script</h4>
+<div class="paragraph">
+<p>Another way to generate load is to rely on <code>GNU parallel</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>seq 0 500 | parallel -j10 --no-notice -u ./perf_test.sh</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Where <code>perf_test.sh</code> is:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>iteration_id=$1
+
+echo "===&gt; Starting $iteration_id"
+
+account_id=$(curl -v \
+                  -X POST \
+                  -u admin:password \
+                  -H 'Content-Type: application/json' \
+                  -H 'X-Killbill-ApiKey: bob' \
+                  -H 'X-Killbill-ApiSecret: lazar' \
+                  -H 'X-Killbill-CreatedBy: creator' \
+                  --data-binary "{\"name\":\"john\",\"email\":\"profiling@example.com\",\"externalKey\":\"perf-$RANDOM-$RANDOM-$RANDOM\",\"currency\":\"USD\"}" \
+                  http://127.0.0.1:8080/1.0/kb/accounts 2&gt;&amp;1 | grep Location | awk '{print $3}' | awk -F'/' '{print $7}')
+
+account_id=$(tr -dc '[[:print:]]' &lt;&lt;&lt; "$account_id")
+
+curl  \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"pluginName":"YOUR-PLUGIN","pluginInfo":{"properties":[{"key":"type","value":"CreditCard","isUpdatable":false},{"key":"ccType","value":"visa","isUpdatable":false},{"key":"ccName","value":"A Smith","isUpdatable":false},{"key":"email","value":"foo@bar.com","isUpdatable":false},{"key":"ccExpirationMonth","value":"03","isUpdatable":false},{"key":"ccExpirationYear","value":"2016","isUpdatable":false},{"key":"ccVerificationValue","value":"222","isUpdatable":false},{"key":"address1","value":"lskdjf","isUpdatable":false},{"key":"address2","value":"","isUpdatable":false},{"key":"city","value":"sdfsdfsff","isUpdatable":false},{"key":"ccFirstName","value":"sdfsdf","isUpdatable":false},{"key":"ccLastName","value":"fdsfdsf","isUpdatable":false},{"key":"zip","value":"23812","isUpdatable":false},{"key":"country","value":"USA","isUpdatable":false},{"key":"state","value":"CA","isUpdatable":false},{"key":"ccNumber","value":"4111111111111111","isUpdatable":false}]}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/${account_id}/paymentMethods?isDefault=true" &gt; /dev/null 2&gt;&amp;1
+
+
+curl  \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"transactionType":"AUTHORIZE","amount":"10","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/${account_id}/payments" &gt; /dev/null 2&gt;&amp;1
+
+echo "===&gt; Finished $iteration_id"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note that on a single machine, this client-side script will most likely be the bottleneck (spawning the processes takes too much time). Use <a href="http://jmeter.apache.org/">JMeter</a> instead.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="_seeking_help">Seeking help</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -664,7 +1040,7 @@ curl -v <span class="tok-se">\</span>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 15:57:46 UTC
+Last updated 2018-06-19 16:54:56 UTC
 </div>
 </div>
 </body>

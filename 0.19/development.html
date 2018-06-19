@@ -480,9 +480,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div id="toc" class="toc">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_environment_setup">Environment setup</a></li>
-<li><a href="#_build">Build</a>
+<li><a href="#_environment_setup">Environment setup</a>
 <ul class="sectlevel2">
+<li><a href="#_build">Build</a></li>
 <li><a href="#_dependencies">Dependencies</a></li>
 </ul>
 </li>
@@ -555,11 +555,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 </ul>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_build">Build</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="_build">Build</h3>
 <div class="paragraph">
 <p>Kill Bill is a standard Maven project. Simply run the following command from the <a href="https://github.com/killbill/killbill">project</a> root directory:</p>
 </div>
@@ -577,6 +574,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash">./bin/start-server -s</code></pre>
+</div>
 </div>
 </div>
 <div class="sect2">
@@ -746,10 +744,20 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="_families_of_caches">Families of Caches</h3>
 <div class="paragraph">
-<p>There are different types objects cached in Kill Bill:
-* Id mapping caches (UUID &#8594; Long); for e.g <code>accountRecordId</code>
-* Audit logs
-* Higher level resources (Tenant Catalog, Tenant OverdueConfig)</p>
+<p>There are different types objects cached in Kill Bill:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Id mapping caches (UUID &#8594; Long); for e.g <code>accountRecordId</code></p>
+</li>
+<li>
+<p>Audit logs</p>
+</li>
+<li>
+<p>Higher level resources (Tenant Catalog, Tenant OverdueConfig)</p>
+</li>
+</ul>
 </div>
 <div class="sect3">
 <h4 id="_id_mapping_caches">Id mapping caches</h4>
@@ -775,9 +783,17 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect3">
 <h4 id="_higher_level_resources">Higher level resources</h4>
 <div class="paragraph">
-<p>The information cached here is mutable and needs to be synchronized across different instances of Kill Bill. The code path is a bit more complex because:
-* We are caching higher abstraction than what is actually inserted in the raw tables; for e.g we store strings in the <code>tenant_kvs</code> table for the per tenant catalog and yet we cache the <code>VersionedCatalog</code> so that it does not have to rebuilt on each call.
-* We need to take care of the multi-node implementation which means we need some form of cache invalidation.</p>
+<p>The information cached here is mutable and needs to be synchronized across different instances of Kill Bill. The code path is a bit more complex because:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>We are caching higher abstraction than what is actually inserted in the raw tables; for e.g we store strings in the <code>tenant_kvs</code> table for the per tenant catalog and yet we cache the <code>VersionedCatalog</code> so that it does not have to rebuilt on each call.</p>
+</li>
+<li>
+<p>We need to take care of the multi-node implementation which means we need some form of cache invalidation.</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
 <p>There are different pieces for that puzzle&#8201;&#8212;&#8201;let&#8217;s look at the catalog, but this is similar to overdue for the overdue config xml files:</p>
@@ -789,10 +805,18 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>In the util module, we find the <code>TenantCatalogCacheLoader</code>; this is symmetrical with any other types of cache we discussed. The <code>TenantCatalogCacheLoader</code> is the one making the call to load information from disk. In that case this is slightly more complex because the <code>TenantCatalogCacheLoader</code> needs to return a higher level abstraction than the raw strings stored in disk, and the conversion requires some logic that exists in the catalog module. Since util does not have any dependency on the catalog module, the catalog module needs to also pass a <code>LoaderCallback</code> which knows how to make the transformation. Also note that the raw strings are loaded using the <code>TenantInternalApi</code> as opposed to just making a DAO call since the raw information lives in the tenant module.</p>
 </div>
 <div class="paragraph">
-<p>The tenant module is where the raw information is stored. It provides 2 sets of APIs:
-* An <code>TenantInternalApi</code> which is used internally to initialize <code>CacheInvalidationCallback</code> and retrieve information without going through the  lower level cache magic in <code>EntitySqlDaoWrapperInvocationHandler</code>.
-* A <code>TenantUserApi</code> which allows to store the raw data <code>addTenantKeyValue()</code>.
+<p>The tenant module is where the raw information is stored. It provides 2 sets of APIs:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An <code>TenantInternalApi</code> which is used internally to initialize <code>CacheInvalidationCallback</code> and retrieve information without going through the  lower level cache magic in <code>EntitySqlDaoWrapperInvocationHandler</code>.</p>
+</li>
+<li>
+<p>A <code>TenantUserApi</code> which allows to store the raw data <code>addTenantKeyValue()</code>.
 In addition it contains also a small service that listens periodically to broadcast notifications when a catalog for a given tenant has changed. This is implemented in <code>TenantCacheInvalidation</code> and the goal here is to invoked the invalidation callback.</p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -819,24 +843,33 @@ In addition it contains also a small service that listens periodically to broadc
 </li>
 <li>
 <p><strong><a href="https://github.com/killbill/killbill-platform">Kill Bill platform</a> changes</strong>:</p>
-</li>
+<div class="ulist">
+<ul>
 <li>
 <p>Modify the OSGI magic to auto-detect plugins of that new type when they are discovered</p>
 </li>
 <li>
 <p>Add JRuby support</p>
 </li>
+</ul>
+</div>
+</li>
 <li>
 <p><strong><a href="https://github.com/killbill/killbill">Kill Bill Core</a> changes</strong>:</p>
-</li>
+<div class="ulist">
+<ul>
 <li>
 <p>New Plugin API Wiring</p>
-</li>
+<div class="ulist">
+<ul>
 <li>
 <p>Add the Guice binding in the component module</p>
 </li>
 <li>
 <p>Make sure it is injected at the right place (where it needs to be used)</p>
+</li>
+</ul>
+</div>
 </li>
 <li>
 <p>Plug the new plugin API into the code (modify the code to now call that API where it makes sense)</p>
@@ -844,23 +877,34 @@ In addition it contains also a small service that listens periodically to broadc
 <li>
 <p>Decide/Implement mechanism to use if there are multiple plugins of that type registered</p>
 </li>
+</ul>
+</div>
+</li>
 <li>
 <p><strong>Ruby</strong>:</p>
-</li>
+<div class="ulist">
+<ul>
 <li>
 <p>Enhance the <a href="https://github.com/killbill/killbill-plugin-framework-ruby">Ruby framework</a></p>
 </li>
 <li>
 <p>Create a a ruby test plugin</p>
 </li>
+</ul>
+</div>
+</li>
 <li>
 <p><strong>Tests</strong>:</p>
-</li>
+<div class="ulist">
+<ul>
 <li>
 <p><a href="https://github.com/killbill/killbill/tree/master/beatrix/src/test/java/org/killbill/billing/beatrix/integration">Beatrix tests</a>: add a new <code>beatrix</code> test that will test that API (and verify the plumbing is correct as well)</p>
 </li>
 <li>
 <p>Write an <a href="https://github.com/killbill/killbill-integration-tests">integration test</a> that will use the ruby test plugin</p>
+</li>
+</ul>
+</div>
 </li>
 </ul>
 </div>
@@ -1063,7 +1107,8 @@ mvn clean install -Ptravis</code></pre>
 </li>
 <li>
 <p>The order of release is:</p>
-</li>
+<div class="ulist">
+<ul>
 <li>
 <p>killbill-api</p>
 </li>
@@ -1102,6 +1147,9 @@ mvn clean install -Ptravis</code></pre>
 </li>
 <li>
 <p>killbill</p>
+</li>
+</ul>
+</div>
 </li>
 <li>
 <p>If JAX-RS was changed, regenerate the client libraries and update Kaui.</p>
@@ -1159,9 +1207,9 @@ mvn clean install -Ptravis</code></pre>
 [ERROR]
 [ERROR] Repository "comning-1234" failures
 [ERROR]   Rule "signature-staging" failures
-[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-tests.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-tests.jar'.
-[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-test-sources.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-test-sources.jar'.
-[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-osgi-bundles-test-payment/0.3.6/killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar.asc' is not a valid signature for 'killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-tests.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-tests.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-test-sources.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-test-sources.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-osgi-bundles-test-payment/0.3.6/killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar.asc' is not a valid signature for 'killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar'.
 [ERROR]</code></pre>
 </div>
 </div>
@@ -1187,7 +1235,7 @@ mvn clean install -Ptravis</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 15:57:46 UTC
+Last updated 2018-06-19 16:54:56 UTC
 </div>
 </div>
 </body>
