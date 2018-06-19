@@ -486,6 +486,52 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_dependencies">Dependencies</a></li>
 </ul>
 </li>
+<li><a href="#_date_time_and_timezone">Date, Time and Timezone</a>
+<ul class="sectlevel2">
+<li><a href="#_mysql_date_datetime_timestamp">Mysql Date, DateTime, Timestamp</a></li>
+<li><a href="#_system_configuration">System Configuration</a></li>
+<li><a href="#_rest_apis">REST APIs</a></li>
+<li><a href="#_multiple_changes_in_a_day">Multiple changes in a day</a></li>
+</ul>
+</li>
+<li><a href="#_adding_a_new_cache">Adding a new cache</a>
+<ul class="sectlevel2">
+<li><a href="#_overview">Overview</a></li>
+<li><a href="#_families_of_caches">Families of Caches</a>
+<ul class="sectlevel3">
+<li><a href="#_id_mapping_caches">Id mapping caches</a></li>
+<li><a href="#_audit_logs">Audit logs</a></li>
+<li><a href="#_higher_level_resources">Higher level resources</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_adding_a_new_plugin_api">Adding a new plugin API</a>
+<ul class="sectlevel2">
+<li><a href="#_overview_of_the_changes">Overview of the changes</a></li>
+<li><a href="#_gory_details">Gory details</a>
+<ul class="sectlevel3">
+<li><a href="#_platform_changes">Platform Changes</a></li>
+<li><a href="#_kill_bill_core_changes">Kill Bill Core Changes</a></li>
+<li><a href="#_beatrix_tests">Beatrix tests</a></li>
+<li><a href="#_ruby_framework">Ruby Framework</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#_releases">Releases</a>
+<ul class="sectlevel2">
+<li><a href="#_versioning">Versioning</a></li>
+<li><a href="#_kill_bill_release">Kill Bill Release</a>
+<ul class="sectlevel3">
+<li><a href="#_pre_requisites">Pre-requisites</a></li>
+<li><a href="#_documentation_updates">Documentation updates</a></li>
+<li><a href="#_release">Release</a></li>
+</ul>
+</li>
+<li><a href="#_gotchas">Gotchas</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -557,10 +603,591 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_date_time_and_timezone">Date, Time and Timezone</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A few general concepts around time in Kill Bill:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Kill Bill&#8217;s granularity is the day, and as a result the system will not invoice for portions of a day.</p>
+</li>
+<li>
+<p>Each account in Kill Bill has a default timezone and that timezone is used throughout the system to be able to convert a DateTime into a Date into the account Timezone.</p>
+</li>
+<li>
+<p>Kill Bill will internally use UTC for all its Datetime manipulation, but any Date information is interpreted as a Date in the account timezone.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="_mysql_date_datetime_timestamp">Mysql Date, DateTime, Timestamp</h3>
+<div class="paragraph">
+<p>We are only relying on date and datetime which are not sensitive to the MySQL timezone setting:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Datetime: Storing a Datetime value into MySQL relies on <code>datetime</code> which is independent of the mysql time_zone. It is stored as a UTC value, and the selected value is always the same, regardless of the MySQL timezone.</p>
+</li>
+<li>
+<p>LocalDate: Storing a LocalDate value into MySQL relies on <code>date</code> which is also independent of the MySQL time_zone.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_system_configuration">System Configuration</h3>
+<div class="paragraph">
+<p>From an operation point of view, there are different places where timezone may be set:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Server on which Kill Bill runs</p>
+</li>
+<li>
+<p>JVM setting</p>
+</li>
+<li>
+<p>Database server</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p><strong>It is required to have Kill Bill runs in UTC for correct serialization of DateTime/LocalDate.</strong> Actually, in Java, there is no UTC timezone setting but instead <code>GMT</code>. In a first approximation, we will consider those identical, even though they are not and could lead to some rare issues.</p>
+</div>
+<div class="paragraph">
+<p>When Kill Bill starts, it will override the default timezone if this one was specified as a system property with something different than GMT. The code will log a WARN message and proceed to do so, to avoid issues later down the road.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_rest_apis">REST APIs</h3>
+<div class="paragraph">
+<p>Kill Bill APIs that accept dates as an argument will allow for the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A fully qualified Datetime (a point in time)</p>
+</li>
+<li>
+<p>A Date</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>If there is a need to convert from a Datetime to a Date, the conversion will occur by specifying the account timezone, so the resulting Date is as seen by the customer. This would for instance be the case when triggering a future invoice by specifying a target Datetime.</p>
+</div>
+<div class="paragraph">
+<p>If there is a need to convert from a Date to Datetime, this is obviously more subtle as we can&#8217;t infer the additional precision to compute the time. The Date is always interpreted to be a Date as seen by the customer, that is in the account timezone.</p>
+</div>
+<div class="paragraph">
+<p>The system will use the reference time on the account in such a way that converting back from that fully qualified Datetime using the account timezone would give us back the original Date provided.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_multiple_changes_in_a_day">Multiple changes in a day</h3>
+<div class="paragraph">
+<p>So what happens if a user is making several subscription changes within the same day?</p>
+</div>
+<div class="paragraph">
+<p>In the default mode, Kill Bill will react to changes immediately and trigger a new invoice for each change, which in turn might result in a charge.</p>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s consider the following case, where there exists 3 monthly plans (Bronze, Silver and Gold), ordered by ascending price:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Initially, the customer is invoiced for the Bronze, from january 1st to feb 1st. By default a payment would also be made.</p>
+</li>
+<li>
+<p>On January 1st again, the customer changes its mind and moves to Silver. A new invoice is generated that will credit the full month&#8201;&#8212;&#8201;including the day of january 1st&#8201;&#8212;&#8201;and the new plan is now invoiced from january 1st to february 1st and the credit generated is immediately used, so in the end the customer is really only invoiced for the difference of the price between the 2 plans; Additionally, a new payment is made for that amount.</p>
+</li>
+<li>
+<p>If now the customer changes its plan on Jan 2nd, the portion from January 1st to January 2nd will be invoiced for the Silver plan and the portion from January 2nd to February 1st will be invoiced for the Gold plan.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>From an entitlement point of view, the system will reflect the current plan and therefore two different calls to retrieve the plan information on January 1st may lead to different results since there was a change of plan during that day.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_adding_a_new_cache">Adding a new cache</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_overview">Overview</h3>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create a new CacheType in <code>@Cachable</code></p>
+</li>
+<li>
+<p>Create a new cache loader in <code>org.killbill.billing.util.cache</code>. Make sure to extend <code>BaseCacheLoader</code> and reference your CacheType via <code>getCacheType()</code>. The loader should also be marked as <code>@Singleton</code>.</p>
+</li>
+<li>
+<p>Register your new cache loader in the constructor of <code>EhCacheCacheManagerProvider</code></p>
+</li>
+<li>
+<p>Configure your new cache in ehcache.xml</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>You&#8217;re all set! To start caching your <code>SqlDao</code> calls, mark your method as <code>@Cachable</code> and use <code>@CachableKey</code> in the method arguments to create the cache key.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_families_of_caches">Families of Caches</h3>
+<div class="paragraph">
+<p>There are different types objects cached in Kill Bill:
+* Id mapping caches (UUID &#8594; Long); for e.g <code>accountRecordId</code>
+* Audit logs
+* Higher level resources (Tenant Catalog, Tenant OverdueConfig)</p>
+</div>
+<div class="sect3">
+<h4 id="_id_mapping_caches">Id mapping caches</h4>
+<div class="paragraph">
+<p>The information cached is immutable and does not have to be synchronized across Kill Bill instances; in the worst case, we have a cache miss on a specific instance, and then the cache will end up being populated.</p>
+</div>
+<div class="paragraph">
+<p>The mapping info is implemented in <code>DefaultNonEntityDao</code>; the call first provides a <code>CacheController</code> which will look for cached info, and if not found call the corresponding CacheLoader. This one in turn will call back the <code>DefaultNonEntityDao</code> with a null <code>CacheController</code>, which will result in making the call to the database and populate the cache.</p>
+</div>
+<div class="paragraph">
+<p>Also, there is some special logics in <code>EntitySqlDaoWrapperInvocationHandler</code> that will populate the cache when objects get created&#8201;&#8212;&#8201;when they get retrieved actually the first time using <code>getById</code>. Since the pattern in Kill Bill is to retrieve store information using <code>getById</code> after object was created, this ends up populating the mapping cache.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_audit_logs">Audit logs</h4>
+<div class="paragraph">
+<p>The information cached here is mutable and needs to be synchronized across different instances of Kill Bill. <a href="https://github.com/killbill/killbill/issues/247">This has not been implemented.</a></p>
+</div>
+<div class="paragraph">
+<p>The logics to cache information happens in <code>EntitySqlDaoWrapperInvocationHandler</code>.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_higher_level_resources">Higher level resources</h4>
+<div class="paragraph">
+<p>The information cached here is mutable and needs to be synchronized across different instances of Kill Bill. The code path is a bit more complex because:
+* We are caching higher abstraction than what is actually inserted in the raw tables; for e.g we store strings in the <code>tenant_kvs</code> table for the per tenant catalog and yet we cache the <code>VersionedCatalog</code> so that it does not have to rebuilt on each call.
+* We need to take care of the multi-node implementation which means we need some form of cache invalidation.</p>
+</div>
+<div class="paragraph">
+<p>There are different pieces for that puzzle&#8201;&#8212;&#8201;let&#8217;s look at the catalog, but this is similar to overdue for the overdue config xml files:</p>
+</div>
+<div class="paragraph">
+<p>In the catalog module, the service registers the <code>CacheInvalidationCallback</code> with the tenant module at <code>INIT_SERVICE</code>; this is required to make sure the tenant module which does not have dependency on the catalog can call catalog specific code to invalidate the entries when it detects some modifications. The per tenant catalog are cached in the catalog module in the <code>EhCacheCatalogCache</code>. The <code>EhCacheCatalogCache</code> offers the api to load and invalidate the cache.</p>
+</div>
+<div class="paragraph">
+<p>In the util module, we find the <code>TenantCatalogCacheLoader</code>; this is symmetrical with any other types of cache we discussed. The <code>TenantCatalogCacheLoader</code> is the one making the call to load information from disk. In that case this is slightly more complex because the <code>TenantCatalogCacheLoader</code> needs to return a higher level abstraction than the raw strings stored in disk, and the conversion requires some logic that exists in the catalog module. Since util does not have any dependency on the catalog module, the catalog module needs to also pass a <code>LoaderCallback</code> which knows how to make the transformation. Also note that the raw strings are loaded using the <code>TenantInternalApi</code> as opposed to just making a DAO call since the raw information lives in the tenant module.</p>
+</div>
+<div class="paragraph">
+<p>The tenant module is where the raw information is stored. It provides 2 sets of APIs:
+* An <code>TenantInternalApi</code> which is used internally to initialize <code>CacheInvalidationCallback</code> and retrieve information without going through the  lower level cache magic in <code>EntitySqlDaoWrapperInvocationHandler</code>.
+* A <code>TenantUserApi</code> which allows to store the raw data <code>addTenantKeyValue()</code>.
+In addition it contains also a small service that listens periodically to broadcast notifications when a catalog for a given tenant has changed. This is implemented in <code>TenantCacheInvalidation</code> and the goal here is to invoked the invalidation callback.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_adding_a_new_plugin_api">Adding a new plugin API</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Kill Bill supports multiple <a href="https://github.com/killbill/killbill-plugin-api">plugin APIs</a>, which goal is to customize the system or interact with third party providers.</p>
+</div>
+<div class="paragraph">
+<p>The purpose of this doc is to <strong>help with the engineering effort</strong> required to add a new plugin API, and is not an exact exhaustive list of recipes to apply.</p>
+</div>
+<div class="sect2">
+<h3 id="_overview_of_the_changes">Overview of the changes</h3>
+<div class="paragraph">
+<p>The following areas have to be considered when adding a new plugin API:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Plugin Apis</strong>: Add the new maven module into the repo <a href="https://github.com/killbill/killbill-plugin-api" class="bare">https://github.com/killbill/killbill-plugin-api</a> to match that new API, and define all the abstractions and APIs</p>
+</li>
+<li>
+<p><strong><a href="https://github.com/killbill/killbill-platform">Kill Bill platform</a> changes</strong>:</p>
+</li>
+<li>
+<p>Modify the OSGI magic to auto-detect plugins of that new type when they are discovered</p>
+</li>
+<li>
+<p>Add JRuby support</p>
+</li>
+<li>
+<p><strong><a href="https://github.com/killbill/killbill">Kill Bill Core</a> changes</strong>:</p>
+</li>
+<li>
+<p>New Plugin API Wiring</p>
+</li>
+<li>
+<p>Add the Guice binding in the component module</p>
+</li>
+<li>
+<p>Make sure it is injected at the right place (where it needs to be used)</p>
+</li>
+<li>
+<p>Plug the new plugin API into the code (modify the code to now call that API where it makes sense)</p>
+</li>
+<li>
+<p>Decide/Implement mechanism to use if there are multiple plugins of that type registered</p>
+</li>
+<li>
+<p><strong>Ruby</strong>:</p>
+</li>
+<li>
+<p>Enhance the <a href="https://github.com/killbill/killbill-plugin-framework-ruby">Ruby framework</a></p>
+</li>
+<li>
+<p>Create a a ruby test plugin</p>
+</li>
+<li>
+<p><strong>Tests</strong>:</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill/tree/master/beatrix/src/test/java/org/killbill/billing/beatrix/integration">Beatrix tests</a>: add a new <code>beatrix</code> test that will test that API (and verify the plumbing is correct as well)</p>
+</li>
+<li>
+<p>Write an <a href="https://github.com/killbill/killbill-integration-tests">integration test</a> that will use the ruby test plugin</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_gory_details">Gory details</h3>
+<div class="paragraph">
+<p>Let&#8217;s assume we are trying to add new plugin API called <code>Foo</code>, in a Kill Bill module called <code>Bar</code>. In the case of the <code>PaymentPluginApi</code>, <code>Foo</code> = <code>Payment</code>, and the module <code>Bar</code> = <a href="https://github.com/killbill/killbill/tree/master/payment" class="bare">https://github.com/killbill/killbill/tree/master/payment</a>.</p>
+</div>
+<div class="sect3">
+<h4 id="_platform_changes">Platform Changes</h4>
+<div class="paragraph">
+<p>The OSGI magic to register new plugins of a given type occurs in <a href="https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/KillbillActivator.java"><code>KillbillActivator</code></a>:</p>
+</div>
+<div class="paragraph">
+<p>The following would need to be added in the <code>KillbillActivator</code></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>@Inject(optional = true)
+public void addFooPluginApiOSGIServiceRegistration(final OSGIServiceRegistration&lt;FooPluginApi&gt; fooProviderPluginRegistry) {
+    allRegistrationHandlers.add(fooProviderPluginRegistry);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Additionally, there is Java platform piece of code that needs to be written to support Ruby plugins:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>In <a href="https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/bundles/jruby/src/main/java/org/killbill/billing/osgi/bundles/jruby/JRubyActivator.java"><code>JRubyActivator</code></a>, define new <code>KILLBILL_PLUGIN_JFOO = "Killbill::Plugin::Api::FooPluginApi"</code>, and modify <code>startWithContextClassLoader</code> to support <code>Foo</code></p>
+</li>
+<li>
+<p>Create new class <code>JRubyFooPlugin</code></p>
+</li>
+<li>
+<p>Add Guice binding where necessary</p>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_kill_bill_core_changes">Kill Bill Core Changes</h4>
+<div class="paragraph">
+<p>This section is a bit harder to describe as it depends on the plugin type, and what the code expects to do with that plugin API. But the main pieces are:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create a new <code>DefaultFooProviderPluginRegistryProvider implements Provider&lt;OSGIServiceRegistration&lt;FooPluginApi&gt;&gt;</code></p>
+</li>
+<li>
+<p>Create new <code>DefaultFooProviderPluginRegistry implements OSGIServiceRegistration&lt;FooPluginApi&gt;</code></p>
+</li>
+<li>
+<p>Add Guice bindings in the module for <code>DefaultBarModule</code></p>
+</li>
+<li>
+<p>Inject the new registry <code>OSGIServiceRegistration&lt;FooPluginApi&gt;</code> where it is needed, that is at the place where the current code will need to interact with that new <code>FooPluginApi</code> (See example in <code>InvoicePluginDispatcher</code> for <code>InvoicePluginApi</code>)</p>
+</li>
+<li>
+<p>Define the mechanism to decide what happens when there are multiple plugins registered for that api. The code could walk through all plugins (ordering, aggregation or stop at first one that replies, &#8230;&#8203;), use some property or other mechanism to pick a specific plugin. For instance:</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>PaymentPluginApi</code>: The Payment code will use the PaymentMethod associated the payment call to decide how to route to the correct plugin</p>
+</li>
+<li>
+<p><code>InvoicePluginApi</code>: The Invoice code will loop through all plugins and aggregate the results</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Potentially add some <code>NoOpFooProviderPluginProvider</code> and <code>NoOpFooPluginApi</code> if Kill Bill needs to ship with an embedded default plugin by default, or if those are needed for tests</p>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_beatrix_tests">Beatrix tests</h4>
+<div class="paragraph">
+<p>Take a look at <a href="https://github.com/killbill/killbill/blob/master/beatrix/src/test/java/org/killbill/billing/beatrix/integration/TestWithTaxItems.java">TestWithTaxItems</a> which tests the <code>InvoicePluginApi</code></p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_ruby_framework">Ruby Framework</h4>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>A new class <code>foo.rb</code> must be defined similar to <a href="https://github.com/killbill/killbill-plugin-framework-ruby/blob/master/lib/killbill/invoice.rb"><code>invoice.rb</code></a> for the <code>InvoicePluginApi</code> and add <code>require</code> in <code>killbill.rb</code></p>
+</li>
+<li>
+<p>Regenerate the auto-generated plugin classes using the <a href="https://github.com/killbill/killbill-java-parser">generator</a></p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_releases">Releases</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Summary of the steps (and gotchas) to release Kill Bill.</p>
+</div>
+<div class="sect2">
+<h3 id="_versioning">Versioning</h3>
+<div class="paragraph">
+<p>A Kill Bill version has major, minor and patch numbers:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>major is currently locked at 0</p>
+</li>
+<li>
+<p>even minor numbers are reserved for stable releases (production ready)</p>
+</li>
+<li>
+<p>odd minor numbers are reserved for development releases (APIs and Plugin APIs can change)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>While plugins can use their own versioning scheme, official plugins have major, minor and patch numbers:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>major tracks specific Kill Bill minor releases (e.g. 1.x.y for 0.14.z, 2.x.y for 0.15.z, 3.x.y for 0.16.z, etc.)</p>
+</li>
+<li>
+<p>minor are used to track large changes in the plugin (e.g. gateway API version change)</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_kill_bill_release">Kill Bill Release</h3>
+<div class="sect3">
+<h4 id="_pre_requisites">Pre-requisites</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>All code should be checked-in</p>
+</li>
+<li>
+<p>All tests should pass on both the MySQL and Travis profiles:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>mvn clean install -Pmysql
+mvn clean install -Ptravis</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Take a look at CircleCI</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_documentation_updates">Documentation updates</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>Update the NEWS file with GitHub issues closed for that release and summary of important changes or bug fixes. You can browse the commits since the latest tag via:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>git log $(git describe --tags $(git rev-list --tags --max-count=1))..</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create a release page. While the NEWS file is geared towards developers, the release notes are meant for users upgrading. Mention JAX-RS and DDL changes, new features, etc.</p>
+</li>
+<li>
+<p>Update <code>killbill-server-update-list.properties</code> in <a href="https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/update-checker/killbill-server-update-list.properties">killbill</a> and <a href="https://github.com/killbill/killbill/blob/master/profiles/killpay/src/main/resources/update-checker/killbill-server-update-list.properties">killpay</a> with a link to these release notes</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_release">Release</h4>
+<div class="ulist">
+<ul>
+<li>
+<p>To release, in each Java repo: <code>mvn release:clean &amp;&amp; mvn release:prepare &amp;&amp; mvn release:perform</code></p>
+</li>
+<li>
+<p>The order of release is:</p>
+</li>
+<li>
+<p>killbill-api</p>
+</li>
+<li>
+<p>killbill-oss-parent</p>
+</li>
+<li>
+<p>killbill-plugin-api</p>
+</li>
+<li>
+<p>killbill-oss-parent</p>
+</li>
+<li>
+<p>killbill-commons</p>
+</li>
+<li>
+<p>killbill-oss-parent</p>
+</li>
+<li>
+<p>killbill-plugin-framework-ruby (with code regenerated)</p>
+</li>
+<li>
+<p>killbill-currency-plugin-test (with update killbill gem)</p>
+</li>
+<li>
+<p>killbill-notification-test-plugin (with update killbill gem)</p>
+</li>
+<li>
+<p>killbill-payment-test-plugin (with update killbill gem)</p>
+</li>
+<li>
+<p>killbill-platform (updated with the latest plugins)</p>
+</li>
+<li>
+<p>killbill-oss-parent</p>
+</li>
+<li>
+<p>killbill</p>
+</li>
+<li>
+<p>If JAX-RS was changed, regenerate the client libraries and update Kaui.</p>
+</li>
+<li>
+<p>Update killbill-docs, including XSD and DDL files in the branch <code>gh-pages</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_gotchas">Gotchas</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>To re-run a <code>release:perform</code> of an arbitrary tag:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>mvn -DconnectionUrl=scm:git:git@github.com:killbill/killbill.git -Dtag=your_tag release:perform</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If <code>release:perform</code> fails because of Sonatype issues during the 'Closing staging repository&#8230;&#8203;' stage, wait between 30 and 40 minutes - the operation should finish in the background. If it doesn&#8217;t and/or the repository is dropped, try the following switches:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>mvn -DkeepStagingRepositoryOnFailure=true -DkeepStagingRepositoryOnCloseRuleFailure=true -DautoReleaseAfterClose=true -DstagingProgressTimeoutMinutes=20 -DconnectionUrl=scm:git:git@github.com:killbill/killbill.git -Dtag=your_tag release:perform</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If the timeout happens during the 'Remote staging repositories are being released&#8230;&#8203;' stage, wait again between 30 and 40 minutes - the operation should finish in the background. If it doesn&#8217;t, try going to the UI and close it.</p>
+</li>
+<li>
+<p>If the release fails with signature errors, e.g.:</p>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>Waiting for operation to complete.......................................
+
+[ERROR]
+[ERROR] Nexus Staging Rules Failure Report
+[ERROR] ==================================
+[ERROR]
+[ERROR] Repository "comning-1234" failures
+[ERROR]   Rule "signature-staging" failures
+[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-tests.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-tests.jar'.
+[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-test-sources.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-test-sources.jar'.
+[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-osgi-bundles-test-payment/0.3.6/killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar.asc' is not a valid signature for 'killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar'.
+[ERROR]</code></pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>    keep re-trying to close (maybe try the **nexus-staging:release** goal manually). In my testing, you need **N** numbers of retries, where **N** is the original number of invalid signatures (after each run, you should have fewer and fewer errors). Alternatively, you can follow the steps http://www.sonatype.com/books/nexus-book/reference/staging-sect-managing-staging.html[here].
+* If you are having some issues and need to (re-)upload all the artifacts, you can do it manually:
+ * Go in the checkout/target directory and run `jar -cvf bundle.jar project.pom project.pom.asc project.jar project.jar.asc ....` where project is the name of your repo and include as many artifact with their signature as you have
+ * Then go under 'Staging Upload' and select 'Upload Mode' = 'Artifact Bundle', and select the bundle you just created</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An example of a script for the killbill-platform repo to generate the bundle.jar for each modules, which can then be updated later by hand:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>for m in platform-api base lifecycle osgi-api osgi osgi-bundles platform-test server; do RES=""; cd $m/target; for i in `ls | grep asc`; do base=`echo $i | sed s/.asc//`; RES="$RES $base $base.asc"; done; rm -f bundle.jar; jar -cvf bundle.jar $RES;  cd ../..; done</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 08:22:44 UTC
+Last updated 2018-06-19 15:57:46 UTC
 </div>
 </div>
 </body>
