@@ -582,8 +582,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_consumable_in_arrear_mode_2">Consumable In Arrear Mode</a></li>
 <li><a href="#_agrregate_mode">Agrregate Mode</a></li>
 <li><a href="#_detail_mode">Detail Mode</a></li>
-<li><a href="#_late_usage_data">Late Usage Data</a></li>
-<li><a href="#_missing_usage_data">Missing Usage Data</a></li>
+<li><a href="#_past_usage_periods">Past Usage Periods</a></li>
 </ul>
 </li>
 <li><a href="#invoicing-dry-run">Invoice Dry Run</a>
@@ -2850,15 +2849,40 @@ the system property <code>org.killbill.invoice.item.result.behavior.mode</code> 
 </div>
 </div>
 <div class="sect3">
-<h4 id="_late_usage_data">Late Usage Data</h4>
+<h4 id="_past_usage_periods">Past Usage Periods</h4>
 <div class="paragraph">
-<p>If for some reason, there is some late usage reported for a past period that was already billed, the system will include this delta. Depending on the type of usage and mode (e.g <code>AGGREGATE</code>) we will see one or several <code>USAGE</code> item for this period to reflect such additional charge.</p>
+<p>By default the system is configured to look at the past 2 billing periods, but this can be changed by using the configuration <code>org.killbill.invoice.readMaxRawUsagePreviousPeriod</code> (default=2). Let&#8217;s assume a MONTHLY subscription that was invoiced for the following periods:</p>
 </div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>2018-01-01 - 2018-02-01</code></p>
+</li>
+<li>
+<p><code>2018-02-01 - 2018-03-01</code></p>
+</li>
+<li>
+<p><code>2018-03-01 - 2018-04-01</code></p>
+</li>
+</ul>
 </div>
-<div class="sect3">
-<h4 id="_missing_usage_data">Missing Usage Data</h4>
 <div class="paragraph">
-<p>Currently it is considered an error to have past usage data missing. In such a scenario, the system will <code>park</code> the account, that is, no more invoicing will happen on the account until the issue is fixed.</p>
+<p>On <code>2018-05-01</code>, the system will by default look to invoice for the period <code>2018-04-01 - 2018-05-01</code>, but it will also recompute items for the past 2 periods, <code>2018-03-01 - 2018-04-01</code> and <code>2018-02-01 - 2018-03-01</code>.</p>
+</div>
+<div class="paragraph">
+<p>Late Usage Data:</p>
+</div>
+<div class="paragraph">
+<p>If for some reason, there is some late usage reported in these past 2 periods, the system will include this delta. Depending on the type of usage and mode (e.g <code>AGGREGATE</code>) we will see one or several <code>USAGE</code> item for this period to reflect such additional charge. If the late usage is older than these past 2 periods, it is simply ignored.</p>
+</div>
+<div class="paragraph">
+<p>Missing Usage Data:</p>
+</div>
+<div class="paragraph">
+<p>Currently it is considered an error to delete past usage data in these past 2 periods, the invoicing system would throw an error and prevent invoicing to happen correctly. If the late missing data is older than these past 2 periods, it is simply ignored.</p>
+</div>
+<div class="paragraph">
+<p>One can set the system property&#8201;&#8212;&#8201;or per-tenant config&#8201;&#8212;&#8201;<code>org.killbill.invoice.readMaxRawUsagePreviousPeriod</code> to <code>0</code> to ignore any past data&#8201;&#8212;&#8201;late usage or missing data.</p>
 </div>
 </div>
 </div>
@@ -3578,7 +3602,7 @@ java -jar killbill-overdue-*-xsd-tool.jar schema.xsd</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-17 01:25:22 UTC
+Last updated 2018-06-19 03:40:08 UTC
 </div>
 </div>
 </body>
