@@ -8,7 +8,7 @@ Pre-requisites:
 * Maven 3.5.2 or later installed
 * Git 2.15.1 or later installed
 
-== Build
+=== Build
 
 Kill Bill is a standard Maven project. Simply run the following command from the https://github.com/killbill/killbill[project] root directory:
 
@@ -107,6 +107,7 @@ You're all set! To start caching your `SqlDao` calls, mark your method as `@Cach
 === Families of Caches
 
 There are different types objects cached in Kill Bill:
+
 * Id mapping caches (UUID -> Long); for e.g `accountRecordId`
 * Audit logs
 * Higher level resources (Tenant Catalog, Tenant OverdueConfig)
@@ -128,6 +129,7 @@ The logics to cache information happens in `EntitySqlDaoWrapperInvocationHandler
 ==== Higher level resources
 
 The information cached here is mutable and needs to be synchronized across different instances of Kill Bill. The code path is a bit more complex because:
+
 * We are caching higher abstraction than what is actually inserted in the raw tables; for e.g we store strings in the `tenant_kvs` table for the per tenant catalog and yet we cache the `VersionedCatalog` so that it does not have to rebuilt on each call.
 * We need to take care of the multi-node implementation which means we need some form of cache invalidation.
 
@@ -138,6 +140,7 @@ In the catalog module, the service registers the `CacheInvalidationCallback` wit
 In the util module, we find the `TenantCatalogCacheLoader`; this is symmetrical with any other types of cache we discussed. The `TenantCatalogCacheLoader` is the one making the call to load information from disk. In that case this is slightly more complex because the `TenantCatalogCacheLoader` needs to return a higher level abstraction than the raw strings stored in disk, and the conversion requires some logic that exists in the catalog module. Since util does not have any dependency on the catalog module, the catalog module needs to also pass a `LoaderCallback` which knows how to make the transformation. Also note that the raw strings are loaded using the `TenantInternalApi` as opposed to just making a DAO call since the raw information lives in the tenant module.
 
 The tenant module is where the raw information is stored. It provides 2 sets of APIs:
+
 * An `TenantInternalApi` which is used internally to initialize `CacheInvalidationCallback` and retrieve information without going through the  lower level cache magic in `EntitySqlDaoWrapperInvocationHandler`.
 * A `TenantUserApi` which allows to store the raw data `addTenantKeyValue()`.
 In addition it contains also a small service that listens periodically to broadcast notifications when a catalog for a given tenant has changed. This is implemented in `TenantCacheInvalidation` and the goal here is to invoked the invalidation callback.
@@ -154,20 +157,20 @@ The following areas have to be considered when adding a new plugin API:
 
 * **Plugin Apis**: Add the new maven module into the repo https://github.com/killbill/killbill-plugin-api to match that new API, and define all the abstractions and APIs
 * **https://github.com/killbill/killbill-platform[Kill Bill platform] changes**:
-  * Modify the OSGI magic to auto-detect plugins of that new type when they are discovered
-  * Add JRuby support
+** Modify the OSGI magic to auto-detect plugins of that new type when they are discovered
+** Add JRuby support
 * **https://github.com/killbill/killbill[Kill Bill Core] changes**:
-  * New Plugin API Wiring
-    * Add the Guice binding in the component module
-    * Make sure it is injected at the right place (where it needs to be used)
-  * Plug the new plugin API into the code (modify the code to now call that API where it makes sense)
-  * Decide/Implement mechanism to use if there are multiple plugins of that type registered
+** New Plugin API Wiring
+*** Add the Guice binding in the component module
+*** Make sure it is injected at the right place (where it needs to be used)
+** Plug the new plugin API into the code (modify the code to now call that API where it makes sense)
+** Decide/Implement mechanism to use if there are multiple plugins of that type registered
 * **Ruby**:
-  * Enhance the https://github.com/killbill/killbill-plugin-framework-ruby[Ruby framework]
-  * Create a a ruby test plugin
+** Enhance the https://github.com/killbill/killbill-plugin-framework-ruby[Ruby framework]
+** Create a a ruby test plugin
 * **Tests**:
-  * https://github.com/killbill/killbill/tree/master/beatrix/src/test/java/org/killbill/billing/beatrix/integration[Beatrix tests]: add a new `beatrix` test that will test that API (and verify the plumbing is correct as well)
-  * Write an https://github.com/killbill/killbill-integration-tests[integration test] that will use the ruby test plugin
+** https://github.com/killbill/killbill/tree/master/beatrix/src/test/java/org/killbill/billing/beatrix/integration[Beatrix tests]: add a new `beatrix` test that will test that API (and verify the plumbing is correct as well)
+** Write an https://github.com/killbill/killbill-integration-tests[integration test] that will use the ruby test plugin
 
 === Gory details
 
@@ -201,8 +204,8 @@ This section is a bit harder to describe as it depends on the plugin type, and w
 3. Add Guice bindings in the module for `DefaultBarModule`
 4. Inject the new registry `OSGIServiceRegistration<FooPluginApi>` where it is needed, that is at the place where the current code will need to interact with that new `FooPluginApi` (See example in `InvoicePluginDispatcher` for `InvoicePluginApi`)
 5. Define the mechanism to decide what happens when there are multiple plugins registered for that api. The code could walk through all plugins (ordering, aggregation or stop at first one that replies, ...), use some property or other mechanism to pick a specific plugin. For instance:
-  * `PaymentPluginApi`: The Payment code will use the PaymentMethod associated the payment call to decide how to route to the correct plugin
-  * `InvoicePluginApi`: The Invoice code will loop through all plugins and aggregate the results
+** `PaymentPluginApi`: The Payment code will use the PaymentMethod associated the payment call to decide how to route to the correct plugin
+** `InvoicePluginApi`: The Invoice code will loop through all plugins and aggregate the results
 6. Potentially add some `NoOpFooProviderPluginProvider` and `NoOpFooPluginApi` if Kill Bill needs to ship with an embedded default plugin by default, or if those are needed for tests
 
 ==== Beatrix tests
@@ -258,19 +261,19 @@ git log $(git describe --tags $(git rev-list --tags --max-count=1))..
 
 * To release, in each Java repo: `mvn release:clean && mvn release:prepare && mvn release:perform`
 * The order of release is:
-  * killbill-api
-  * killbill-oss-parent
-  * killbill-plugin-api
-  * killbill-oss-parent
-  * killbill-commons
-  * killbill-oss-parent
-  * killbill-plugin-framework-ruby (with code regenerated)
-  * killbill-currency-plugin-test (with update killbill gem)
-  * killbill-notification-test-plugin (with update killbill gem)
-  * killbill-payment-test-plugin (with update killbill gem)
-  * killbill-platform (updated with the latest plugins)
-  * killbill-oss-parent
-  * killbill
+** killbill-api
+** killbill-oss-parent
+** killbill-plugin-api
+** killbill-oss-parent
+** killbill-commons
+** killbill-oss-parent
+** killbill-plugin-framework-ruby (with code regenerated)
+** killbill-currency-plugin-test (with update killbill gem)
+** killbill-notification-test-plugin (with update killbill gem)
+** killbill-payment-test-plugin (with update killbill gem)
+** killbill-platform (updated with the latest plugins)
+** killbill-oss-parent
+** killbill
 * If JAX-RS was changed, regenerate the client libraries and update Kaui.
 * Update killbill-docs, including XSD and DDL files in the branch `gh-pages`.
 
@@ -298,9 +301,9 @@ Waiting for operation to complete.......................................
 [ERROR]
 [ERROR] Repository "comning-1234" failures
 [ERROR]   Rule "signature-staging" failures
-[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-tests.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-tests.jar'.
-[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-test-sources.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-test-sources.jar'.
-[ERROR]     * Invalid Signature: '/com/ning/billing/killbill-osgi-bundles-test-payment/0.3.6/killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar.asc' is not a valid signature for 'killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-tests.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-tests.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-test-sources.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-test-sources.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-osgi-bundles-test-payment/0.3.6/killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar.asc' is not a valid signature for 'killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar'.
 [ERROR]
 ```
     keep re-trying to close (maybe try the **nexus-staging:release** goal manually). In my testing, you need **N** numbers of retries, where **N** is the original number of invalid signatures (after each run, you should have fewer and fewer errors). Alternatively, you can follow the steps http://www.sonatype.com/books/nexus-book/reference/staging-sect-managing-staging.html[here].
