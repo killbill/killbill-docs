@@ -117,11 +117,25 @@ Also, the `itemDetails` json field will provide some additional details:
 ----
 
 
-==== Late Usage Data
+==== Past Usage Periods
 
-If for some reason, there is some late usage reported for a past period that was already billed, the system will include this delta. Depending on the type of usage and mode (e.g `AGGREGATE`) we will see one or several `USAGE` item for this period to reflect such additional charge. 
+By default the system is configured to look at the past 2 billing periods, but this can be changed by using the configuration `org.killbill.invoice.readMaxRawUsagePreviousPeriod` (default=2). Let's assume a MONTHLY subscription that was invoiced for the following periods:
 
-==== Missing Usage Data
+* `2018-01-01 - 2018-02-01`
+* `2018-02-01 - 2018-03-01`
+* `2018-03-01 - 2018-04-01`
 
-Currently it is considered an error to have past usage data missing. In such a scenario, the system will `park` the account, that is, no more invoicing will happen on the account until the issue is fixed.
+On `2018-05-01`, the system will by default look to invoice for the period `2018-04-01 - 2018-05-01`, but it will also recompute items for the past 2 periods, `2018-03-01 - 2018-04-01` and `2018-02-01 - 2018-03-01`.
+
+Late Usage Data:
+
+If for some reason, there is some late usage reported in these past 2 periods, the system will include this delta. Depending on the type of usage and mode (e.g `AGGREGATE`) we will see one or several `USAGE` item for this period to reflect such additional charge. If the late usage is older than these past 2 periods, it is simply ignored.
+
+Missing Usage Data:
+
+Currently it is considered an error to delete past usage data in these past 2 periods, the invoicing system would throw an error and prevent invoicing to happen correctly. If the late missing data is older than these past 2 periods, it is simply ignored.
+
+One can set the system property -- or per-tenant config -- `org.killbill.invoice.readMaxRawUsagePreviousPeriod` to `0` to ignore any past data -- late usage or missing data.
+
+
 
