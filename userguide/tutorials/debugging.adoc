@@ -334,6 +334,166 @@ echo "===> Finished $iteration_id"
 
 Note that on a single machine, this client-side script will most likely be the bottleneck (spawning the processes takes too much time). Use http://jmeter.apache.org/[JMeter] instead.
 
+
+== Ruby plugins debugging
+
+=== Using RubyMine
+
+1. Add the following dependencies to your Gemfile:
+
+```
+gem 'ruby-debug', '~> 0.10'
+gem 'ruby-debug-ide', '~> 0.6'
+```
+
+2. Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
+
+```
+unless defined?(Debugger::PROG_SCRIPT)
+  JRuby.objectspace = true
+
+  require 'ruby-debug-ide'
+  Debugger::PROG_SCRIPT = __FILE__
+
+  require 'ostruct'
+  options = OpenStruct.new(
+      # Host name used for remote debugging
+      'host' => nil,
+      # Port used for remote debugging
+      'port' => 1234,
+      # Port used for multi-process debugging dispatcher
+      'dispatcher_port' => -1,
+      # Load mode (experimental)
+      'load_mode' => false,
+      # Stop when the script is loaded
+      'stop' => false,
+      # Keep frame bindings
+      'frame_bind' => true,
+      # Turn on line tracing
+      'tracing' => false,
+      # Disables interrupt signal handler
+      'int_handler' => true,
+      # Evaluation timeout in seconds
+      'evaluation_timeout' => 20,
+      # Enable all RubyMine-specific incompatible protocol extensions
+      'rm_protocol_extensions' => true,
+      # Enable chatchpointDeleted event
+      'catchpoint_deleted_event' => false,
+      # Allow to pass variable's value as nested element instead of attribute
+      'value_as_nested_element' => true
+  )
+
+  Debugger.keep_frame_binding = options.frame_bind
+  Debugger.tracing = options.tracing
+  Debugger.evaluation_timeout = options.evaluation_timeout
+  Debugger.catchpoint_deleted_event = options.catchpoint_deleted_event || options.rm_protocol_extensions
+  Debugger.value_as_nested_element = options.value_as_nested_element || options.rm_protocol_extensions
+
+  Debugger.debug_program(options)
+
+  exit
+end
+```
+
+3. Rebuild and redeploy the plugin:
+
+```
+bundle install && \
+rake killbill:clean && \
+rake build && \
+rake killbill:package && \
+rake killbill:deploy[true]
+```
+
+4. Create a Ruby remote debug configuration in RubyMine:
+
+ * Remote host: localhost
+ * Remote port: 1234
+ * Remote root folder: /var/tmp/bundles/plugins/ruby/\<plugin\>/\<version\>/ROOT
+ * Local port: 26162
+ * Local root folder: \<path to your code\>
+
+5. Restart Kill Bill with the Java property `-X+O`
+
+The Kill Bill startup sequence will stop at:
+
+```
+Fast Debugger (ruby-debug-ide 0.6.0, ruby-debug-base 0.10.6, file filtering is supported) listens on 127.0.0.1:1234
+```
+
+until RubyMine is connected.
+
+=== Using ruby-debug
+
+While RubyMine offers a nice GUI, it can quickly lose its context or have a hard time stepping through gems dependencies. `ruby-debug` is much more reliable.
+
+1. Add the following dependency to your Gemfile:
+
+```
+gem 'ruby-debug', '~> 0.10'
+```
+
+2. Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
+
+```
+require 'ruby-debug'
+Debugger.wait_connection = true
+Debugger.start_remote(nil, 1234)
+```
+
+3. Set a breakpoint in the source code using `debugger`
+4. Rebuild and redeploy the plugin:
+
+```
+bundle install && \
+rake killbill:clean && \
+rake build && \
+rake killbill:package && \
+rake killbill:deploy[true]
+```
+
+5. Restart Kill Bill with the Java property `-X+O`
+
+The Kill Bill startup sequence will stop until `ruby-debug` is connected. To launch it:
+
+```
+rdebug --client -p 1234
+```
+
+When the breakpoint is hit, you can examine the context and step into the code:
+
+```
+lib/cybersource/api.rb:164
+properties = merge_properties(properties, options)
+(rdb:9) l
+[159, 168] in lib/cybersource/api.rb
+   159          # Pass extra parameters for the gateway here
+   160          options = {}
+   161
+   162          debugger
+   163
+=> 164          properties = merge_properties(properties, options)
+   165          super(kb_account_id, kb_payment_method_id, payment_method_props, set_default, properties, context)
+   166        end
+   167
+   168        def delete_payment_method(kb_account_id, kb_payment_method_id, properties, context)
+(rdb:9) s
+/var/tmp/bundles/plugins/ruby/killbill-cybersource/3.0.0/ROOT/gems/gems/killbill-5.2.0/lib/killbill/helpers/properties_helper.rb:24
+merged = properties_to_hash(properties, options)
+(rdb:9) l
+[19, 28] in /var/tmp/bundles/plugins/ruby/killbill-cybersource/3.0.0/ROOT/gems/gems/killbill-5.2.0/lib/killbill/helpers/properties_helper.rb
+   19          end
+   20          merged.merge(options)
+   21        end
+   22
+   23        def merge_properties(properties, options = {})
+=> 24          merged = properties_to_hash(properties, options)
+   25
+   26          properties = []
+   27          merged.each do |k, v|
+   28            properties << build_property(k, v)
+```
+
 == Seeking help
 
 If all else fail, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] for help (*do not open a Github issue*).

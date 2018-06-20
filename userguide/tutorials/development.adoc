@@ -26,6 +26,31 @@ Once built, you can start Kill Bill by running:
 ./bin/start-server -s
 ----
 
+==== PostgreSQL
+
+By default, Kill Bill will expect a MySQL database. To switch to PostgreSQL:
+
+1. Create a killbill user and database (verify connectivity with `psql -h 127.0.0.1 -U killbill -p 5432`):
+
+```
+root=# create USER killbill;
+root=# \password killbill;
+root=# CREATE DATABASE killbill WITH OWNER killbill;
+```
+
+2. Create the schema: `./bin/db-helper -a create  --driver postgres -u killbill -p killbill `
+3. Modify the `killbill.properties` under `profiles/killbill/src/main/resources`:
+
+```
+org.killbill.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
+org.killbill.dao.user=killbill
+org.killbill.dao.password=killbill
+
+org.killbill.billing.osgi.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
+org.killbill.billing.osgi.dao.user=killbill
+org.killbill.billing.osgi.dao.password=killbill
+```
+
 === Dependencies
 
 The base `pom.xml` (`org.kill-bill.billing:killbill-oss-parent`) defines all of the dependencies required by Kill Bill. If a `-SNAPSHOT` version is specified (e.g. `0.141.74-SNAPSHOT`), this means some dependencies haven't been released yet and you need to build them locally, before being able to build Kill Bill.
@@ -36,6 +61,31 @@ Typically, the following repositories need to be built in order:
 2. https://github.com/killbill/killbill-commons[killbill-commons]
 3. https://github.com/killbill/killbill-platform[killbill-platform]
 
+== Navigating the Kill Bill codebase
+
+It can be quite daunting to start poking around the Kill Bill codebase, as the code is scattered over various repositories. Here is a primer on how to get started.
+
+=== Core system
+
+* https://github.com/killbill/killbill-api: Java APIs, used when embedding Kill Bill (advanced users), by the REST API layer (internally) as well as by plugins, which need to interact with the core system.
+* https://github.com/killbill/killbill-plugin-api: Java Plugin APIs, which need to be implemented by plugin developers.
+* https://github.com/killbill/killbill-commons: similar in concept to Apache Commons, repository of re-useable components. You could use these in your projects even outside of the Kill Bill environment.
+* https://github.com/killbill/killbill-platform: underlying Kill Bill platform, contains code unrelated to billing and payments, such as setting up the lifecycle, the OSGI environment, the webapp container bridge, logging, etc.
+* https://github.com/killbill/killbill: the Kill Bill library, containing the core of the system. It is divided into submodules, each one of them being independent (own APIs, own set of tables, etc.) and interacting with other modules either via internal Java APIs or Bus events.
+
+The following blog posts can help provide more context on the Kill Bill architecture:
+
+* http://killbill.io/blog/kill-bill-billing-system-architecture/
+* http://killbill.io/blog/kill-bill-plugins-architecture/
+* http://killbill.io/blog/persistent-bus-in-kill-bill/
+
+
+=== Ecosystem
+
+* https://github.com/killbill/killbill-integration-tests: while each repository contains its own test suites, from unit tests to functional tests (with and without a persistent layer), as well as end-to-end tests (see the `beatrix` and `profiles/killbill` tests in the main killbill repository for example), the killbill-integration-tests repository adds another set of tests which focus on long running scenarii against a running Kill Bill server. This also gives you a base framework to develop your own tests, to verify the integration of Kill Bill in your environment and to make sure it follows your business rules.
+* https://github.com/killbill/killbill-client-java, https://github.com/killbill/killbill-client-ruby, etc. provide clients for the HTTP API in various languages.
+* https://github.com/killbill/killbill-stripe-plugin, https://github.com/killbill/killbill-paypal-express-plugin, etc. provide integrations with payment gateways (payment plugins).
+* https://github.com/killbill/killbill-logging-plugin, https://github.com/killbill/killbill-analytics-plugin, etc. provide additional functionality (e.g. notification plugins).
 
 == Date, Time and Timezone
 
