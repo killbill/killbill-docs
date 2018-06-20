@@ -501,6 +501,26 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </li>
 </ul>
 </li>
+<li><a href="#_recipes">Recipes</a>
+<ul class="sectlevel1">
+<li><a href="#_using_notificationqueue_from_plugins">Using NotificationQueue from plugins</a>
+<ul class="sectlevel2">
+<li><a href="#_queue_creation">Queue Creation</a></li>
+<li><a href="#_queue_configuration">Queue Configuration</a></li>
+<li><a href="#_lifecycle">Lifecycle</a></li>
+</ul>
+</li>
+<li><a href="#_ruby_snippets">Ruby snippets</a>
+<ul class="sectlevel2">
+<li><a href="#_retrieve_account_information">Retrieve account information</a></li>
+<li><a href="#_retrieve_subscription_information">Retrieve subscription information</a></li>
+<li><a href="#_compute_fixed_length_phase_durations">Compute fixed-length phase durations</a></li>
+<li><a href="#_retrieve_tags_for_an_account">Retrieve tags for an account</a></li>
+<li><a href="#_retrieve_payment_and_payment_method_information">Retrieve payment and payment method information</a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li><a href="#_deployment">Deployment</a>
 <ul class="sectlevel1">
 <li><a href="#_overview">Overview</a>
@@ -822,6 +842,302 @@ gem install jbundler</code></pre>
 </div>
 <div class="paragraph">
 <p>We also provide a collection of <a href="https://github.com/killbill/killbill-plugin-framework-ruby/wiki/Snippets">Ruby Snippets</a>, which shows how to call Kill Bill APIs from Ruby plugins.</p>
+</div>
+</div>
+</div>
+</div>
+<h1 id="_recipes" class="sect0">Recipes</h1>
+<div class="sect1">
+<h2 id="_using_notificationqueue_from_plugins">Using NotificationQueue from plugins</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>There are times when a plugin needs to queue some events for later/future processing. Such situations could be to handle certain bus events at a later time, or enqueue specific operations that have failed so they can be retried, &#8230;&#8203;</p>
+</div>
+<div class="paragraph">
+<p>In those situations, the plugin implementor has the choice to use its own mechanism, use open source solutions,&#8230;&#8203; and this all depends on the objectives (e.g persistent queue?) and the familiarity with certain frameworks.</p>
+</div>
+<div class="paragraph">
+<p>One possibility is to use the <a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueue.java">NotificationQueue</a> abstraction that is already provided by Kill Bill framework.</p>
+</div>
+<div class="paragraph">
+<p>One needs to keep in mind that the use of such notification is rather internal to Kill Bill core but in some situations it is acceptable to use it from plugins with the following understanding:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>This is should not be used for high throughput/low latency kind of situations, as the mechanism fundamentally stores events into the database and allows to be dispatched to a specific handler</p>
+</li>
+<li>
+<p>Improper use of such queue can have bad consequences for the rest of the system</p>
+</li>
+<li>
+<p>It forces the plugin to know low level details (e.g <code>accountRecordId</code>)</p>
+</li>
+<li>
+<p>Only a small number of queues should be created (1 or max 2 for a plugin) as they create some load on the system (each queue will have its own pool of thread for dispatching event notifications).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The goal of this documentation is to provide some guidelines on how to make it work.</p>
+</div>
+<div class="sect2">
+<h3 id="_queue_creation">Queue Creation</h3>
+<div class="paragraph">
+<p>Services can <a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueService.java#L72">create a new queue</a> and later use that queue to send (event) notifications and process such notifications.</p>
+</div>
+<div class="paragraph">
+<p>The creation of the queue will require the following parameters:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>svcName</code> : A string that identifies the service (a good convention is the plugin name)</p>
+</li>
+<li>
+<p><code>queueName</code>: The name of the queue (a good convention is to use a string that describes its function)</p>
+</li>
+<li>
+<p><code>handler</code> : The handler that will be called back each time a notification is dispatched. The handler should be idempotent as the system ensures <strong>at least one delivery</strong></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The <a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueService.java#L42">handler</a> takes the following form:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>interface NotificationQueueHandler {
+
+    /**
+     * Called for each notification ready
+     *
+     * @param eventJson  the notification key associated to that notification entry
+     * @param userToken  user token associated with that notification entry
+     * @param searchKey1 the searchKey1 associated with that notification entry
+     * @param searchKey2 the searchKey2 associated with that notification entry
+     */
+    void handleReadyNotification(NotificationEvent eventJson, DateTime eventDateTime, UUID userToken, Long searchKey1, Long searchKey2);
+}</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The <code>NotificationEvent</code> interface is a marker interface; the class implementation <strong>must be</strong> serializable using json. An example can be found [here](<a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/DefaultUUIDNotificationKey.java#L27" class="bare">https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/DefaultUUIDNotificationKey.java#L27</a>).</p>
+</li>
+<li>
+<p><code>userToken</code> is a UUID of your choice that is passed when publishing events.</p>
+</li>
+<li>
+<p><code>searchKey1</code> <strong>must be</strong> the <code>accountRecordId</code> attached to the account or null</p>
+</li>
+<li>
+<p><code>searchKey2</code> <strong>must be</strong> the <code>tenantRecordId</code> attached to the tenant or null (if operations is cross tenant, but very unlikely)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Note that <code>accountRecordId</code> and <code>tenantRecordId</code> are usually not visible from plugins (instead the plugin will see the <code>accountId</code> and the <code>tenantId</code> which are UUID. However there is 1-1 mapping between those two ID (one being internal and the other being user visible) and info can be retrieved using the following APIs:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>final CallContext callContext = ...
+accountRecordId = osgiKillbillAPI.getRecordIdApi().getRecordId(killbillEvent.getAccountId(), ObjectType.ACCOUNT, callContext);
+tenantRecordId = osgiKillbillAPI.getRecordIdApi().getRecordId(killbillEvent.getTenantId(), ObjectType.TENANT, callContext);</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_queue_configuration">Queue Configuration</h3>
+<div class="paragraph">
+<p>Each queue that is created at runtime by the system (whether a plugin or Kill Bill core), needs to have its own set of tables in the database. By convention, we usually name such tables in the following way:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>{tablename}_notifications</code></p>
+</li>
+<li>
+<p><code>{tablename}_notifications_history</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Where <code>tablename</code> is the name of the plugin or something related that will be unique and easily understood to be related to the given plugin. This value comes from the <a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueConfig.java#L87">configuration</a> associated with that queue.</p>
+</div>
+<div class="paragraph">
+<p>A good example that shows how to wire things can be found in the <a href="https://github.com/killbill/killbill-analytics-plugin/blob/killbill-osgi-bundles-analytics-0.5.13/src/main/java/com/ning/billing/osgi/bundles/analytics/AnalyticsActivator.java#L64"><code>start</code> method of the analytics plugin</a>. We will see the following:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create the <code>NotificationQueueConfig</code> by replacing the <code>instanceName</code> with the desired value (e.g plugin name)</p>
+</li>
+<li>
+<p>Create the <code>DefaultNotificationQueueService</code> specifying the config for that queue</p>
+</li>
+<li>
+<p>Create the handler</p>
+</li>
+<li>
+<p>Create the queue</p>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_lifecycle">Lifecycle</h3>
+<div class="paragraph">
+<p>Before this can happen the queue needs to be properly <a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/queue/api/QueueLifecycle.java#L22">started</a> and also <a href="https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/queue/api/QueueLifecycle.java#L27">stopped</a> when the plugin stops.</p>
+</div>
+<div class="paragraph">
+<p>Starting the queue will start the pool of thread that is attached to the queue. The system will print a trace showing that such threads were started. Such threads should be visible by running a <code>jstack</code> command and looking for the following name: <code>config.getTableName() + "-th"</code>.</p>
+</div>
+<div class="paragraph">
+<p>Of course such lifecycle operations should also match the lifecycle of the plugin, the <code>start</code> and <code>stop</code> function defined in the activator. Note that failure to start the queue will have the effect to see such events in the <code>IN_PROCESSING</code> state but handler will never be called.</p>
+</div>
+<div class="paragraph">
+<p>For more information on configuring the queue, please refer to this <a href="http://docs.killbill.io/0.19/userguide_deployment.html#_bus_and_notification_queues">document</a>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_ruby_snippets">Ruby snippets</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_retrieve_account_information">Retrieve account information</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>if lookup_key =~ /[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}/
+  kb_account = @kb_apis.account_user_api.get_account_by_id(lookup_key, @kb_apis.create_context(kb_tenant_id))
+else
+  kb_account = @kb_apis.account_user_api.get_account_by_key(lookup_key, @kb_apis.create_context(kb_tenant_id))
+end
+
+@logger.info "Account name=#{kb_account.name}, address=#{kb_account.address1}, city=#{kb_account.city}, state=#{kb_account.state_or_province}, country=#{kb_account.country}"</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_retrieve_subscription_information">Retrieve subscription information</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kb_subscription = @kb_apis.subscription_api.get_subscription_for_entitlement_id(kb_subscription_id, @kb_apis.create_context(kb_tenant_id))
+
+@logger.info &lt;&lt;-eos
+Subscription details:
+ external_key=#{kb_subscription.external_key}
+ state=#{kb_subscription.state}
+ effective_start_date=#{kb_subscription.effective_start_date}
+ effective_end_date=#{kb_subscription.effective_end_date}
+ billing_start_date=#{kb_subscription.billing_start_date}
+ billing_end_date=#{kb_subscription.billing_end_date}
+ charged_through_date=#{kb_subscription.charged_through_date}
+ last_active_plan=#{kb_subscription.last_active_plan.name}
+ last_active_phase=#{kb_subscription.last_active_phase.name}
+eos</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Notes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For <code>SUBSCRIPTION</code> events, the subscription id can be found in <code>event.object_id</code> and the tenant in <code>event.tenant_id</code></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_compute_fixed_length_phase_durations">Compute fixed-length phase durations</h3>
+<div class="paragraph">
+<p>This will largely depend on your catalog configuration, but a common use case is to determine the length of a trial period:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>trial_time_unit  = kb_phase.duration.unit
+trial_duration   = kb_phase.duration.number
+trial_end_date   = case trial_time_unit
+                     when :DAYS
+                       trial_start_date.next_day(trial_duration)
+                     when :MONTHS
+                       trial_start_date.next_month(trial_duration)
+                     when :YEARS
+                       trial_start_date.next_year(trial_duration)
+                     else # :UNLIMITED
+                       nil
+                   end
+@logger.info "Trial start=#{trial_start_date}, end=#{trial_end_date}"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>For a <code>SUBSCRIPTION_CREATION</code> event, assuming the trial is the first phase of the plan:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kb_phase = kb_subscription.last_active_phase
+trial_start_date = Date.parse(kb_subscription.effective_start_date)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Notes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>You can check the phase type via: <code>kb_phase.phase_type == :TRIAL</code></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_retrieve_tags_for_an_account">Retrieve tags for an account</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kb_context         = @kb_apis.create_context(kb_tenant_id)
+kb_tag_definitions = @kb_apis.tag_user_api.get_tag_definitions(kb_context)
+kb_tags            = @kb_apis.tag_user_api.get_tags_for_account(kb_account_id, false, kb_context)
+kb_tags.each do |kb_tag|
+  kb_tag_definition = kb_tag_definitions.select { |td| td.id == kb_tag.tag_definition_id }.first
+  @logger.info "Tag name=#{kb_tag_definition.name}, description='#{kb_tag_definition.description}', object_id=#{kb_tag.object_id}, object_type=#{kb_tag.object_type}"
+end</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Notes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For <code>TAG</code> events, the account id can be found in <code>event.account_id</code> and the tenant in <code>event.tenant_id</code></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_retrieve_payment_and_payment_method_information">Retrieve payment and payment method information</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>kb_context        = @kb_apis.create_context(kb_tenant_id)
+kb_payment        = @kb_apis.payment_api.get_payment(kb_payment_id, true, true, [], kb_context)
+kb_payment_method = @kb_apis.payment_api.get_payment_method_by_id(kb_payment.payment_method_id, false, true, [], kb_context)
+
+kb_transaction = kb_payment.transactions.last
+@logger.info "Payment date=#{kb_transaction.effective_date}, amount=#{kb_transaction.amount}, currency=#{kb_transaction.currency}, payment_detail=#{kb_transaction.payment_info_plugin}, payment_method_detail=#{kb_payment_method.plugin_detail.properties}"</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Notes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For <code>PAYMENT</code> events, the payment id can be found in <code>event.object_id</code> and the tenant in <code>event.tenant_id</code></p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -1150,7 +1466,7 @@ Make sure logging is correctly configured so that plugins logs are sent to the m
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 16:54:56 UTC
+Last updated 2018-06-20 05:07:39 UTC
 </div>
 </div>
 </body>

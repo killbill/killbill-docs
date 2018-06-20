@@ -516,6 +516,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_service_discovery_with_eureka">Service Discovery with Eureka</a></li>
 <li><a href="#_enabling_https">Enabling HTTPS</a></li>
 <li><a href="#_x_forwarded_headers_support">X-Forwarded headers support</a></li>
+<li><a href="#_nagios_integration">Nagios integration</a></li>
 </ul>
 </div>
 </div>
@@ -1017,10 +1018,45 @@ sudo usermod -a -G ssl-cert tomcat</code></pre>
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_nagios_integration">Nagios integration</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To integrate JMX beans with Nagios, download the plugin from <a href="https://github.com/killbill/nagios-jmx-plugin" class="bare">https://github.com/killbill/nagios-jmx-plugin</a>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code># Whether the persistent bus is turned on (warns if off)
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O org.killbill.bus.api:name=PersistentBus -A NotificationProcessingSuspended -w false
+# Whether the notification queue is turned on (warns if off)
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O org.killbill.notificationq.api:name=NotificationQueueService -A NotificationProcessingSuspended -w false
+# Generic Kill Bill healthcheck, checks the overall state of the application (warns if unhealthy)
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O org.killbill.billing.server.healthchecks:name=KillbillHealthcheck -A Healthy -w true
+# Monitors the size of the notification queue. Warning and Critical alerts often mean an overload of the system
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O metrics:name=org.killbill.notificationq.NotificationQueueDispatcher.pending-notifications -A Value -w 50 -c 100</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Other interesting metrics (use of the <code>-P</code> flag to get Nagios performance data):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=ClassLoading' -A LoadedClassCount
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=Compilation' -A TotalCompilationTime
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=OperatingSystem' -A SystemCpuLoad
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=Runtime' -A Uptime
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=Threading' -A ThreadCount
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.nio:type=BufferPool,name=direct' -A MemoryUsed
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.nio:type=BufferPool,name=mapped' -A MemoryUsed
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'metrics:name=org.killbill.bus.dao.PersistentBusSqlDao.getReadyEntries' -A 95thPercentile</code></pre>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 16:54:56 UTC
+Last updated 2018-06-20 05:07:39 UTC
 </div>
 </div>
 </body>

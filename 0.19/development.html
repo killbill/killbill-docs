@@ -482,8 +482,18 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <ul class="sectlevel1">
 <li><a href="#_environment_setup">Environment setup</a>
 <ul class="sectlevel2">
-<li><a href="#_build">Build</a></li>
+<li><a href="#_build">Build</a>
+<ul class="sectlevel3">
+<li><a href="#_postgresql">PostgreSQL</a></li>
+</ul>
+</li>
 <li><a href="#_dependencies">Dependencies</a></li>
+</ul>
+</li>
+<li><a href="#_navigating_the_kill_bill_codebase">Navigating the Kill Bill codebase</a>
+<ul class="sectlevel2">
+<li><a href="#_core_system">Core system</a></li>
+<li><a href="#_ecosystem">Ecosystem</a></li>
 </ul>
 </li>
 <li><a href="#_date_time_and_timezone">Date, Time and Timezone</a>
@@ -576,6 +586,47 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <pre class="pygments highlight"><code data-lang="bash">./bin/start-server -s</code></pre>
 </div>
 </div>
+<div class="sect3">
+<h4 id="_postgresql">PostgreSQL</h4>
+<div class="paragraph">
+<p>By default, Kill Bill will expect a MySQL database. To switch to PostgreSQL:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create a killbill user and database (verify connectivity with <code>psql -h 127.0.0.1 -U killbill -p 5432</code>):</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>root=# create USER killbill;
+root=# \password killbill;
+root=# CREATE DATABASE killbill WITH OWNER killbill;</code></pre>
+</div>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create the schema: `./bin/db-helper -a create  --driver postgres -u killbill -p killbill `</p>
+</li>
+<li>
+<p>Modify the <code>killbill.properties</code> under <code>profiles/killbill/src/main/resources</code>:</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code>org.killbill.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
+org.killbill.dao.user=killbill
+org.killbill.dao.password=killbill
+
+org.killbill.billing.osgi.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
+org.killbill.billing.osgi.dao.user=killbill
+org.killbill.billing.osgi.dao.password=killbill</code></pre>
+</div>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_dependencies">Dependencies</h3>
@@ -597,6 +648,71 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p><a href="https://github.com/killbill/killbill-platform">killbill-platform</a></p>
 </li>
 </ol>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_navigating_the_kill_bill_codebase">Navigating the Kill Bill codebase</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>It can be quite daunting to start poking around the Kill Bill codebase, as the code is scattered over various repositories. Here is a primer on how to get started.</p>
+</div>
+<div class="sect2">
+<h3 id="_core_system">Core system</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-api" class="bare">https://github.com/killbill/killbill-api</a>: Java APIs, used when embedding Kill Bill (advanced users), by the REST API layer (internally) as well as by plugins, which need to interact with the core system.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-plugin-api" class="bare">https://github.com/killbill/killbill-plugin-api</a>: Java Plugin APIs, which need to be implemented by plugin developers.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-commons" class="bare">https://github.com/killbill/killbill-commons</a>: similar in concept to Apache Commons, repository of re-useable components. You could use these in your projects even outside of the Kill Bill environment.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-platform" class="bare">https://github.com/killbill/killbill-platform</a>: underlying Kill Bill platform, contains code unrelated to billing and payments, such as setting up the lifecycle, the OSGI environment, the webapp container bridge, logging, etc.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill" class="bare">https://github.com/killbill/killbill</a>: the Kill Bill library, containing the core of the system. It is divided into submodules, each one of them being independent (own APIs, own set of tables, etc.) and interacting with other modules either via internal Java APIs or Bus events.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The following blog posts can help provide more context on the Kill Bill architecture:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="http://killbill.io/blog/kill-bill-billing-system-architecture/" class="bare">http://killbill.io/blog/kill-bill-billing-system-architecture/</a></p>
+</li>
+<li>
+<p><a href="http://killbill.io/blog/kill-bill-plugins-architecture/" class="bare">http://killbill.io/blog/kill-bill-plugins-architecture/</a></p>
+</li>
+<li>
+<p><a href="http://killbill.io/blog/persistent-bus-in-kill-bill/" class="bare">http://killbill.io/blog/persistent-bus-in-kill-bill/</a></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_ecosystem">Ecosystem</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://github.com/killbill/killbill-integration-tests" class="bare">https://github.com/killbill/killbill-integration-tests</a>: while each repository contains its own test suites, from unit tests to functional tests (with and without a persistent layer), as well as end-to-end tests (see the <code>beatrix</code> and <code>profiles/killbill</code> tests in the main killbill repository for example), the killbill-integration-tests repository adds another set of tests which focus on long running scenarii against a running Kill Bill server. This also gives you a base framework to develop your own tests, to verify the integration of Kill Bill in your environment and to make sure it follows your business rules.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-client-java" class="bare">https://github.com/killbill/killbill-client-java</a>, <a href="https://github.com/killbill/killbill-client-ruby" class="bare">https://github.com/killbill/killbill-client-ruby</a>, etc. provide clients for the HTTP API in various languages.</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-stripe-plugin" class="bare">https://github.com/killbill/killbill-stripe-plugin</a>, <a href="https://github.com/killbill/killbill-paypal-express-plugin" class="bare">https://github.com/killbill/killbill-paypal-express-plugin</a>, etc. provide integrations with payment gateways (payment plugins).</p>
+</li>
+<li>
+<p><a href="https://github.com/killbill/killbill-logging-plugin" class="bare">https://github.com/killbill/killbill-logging-plugin</a>, <a href="https://github.com/killbill/killbill-analytics-plugin" class="bare">https://github.com/killbill/killbill-analytics-plugin</a>, etc. provide additional functionality (e.g. notification plugins).</p>
+</li>
+</ul>
 </div>
 </div>
 </div>
@@ -1235,7 +1351,7 @@ mvn clean install -Ptravis</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2018-06-19 16:54:56 UTC
+Last updated 2018-06-20 05:07:39 UTC
 </div>
 </div>
 </body>
