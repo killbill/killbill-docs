@@ -175,7 +175,8 @@ The creation of the queue will require the following parameters:
 
 The https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueService.java#L42[handler] takes the following form:
 
-```
+[source,java]
+----
 interface NotificationQueueHandler {
 
     /**
@@ -188,7 +189,8 @@ interface NotificationQueueHandler {
      */
     void handleReadyNotification(NotificationEvent eventJson, DateTime eventDateTime, UUID userToken, Long searchKey1, Long searchKey2);
 }
-```
+----
+
 * The `NotificationEvent` interface is a marker interface; the class implementation **must be** serializable using json. An example can be found [here](https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/DefaultUUIDNotificationKey.java#L27).
 * `userToken` is a UUID of your choice that is passed when publishing events.
 * `searchKey1` **must be** the `accountRecordId` attached to the account or null
@@ -196,11 +198,12 @@ interface NotificationQueueHandler {
 
 Note that `accountRecordId` and `tenantRecordId` are usually not visible from plugins (instead the plugin will see the `accountId` and the `tenantId` which are UUID. However there is 1-1 mapping between those two ID (one being internal and the other being user visible) and info can be retrieved using the following APIs:
 
-```
+[source,java]
+----
 final CallContext callContext = ...
 accountRecordId = osgiKillbillAPI.getRecordIdApi().getRecordId(killbillEvent.getAccountId(), ObjectType.ACCOUNT, callContext);
 tenantRecordId = osgiKillbillAPI.getRecordIdApi().getRecordId(killbillEvent.getTenantId(), ObjectType.TENANT, callContext);
-```
+----
 
 === Queue Configuration
 
@@ -232,7 +235,8 @@ For more information on configuring the queue, please refer to this http://docs.
 
 === Retrieve account information
 
-```
+[source,ruby]
+----
 if lookup_key =~ /[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}/
   kb_account = @kb_apis.account_user_api.get_account_by_id(lookup_key, @kb_apis.create_context(kb_tenant_id))
 else
@@ -240,11 +244,12 @@ else
 end
 
 @logger.info "Account name=#{kb_account.name}, address=#{kb_account.address1}, city=#{kb_account.city}, state=#{kb_account.state_or_province}, country=#{kb_account.country}"
-```
+----
 
 === Retrieve subscription information
 
-```
+[source,ruby]
+----
 kb_subscription = @kb_apis.subscription_api.get_subscription_for_entitlement_id(kb_subscription_id, @kb_apis.create_context(kb_tenant_id))
 
 @logger.info <<-eos
@@ -259,7 +264,7 @@ Subscription details:
  last_active_plan=#{kb_subscription.last_active_plan.name}
  last_active_phase=#{kb_subscription.last_active_phase.name}
 eos
-```
+----
 
 Notes:
 
@@ -270,7 +275,8 @@ Notes:
 
 This will largely depend on your catalog configuration, but a common use case is to determine the length of a trial period:
 
-```
+[source,ruby]
+----
 trial_time_unit  = kb_phase.duration.unit
 trial_duration   = kb_phase.duration.number
 trial_end_date   = case trial_time_unit
@@ -284,14 +290,15 @@ trial_end_date   = case trial_time_unit
                        nil
                    end
 @logger.info "Trial start=#{trial_start_date}, end=#{trial_end_date}"
-```
+----
 
 For a `SUBSCRIPTION_CREATION` event, assuming the trial is the first phase of the plan:
 
-```
+[source,ruby]
+----
 kb_phase = kb_subscription.last_active_phase
 trial_start_date = Date.parse(kb_subscription.effective_start_date)
-```
+----
 
 Notes:
 
@@ -300,7 +307,8 @@ Notes:
 
 === Retrieve tags for an account
 
-```
+[source,ruby]
+----
 kb_context         = @kb_apis.create_context(kb_tenant_id)
 kb_tag_definitions = @kb_apis.tag_user_api.get_tag_definitions(kb_context)
 kb_tags            = @kb_apis.tag_user_api.get_tags_for_account(kb_account_id, false, kb_context)
@@ -308,7 +316,7 @@ kb_tags.each do |kb_tag|
   kb_tag_definition = kb_tag_definitions.select { |td| td.id == kb_tag.tag_definition_id }.first
   @logger.info "Tag name=#{kb_tag_definition.name}, description='#{kb_tag_definition.description}', object_id=#{kb_tag.object_id}, object_type=#{kb_tag.object_type}"
 end
-```
+----
 
 Notes:
 
@@ -316,14 +324,15 @@ Notes:
 
 === Retrieve payment and payment method information
 
-```
+[source,ruby]
+----
 kb_context        = @kb_apis.create_context(kb_tenant_id)
 kb_payment        = @kb_apis.payment_api.get_payment(kb_payment_id, true, true, [], kb_context)
 kb_payment_method = @kb_apis.payment_api.get_payment_method_by_id(kb_payment.payment_method_id, false, true, [], kb_context)
 
 kb_transaction = kb_payment.transactions.last
 @logger.info "Payment date=#{kb_transaction.effective_date}, amount=#{kb_transaction.amount}, currency=#{kb_transaction.currency}, payment_detail=#{kb_transaction.payment_info_plugin}, payment_method_detail=#{kb_payment_method.plugin_detail.properties}"
-```
+----
 
 Notes:
 
@@ -456,7 +465,8 @@ There is no restriction on the format of the propery file, but typically `ruby` 
 
 The two previous mechanisms work well for global settings, but are inadequate to configure the plugins on a per-tenant fashion (e.g for a payment plugin interacting with a payment gateway, different credentials might be needed for different tenants). In those situations, Kill Bill provides APIs to upload/retrieve/delete per-tenant plugin configurations:
 
-```
+[source,bash]
+----
 # Upload new config
 curl -v \
      -X POST \
@@ -467,11 +477,12 @@ curl -v \
      -H 'Content-Type: text/plain' \
      -d '<CONFIG>' \
      http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
-```
+----
 
 The `<CONFIG>` is treaded as a string and it could be the content of an `xml` or `json` file, a list of `key-value` parameters, ...
 
-```
+[source,bash]
+----
 # Retrieve config
 curl -v \
      -u admin:password \
@@ -480,9 +491,10 @@ curl -v \
      -H 'X-Killbill-CreatedBy: admin' \
      -H 'Content-Type: application/json' \
      http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
-```
+----
 
-```
+[source,bash]
+----
 # Delete config
 curl -v \
      -X DELETE \
@@ -491,7 +503,7 @@ curl -v \
      -H 'X-Killbill-ApiSecret: lazar' \
      -H 'X-Killbill-CreatedBy: admin' \
      http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
-```
+----
 
 At a high level, the mechanism works in the following way:
 
@@ -505,18 +517,6 @@ Note that when relying on the plugin frameworks, some amount of work is already 
 * For `java` plugins we can see the listener https://github.com/killbill/killbill-plugin-framework-java/blob/killbill-base-plugin-1.1.0/src/main/java/org/killbill/billing/plugin/api/notification/PluginConfigurationEventHandler.java#L37[here]
 * For `ruby` plugins, this is done automatically for https://github.com/killbill/killbill-plugin-framework-ruby/blob/v8.3.1/lib/killbill/helpers/active_merchant/payment_plugin.rb#L48[ActiveMerchant payment plugins]
 
-= Debugging Plugins
-
-Make sure logging is correctly configured so that plugins logs are sent to the main Kill Bill logs. The https://github.com/killbill/killbill/wiki/Logback-recipes[wiki] has more details for Logback specifically.
-
-== Java plugins
-
-Breakpoints can be set directly into the Java plugin code.
-
-== Ruby plugins
-
-The https://github.com/killbill/killbill/wiki/Ruby-plugins-debugging[wiki] provides steps to remote debug Ruby plugins.
-
 = FAQ
 
 == org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous
@@ -525,7 +525,8 @@ If you need to call back Kill Bill through an endpoint requiring authentication,
 
 Here is how it can be used in a Servlet for instance:
 
-```
+[source,java]
+----
 private void login(final HttpServletRequest req) {
     String authHeader = req.getHeader("Authorization");
     if (authHeader == null) {
@@ -550,4 +551,4 @@ private void login(final HttpServletRequest req) {
     } catch (UnsupportedEncodingException ignored) {
     }
 }
-```
+----

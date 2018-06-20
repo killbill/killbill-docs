@@ -30,18 +30,21 @@ Once built, you can start Kill Bill by running:
 
 By default, Kill Bill will expect a MySQL database. To switch to PostgreSQL:
 
-1. Create a killbill user and database (verify connectivity with `psql -h 127.0.0.1 -U killbill -p 5432`):
-
-```
-root=# create USER killbill;
-root=# \password killbill;
-root=# CREATE DATABASE killbill WITH OWNER killbill;
-```
-
-2. Create the schema: `./bin/db-helper -a create  --driver postgres -u killbill -p killbill `
-3. Modify the `killbill.properties` under `profiles/killbill/src/main/resources`:
-
-```
+* Create a killbill user and database (verify connectivity with `psql -h 127.0.0.1 -U killbill -p 5432`):
+[source,postgresql]
+----
+create USER killbill;
+\password killbill;
+CREATE DATABASE killbill WITH OWNER killbill;
+----
+* Create the schema:
+[source,bash]
+----
+./bin/db-helper -a create  --driver postgres -u killbill -p killbill
+----
+* Modify the `profiles/killbill/src/main/resources/killbill.properties`:
+[source,properties]
+----
 org.killbill.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
 org.killbill.dao.user=killbill
 org.killbill.dao.password=killbill
@@ -49,7 +52,7 @@ org.killbill.dao.password=killbill
 org.killbill.billing.osgi.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
 org.killbill.billing.osgi.dao.user=killbill
 org.killbill.billing.osgi.dao.password=killbill
-```
+----
 
 === Dependencies
 
@@ -231,12 +234,13 @@ Let's assume we are trying to add new plugin API called `Foo`, in a Kill Bill mo
 The OSGI magic to register new plugins of a given type occurs in https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/KillbillActivator.java[`KillbillActivator`]:
 
 The following would need to be added in the `KillbillActivator`
-```
+[source,java]
+----
 @Inject(optional = true)
 public void addFooPluginApiOSGIServiceRegistration(final OSGIServiceRegistration<FooPluginApi> fooProviderPluginRegistry) {
     allRegistrationHandlers.add(fooProviderPluginRegistry);
 }
-```
+----
 
 Additionally, there is Java platform piece of code that needs to be written to support Ruby plugins:
 
@@ -290,20 +294,20 @@ While plugins can use their own versioning scheme, official plugins have major, 
 
 * All code should be checked-in
 * All tests should pass on both the MySQL and Travis profiles:
-
-```
+[source,bash]
+----
 mvn clean install -Pmysql
 mvn clean install -Ptravis
-```
+----
 * Take a look at CircleCI
 
 ==== Documentation updates
 
 * Update the NEWS file with GitHub issues closed for that release and summary of important changes or bug fixes. You can browse the commits since the latest tag via:
-
-```
+[source,bash]
+----
 git log $(git describe --tags $(git rev-list --tags --max-count=1))..
-```
+----
 * Create a release page. While the NEWS file is geared towards developers, the release notes are meant for users upgrading. Mention JAX-RS and DDL changes, new features, etc.
 * Update `killbill-server-update-list.properties` in https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/update-checker/killbill-server-update-list.properties[killbill] and https://github.com/killbill/killbill/blob/master/profiles/killpay/src/main/resources/update-checker/killbill-server-update-list.properties[killpay] with a link to these release notes
 
@@ -330,18 +334,17 @@ git log $(git describe --tags $(git rev-list --tags --max-count=1))..
 === Gotchas
 
 * To re-run a `release:perform` of an arbitrary tag:
-
-```
+[source,bash]
+----
 mvn -DconnectionUrl=scm:git:git@github.com:killbill/killbill.git -Dtag=your_tag release:perform
-```
+----
 * If `release:perform` fails because of Sonatype issues during the 'Closing staging repository...' stage, wait between 30 and 40 minutes - the operation should finish in the background. If it doesn't and/or the repository is dropped, try the following switches:
-
-```
+[source,bash]
+----
 mvn -DkeepStagingRepositoryOnFailure=true -DkeepStagingRepositoryOnCloseRuleFailure=true -DautoReleaseAfterClose=true -DstagingProgressTimeoutMinutes=20 -DconnectionUrl=scm:git:git@github.com:killbill/killbill.git -Dtag=your_tag release:perform
-```
+----
 * If the timeout happens during the 'Remote staging repositories are being released...' stage, wait again between 30 and 40 minutes - the operation should finish in the background. If it doesn't, try going to the UI and close it.
 * If the release fails with signature errors, e.g.:
-
 ```
 Waiting for operation to complete.......................................
 
@@ -356,13 +359,14 @@ Waiting for operation to complete.......................................
 [ERROR] *** Invalid Signature: '/com/ning/billing/killbill-osgi-bundles-test-payment/0.3.6/killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar.asc' is not a valid signature for 'killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar'.
 [ERROR]
 ```
-    keep re-trying to close (maybe try the **nexus-staging:release** goal manually). In my testing, you need **N** numbers of retries, where **N** is the original number of invalid signatures (after each run, you should have fewer and fewer errors). Alternatively, you can follow the steps http://www.sonatype.com/books/nexus-book/reference/staging-sect-managing-staging.html[here].
+keep re-trying to close (maybe try the **nexus-staging:release** goal manually). In my testing, you need **N** numbers of retries, where **N** is the original number of invalid signatures (after each run, you should have fewer and fewer errors). Alternatively, you can follow the steps http://www.sonatype.com/books/nexus-book/reference/staging-sect-managing-staging.html[here].
 * If you are having some issues and need to (re-)upload all the artifacts, you can do it manually:
  * Go in the checkout/target directory and run `jar -cvf bundle.jar project.pom project.pom.asc project.jar project.jar.asc ....` where project is the name of your repo and include as many artifact with their signature as you have
  * Then go under 'Staging Upload' and select 'Upload Mode' = 'Artifact Bundle', and select the bundle you just created
 
 An example of a script for the killbill-platform repo to generate the bundle.jar for each modules, which can then be updated later by hand:
 
-```
+[source,bash]
+----
 for m in platform-api base lifecycle osgi-api osgi osgi-bundles platform-test server; do RES=""; cd $m/target; for i in `ls | grep asc`; do base=`echo $i | sed s/.asc//`; RES="$RES $base $base.asc"; done; rm -f bundle.jar; jar -cvf bundle.jar $RES;  cd ../..; done
-```
+----

@@ -4,10 +4,11 @@
 
 Kill Bill exposes both healthchecks and metrics. These can be accessed via:
 
-```
+[source,bash]
+----
 curl -v http://<IP_ADDRESS>:8080/1.0/healthcheck?pretty=true
 curl -v http://<IP_ADDRESS>:8080/1.0/metrics?pretty=true
-```
+----
 
 == Remote debugging
 
@@ -19,11 +20,23 @@ Make sure also that the port `12345` is open (e.g. check your security groups in
 
 == Turning on DEBUG logging
 
-Specify `-Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.port=8000 -Dcom.sun.management.jmxremote.rmi.port=8000 -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost` on startup in your JVM settings to enable access via `jconsole`.
+Specify:
+
+[source,properties]
+----
+-Dcom.sun.management.jmxremote=true
+-Dcom.sun.management.jmxremote.authenticate=false
+-Dcom.sun.management.jmxremote.port=8000
+-Dcom.sun.management.jmxremote.rmi.port=8000
+-Dcom.sun.management.jmxremote.ssl=false
+-Djava.rmi.server.hostname=localhost
+----
+
+on startup in your JVM settings to enable access via `jconsole`.
 
 You can set at runtime the log level of specific classes and packages (look for  the `ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator` MBean).
 
-Similar considerations as the remote debugging section apply regarding the IP address and expose ports (see above).
+Similar considerations as the remote debugging section apply regarding the IP address and expose ports (see above). For Docker, `java.rmi.server.hostname` should point to the host IP address (e.g. `192.168.99.100`).
 
 == Following tokens
 
@@ -145,7 +158,8 @@ Kill Bill will return a json object containing the hierarchy for the calls along
 
 Example (Note the piping to extract the response header, and format the json nicely):
 
-```
+[source,bash]
+----
 curl -v \
      -u admin:password \
      -H "Accept: application/json" \
@@ -156,11 +170,12 @@ curl -v \
      | grep 'X-Killbill-Profiling-Resp' \
      | awk '{$1=$2=""; print $0}' \
      | jq '.'
-```
+----
 
 Response:
 
-```
+[source,json]
+----
 {
   "rawData": [
     {
@@ -227,7 +242,7 @@ Response:
     }
   ]
 }
-```
+----
 
 
 We can see that for each mask there is some profiling data and such data retains the struture of the calls being made.
@@ -241,12 +256,13 @@ Currently, only JAXRS profilingData will be requested and returned for simplific
 
 In the example below `per_thread_profiling_data` will contain the timing for the various calls, which in that scenario would be `post:/1.0/kb/payments/uuid` and `get:/1.0/kb/payments/uuid:`. The provided hash will contain one key per call and the values will be an array of timing data expressed in uSec:
 
-```
+[source,ruby]
+----
 # Add the :profilingData option
 per_thread_profiling_data = {}
 options = {:username => 'admin', :password => 'password', :profilingData => per_thread_profiling_data}
 res = auth_capture_task.op_create_capture(payment_id, ext_key, amount, currency, username, options)
-```
+----
 
 Note that Ruby client gem will not make any attempt to synchronize access the the profiling_data map, when multiple threads are making calls. It is recommended to use per-thread data and potentially merge the results from the different threads at the end.
 
@@ -254,13 +270,13 @@ Note that Ruby client gem will not make any attempt to synchronize access the th
 === Tips and tricks
 
 * In most cases, the client will be a bottleneck. Make sure to watch the number of sockets in `TIME_WAIT` (`watch 'netstat -an | grep 8080 | grep WAIT | wc -l'`) and speed up the recycling process:
-
-```
+[source,bash]
+----
 echo 2 > /proc/sys/net/ipv4/tcp_fin_timeout
 echo 15000 65000 > /proc/sys/net/ipv4/ip_local_port_range
 echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
 echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
-```
+----
 * On the server side, check the expected concurrency level by watching the number of sockets in `ESTABLISHED` (`watch 'netstat -an | grep 8080 | grep EST | wc -l'`)
 * Make sure to allocate enough database (`org.killbill.dao.maxActive` / `org.killbill.billing.osgi.dao.maxActive`) and plugin (`org.killbill.payment.plugin.threads.nb`) threads. Check your container thread pool too (e.g. `conf/server.xml` for Tomcat)
 * Use tools like Siege (http://www.joedog.org/siege-home/) to verify your basic setup: `siege -b -t30S -c100 http://127.0.0.1:8080/1.0/kb/test/clock` should yield at least 5k req./s.
@@ -268,10 +284,10 @@ echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
 * When using YourKit, turn off probes (especially the database ones). They cause a significant slowdown.
 * Allow a warm-up period, before starting a full test, to avoid contention in the JRuby JIT.
 * Use [mjprof](https://github.com/AdoptOpenJDK/mjprof) to extract stacktraces:
-
-```
+[source,bash]
+----
 java -jar target/mjprof-1.0.jar jmx/127.0.0.1:8989/.ncontains/name,RMI TCP/.ncontains/name,RMI Reaper/.ncontains/name,RMI RenewClean/.ncontains/name,RMI Scheduler/.ncontains/name,jruby-restarter/.ncontains/name,com.google.inject.internal.util.$Finalizer/.ncontains/name,Finalizer/.ncontains/name,Reference/.ncontains/name,FelixStartLevel/.ncontains/name,FelixDispatchQueue/.ncontains/name,http-nio-8080/.ncontains/name,Abandoned connection cleanup thread/.ncontains/name,CM Event Dispatcher/.ncontains/name,CM Configuration Updater/.ncontains/name,SCR Component Actor/.ncontains/name,Timer-/.ncontains/name,telnetconsole.Listener/.ncontains/name,O worker /.ncontains/name,O boss /.ncontains/name,NioBlockingSelector/.ncontains/name,Signal Dispatcher/.ncontains/name,main/.ncontains/name,JMX server connection timeout/.ncontains/state,WAITING/.sort/state/
-```
+----
 
 === Load Tests
 
@@ -285,13 +301,15 @@ Note: It is difficult to rely on single process MT threaded Ruby script to gener
 
 Another way to generate load is to rely on `GNU parallel`:
 
-```
+[source,bash]
+----
 seq 0 500 | parallel -j10 --no-notice -u ./perf_test.sh
-```
+----
 
 Where `perf_test.sh` is:
 
-```
+[source,bash]
+----
 iteration_id=$1
 
 echo "===> Starting $iteration_id"
@@ -330,7 +348,7 @@ curl  \
      "http://127.0.0.1:8080/1.0/kb/accounts/${account_id}/payments" > /dev/null 2>&1
 
 echo "===> Finished $iteration_id"
-```
+----
 
 Note that on a single machine, this client-side script will most likely be the bottleneck (spawning the processes takes too much time). Use http://jmeter.apache.org/[JMeter] instead.
 
@@ -339,16 +357,18 @@ Note that on a single machine, this client-side script will most likely be the b
 
 === Using RubyMine
 
-1. Add the following dependencies to your Gemfile:
+* Add the following dependencies to your Gemfile:
 
-```
+[source,ruby]
+----
 gem 'ruby-debug', '~> 0.10'
 gem 'ruby-debug-ide', '~> 0.6'
-```
+----
 
-2. Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
+* Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
 
-```
+[source,ruby]
+----
 unless defined?(Debugger::PROG_SCRIPT)
   JRuby.objectspace = true
 
@@ -393,27 +413,28 @@ unless defined?(Debugger::PROG_SCRIPT)
 
   exit
 end
-```
+----
 
-3. Rebuild and redeploy the plugin:
+* Rebuild and redeploy the plugin:
 
-```
+[source,bash]
+----
 bundle install && \
 rake killbill:clean && \
 rake build && \
 rake killbill:package && \
 rake killbill:deploy[true]
-```
+----
 
-4. Create a Ruby remote debug configuration in RubyMine:
+* Create a Ruby remote debug configuration in RubyMine:
 
  * Remote host: localhost
  * Remote port: 1234
  * Remote root folder: /var/tmp/bundles/plugins/ruby/\<plugin\>/\<version\>/ROOT
  * Local port: 26162
- * Local root folder: \<path to your code\>
+ * Local root folder: path to your code
 
-5. Restart Kill Bill with the Java property `-X+O`
+* Restart Kill Bill with the Java property `-X+O`
 
 The Kill Bill startup sequence will stop at:
 
@@ -427,38 +448,36 @@ until RubyMine is connected.
 
 While RubyMine offers a nice GUI, it can quickly lose its context or have a hard time stepping through gems dependencies. `ruby-debug` is much more reliable.
 
-1. Add the following dependency to your Gemfile:
-
-```
+* Add the following dependency to your Gemfile:
+[source,ruby]
+----
 gem 'ruby-debug', '~> 0.10'
-```
-
-2. Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
-
-```
+----
+* Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
+[source,ruby]
+----
 require 'ruby-debug'
 Debugger.wait_connection = true
 Debugger.start_remote(nil, 1234)
-```
-
-3. Set a breakpoint in the source code using `debugger`
-4. Rebuild and redeploy the plugin:
-
-```
+----
+* Set a breakpoint in the source code using `debugger`
+* Rebuild and redeploy the plugin:
+[source,bash]
+----
 bundle install && \
 rake killbill:clean && \
 rake build && \
 rake killbill:package && \
 rake killbill:deploy[true]
-```
-
-5. Restart Kill Bill with the Java property `-X+O`
+----
+* Restart Kill Bill with the Java property `-X+O`
 
 The Kill Bill startup sequence will stop until `ruby-debug` is connected. To launch it:
 
-```
+[source,bash]
+----
 rdebug --client -p 1234
-```
+----
 
 When the breakpoint is hit, you can examine the context and step into the code:
 
@@ -504,7 +523,8 @@ In your message, specify:
 * How to reproduce your scenario (cURL commands, code snippet, ...)
 * https://github.com/killbill/killbill-cloud[KPM] diagnostic output, e.g.
 
-```
+[source,bash]
+----
 kpm diagnostic --killbill-api-credentials=bob lazar \
                --killbill-credentials=admin password \
                --killbill-url=http://127.0.0.1:8080 \
@@ -512,4 +532,4 @@ kpm diagnostic --killbill-api-credentials=bob lazar \
                --kaui-web-path=/var/lib/tomcat7/webapps/ROOT/ \
                --log-dir=/var/lib/tomcat7/logs \
                --account_export=ACCOUNT_ID
-```
+----

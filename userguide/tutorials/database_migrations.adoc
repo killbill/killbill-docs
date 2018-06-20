@@ -4,9 +4,10 @@
 
 A typical Kill Bill deployment is comprised of several components: The core Kill Bill webapp and some plugins. Migrating the software to a higher version may require to migrate one, a few or all the different components and so potentially upgrading the database schema associated with one, a few or all of those components. The compatibility version between core Kill Bill and its plugins depends on the version of the https://github.com/killbill/killbill-plugin-api[plugin api] exported by a given Kill Bill version. The https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] tool allows to list compatible plugins associated with a given Kill Bill version:
 
-```
+[source,bash]
+----
 kpm info --version <killbill_version>
-```
+----
 
 Kill Bill and individual plugins assume specific tables, functions, etc. are installed in your database. The source of truth for the schema (DDL) files are:
 
@@ -35,13 +36,14 @@ In addition to these standard tools, we also enhanced our existing tooling to su
 
 === KPM
 
-We extended (https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] with a new `migrations` verb to be able to **download migration files** that should be applied when migrating from one version to the next. 
+We extended (https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] with a new `migrations` verb to be able to **download migration files** that should be applied when migrating from one version to the next.
 
 Usage:
 
-```
+[source,bash]
+----
 kpm migrations github_repository from_tag to_tag
-```
+----
 
 For example, to download all migration files for Kill Bill between 0.16.12 and 0.18.0:
 
@@ -51,16 +53,18 @@ kpm migrations killbill killbill-0.16.12 killbill-0.18.0
 
 Similar examples for Java and Ruby plugins:
 
-```
+[source,bash]
+----
 kpm migrations killbill-analytics-plugin analytics-plugin-3.0.0 analytics-plugin-3.0.1
 kpm migrations killbill-cybersource-plugin v4.0.1 v4.0.2
-```
+----
 
 Because the implementation relies on the https://developer.github.com/[GitHub API], unauthenticated requests are subject to https://developer.github.com/v3/#rate-limiting[rate limiting]. To work around it, go to https://github.com/settings/tokens to generate a token (default public, read-only, permissions will work) and specify it to KPM:
 
-```
+[source,bash]
+----
 kpm migrations killbill killbill-0.16.3 killbill-0.16.4 --token=TOKEN
-```
+----
 
 === SQL output
 
@@ -72,10 +76,11 @@ For Java code (Kill Bill and Java plugins), we publish a `killbill-flyway.jar` b
 
 Usage example:
 
-```
+[source,bash]
+----
 # /var/folders/tmp/migrations is the directory where the migration files were downoaded (using kpm migrate)
-java -jar killbill-flyway.jar -locations=filesystem:/var/folders/tmp/migrations -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=<USERNAME> -password=<PASSWORD> dryRunMigrate 
-```
+java -jar killbill-flyway.jar -locations=filesystem:/var/folders/tmp/migrations -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=<USERNAME> -password=<PASSWORD> dryRunMigrate
+----
 
 ==== Ruby
 
@@ -85,22 +90,24 @@ Besides outputting the SQL, it can also run the migrations.
 
 Usage examples:
 
-```
+[source,bash]
+----
 killbill-migration current_version cybersource
 killbill-migration sql_for_migration cybersource --path=XXX
 killbill-migration migrate cybersource --path=XXX
 killbill-migration ruby_dump cybersource
 killbill-migration sql_dump cybersource
-```
+----
 
 Options `--username`, `--password`, `--database` and `--host` are supported.
 
 If you are a plugin developer, these commands are also available as part of the default Rake tasks of the plugin itself, for example:
 
-```
+[source,bash]
+----
 PLUGIN_NAME=paypal_express USERNAME=root PASSWORD=root DB=killbill rake killbill:db:sql_for_migration
 PLUGIN_NAME=paypal_express USERNAME=root PASSWORD=root DB=killbill rake killbill:db:migrate
-```
+----
 
 Note that the `PLUGIN_NAME` variable needs to match the prefix of the `schema_migrations` table.
 
@@ -113,13 +120,15 @@ Starting with Kill Bill 0.16.4, SQL migrations files for Flyway are provided. Th
 
 For Flyway migrations to work correctly, there is an initial https://flywaydb.org/documentation/command/baseline[baseline] operation that needs to happens so as to create the metadata table, called `schema_version`. In the scenario where a developer can run its own migrations, the following command would be run:
 
-```
+[source,bash]
+----
 flyway -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=<USERNAME> -password=<PASSWORD> baseline
-```
+----
 
 In the production scenario, the `schema_version` along with the initial version would have to be created manually:
 
-```
+[source,sql]
+----
 CREATE TABLE `schema_version` (
   `installed_rank` int(11) NOT NULL,
   `version` varchar(50) DEFAULT NULL,
@@ -136,21 +145,22 @@ CREATE TABLE `schema_version` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 insert into schema_version (installed_rank, version, description, type, script, installed_by, installed_on, execution_time, success) VALUES (1, 1, '<< Flyway Baseline >>', 'BASELINE', '<< Flyway Baseline >>', 'admin', NOW(), 0, 1);
-```
+----
 
 ==== Migration from version `N` to `M`
 
 A typical migration from version `N` to `M` will require to first identify the set of migrations files that should be applied and then either apply them using Flyway commands or manually (production use case).
 
 
-```
+[source,bash]
+----
 # Will download migration files in a temporary folder (e.g /var/folders/XXX)
 kpm migrations killbill killbill-N killbill-M --token='GITHUB_TOKEN'
 
 # If using flyway is an option
-flyway -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=<USERNAME> -password=<PASSWORD>  -locations=filesystem:/var/folders/XXX migrate 
+flyway -url='jdbc:mysql://DATABASE_IP:DATABASE_PORT/DATABASE_NAME' -user=<USERNAME> -password=<PASSWORD>  -locations=filesystem:/var/folders/XXX migrate
 
-```
+----
 
 === Java plugins
 
@@ -164,10 +174,11 @@ Ruby plugins migrations rely on http://edgeguides.rubyonrails.org/active_record_
 
 The metadata table should be called `<plugin_name>_schema_migrations`, e.g.:
 
-```
+[source,sql]
+----
 CREATE TABLE `cybersource_schema_migrations` (
   `version` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-```
+----
 
 Note: adapt the DDL for your RDBMS engine.
