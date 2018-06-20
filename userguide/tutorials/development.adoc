@@ -8,6 +8,75 @@ Pre-requisites:
 * Maven 3.5.2 or later installed
 * Git 2.15.1 or later installed
 
+=== Eclipse
+
+The Kill Bill projects can be imported into the Eclipse IDE as long as the https://www.eclipse.org/m2e/[m2e] plugin is installed. Recent versions of the https://www.eclipse.org/downloads/eclipse-packages/[Eclipse IDE for Java EE Developers] come with this plugin already.
+
+Some of the Maven plugins used may not be available to m2e, however, and the projects will not import completely. To work around this issue, the Eclipse `Preferences > Maven > Lifecycle Mappings` configuration can be updated to include mappings like the following:
+
+[source,bash]
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<lifecycleMappingMetadata>
+ <pluginExecutions>
+   <pluginExecution>
+     <pluginExecutionFilter>
+       <groupId>org.apache.maven.plugins</groupId>
+       <artifactId>maven-antrun-plugin</artifactId>
+       <versionRange>1.4</versionRange>
+       <goals>
+         <goal>run</goal>
+       </goals>
+     </pluginExecutionFilter>
+     <action>
+       <execute>
+         <runOnConfiguration>true</runOnConfiguration>
+         <runOnIncremental>true</runOnIncremental>
+       </execute>
+     </action>
+   </pluginExecution>
+   <pluginExecution>
+     <pluginExecutionFilter>
+       <groupId>org.codehaus.mojo</groupId>
+       <artifactId>templating-maven-plugin</artifactId>
+       <versionRange>1.0-alpha-3</versionRange>
+       <goals>
+         <goal>filter-sources</goal>
+       </goals>
+     </pluginExecutionFilter>
+     <action>
+       <execute>
+         <runOnConfiguration>true</runOnConfiguration>
+         <runOnIncremental>true</runOnIncremental>
+       </execute>
+     </action>
+   </pluginExecution>
+   <pluginExecution>
+     <pluginExecutionFilter>
+       <groupId>org.codehaus.mojo</groupId>
+       <artifactId>build-helper-maven-plugin</artifactId>
+       <versionRange>[1.0,)</versionRange>
+       <goals>
+         <goal>add-source</goal>
+         <goal>add-test-source</goal>
+         <goal>add-resource</goal>
+         <goal>add-test-resource</goal>
+         <goal>maven-version</goal>
+         <goal>parse-version</goal>
+       </goals>
+     </pluginExecutionFilter>
+     <action>
+       <execute>
+         <runOnConfiguration>true</runOnConfiguration>
+         <runOnIncremental>true</runOnIncremental>
+       </execute>
+     </action>
+   </pluginExecution>
+ </pluginExecutions>
+</lifecycleMappingMetadata>
+----
+
+
 === Build
 
 Kill Bill is a standard Maven project. Simply run the following command from the https://github.com/killbill/killbill[project] root directory:
@@ -270,6 +339,64 @@ Take a look at https://github.com/killbill/killbill/blob/master/beatrix/src/test
 
 1. A new class `foo.rb` must be defined similar to https://github.com/killbill/killbill-plugin-framework-ruby/blob/master/lib/killbill/invoice.rb[`invoice.rb`] for the `InvoicePluginApi` and add `require` in `killbill.rb`
 2. Regenerate the auto-generated plugin classes using the https://github.com/killbill/killbill-java-parser[generator]
+
+
+== Plugin Compatibility with API changes
+
+It would very convenient to make backward compatible API changes to a given `stable` Kill Bill version (e.g 0.20.x), but in order to do that we need to understand what is the impact on existing plugins (that were build prior such api change). This document tracks some investigation made to answers this question.
+
+=== Exporting a new API Class
+
+At the time of this writing the `OverdueApi` is not exported to plugins -- but https://github.com/killbill/killbill-api/issues/30[it should].
+
+In this experiment, I modified `killbill-platform` to export `OverdueApi`, and checked what was happening:
+
+Starting any of our Ruby plugin **would not work**.
+
+[source,ruby]
+----
+caused by: org.jruby.exceptions.RaiseException: (NameError) uninitialized constant Killbill::Plugin::Api::OverdueApi
+	at RUBY.load_missing_constant(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/activesupport-4.1.16/lib/active_support/dependencies.rb:520)
+	at RUBY.const_missing(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/activesupport-4.1.16/lib/active_support/dependencies.rb:180)
+	at org.jruby.RubyModule.const_get(org/jruby/RubyModule.java:2648)
+	at RUBY.to_class(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/killbill-8.3.0/lib/killbill.rb:12)
+	at org.jruby.RubyArray.each(org/jruby/RubyArray.java:1613)
+	at org.jruby.RubyEnumerable.inject(org/jruby/RubyEnumerable.java:866)
+	at RUBY.to_class(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/killbill-8.3.0/lib/killbill.rb:11)
+	at
+----
+
+=== Adding a new API Method On a `KillbillApi`
+
+All the `KillbillApi` files are creating through Guice AOP proxy (in order to intercept the calls and verify permissions). We will run 2 experiments
+
+==== API file **not used** by the plugin
+
+In this experiment, i added a new method in the `Entitlement` class and started a a ruby payment plugin (e.g `stripe`), and verified the plugin loads fine and and work as expected.
+
+==== API file **is used** by the plugin
+
+In this experiment, I added a new method in the the `PaymentApi` class, and verified that plugin loads fine and and work as expected. In addition, i made sure, such plugin calls a method from that api (e.g `getPayment()`), and that such call works as expected.
+
+The test has been run both using a ruby plugin (`stripe`) and a java plugin (`adyen`).
+
+=== Adding a new API method on a **non** `KillbillApi`
+
+Some of our apis are embedded in our objects (e.g `Entitlement`). Such implementation are not created through Guice (and not using AOP) but instead are regular POJO, so it is important to validate those cases as well.
+
+==== API file **not used** by the plugin
+
+Skipped: (see next case)
+
+==== API file **is used** by the plugin
+
+In this experiment, i verified that adding a method on the `Entitlement` API, would not prevent the plugin to first retrieve `Entitlement` objects and second make API calls on this object.
+
+I ran the experiment using the adyen plugin. I also tried using stripe plugin but could not complete it because of this https://github.com/killbill/killbill-plugin-framework-ruby/issues/60[issue].
+
+=== Conclusion
+
+It seems like adding **new API methods** to either our `KillbillApi` objects or other API interface is well handled by plugins, in the sense they keep working as expected without having to be regenerated. Of course, such new APIs are not available to the plugins until they get rebuilt.
 
 == Releases
 
