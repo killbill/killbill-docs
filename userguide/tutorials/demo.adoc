@@ -1,0 +1,109 @@
+= Kill Bill demo
+
+== Overview
+
+We have created a simple demo that can be accessible at http://demo.killbill.io/. The purpose is to demonstrate the power and flexibility of our admin UI (also referred to as KAUI, Kill Bill Admin UI), and also to showcase, through some well constructed accounts, some specific functionalities of the system.
+
+Credentials:
+
+* Username: demo_ro
+* Password: demo_ro
+
+When logging-in with those credentials, KAUI will immediately select the *demo* tenant, one will be able to play around using the synthetic data we generated for the purpose of that demo.
+
+=== Setup
+
+The demo runs on AWS and is composed of the following components:
+
+* An instance of Kill Bill server runs on one EC2 instance
+* An instance of KAUI runs on one EC2 instance
+* An instance of RDS (MySQL) serves the databases for both Kill Bill server and KAUI
+
+The system has been configured with multiple tenants, but for the purpose of that demo, we only care about the *demo* tenant. The system has also been configured with different credentials (having access to some or all tenants), and having each a set of specific permissions.
+
+We only share with the rest of the world a read-only set of credential for the *demo* tenant, which means that any actions changing the state of that system will trigger a `401 Unauthorized` response from the server. Note that KAUI also understands permissions and usually hides the links for which a given user cannot access, but we thought it would be more interesting to show the existing actions, even though the user does not have the correct rights.
+
+=== Catalog and Synthetic Data
+
+The data has been generated using some https://github.com/killbill/killbill-integration-tests/tree/master/killbill-integration-tests/seed[scripts] and is based on a https://github.com/killbill/killbill-integration-tests/blob/master/killbill-integration-tests/resources/SeedCloudCatalog.xml[cloud catalog]. The idea behind the *Cloud* catalog is to simulate a SAAS service similar to AWS, where customers can pay for servers.
+
+The users have the choices to either be billed purely based on their usage, or to reserve instances (recurring subscriptions) and then be billed for their usage at a lower price. The usage billing happen in arrear at the end of each month, and the recurring subscriptions for the reserved instance happens in advance at the beginning of the period.
+
+The following plans are available from this catalog:
+
+* `on-demand-metal-no-bp`: raw hardware with no subscription (pure usage model)
+* `reserved-metal-annual-bp`: raw hardware, with a yearly reservation
+* `reserved-metal-monthly-bp`: raw hardware, with a monthly reservation
+* `reserved-vm-monthly-bp`: VM, with a monthly reservation
+* `reserved-metal-monthly-trial-bp`: raw hardware, with a monthly reservation and a 14 days free trial period
+* `reserved-vm-monthly-trial-bp`: VM, with a monthly reservation and a 14 days free trial period
+
+In addition the catalog also adds an ADD_ON product that is included by default with all the '*-metal-*' plans and can be purchase in addition for the '*-vm-*' plans.
+
+Finally, in order to keep things simple, we are only billing based on unit `cpu-hour`.
+
+The catalog is available across 5 different currencies (USD, GBP, EUR, JPY, BTC).
+
+== Features
+
+Each of the accounts (along with some subscriptions, usage, invoices, payments) described below was created to showcase some specific features.
+
+=== Timezones
+
+The first thing to mention is that each `Account` in the system is created with a specific timezone that will drive all conversions from a well defined point of time to a local date (with no time). For more details around date and time in Kill Bill, please refer to this https://killbill.io/blog/lets-talk-about-date-and-time/[blog]. KAUI will display for each account the dates (with no time) in the **account timezone**.
+
+
+The following accounts were created in different parts of the world to show the effect of the timezone. Their subscriptions was all created at approximately the same time (point of time, independent of timezone), and yet because they are in different parts of the world, the local dates and date at which they get billed will end up being different:
+
+* `Brian King` lives in London and has a timezone of `Europe/London` (UTC)
+* `John Silver` lives in Pago Pago and has a timezone of `Pacific/Samoa` (UTC-11)
+* `Yokuri Matsumoto` lives in Tokyo and has a timezone of `Asia/Tokyo` (UTC+9)
+
+The subscriptions for all 3 accounts were created on `2015-08-01T01:00:00.000Z`. The accounts were created without specifying the BCD (BillCycleDay, or date at which the account would get billed in the month) and so the system computed the BCD based on when the first subscription was created, which is `2015-08-01T01:00:00.000Z`. Therefore both `Brian King` and `Yokuri Matsumoto` will end up with a BCD of `1` and `John Silver` will end up with a BCD of `31` (the date in the month in his timezone where that first subscription was created). Both Brian and Yokuri will be billed on the first of the month, and John will be billed at the end of each month.
+
+=== Billing Alignment
+
+Each product in the catalog can be defined with a specific Billing Alignment to control which subscriptions should be invoiced together.
+
+We created an account `Pierre Quiroule` where we created 2 subscriptions, one `MONTHLY` and one `ANNUAL`.
+
+* On `2015-08-01` a subscription for the plan `reserved-metal-monthly-bp` was created and the system invoiced for the period `2015-08-01` -> `2015-09-01`
+* 5 days later, on `2015-08-06`, a new subscription for the plan `reserved-metal-annual-bp` was created.
+
+The catalog can be configured using billing alignment sections to decide whether subscriptions should be billed independently (at different dates) or whether they should be grouped on a specific invoice. In that scenario, if all subscriptions were aligned at the `ACCOUNT` level, they would all be billed on the 1st of the month (default BCD chosen by the system based on when the first subscription was created). When the `ANNUAL` subscription gets created, the system would then pro-rate the ANNUAL to realign with the 1st of the month, and the customer would not necessarily understand why he does not pay for a full year. So in order to avoid that, we specified a `SUBSCRIPTION` level billing alignment for all the `ANNUAL` subscriptions.
+
+=== Subscription Alignment
+
+Each subscription is created based on a `Plan` definition from the catalog. The `Plan` definition may contain several `PlanPhases` to define things like 14 days trial period, or a discounted period, ... `Subscriptions` can be grouped together in a `SubscriptionBundle` to provide some global control on the group, such as the ability to `pause`, `cancel` the whole group, ...
+
+So, because we can have groups of subscriptions, and because each subscription goes through phases (trial, discount, evergreen, ...), there is a need to define how things align with each other:
+
+`Mathew Brown` first subscribes to a `reserved-vm-monthly-trial-bp` on `2015-08-01`. That subscription has a 14 days trial phase, which will expire on `2015-08-15`. 5 days later, `Mathew Brown` decides to purchase the add-on `backup-daily-monthly-trial-bp` which also has a 14 days trial phase. As a merchant we decided that when the trial period for the base subscription would expire, any add-on trial phase would also expire at the same time. The way to achieve that, is to configure the catalog with a `START_OF_BUNDLE` PlanAlignmentCreate.
+
+Looking at the invoices and the timeline from `Mathew Brown`, you can verify that the add-on trial period for both subscriptions ended on `2015-08-15` although the second subscription started on `2015-08-06` and also had a 14 days trial period.
+
+=== Cancelation Policies
+
+The system offers some policies to cancel subscriptions and define the behavior of when the cancelation of the service occurs (entitlement level), and when the cancelation of the billing occurs (subscription level in our Kill Bill terminology). Those policies can be defined at the catalog level, or overridden on a per call basis. The policies are a convenient way to specify to cancel immediately or at the end of the term (that is up to when the subscription was purchased for in-advance billing mode).
+
+In this example we will only focus on the effect of the billing policies:
+
+* `Allison Greenwich` starts a subscription on `2015-08-01` and gets billed for the period of `2015-08-01` to `2015-09-01`. Then on `2015-09-01`, she gets billed for the next period and on `2015-09-11`, she cancels and because the catalog was configured to cancel `END_OF_TERM` she does not get any pro-ration credit for the period of `2015-09-11` to `2015-10-01`.
+* `Christian Lolipop` does the exact same thing, but instead of canceling through the merchant UI (with the default `END_OF_TERM`  policy), he calls the customer support and complains loud enough to make the rep perform an `IMMEDIATE` cancelation (rep can override the policy from  KAUI).
+
+=== Refund scenarii
+
+Refund operations are tied to previous purchase operations (auth + capture) and are therefore solely related to payments (and not invoices). However, each invoice has a balance which is computed by summing all the invoice item amounts (positive for when they are to be paid and negative for credits) and for which payment amounts are subtracted; a payment amount is itself defined as the sum of the purchase amounts minus the refund amounts. So, a refund operation will not change the invoice itself but it will affect the balance of that invoice.
+
+`Jean-Baptiste Poquelin` and `Agostino Giordano` will both create a subscription, get invoiced, pay their invoice and later call customer service to get a refund:
+
+* In the case of `Jean-Baptiste Poquelin`, the rep will do a pure refund operation, giving him his money back, but keeping his invoice unpaid (and potentially he might lose his service by becoming overdue); this could be useful if the customer decides to pay with a different payment instrument for instance.
+* In the case of `Agostino Giordano`, the rep will do a refund operation with item adjustment to make sure the invoice does not show any balance. As a result `Agostino Giordano` not only gets his money back, but he still has has a 0 balance.
+
+=== Usage Billing
+
+`Sean Connery` decides to subscribe to the cloud service, and because he knows he is a heavy user, he decides to purchase the reserved instances, where one gets billed on a recurring basis (whether servers get used or not), and then gets billed for usage at a lower rate.
+
+`James Bond` on the other hand, is not sure about that cloud service provider, and decides to go for a pure usage model by purchasing the `on-demand-metal` product.
+
+Looking at James Bond's invoices, you can verify he only gets billed for his usage. Sean Connery's however is invoiced in-advance for the recurring subscription part and in-arrear of the usage piece.
