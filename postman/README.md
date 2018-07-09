@@ -1,21 +1,14 @@
 # [Kill Bill](http://killbill.io) collection for Postman
 
-[![Run in Postman](https://run.pstmn.io/button.svg)](https://app.getpostman.com/run-collection/1f8e4deb2319137e8867#?env%5BKill%20Bill%5D=W3sia2V5IjoiaG9zdCIsInZhbHVlIjoiMTI3LjAuMC4xIiwidHlwZSI6InRleHQiLCJlbmFibGVkIjp0cnVlfSx7ImtleSI6InBvcnQiLCJ2YWx1ZSI6IjgwODAiLCJ0eXBlIjoidGV4dCIsImVuYWJsZWQiOnRydWV9LHsia2V5IjoidXNlcm5hbWUiLCJ2YWx1ZSI6ImFkbWluIiwidHlwZSI6InRleHQiLCJlbmFibGVkIjp0cnVlfSx7ImtleSI6InBhc3N3b3JkIiwidmFsdWUiOiJwYXNzd29yZCIsInR5cGUiOiJ0ZXh0IiwiZW5hYmxlZCI6dHJ1ZX0seyJrZXkiOiJhcGlfa2V5IiwidmFsdWUiOiJib2IiLCJ0eXBlIjoidGV4dCIsImVuYWJsZWQiOnRydWV9LHsia2V5IjoiYXBpX3NlY3JldCIsInZhbHVlIjoibGF6YXIiLCJ0eXBlIjoidGV4dCIsImVuYWJsZWQiOnRydWV9XQ==)
-
-![Postman](./postman.png)
-
 ## Installation
 
 This repository contains a collection for [Postman](https://www.getpostman.com/). To get started:
 
-1. Install either the [Postman Chrome App](https://chrome.google.com/webstore/detail/postman/fhbjgbiflinjbdggehcddcbncdddomop) or the [Postman Mac App](https://www.getpostman.com/app/postman-osx-beta)
-2. Click on the "Run in Postman" button above
-
-Alternatively, to get the latest version of the collection from this repository, you can import it directly:
-
-1. Click Import
-2. Select the killbill.json file from this repository
-3. Either import it as a new collection or overwrite an existing collection
+1. Install [Postman Native App](https://www.getpostman.com/apps) 
+2. Get the latest version of the collection from this repository:
+   * Click Import
+   * Select the killbill.json file from this repository
+   * Either import it as a new collection or overwrite an existing collection
 
 A few [environment variables](https://www.getpostman.com/docs/environments) are required:
 
@@ -26,7 +19,7 @@ A few [environment variables](https://www.getpostman.com/docs/environments) are 
 * `api_key`: Tenant api key (e.g. bob)
 * `api_secret`: Tenant api secret (e.g. lazar)
 
-If you clicked on the button above, Postman should have created a default environment for you. Alternatively, to import the example environment `killbill.env.json`, go to Manage Environments in Postman and import the file.
+To import the example environment `killbill.env.json`, go to Manage Environments in Postman and import the file.
 
 ## Usage
 
