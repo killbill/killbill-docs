@@ -5,7 +5,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Actual content
 USERGUIDE_INPUT_DIR=$DIR/userguide
 # Common options
-COMMON_OPTS="-a sourcedir=$USERGUIDE_INPUT_DIR"
+COMMON_OPTS="-a sourcedir=$USERGUIDE_INPUT_DIR -a imagesdir=$USERGUIDE_INPUT_DIR/assets"
 # Selfcontained options
 SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -T html5 -a stylesheet=kb.css -a stylesdir=../stylesheets -a source-highlighter=pygments"
 
