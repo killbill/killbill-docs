@@ -88,7 +88,16 @@ docker-machine create -d virtualbox --virtualbox-memory "2048" killbill
 eval $(docker-machine env killbill)
 ----
 
-Next, create a docker-compose.yml file similar to the one below:
+Retrieve the IP address of the Docker machine via:
+
+[source,bash]
+----
+docker-machine ip killbill
+----
+
+We will assume it's 192.168.99.100 in the rest of this guide.
+
+Next, create a docker-compose.yml file similar to the one below (replace `ENV_HOST_IP` with your Docker machine IP address):
 
 [source,yaml]
 ----
@@ -97,15 +106,18 @@ volumes:
   db:
 services:
   killbill:
-    image: killbill/killbill:0.19.6
+    image: killbill/killbill:0.20.0
     ports:
       - "8080:8080"
+      - "8000:8000"
+      - "12345:12345"
     environment:
       - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
       - KILLBILL_DAO_USER=root
       - KILLBILL_DAO_PASSWORD=killbill
+      - ENV_HOST_IP=192.168.99.100
   kaui:
-    image: killbill/kaui:latest
+    image: killbill/kaui:1.0.4
     ports:
       - "9090:8080"
     environment:
@@ -140,14 +152,12 @@ docker-compose up
 
 The startup sequence lasts a few minutes. It is ready when you see the message "Kill Bill server has started".
 
-You can log-in to Kaui by going to http://192.168.99.100:9090 (username: admin, password: password).
+You can log-in to Kaui by going to http://192.168.99.100:9090 (replace with your Docker machine IP address as needed). Default credentials are:
 
-Note: make sure to replace 192.168.99.100 with the IP of your machine, which you can retrieve via:
+* username: admin
+* password: password
 
-[source,bash]
-----
-docker-machine ip killbill
-----
+You can also go to http://192.168.99.100:8080/api.html to explore our APIs.
 
 == Using Kill Bill with Kaui
 
