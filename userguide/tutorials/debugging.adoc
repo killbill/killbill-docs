@@ -115,13 +115,13 @@ In order to return profiling information, one needs to add the HTTP header `X-Ki
 
 ==== JAXRS Profiling
 
-The time is extracted from a https://github.com/killbill/killbill/blob/killbill-0.19.3/profiles/killbill/src/main/java/org/killbill/billing/server/filters/ProfilingContainerResponseFilter.java#L53[Jersey filter], so it should be very close to the time spent into the JAX-RS application handler, not taking into account the time spent in the container itself (i.e. Jetty, Tomcat, ...).
+The time is extracted from a https://github.com/killbill/killbill/blob/killbill-0.20.0/profiles/killbill/src/main/java/org/killbill/billing/server/filters/ProfilingContainerResponseFilter.java#L53[Jersey filter], so it should be very close to the time spent into the JAX-RS application handler, not taking into account the time spent in the container itself (i.e. Jetty, Tomcat, ...).
 
 ==== API Profiling
 
-We are relying on AOP to profile each of our API calls. We are injecting a https://github.com/killbill/killbill/blob/killbill-0.19.3/util/src/main/java/org/killbill/billing/util/glue/KillbillApiAopModule.java#L49[Guice AOP module] to profile each of our API calls. The time returned does not include the extra time spent to dispatch the request using the AOP handler.
+We are relying on AOP to profile each of our API calls. We are injecting a https://github.com/killbill/killbill/blob/killbill-0.20.0/util/src/main/java/org/killbill/billing/util/glue/KillbillApiAopModule.java#L72[Guice AOP module] to profile each of our API calls. The time returned does not include the extra time spent to dispatch the request using the AOP handler.
 
-In addition, there is another https://github.com/killbill/killbill/blob/killbill-0.19.3/util/src/main/java/org/killbill/billing/util/glue/KillBillShiroAopModule.java#L45[AOP module] that is used to validate the user has the right set of permissions to execute this call. Since this occurs prior we do the profiling this time is currently not included in the profiling of the API call.
+In addition, there is another https://github.com/killbill/killbill/blob/killbill-0.20.0/util/src/main/java/org/killbill/billing/util/glue/KillBillShiroAopModule.java#L45[AOP module] that is used to validate the user has the right set of permissions to execute this call. Since this occurs prior we do the profiling this time is currently not included in the profiling of the API call.
 
 Finally when making API calls from plugins, there may be also a small overhead to go through OSGI layer and this time is also not included.
 
@@ -129,8 +129,8 @@ Finally when making API calls from plugins, there may be also a small overhead t
 
 Most of the requests issued from Kill Bill Dao (e.g `DefaultPaymentDao`) classes follow the same mechanism:
 
-1. A transaction is started by calling the `execute` method of the https://github.com/killbill/killbill/blob/killbill-0.19.3/util/src/main/java/org/killbill/billing/util/entity/dao/EntitySqlDaoTransactionalJdbiWrapper.java#L84[EntitySqlDaoTransactionalJdbiWrapper]. Here, we create a `Handle`, essentially retrieving a database connection. The time taken to get the connection can be profiled by using the `DAO_CONNECTION` mask.
-2. Then, a jdbi transaction is started using cglib, and this transaction is actually run through a series of handlers, such as our https://github.com/killbill/killbill-commons/blob/killbill-commons-0.21.6/jdbi/src/main/java/org/killbill/commons/jdbi/transaction/RestartTransactionRunner.java[RestartTransactionRunner]. This extra time, is not being measured by our profiling layer.
+1. A transaction is started by calling the `execute` method of the https://github.com/killbill/killbill/blob/killbill-0.20.0/util/src/main/java/org/killbill/billing/util/entity/dao/EntitySqlDaoTransactionalJdbiWrapper.java#L87[EntitySqlDaoTransactionalJdbiWrapper]. Here, we create a `Handle`, essentially retrieving a database connection. The time taken to get the connection can be profiled by using the `DAO_CONNECTION` mask.
+2. Then, a jdbi transaction is started using cglib, and this transaction is actually run through a series of handlers, such as our https://github.com/killbill/killbill-commons/blob/killbill-commons-0.22.0/jdbi/src/main/java/org/killbill/commons/jdbi/transaction/RestartTransactionRunner.java[RestartTransactionRunner]. This extra time, is not being measured by our profiling layer.
 3. Finally, for each SQL operation within the transaction, we also proxy the calls using the java `Proxy` mechanism, and so all those calls are funneled trough the associated `EntitySqlDaoWrapperInvocationHandler`, and this is where the timing associated to the `DAO` (and `DAO_DETAILS`) mask is taken.
 
 Note that the profiling time reported by the `API` mask -- since it supersedes all dao calls -- will include everything described above. Therefore it is possible to see an API that would only make a dao call take slightly longer than the dao call itself.
@@ -148,7 +148,7 @@ The `GLOCK` mask will simply output the time it took to grab the database lock a
 
 ==== PLUGIN Profiling
 
-This mask can be used to profile the time it takes for Kill Bill to make calls to a given plugin using a given plugin api. Here again, such plugin calls are being proxied using the `Proxy` mechanism, and the timing is taken from the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.37.7/osgi/src/main/java/org/killbill/billing/osgi/ContextClassLoaderHelper.java#L106[invocation handler].
+This mask can be used to profile the time it takes for Kill Bill to make calls to a given plugin using a given plugin api. Here again, such plugin calls are being proxied using the `Proxy` mechanism, and the timing is taken from the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.38.0/osgi/src/main/java/org/killbill/billing/osgi/ContextClassLoaderHelper.java#L106[invocation handler].
 
 The information will contain the name of the plugin api class and the method being invoked.
 
