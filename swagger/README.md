@@ -9,5 +9,5 @@ Static file is also provided here for convenience (it can be used to integrate w
 To regenerate the Swagger file, start Kill Bill then run:
 
 ```
-  curl "http://127.0.0.1:8080/swagger.json" > $PWD/files/swagger.json
+curl "http://127.0.0.1:8080/swagger.json" > $PWD/file/swagger.json
 ```

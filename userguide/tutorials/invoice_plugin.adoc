@@ -23,7 +23,22 @@ Plugins are restricted in the type of items they can add because some items (e.g
 
 === Plugin Activation
 
-Kill Bill will invoke each of the invoice plugins registered in the system when a new invoice gets generated or when a user issues a refund. The order in which those plugins are invoked is not well specified (We also have never seen use cases where there was a need for multiple invoice plugins).
+Invoice plugins are registered through the per-tenant `org.killbill.invoice.plugin` property (CSV list of plugin names) and invoked in order.
+
+=== Retries
+
+Invoice generation can be aborted and retried at a later time if the plugin is unable to compute the additional items (e.g. third-party tax service unavailable). The mechanism to do so is very similar to the retry mechanism for notification plugins: the plugin simple needs to throw an `InvoicePluginApiRetryException` with a specified retry schedule.
+
+Take a look at the https://docs.killbill.io/latest/notification_plugin[Notification Plugins] documentation for more details.
+
+=== A note about invoice item ids
+
+When returning `InvoiceItem` objects back to Kill Bill, it is recommended to set the `id` value to `null`.
+
+However:
+
+* For new invoices or if an invoice is still in `DRAFT` mode, invoice plugins are allowed to update existing items, instead of adding new ones, by respecting the invoice item id returned by Kill Bill. This can be useful for instance to update tax amounts.
+* If the invoice plugin needs to keep track of the items it added, it can set the `id` which will be respected by the core system. Such values are expected to be globally unique.
 
 == Use Cases
 
@@ -39,7 +54,3 @@ One of the main use case of this api is to allow plugins to add `TAX` items. Kil
 There are many use cases where one would want to modify existing invoices. For instance one could implement a way to generate discounts based on certain heuristics (for a given tenant/account/subscription some discount could apply). In those scenarios, the plugin would add `ITEM_ADJ` items to reflect the discount.
 
 A reverse use case is one where a plugin needs to add extra charges that are unknown of the system (Kill Bill) and also based on some heuristics that are only known from the plugin.
-
-
-
-

@@ -1,10 +1,225 @@
 = Kill Bill configuration guide
 
-[[configuration-overview]]
 == Overview
 
-include::{sourcedir}/platform/includes/configuration-overview.adoc[]
+Kill Bill configuration is done via several means:
 
-== System Properties
+* Per-tenant, subsystem specific, configuration file (such as Catalog or Overdue XML configuration files, or Invoice and Payment properties).
+* The `killbill.properties` file, properties global to the system (specified via the Java System Property `-Dorg.killbill.server.properties=file:///path/to/killbill.properties`).
+* Java System Properties (rare cases).
+* Third Party configuration files (e.g. EhCache configuration file, location specified via the Java System Property `org.killbill.cache.config.location`).
 
-include::{sourcedir}/platform/includes/configuration-system-properties.adoc[]
+Properties and their defaults are defined in the Java linked below. In these files, the value of the annotation `@Config` is the configuration key to use in the `killbill.properties` file or in the per-tenant configuration JSON. The default value is specified by the annotation `@Default`.
+
+You *do not* have to modify these Java files to change the properties values.
+
+For example:
+
+[source,java]
+----
+@Config("org.killbill.invoice.enabled")
+@Default("true")
+@Description("Whether the invoicing system is enabled")
+boolean isInvoicingSystemEnabled();
+----
+
+* The configuration key `org.killbill.invoice.enabled` controls whether the invoicing system is enabled
+* The default value is `true`
+* Kill Bill, at runtime, can look up the property value via the method call `isInvoicingSystemEnabled()`
+
+== Per tenant properties
+
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/InvoiceConfig.java[Invoice configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/PaymentConfig.java[Payment configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/NotificationConfig.java[Push notifications configuration]
+
+You can upload these properties via the `/1.0/kb/tenants/uploadPerTenantConfig` endpoint, e.g.:
+
+[source]
+----
+curl -v \
+     -X POST \
+     -u 'admin:password' \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: text/plain" \
+     -H "X-Killbill-CreatedBy: configurator" \
+     -d '{"org.killbill.invoice.dryRunNotificationSchedule":"48h"}' \
+     "http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig"
+----
+
+You can also specify these values in your main `killbill.properties` file (used as a fallback, the per-tenant configuration takes precedence).
+
+== Global properties
+
+Kill Bill core services can be configured through properties defined in the following classes (specify custom values in your `killbill.properties` file):
+
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/BroadcastConfig.java[Broadcast service configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/CatalogConfig.java[Catalog configuration]: used to specify the location of the default catalog if no per-tenant catalog has been uploaded
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/CurrencyConfig.java[Currency provider configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/EhCacheConfig.java[Cache configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/JaxrsConfig.java[JAX-RS configuration]
+
+* https://github.com/killbill/killbill/blob/master/overdue/src/main/java/org/killbill/billing/overdue/OverdueProperties.java[Overdue configuration]: used to specify the location of the default overdue configuration if no per-tenant configuration has been uploaded
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/RbacConfig.java[Rbac configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/SecurityConfig.java[Shiro configuration]
+* https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/TenantConfig.java[Per tenant broadcast service configuration]
+* https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/KillbillServerConfig.java[Kill Bill Web app configuration]
+* https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/config/MetricsGraphiteConfig.java[Metrics and Graphite configuration]
+* https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java[OSGI related configuration] - Kill Bill will look for ruby based OSGI related properties at the location specified by `org.killbill.billing.osgi.bundles.jruby.conf.dir` in the main killbill.properties file. This is usually in `/var/lib/killbill/config` so that configuration can be saved when plugins are removed or upgraded.
+
+
+The properties to configure the database are split between the core Kill Bill services and the plugins, to allow plugins to use a different database or configuration:
+
+* https://github.com/killbill/killbill-commons/blob/master/jdbi/src/main/java/org/killbill/commons/jdbi/guice/DaoConfig.java[Kill Bill Database configuration]
+* https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/glue/OSGIDataSourceConfig.java[Plugin   Database configuration]
+
+The properties to configure the persistent buses and notification queue are shown below. Those properties are built to be used across multiple instances (we have two persistent buses) which explains the substitution parameter `instanceName`.
+
+* https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/bus/api/PersistentBusConfig.java[Persistent bus configuration]
+* https://github.com/killbill/killbill-commons/blob/master/queue/src/main/java/org/killbill/notificationq/api/NotificationQueueConfig.java[Notification queue configuration]
+
+== Docker
+
+Most config properties should be specified in the `killbill.properties` file, located at `/var/lib/killbill/killbill.properties`.
+
+You can either bind mount your own file, by specifying `-v /path/to/killbill.properties:/var/lib/killbill/killbill.properties` when starting your container, or specifying individual environment variables (e.g. `-e KILLBILL_SERVER_TEST_MODE=false`):
+
+* `KILLBILL_ANALYTICS_NOTIFICATION_NB_THREADS` (default `5`)
+* `KILLBILL_ANALYTICS_QUEUE_CAPACITY` (default `30000`)
+* `KILLBILL_BUNDLE_CACHE_NAME` (default `osgi-cache`)
+* `KILLBILL_BUNDLE_INSTALL_DIR` (default `/var/lib/killbill/bundles`)
+* `KILLBILL_BUNDLE_PROPERTY_NAME` (default `killbill.properties`)
+* `KILLBILL_BUS_EXTERNAL_HISTORY_TABLE_NAME` (default `bus_ext_events_history`)
+* `KILLBILL_BUS_EXTERNAL_IN_MEMORY` (default `true`)
+* `KILLBILL_BUS_EXTERNAL_NB_THREADS` (default `50`)
+* `KILLBILL_BUS_EXTERNAL_SLEEP` (default `0`)
+* `KILLBILL_BUS_EXTERNAL_TABLE_NAME` (default `bus_ext_events`)
+* `KILLBILL_BUS_EXTERNAL_USE_INFLIGHT_Q` (default `true`)
+* `KILLBILL_BUS_MAIN_CLAIMED` (default `10`)
+* `KILLBILL_BUS_MAIN_HISTORY_TABLE_NAME` (default `bus_events_history`)
+* `KILLBILL_BUS_MAIN_IN_MEMORY` (default `false`)
+* `KILLBILL_BUS_MAIN_NB_THREADS` (default `50`)
+* `KILLBILL_BUS_MAIN_OFF` (default `false`)
+* `KILLBILL_BUS_MAIN_SLEEP` (default `0`)
+* `KILLBILL_BUS_MAIN_TABLE_NAME` (default `bus_events`)
+* `KILLBILL_CACHE_CONFIG_LOCATION` (default `ehcache.xml`)
+* `KILLBILL_CATALOG_BUNDLE_PATH` (default `org/killbill/billing/util/template/translation/CatalogTranslation`)
+* `KILLBILL_CATALOG_URI` (default `SpyCarBasic.xml`)
+* `KILLBILL_CURRENCY_PROVIDER_DEFAULT` (default `killbill-currency-plugin`)
+* `KILLBILL_DAO_CACHE_PREP_STMTS` (default `true`)
+* `KILLBILL_DAO_CONNECTION_TIMEOUT` (default `100s`)
+* `KILLBILL_DAO_HEALTH_CHECK_CONNECTION_TIMEOUT` (default `10s`)
+* `KILLBILL_DAO_HEALTH_CHECK_EXPECTED99TH_PERCENTILE` (default `50ms`)
+* `KILLBILL_DAO_IDLE_CONNECTION_TEST_PERIOD` (default `5m`)
+* `KILLBILL_DAO_IDLE_MAX_AGE` (default `2m`)
+* `KILLBILL_DAO_LOG_LEVEL` (default `DEBUG`)
+* `KILLBILL_DAO_MAX_ACTIVE` (default `150`)
+* `KILLBILL_DAO_MAX_CONNECTION_AGE` (default `0m`)
+* `KILLBILL_DAO_MIN_IDLE` (default `5`)
+* `KILLBILL_DAO_MYSQL_SERVER_VERSION` (default `4.0`)
+* `KILLBILL_DAO_PASSWORD` (default `killkill`)
+* `KILLBILL_DAO_POOLING_TYPE` (default `HIKARICP`)
+* `KILLBILL_DAO_PREP_STMT_CACHE_SIZE` (default `500`)
+* `KILLBILL_DAO_PREP_STMT_CACHE_SQL_LIMIT` (default `2048`)
+* `KILLBILL_DAO_URL` (default `jdbc:h2:file:/var/lib/killbill/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;MVCC=true;DB_CLOSE_ON_EXIT=FALSE`)
+* `KILLBILL_DAO_USER` (default `killbill`)
+* `KILLBILL_DAO_USE_SERVER_PREP_STMTS` (default `true`)
+* `KILLBILL_DEFAULT_LOCALE` (default `en_US`)
+* `KILLBILL_EXPORT_PACKAGES_API` (default `org.killbill.billing.account.api,org.killbill.billing.analytics.api.sanity,org.killbill.billing.analytics.api.user,org.killbill.billing.beatrix.bus.api,org.killbill.billing.catalog.api,org.killbill.billing.catalog.api.rules,org.killbill.billing.invoice.plugin.api,org.killbill.billing.invoice.api,org.killbill.billing.invoice.api.formatters,org.killbill.billing.entitlement.api,org.killbill.billing,org.killbill.clock,org.killbill.billing.notification.api,org.killbill.billing.notification.plugin.api,org.killbill.billing.notification.plugin,org.killbill.billing.osgi.api,org.killbill.billing.osgi.api.config,org.killbill.billing.overdue,org.killbill.billing.payment.api,org.killbill.billing.payment.plugin.api,org.killbill.billing.control.plugin.api,org.killbill.billing.tenant.api,org.killbill.billing.usage.api,org.killbill.billing.util.api,org.killbill.billing.util.nodes,org.killbill.billing.util.audit,org.killbill.billing.util.callcontext,org.killbill.billing.util.customfield,org.killbill.billing.util.email,org.killbill.billing.util.entity,org.killbill.billing.util.tag,org.killbill.billing.util.template,org.killbill.billing.util.template.translation,org.killbill.billing.currency.plugin.api,org.killbill.billing.catalog.plugin.api,org.killbill.billing.entitlement.plugin.api,org.killbill.billing.currency.api,org.killbill.billing.security.api,org.killbill.billing.osgi.libs.killbill,org.joda.time;org.joda.time.format;version=2.9,org.slf4j;version=1.7.2,org.osgi.service.log;version=1.3,org.osgi.service.http;version=1.2.0,org.osgi.service.deploymentadmin;version=1.1.0,org.osgi.service.event;version=1.2.0`)
+* `KILLBILL_EXPORT_PACKAGES_EXTRA` (default ``)
+* `KILLBILL_EXPORT_PACKAGES_JAVA` (default `com.sun.xml.internal.ws,com.sun.xml.internal.ws.addressing,com.sun.xml.internal.ws.addressing.model,com.sun.xml.internal.ws.addressing.policy,com.sun.xml.internal.ws.addressing.v200408,com.sun.xml.internal.ws.api,com.sun.xml.internal.ws.api.addressing,com.sun.xml.internal.ws.api.client,com.sun.xml.internal.ws.api.config.management,com.sun.xml.internal.ws.api.config.management.policy,com.sun.xml.internal.ws.api.fastinfoset,com.sun.xml.internal.ws.api.ha,com.sun.xml.internal.ws.api.handler,com.sun.xml.internal.ws.api.message,com.sun.xml.internal.ws.api.message.stream,com.sun.xml.internal.ws.api.model,com.sun.xml.internal.ws.api.model.soap,com.sun.xml.internal.ws.api.model.wsdl,com.sun.xml.internal.ws.api.pipe,com.sun.xml.internal.ws.api.pipe.helper,com.sun.xml.internal.ws.api.policy,com.sun.xml.internal.ws.api.server,com.sun.xml.internal.ws.api.streaming,com.sun.xml.internal.ws.api.wsdl.parser,com.sun.xml.internal.ws.api.wsdl.writer,com.sun.xml.internal.ws.binding,com.sun.xml.internal.ws.client,com.sun.xml.internal.ws.client.dispatch,com.sun.xml.internal.ws.client.sei,com.sun.xml.internal.ws.config.management.policy,com.sun.xml.internal.ws.developer,com.sun.xml.internal.ws.encoding,com.sun.xml.internal.ws.encoding.fastinfoset,com.sun.xml.internal.ws.encoding.policy,com.sun.xml.internal.ws.encoding.soap,com.sun.xml.internal.ws.encoding.soap.streaming,com.sun.xml.internal.ws.encoding.xml,com.sun.xml.internal.ws.fault,com.sun.xml.internal.ws.handler,com.sun.xml.internal.ws.message,com.sun.xml.internal.ws.message.jaxb,com.sun.xml.internal.ws.message.saaj,com.sun.xml.internal.ws.message.source,com.sun.xml.internal.ws.message.stream,com.sun.xml.internal.ws.model,com.sun.xml.internal.ws.model.soap,com.sun.xml.internal.ws.model.wsdl,com.sun.xml.internal.ws.org.objectweb.asm,com.sun.xml.internal.ws.policy,com.sun.xml.internal.ws.policy.jaxws,com.sun.xml.internal.ws.policy.jaxws.spi,com.sun.xml.internal.ws.policy.privateutil,com.sun.xml.internal.ws.policy.sourcemodel,com.sun.xml.internal.ws.policy.sourcemodel.attach,com.sun.xml.internal.ws.policy.sourcemodel.wspolicy,com.sun.xml.internal.ws.policy.spi,com.sun.xml.internal.ws.policy.subject,com.sun.xml.internal.ws.protocol.soap,com.sun.xml.internal.ws.protocol.xml,com.sun.xml.internal.ws.resources,com.sun.xml.internal.ws.server,com.sun.xml.internal.ws.server.provider,com.sun.xml.internal.ws.server.sei,com.sun.xml.internal.ws.spi,com.sun.xml.internal.ws.streaming,com.sun.xml.internal.ws.transport,com.sun.xml.internal.ws.transport.http,com.sun.xml.internal.ws.transport.http.client,com.sun.xml.internal.ws.transport.http.server,com.sun.xml.internal.ws.util,com.sun.xml.internal.ws.util.exception,com.sun.xml.internal.ws.util.localization,com.sun.xml.internal.ws.util.pipe,com.sun.xml.internal.ws.util.xml,com.sun.xml.internal.ws.wsdl,com.sun.xml.internal.ws.wsdl.parser,com.sun.xml.internal.ws.wsdl.writer,com.sun.xml.internal.ws.wsdl.writer.document,com.sun.xml.internal.ws.wsdl.writer.document.http,com.sun.xml.internal.ws.wsdl.writer.document.soap,com.sun.xml.internal.ws.wsdl.writer.document.soap12,com.sun.xml.internal.ws.wsdl.writer.document.xsd,javax.annotation,javax.management,javax.naming,javax.naming.ldap,javax.net,javax.net.ssl,javax.crypto,javax.crypto.spec,javax.sql,javax.sql.rowset,javax.sql.rowset.serial,javax.transaction,javax.transaction.xa,javax.xml,javax.xml.bind,javax.xml.validation,javax.xml.namespace,javax.xml.parsers,javax.xml.validation,javax.xml.stream,javax.xml.stream.events,javax.xml.stream.util,javax.xml.transform,javax.xml.transform.dom,javax.xml.transform.sax,javax.xml.transform.stax,javax.xml.transform.stream,javax.xml.xpath,javax.jws.soap,com.sun.org,com.sun.org.apache,com.sun.org.apache.xml,com.sun.org.apache.xml.internal,com.sun.org.apache.xml.internal.utils,com.sun.org.apache.xpath,com.sun.org.apache.xpath.internal,com.sun.org.apache.xpath.internal.jaxp,com.sun.org.apache.xpath.internal.objects,org.w3c.dom,org.w3c.dom.bootstrap,org.w3c.dom.events,org.w3c.dom.ls,org.w3c.dom.css,org.w3c.dom.html,org.w3c.dom.ranges,org.w3c.dom.stylesheets,org.w3c.dom.traversal,org.w3c.dom.views,org.xml.sax,org.xml.sax.ext,org.xml.sax.helpers,sun.misc,sun.misc.unsafe,sun.security,sun.security.util,javax.servlet;version=3.1,javax.servlet.http;version=3.1`)
+* `KILLBILL_EXTERNAL_CLAIM_TIME` (default `5m`)
+* `KILLBILL_EXTERNAL_INFLIGHT_CLAIMED` (default `500`)
+* `KILLBILL_EXTERNAL_QUEUE_CAPACITY` (default `1000000`)
+* `KILLBILL_FAILURE_RETRY_MULTIPLIER` (default `2`)
+* `KILLBILL_INVOICE_DRY_RUN_NOTIFICATION_SCHEDULE` (default `0s`)
+* `KILLBILL_INVOICE_ENABLED` (default `true`)
+* `KILLBILL_INVOICE_GLOBAL_LOCK_RETRIES` (default `50`)
+* `KILLBILL_INVOICE_MAX_DAILY_NUMBER_OF_ITEMS_SAFETY_BOUND` (default `15`)
+* `KILLBILL_INVOICE_MAX_NUMBER_OF_MONTHS_IN_FUTURE` (default `36`)
+* `KILLBILL_INVOICE_READ_MAX_RAW_USAGE_PREVIOUS_PERIOD` (default `2`)
+* `KILLBILL_INVOICE_SANITY_SAFETY_BOUND_ENABLED` (default `true`)
+* `KILLBILL_JANITOR_ATTEMPTS_DELAY` (default `12h`)
+* `KILLBILL_JANITOR_PENDING_RETRIES` (default `65m,3h,3h,5h,1d,1d,1d,1d`)
+* `KILLBILL_JANITOR_UNKNOWN_RETRIES` (default `1h,6h,17h`)
+* `KILLBILL_JAXRS_LOCATION_HOST` (default ``)
+* `KILLBILL_JAXRS_LOCATION_USE_FORWARD_HEADERS` (default `true`)
+* `KILLBILL_JAXRS_TIMEOUT` (default `30s`)
+* `KILLBILL_JRUBY_CONF_DIR` (default `/var/lib/killbill/config`)
+* `KILLBILL_JRUBY_CONTEXT_SCOPE` (default `THREADSAFE`)
+* `KILLBILL_LOCATION_FULL_URL` (default `true`)
+* `KILLBILL_MAIN_CLAIM_TIME` (default `5m`)
+* `KILLBILL_MAIN_NOTIFICATION_NB_THREADS` (default `10`)
+* `KILLBILL_MAIN_NOTIFICATION_OFF` (default `false`)
+* `KILLBILL_MAIN_QUEUE_CAPACITY` (default `1000000`)
+* `KILLBILL_MAIN_QUEUE_CAPACITY` (default `100`)
+* `KILLBILL_MAIN_QUEUE_MODE` (default `STICKY_POLLING`)
+* `KILLBILL_MANUAL_PAY_TEMPLATE_NAME` (default `org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache`)
+* `KILLBILL_MAX_FAILURE_RETRY` (default `3`)
+* `KILLBILL_METRICS_GRAPHITE_HOST` (default `localhost`)
+* `KILLBILL_METRICS_GRAPHITE_INTERVAL` (default `30`)
+* `KILLBILL_METRICS_GRAPHITE_PORT` (default `2003`)
+* `KILLBILL_METRICS_GRAPHITE_PREFIX` (default `killbill`)
+* `KILLBILL_METRICS_GRAPHITE` (default `false`)
+* `KILLBILL_METRICS_INFLUXDB_DATABASE` (default `30`)
+* `KILLBILL_METRICS_INFLUXDB_HOST` (default `localhost`)
+* `KILLBILL_METRICS_INFLUXDB_INTERVAL` (default `30`)
+* `KILLBILL_METRICS_INFLUXDB_PORT` (default `2003`)
+* `KILLBILL_METRICS_INFLUXDB_PREFIX` (default `killbill`)
+* `KILLBILL_METRICS_INFLUXDB_SENDER_TYPE` (default `killbill`)
+* `KILLBILL_METRICS_INFLUXDB_SOCKET_TIMEOUT` (default `30`)
+* `KILLBILL_METRICS_INFLUXDB` (default `false`)
+* `KILLBILL_NOTIFICATIONQ_ANALYTICS_CLAIMED` (default `100`)
+* `KILLBILL_NOTIFICATIONQ_ANALYTICS_HISTORY_TABLE_NAME` (default `analytics_notifications_history`)
+* `KILLBILL_NOTIFICATIONQ_ANALYTICS_IN_MEMORY` (default `false`)
+* `KILLBILL_NOTIFICATIONQ_ANALYTICS_SLEEP` (default `3000`)
+* `KILLBILL_NOTIFICATIONQ_ANALYTICS_TABLE_NAME` (default `analytics_notifications`)
+* `KILLBILL_NOTIFICATIONQ_MAIN_CLAIMED` (default `100`)
+* `KILLBILL_NOTIFICATIONQ_MAIN_HISTORY_TABLE_NAME` (default `notifications_history`)
+* `KILLBILL_NOTIFICATIONQ_MAIN_IN_MEMORY` (default `false`)
+* `KILLBILL_NOTIFICATIONQ_MAIN_SLEEP` (default `70000`)
+* `KILLBILL_NOTIFICATIONQ_MAIN_TABLE_NAME` (default `notifications`)
+* `KILLBILL_OSGI_DAO_CACHE_PREP_STMTS` (default `true`)
+* `KILLBILL_OSGI_DAO_CONNECTION_TIMEOUT` (default `100s`)
+* `KILLBILL_OSGI_DAO_IDLE_CONNECTION_TEST_PERIOD` (default `5m`)
+* `KILLBILL_OSGI_DAO_IDLE_MAX_AGE` (default `2m`)
+* `KILLBILL_OSGI_DAO_LOG_LEVEL` (default `DEBUG`)
+* `KILLBILL_OSGI_DAO_MAX_ACTIVE` (default `150`)
+* `KILLBILL_OSGI_DAO_MAX_CONNECTION_AGE` (default `0m`)
+* `KILLBILL_OSGI_DAO_MIN_IDLE` (default `5`)
+* `KILLBILL_OSGI_DAO_MYSQL_SERVER_VERSION` (default `4.0`)
+* `KILLBILL_OSGI_DAO_PASSWORD` (default `killbill`)
+* `KILLBILL_OSGI_DAO_POOLING_TYPE` (default `HIKARICP`)
+* `KILLBILL_OSGI_DAO_PREP_STMT_CACHE_SIZE` (default `500`)
+* `KILLBILL_OSGI_DAO_PREP_STMT_CACHE_SQL_LIMIT` (default `2048`)
+* `KILLBILL_OSGI_DAO_URL` (default `jdbc:h2:file:/var/lib/killbill/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;MVCC=true;DB_CLOSE_ON_EXIT=FALSE`)
+* `KILLBILL_OSGI_DAO_USER` (default `killbill`)
+* `KILLBILL_OSGI_DAO_USE_SERVER_PREP_STMTS` (default `true`)
+* `KILLBILL_OSGI_ROOT_DIR` (default `/var/tmp/felix`)
+* `KILLBILL_OVERDUE_URI` (default `NoOverdueConfig.xml`)
+* `KILLBILL_PAYMENT_GLOBAL_LOCK_RETRIES` (default `50`)
+* `KILLBILL_PAYMENT_INVOICE_PLUGIN` (default ``)
+* `KILLBILL_PAYMENT_JANITOR_RATE` (default `5m`)
+* `KILLBILL_PAYMENT_PLUGIN_TIMEOUT` (default `64s`)
+* `KILLBILL_PAYMENT_PROVIDER_DEFAULT` (default `__EXTERNAL_PAYMENT__`)
+* `KILLBILL_PAYMENT_RETRY_DAYS` (default `8,8,8`)
+* `KILLBILL_PLUGIN_THREADS_NB` (default `100`)
+* `KILLBILL_RBAC_GLOBAL_SESSION_TIMEOUT` (default `1h`)
+* `KILLBILL_RETRY_MAX_ATTEMPTS` (default `8`)
+* `KILLBILL_RETRY_START_SEC` (default `300`)
+* `KILLBILL_SECURITY_SHIRO_NB_HASH_ITERATIONS` (default `200000`)
+* `KILLBILL_SECURITY_SHIRO_RESOURCE_PATH` (default `classpath:shiro.ini`)
+* `KILLBILL_SERVER_BASE_URL` (default `http://127.0.0.1:8080`)
+* `KILLBILL_SERVER_HTTP_GZIP` (default `false`)
+* `KILLBILL_SERVER_MULTITENANT` (default `true`)
+* `KILLBILL_SERVER_NOTIFICATIONS_RETRIES` (default `15m,30m,2h,12h,1d`)
+* `KILLBILL_SERVER_REGION` (default `local`)
+* `KILLBILL_SERVER_SHUTDOWN_DELAY` (default `0s`)
+* `KILLBILL_SERVER_TEST_MODE` (default `true`)
+* `KILLBILL_TEMPLATE_BUNDLE_PATH` (default `org/killbill/billing/util/template/translation/InvoiceTranslation`)
+* `KILLBILL_TEMPLATE_INVOICE_FORMATTER_FACTORY_CLASS` (default `org.killbill.billing.invoice.template.formatters.DefaultInvoiceFormatterFactory`)
+* `KILLBILL_TEMPLATE_NAME` (default `org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache`)
+* `KILLBILL_TENANT_BROADCAST_RATE` (default `5s`)
+* `KILLBILL_THREADS_POOL_NB` (default `30`)
+* `KILLBILL_UTIL_BROADCAST_RATE` (default `5s`)

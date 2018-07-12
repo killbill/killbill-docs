@@ -1,233 +1,198 @@
 = Kill Bill AWS Deployment
 
-[[intro]]
 == Introduction
 
-In this tutorial, we will explore how we can deploy Kill Bill in AWS by leveraging the existing Docker killbill container.
+In this tutorial, we will explore how we can deploy Kill Bill in AWS by leveraging the existing Docker Kill Bill container.
 
-The deployment will rely on:
+The deployment deploy one EC2 instance where Kill Bill, Kaui and the MySQL containers will run.
 
-* One EC2 instance where the killbill docker container runs
-* One RDS instance for mysql
+Note that those steps are mostly for the purpose of a demo; they omit production-like features such as DB backup, monitoring, or even deploying multiple EC2 instances for HA or horizontal scalability purpose. However, all those are more a matter of configuring AWS towards that end and spawning more instances, so in final, the steps can be used as *a basis* to deploy Kill Bill in the cloud to handle your production traffic.
 
-Requirements: **You need to create an AWS account and have an access to the AWS console**
+=== Requirements
 
-Note that those steps are mostly for the purpose of a demo; they omit production-like features such as DB backup, Monitoring, or even deploying multiple EC2 instances for HA or horizontal scalability purpose. However, all those are more a matter of configuring AWS towards that end and spawning more instances, so in final, the steps can be used as *a basis* to deploy Kill Bill in the cloud to handle your production traffic.
+==== AWS API user
 
-[[aws_setup]]
-== AWS Setup
+You need to create an AWS account and have an access to the AWS console.
 
-The AWS setup is little bit convoluted, and even though there is a lot of documentation on aws, we will go through the various steps. To summarize the steps:
+Once logged-in, create a new https://console.aws.amazon.com/iam/home?#/users[IAM user]:
 
-* Setup of the VPC, that is now required by some instances
-* Setup and launch the RDS instance
-* Setup and launch the EC2 Killbill docker container
+1. Click "Add User". On the next screen, pick a username and make sure to check "Programmatic access".
+2. Attach the following policy. Replace `%AWS_ACCOUNT_ID%` with your account ID (that you can get from the https://console.aws.amazon.com/billing/home?#/account[My Account] page) and update the region `eu-west-1` as needed:
 
-[[vpc]]
-=== Configuring the VPC
+[source]
+----
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "TheseActionsDontSupportResourceLevelPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateKeyPair",
+                "ec2:DeleteKeyPair",
+                "ec2:ImportKeyPair",
+                "ec2:Describe*",
+                "ec2:CreateTags",
+                "ec2:CreateSecurityGroup",
+                "ec2:AuthorizeSecurityGroupIngress"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "ThisActionsSupportResourceLevelPermissions",
+            "Effect": "Allow",
+            "Action": ["ec2:RunInstances"],
+            "Resource": [
+                "arn:aws:ec2:eu-west-1::image/ami-*",
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:instance/*",
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:key-pair/*",
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:network-interface/*",
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:placement-group/*",
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:security-group/*",
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:subnet/*",
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:volume/*"
+                ]
+        },
+        {
+            "Sid": "TheseActionsSupportResourceLevelPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:TerminateInstances",
+                "ec2:StopInstances",
+                "ec2:StartInstances",
+                "ec2:RebootInstances"
+            ],
+            "Resource": [
+                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:instance/*"
+            ]
+        }
+    ]
+}
+----
+3. Note the access key and secret
 
-From AWS console, choose VPC service:
+Populate the following environment variables:
 
-1. Create the http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_VPC.html[VPC]
-+
- NameTag : dockerdemo
- CIDR block : 172.50.0.0/16
- Tenancy : Default
-+
-Then select `Actions` to set `DNS Resolution` and `DNS Hostname`
+* `AWS_ACCESS_KEY_ID`: IAM user access key
+* `AWS_SECRET_ACCESS_KEY`: IAM user secret key
+* `AWS_DEFAULT_REGION`: AWS region (matching the policy above)
 
-2. Then create an http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Internet_Gateway.html#Add_IGW_Attach_Gateway[Internet Gateway]
-+
-This is necessary to make sure the public IP is visible from the outside world.
-+
- Specifying a Name: dockerdemo
- Right click on the created gateway, and select 'attach to VPC'; chose the VPC previously created
-+
+==== AWS VPC
 
-3. Add http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPCSubnet[subnets to VPC]
-+
-Subnet sub menu `Create Subnet`:
-+
- Name Tag: dockerdemo-e1b
- VPC: select previously created VPC
- Availability zone: us-east-1b
- CIDR block : 172.50.1.0/24
- Select 'Modify Auto-Assign Plublic IP'
-+
-Repeat twice to create the other subnets with {us-east-1c, 172.50.2.0/24}, {us-east-1d, 172.50.3.0/24})
+1. Go to Services -> VPC -> Your VPCs and locate the VPC ID you would like to use from the VPC column. Populate the `AWS_VPC_ID` environment variable with it.
+2. Go to Services -> VPC -> Subnets. Examine the Availability Zone column to verify that zone `a` exists and matches your VPC ID (if it doesn't, you must create a new subnet in that zone).
 
-4. Create Custom Route Tables:
-+
-Route Tables Menu `Create Route table`:
-+
- Name tag: dockerdemo
- VPC: prevous VPC
- Edit the routes to add the gateway:
- Destination: 0.0.0.0/0
- Target: select the gateway igw-xxxx
- Tag 'Subnet associations': Edit and click on all subnet to 'associate'
+==== Docker
 
-5. Security Group for EC2 instances:
-+
-Security Group Menu `Create Security Group`:
-+
- Name Tag: dockerdemo
- Group Name: dockerdemo
- VPC: select VPC
- Edit SG: Add following rules:
- {Type=SSH, Protocol=TCP, Port=22, Source=0.0.0.0/0 or your IP machine if you want to be more restrictive)
- {Type=HTTP, Protocol=TCP, Port=8080, Source=0.0.0.0/0)
-+
+This guids assumes you have installed https://docs.docker.com/install/[Docker], https://docs.docker.com/machine/install-machine/[Docker Machine] and https://docs.docker.com/compose/install/[Docker Compose].
 
-6. Security Group for RDS instance:
-+
-Security Group Menu `Create Security Group`:
-+
- Name Tag: dockerdemo-db
- Group Name: dockerdemo
- VPC: select VPC
- Edit SG: Add following rules:
- {Type=SSH, Protocol=TCP, Port=3306, Source=0.0.0.0/0 or your IP machine if you want to be more restrictive)
+== EC2 setup
 
+Create the `saas` machine as such:
 
-[[rds]]
-=== Configuring the RDS Instance
+[source,bash]
+----
+docker-machine --debug \
+               create  \
+               --driver amazonec2 \
+               --amazonec2-access-key $AWS_ACCESS_KEY_ID \
+               --amazonec2-secret-key $AWS_SECRET_ACCESS_KEY \
+               --amazonec2-vpc-id $AWS_VPC_ID \
+               --amazonec2-region $AWS_DEFAULT_REGION \
+               --amazonec2-zone a \
+               --amazonec2-instance-type c4.xlarge \
+               --amazonec2-root-size 250 \
+               saas
+----
 
-From AWS console, choose RDS service:
+Note: we recommand using `c4.xlarge` instances or larger (at least 7.5GB RAM).
 
-1. Add the subnet group for the DB:
-+
- Subnet Group Menu: Create DB subnet Group
- Name: dockerdemo-db
- VPC ID: select VPC
- Availability zone: pick one (us-east-1b)
- Add the 3 subnets prevoulsy created
+If the command is successful, run:
 
-2. Launch DB instance (select MySQL Community Edition)
-+
- Instance class: db.t2.micro
- Use Existing VPC: Select VPC
- Multi AZ: false
- DB Instance Identifier: dockerdemo
- Master Username: dockerdemo
- Master Password: dockerdemo
- Advanced Setting:
- VPC :select dockerdemo
- VPC security group : select the dockerdemo-db (oprt open for tcp 3306)
- Database name: killbill
+1. `eval "$(docker-machine env saas)"`
+2. `docker ps`
 
-3. Launch the database
-+
-Write down the endpoint (e.g  dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com)
+You should have no error and the output should be empty:
 
+[source]
+----
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+----
 
-[[ec2]]
-=== Configuring the EC2 Instance
-
-From AWS console, choose EC2 service:
-
-1. Launch instance: Chose AMI (ami-9eaa1cf6) Ubuntu Server 14.04 LTS (HVM), SSD Volume Type (for example)
-+
- Instance: t2.small (or adjust to your needs)
- Configure Details:
- Select VPC: dockerdemo
- Auto assign IP: Use subnet setting (Enable)
-
-2. In order to get `dockerd` installed and started automatically, the folks from docker created a script that can be invoked by `Cloud-Init`: +
-In `Advanced Detail Section`:
-+
- User Data: As text
- Enter in the box: #include https://get.docker.com
-
-3. Next screen, edit security group and select thr previoulsy created security group (`dockerdemo` which opens port 22 and 8080)
-
-4. Launch the instance:
-+
- Create new key pair: dockerdemo
-+
-Download the private key `dockerdemo.pem` that will be needed later to download into the zone.
-
-
-[[aws_setup]]
 == Kill Bill Setup
-At this stage you have both a dockerized instance of EC2 running and an RDS instance. We need to setup the database and start Kill Bill. Also, and as an example we will deploy the stripe plugin along with Kill Bill.
 
-Note: *Replace the DNS names below in the rest of the doc with your RDS and EC2 DNS name*
+Next, create a docker-compose.yml file similar to the one below:
 
-Since the RDS instance is not publicly available, we will configure it through our EC2 instance, so first we will need to ssh to the EC2 instance:
+[source,yaml]
+----
+version: '3.2'
+volumes:
+  db:
+services:
+  killbill:
+    image: killbill/killbill:0.19.19
+    ports:
+      - "8080:8080"
+    environment:
+      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
+      - KILLBILL_DAO_USER=root
+      - KILLBILL_DAO_PASSWORD=killbill
+  kaui:
+    image: killbill/kaui:latest
+    ports:
+      - "9090:8080"
+    environment:
+      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
+      - KAUI_CONFIG_DAO_USER=root
+      - KAUI_CONFIG_DAO_PASSWORD=killbill
+      - KAUI_KILLBILL_URL=http://killbill:8080
+  db:
+    image: killbill/mariadb:0.19
+    volumes:
+      - type: volume
+        source: db
+        target: /var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=killbill
+----
+
+and run:
 
 [source,bash]
-.SSH to the zone:
 ----
-> chmod 400 docker.pem # make sure private key is read-only
-> ssh  -i dockerdemo.pem ubuntu@ec2-54-174-176-179.compute-1.amazonaws.com
+docker-compose up
 ----
+
+3 containers will start:
+
+* one for MariaDB (shared database, used by both Kill Bill and Kaui)
+* one for Kill Bill
+* one for Kaui
+
+Get the public IP of you EC2 instance:
 
 [source,bash]
-.Also verify that dockerd is running:
 ----
-> ps -ef | grep dockerd # Or:
-> sudo docker info
+docker-machine ip saas
 ----
 
-[[killbill_db]]
-=== Configuring the Kill Bill database
-Since the RDS instance is not publicly available, we will configure it through our EC2 instance. First we install the missing mysql-client package and then upload the database schema:
+and verify you can access Kaui at http://W.X.Y.Z:9090.
 
-[source, bash]
-.Install mysql client and upload DB schema
-----
-> sudo apt-get install -y  mysql-client
-> curl -q http://killbill.io/wp-content/uploads/2014/11/killbill-0.12.0.ddl | mysql -h dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com -u dockerdemo -pdockerdemo killbill
-> curl -q https://raw.githubusercontent.com/killbill/killbill-stripe-plugin/master/db/ddl.sql | mysql -h dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com -u dockerdemo -pdockerdemo killbill
-----
+== Stripe setup
 
+Go to the Kaui tenant page:
 
-[[stripe_config]]
-=== Configuring the Stripe Plugin
+1. Click the "Plugin Config" tab
+2. Enter "stripe" as the plugin name
+3. Specify your Stripe secret key
 
-Create the stripe configuration:
+== End to end testing
 
-[source, bash]
-----
-> mkdir -p /home/ubuntu/killbil/etc/
-> vi /home/ubuntu/killbil/etc/stripe.yml
-----
+Use our https://github.com/killbill/killbill-stripe-demo[demo] to test a full end to end flow:
 
-Fill the details with your own keys:
-
-[source, ruby]
-----
-:stripe:
- :api_secret_key: API_SECRET_KEY
- :test: true
- :database:
- :adapter: jdbcmysql
- :jndi: killbill/osgi/jdbc
- :connection_alive_sql: select 1
- :pool: 25
-----
-
-[[docker]]
-=== Final Step
-Finally download the docker image, and start it:
-
-[source, bash]
-----
-> sudo docker pull killbill/killbill:0.12.1
-> sudo docker run -tid \
-       –name dockerdemo \
-       -p 8080:8080 \
-       -v /home/ubuntu/killbil/etc/stripe.yml:/etc/killbill/stripe.yml \
-       -e KILLBILL_PLUGIN_STRIPE=1 \
-       -e KILLBILL_CONFIG_DAO_URL=jdbc:mysql://dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill \
-       -e KILLBILL_CONFIG_DAO_USER=dockerdemo \
-       -e KILLBILL_CONFIG_DAO_PASSWORD=dockerdemo \
-       -e KILLBILL_CONFIG_OSGI_DAO_URL=jdbc:mysql://dockerdemo.cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill \
-       -e KILLBILL_CONFIG_OSGI_DAO_USER=dockerdemo \
-       -e KILLBILL_CONFIG_OSGI_DAO_PASSWORD=dockerdemo \
-       killbill/killbill:0.12.1
-> sudo docker logs -f dockerdemo  # check for instance to be up and running
-----
-
-From this point, you can check everything is working by doing the same curls from the http://killbill.io/blog/having-fun-with-docker-stripe-kill-bill/[docker blog]
+* Use Stripe.js to tokenize the card
+* Store the token in Kill Bill for subsequent (or recurring) payments
+* Create subscriptions, generate invoices and trigger automatic payments
+* Retrieve a Kill Bill payment in your Stripe dashboard

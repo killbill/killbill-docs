@@ -1,3 +1,5 @@
+= Users, Roles and Permissions Management
+
 == Overview
 
 **Terminology**: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.
@@ -42,10 +44,6 @@ The `shiro.ini` file will look like the following:
 
 [source,bash]
 ----
-#
-# Use -Dorg.killbill.security.shiroResourcePath=/var/tmp/shiro.ini to specify your own config
-#
-
 [users]
 superadmin = superadmin13, root
 
@@ -53,18 +51,21 @@ superadmin = superadmin13, root
 root = *:*
 ----
 
+You can use the property `org.killbill.security.shiroResourcePath` to specify the location of this file. When using Docker, you can bind mount the file, e.g. specify `-v /path/to/shiro.ini:/var/lib/killbill/shiro.ini -e KILLBILL_SECURITY_SHIRO_RESOURCE_PATH=file:/var/lib/killbill/shiro.ini`.
+
+===== Role and user setup
 
 Let's create a new role `customer_support`:
 
 [source,bash]
 ----
 curl -v \
--u "superadmin:superadmin123"  \
--H "X-Killbill-CreatedBy: stephane" \
--H "Content-Type: application/json" \
--X POST \
---data-binary '{ "role": "customer_support", "permissions": ["account:create", "account:update", "entitlement:change_plan", "entitlement:pause_resume", "entitlement:cancel", "entitlement:transfer", "invoice:credit", "invoice:item_adjust", "tag:create_tag_definition", "tag:delete_tag_definition", "tag:add", "tag:delete"] }' \
-'http://127.0.0.1:8080/1.0/kb/security/roles'
+     -u "superadmin:superadmin123"  \
+     -H "X-Killbill-CreatedBy: stephane" \
+     -H "Content-Type: application/json" \
+     -X POST \
+     --data-binary '{ "role": "customer_support", "permissions": ["account:create", "account:update", "entitlement:change_plan", "entitlement:pause_resume", "entitlement:cancel", "entitlement:transfer", "invoice:credit", "invoice:item_adjust", "tag:create_tag_definition", "tag:delete_tag_definition", "tag:add", "tag:delete"] }' \
+     'http://127.0.0.1:8080/1.0/kb/security/roles'
 ----
 
 Let's create a `cs` username that will have only one role `customer_support`:
@@ -72,12 +73,12 @@ Let's create a `cs` username that will have only one role `customer_support`:
 [source,bash]
 ----
 curl -v \
--u 'superadmin:superadmin123' \
--H "X-Killbill-CreatedBy: stephane" \
--H "Content-Type: application/json" \
--X POST \
---data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support"] }' \
-'http://127.0.0.1:8080/1.0/kb/security/users'
+     -u 'superadmin:superadmin123' \
+     -H "X-Killbill-CreatedBy: stephane" \
+     -H "Content-Type: application/json" \
+     -X POST \
+     --data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support"] }' \
+     'http://127.0.0.1:8080/1.0/kb/security/users'
 ----
 
 
@@ -86,12 +87,12 @@ Let's assume we want to add more permissions to that user. We could create anoth
 [source,bash]
 ----
 curl -v \
--u 'superadmin:superadmin123' \
--H "X-Killbill-CreatedBy: stephane" \
--H "Content-Type: application/json" \
--X PUT \
---data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support_manager"] }' \
-'http://127.0.0.1:8080/1.0/kb/security/users/cs/roles'
+     -u 'superadmin:superadmin123' \
+     -H "X-Killbill-CreatedBy: stephane" \
+     -H "Content-Type: application/json" \
+     -X PUT \
+     --data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support_manager"] }' \
+     'http://127.0.0.1:8080/1.0/kb/security/users/cs/roles'
 ----
 
 
@@ -149,7 +150,8 @@ curl -v \
 
 To enable LDAP, Kill Bill needs to be launched with the following System Properties:
 
-```
+[source,properties]
+----
 killbill.server.ldap=true
 # Take a look at your LDAP configuration for the following properties
 org.killbill.security.ldap.dnSearchTemplate=
@@ -162,7 +164,7 @@ org.killbill.security.ldap.systemUsername=
 org.killbill.security.ldap.systemPassword=
 org.killbill.security.ldap.authenticationMechanism=
 org.killbill.security.ldap.permissionsByGroup=
-```
+----
 
 Notes:
 

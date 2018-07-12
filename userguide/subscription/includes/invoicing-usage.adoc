@@ -1,0 +1,141 @@
+==== Usage Invoice Items
+
+As described in the section http://docs.killbill.io/latest/userguide_subscription.html#components-catalog-usage[Usage Billing],
+Kill Bill supports invoicing customers based on different usage type. The usage billing is always done on a per subscription
+level and for a given billing period; in addition, if the active `Plan` associated with the subscription contains multiple usage
+sections, each usage section is billed independently: As a result, we may see one or several `USAGE` invoice items per invoice,
+each associated with a given subscription, usage section and billing period.
+
+So regarless of the usage type the following basic fields will always be seen:
+
+* `planName`: The name of the `Plan` in the catalog
+* `phaseName`: The name of the `PlanPhase` in the catalog
+* `subscriptionId`: The ID of the subscription
+* `usageName`: The name of the usage section in the catalog
+* `startDate`: The start date for the period being invoiced
+* `endDate`: The end date for the period being invoiced
+
+In addition, depending on the usage type for the usage section (e.g `CONSUMABLE`), and depending on the configuration of the system,
+we will see additional information. 
+
+==== Capacity In Arrear Mode
+
+For each capacity in arrear usage section, we will see some json in the field `itemDetails`, to provide additional information:
+
+[source,bash]
+----
+{
+  "tierDetails": [
+    {
+      "tier": 2,
+      "tierUnit": "bandwith-meg-sec",
+      "tierPrice": 10,
+      "quantity": 200
+    },
+    {
+      "tier": 3,
+      "tierUnit": "members",
+      "tierPrice": 100,
+      "quantity": 60
+    }
+  ],
+  "amount": 100
+}
+----
+
+In this example we see that we were invoiced for 2 different units, and this shows the tier details for each unit, and the amount that will be charged.
+Note that because unit `members` reached tier 3, in the capacity in arrear model, the amount will be based on the pricing for this tier.
+
+==== Consumable In Arrear Mode
+
+In this mode, we are going through each tier level to compute the price based on the tier price and quantity. As described prevously, we support both `ALL_TIER` and `TOP_TIER` `TierBlockPolicy`. 
+
+We can configure the invoicing system to output one item per tier, or one aggregate item for all tiers. The section below will consider a use case of `ALL_TIER` policy, but the idea between aggregate or detail mode remains the same.
+
+==== Agrregate Mode
+
+In the aggregate mode, we will see one `USAGE` item with the aggregate amount across unit and tiers. The `itemDetails` json will summarize the usage on a per tier basis and per unit basis:
+
+[source,bash]
+----
+{
+  "tierDetails": [
+    {
+      "tier": 1,
+      "tierUnit": "cell-phone-minutes",
+      "tierPrice": 2,
+      "tierBlockSize": 1,
+      "quantity": 20,
+      "amount": 40
+    },
+    {
+      "tier": 2,
+      "tierUnit": "cell-phone-minutes",
+      "tierPrice": 20,
+      "tierBlockSize": 1,
+      "quantity": 100,
+      "amount": 2000
+    },
+    {
+      "tier": 1,
+      "tierUnit": "Mbytes",
+      "tierPrice": 10,
+      "tierBlockSize": 1,
+      "quantity": 10,
+      "amount": 100
+    }
+  ],
+  "amount": 2140
+}
+----
+
+In this example, we see that we billed for two units `cell-phone-minutes` and `Mbytes`: For the `cell-phone-minutes`, the quantity recorded for the period was such, that we reached the maxium for tier 1 and started to bill some units for tier 2; for the `Mbytes` units, we billed  everything in the tier 1. The amount reported is the sum of the amount : 40 + 2000 + 100 = 2140.
+
+==== Detail Mode
+
+Sometimes it is desirable to output one `USAGE` item per unit type and tier, so in this case the detail for the billing is inside each
+invoice item -- and the aggregate amount is computed by summing the sum amount. In order to activate this mode, one needs to set
+the system property `org.killbill.invoice.item.result.behavior.mode` to `DETAIL`.
+
+Each of the `USAGE` item will contain the following fields:
+
+* `quantity`: Quantity consumed for the unit (type) and on the given tier
+* `rate`: We reused the `rate` field normally reserved for `RECURING` type to output the price of the tier
+
+Also, the `itemDetails` json field will provide some additional details:
+
+[source,bash]
+----
+{
+  "tier": 1,
+  "tierUnit": "cell-phone-minutes",
+  "tierPrice": 2,
+  "tierBlockSize": 1,
+  "quantity": 20,
+  "amount": 40
+}
+----
+
+
+==== Past Usage Periods
+
+By default the system is configured to look at the past 2 billing periods, but this can be changed by using the configuration `org.killbill.invoice.readMaxRawUsagePreviousPeriod` (default=2). Let's assume a MONTHLY subscription that was invoiced for the following periods:
+
+* `2018-01-01 - 2018-02-01`
+* `2018-02-01 - 2018-03-01`
+* `2018-03-01 - 2018-04-01`
+
+On `2018-05-01`, the system will by default look to invoice for the period `2018-04-01 - 2018-05-01`, but it will also recompute items for the past 2 periods, `2018-03-01 - 2018-04-01` and `2018-02-01 - 2018-03-01`.
+
+Late Usage Data:
+
+If for some reason, there is some late usage reported in these past 2 periods, the system will include this delta. Depending on the type of usage and mode (e.g `AGGREGATE`) we will see one or several `USAGE` item for this period to reflect such additional charge. If the late usage is older than these past 2 periods, it is simply ignored.
+
+Missing Usage Data:
+
+Currently it is considered an error to delete past usage data in these past 2 periods, the invoicing system would throw an error and prevent invoicing to happen correctly. If the late missing data is older than these past 2 periods, it is simply ignored.
+
+One can set the system property -- or per-tenant config -- `org.killbill.invoice.readMaxRawUsagePreviousPeriod` to `0` to ignore any past data -- late usage or missing data.
+
+
+

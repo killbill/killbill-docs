@@ -1,0 +1,499 @@
+= Kill Bill development
+
+== Environment setup
+
+Pre-requisites:
+
+* JDK 7 or later installed
+* Maven 3.5.2 or later installed
+* Git 2.15.1 or later installed
+
+=== Eclipse
+
+The Kill Bill projects can be imported into the Eclipse IDE as long as the https://www.eclipse.org/m2e/[m2e] plugin is installed. Recent versions of the https://www.eclipse.org/downloads/eclipse-packages/[Eclipse IDE for Java EE Developers] come with this plugin already.
+
+Some of the Maven plugins used may not be available to m2e, however, and the projects will not import completely. To work around this issue, the Eclipse `Preferences > Maven > Lifecycle Mappings` configuration can be updated to include mappings like the following:
+
+[source,bash]
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<lifecycleMappingMetadata>
+ <pluginExecutions>
+   <pluginExecution>
+     <pluginExecutionFilter>
+       <groupId>org.apache.maven.plugins</groupId>
+       <artifactId>maven-antrun-plugin</artifactId>
+       <versionRange>1.4</versionRange>
+       <goals>
+         <goal>run</goal>
+       </goals>
+     </pluginExecutionFilter>
+     <action>
+       <execute>
+         <runOnConfiguration>true</runOnConfiguration>
+         <runOnIncremental>true</runOnIncremental>
+       </execute>
+     </action>
+   </pluginExecution>
+   <pluginExecution>
+     <pluginExecutionFilter>
+       <groupId>org.codehaus.mojo</groupId>
+       <artifactId>templating-maven-plugin</artifactId>
+       <versionRange>1.0-alpha-3</versionRange>
+       <goals>
+         <goal>filter-sources</goal>
+       </goals>
+     </pluginExecutionFilter>
+     <action>
+       <execute>
+         <runOnConfiguration>true</runOnConfiguration>
+         <runOnIncremental>true</runOnIncremental>
+       </execute>
+     </action>
+   </pluginExecution>
+   <pluginExecution>
+     <pluginExecutionFilter>
+       <groupId>org.codehaus.mojo</groupId>
+       <artifactId>build-helper-maven-plugin</artifactId>
+       <versionRange>[1.0,)</versionRange>
+       <goals>
+         <goal>add-source</goal>
+         <goal>add-test-source</goal>
+         <goal>add-resource</goal>
+         <goal>add-test-resource</goal>
+         <goal>maven-version</goal>
+         <goal>parse-version</goal>
+       </goals>
+     </pluginExecutionFilter>
+     <action>
+       <execute>
+         <runOnConfiguration>true</runOnConfiguration>
+         <runOnIncremental>true</runOnIncremental>
+       </execute>
+     </action>
+   </pluginExecution>
+ </pluginExecutions>
+</lifecycleMappingMetadata>
+----
+
+
+=== Build
+
+Kill Bill is a standard Maven project. Simply run the following command from the https://github.com/killbill/killbill[project] root directory:
+
+[source,bash]
+----
+mvn clean install -DskipTests
+----
+
+On the first build, Maven will download all the dependencies from the internet and cache them in the local repository (`~/.m2/repository`), which can take a considerable amount of time. Subsequent builds will be faster.
+
+Once built, you can start Kill Bill by running:
+
+[source,bash]
+----
+./bin/start-server -s
+----
+
+==== PostgreSQL
+
+By default, Kill Bill will expect a MySQL database. To switch to PostgreSQL:
+
+* Create a killbill user and database (verify connectivity with `psql -h 127.0.0.1 -U killbill -p 5432`):
+[source,postgresql]
+----
+create USER killbill;
+\password killbill;
+CREATE DATABASE killbill WITH OWNER killbill;
+----
+* Create the schema:
+[source,bash]
+----
+./bin/db-helper -a create  --driver postgres -u killbill -p killbill
+----
+* Modify the `profiles/killbill/src/main/resources/killbill.properties`:
+[source,properties]
+----
+org.killbill.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
+org.killbill.dao.user=killbill
+org.killbill.dao.password=killbill
+
+org.killbill.billing.osgi.dao.url=jdbc:postgresql://127.0.0.1:5432/killbill
+org.killbill.billing.osgi.dao.user=killbill
+org.killbill.billing.osgi.dao.password=killbill
+----
+
+=== Dependencies
+
+The base `pom.xml` (`org.kill-bill.billing:killbill-oss-parent`) defines all of the dependencies required by Kill Bill. If a `-SNAPSHOT` version is specified (e.g. `0.141.74-SNAPSHOT`), this means some dependencies haven't been released yet and you need to build them locally, before being able to build Kill Bill.
+
+Typically, the following repositories need to be built in order:
+
+1. https://github.com/killbill/killbill-oss-parent[killbill-oss-parent]
+2. https://github.com/killbill/killbill-commons[killbill-commons]
+3. https://github.com/killbill/killbill-platform[killbill-platform]
+
+== Navigating the Kill Bill codebase
+
+It can be quite daunting to start poking around the Kill Bill codebase, as the code is scattered over various repositories. Here is a primer on how to get started.
+
+=== Core system
+
+* https://github.com/killbill/killbill-api: Java APIs, used when embedding Kill Bill (advanced users), by the REST API layer (internally) as well as by plugins, which need to interact with the core system.
+* https://github.com/killbill/killbill-plugin-api: Java Plugin APIs, which need to be implemented by plugin developers.
+* https://github.com/killbill/killbill-commons: similar in concept to Apache Commons, repository of re-useable components. You could use these in your projects even outside of the Kill Bill environment.
+* https://github.com/killbill/killbill-platform: underlying Kill Bill platform, contains code unrelated to billing and payments, such as setting up the lifecycle, the OSGI environment, the webapp container bridge, logging, etc.
+* https://github.com/killbill/killbill: the Kill Bill library, containing the core of the system. It is divided into submodules, each one of them being independent (own APIs, own set of tables, etc.) and interacting with other modules either via internal Java APIs or Bus events.
+
+The following blog posts can help provide more context on the Kill Bill architecture:
+
+* http://killbill.io/blog/kill-bill-billing-system-architecture/
+* http://killbill.io/blog/kill-bill-plugins-architecture/
+* http://killbill.io/blog/persistent-bus-in-kill-bill/
+
+
+=== Ecosystem
+
+* https://github.com/killbill/killbill-integration-tests: while each repository contains its own test suites, from unit tests to functional tests (with and without a persistent layer), as well as end-to-end tests (see the `beatrix` and `profiles/killbill` tests in the main killbill repository for example), the killbill-integration-tests repository adds another set of tests which focus on long running scenarii against a running Kill Bill server. This also gives you a base framework to develop your own tests, to verify the integration of Kill Bill in your environment and to make sure it follows your business rules.
+* https://github.com/killbill/killbill-client-java, https://github.com/killbill/killbill-client-ruby, etc. provide clients for the HTTP API in various languages.
+* https://github.com/killbill/killbill-stripe-plugin, https://github.com/killbill/killbill-paypal-express-plugin, etc. provide integrations with payment gateways (payment plugins).
+* https://github.com/killbill/killbill-logging-plugin, https://github.com/killbill/killbill-analytics-plugin, etc. provide additional functionality (e.g. notification plugins).
+
+== Date, Time and Timezone
+
+A few general concepts around time in Kill Bill:
+
+* Kill Bill's granularity is the day, and as a result the system will not invoice for portions of a day.
+* Each account in Kill Bill has a default timezone and that timezone is used throughout the system to be able to convert a DateTime into a Date into the account Timezone.
+* Kill Bill will internally use UTC for all its Datetime manipulation, but any Date information is interpreted as a Date in the account timezone.
+
+
+=== Mysql Date, DateTime, Timestamp
+
+We are only relying on date and datetime which are not sensitive to the MySQL timezone setting:
+
+* Datetime: Storing a Datetime value into MySQL relies on `datetime` which is independent of the mysql time_zone. It is stored as a UTC value, and the selected value is always the same, regardless of the MySQL timezone.
+* LocalDate: Storing a LocalDate value into MySQL relies on `date` which is also independent of the MySQL time_zone.
+
+=== System Configuration
+
+From an operation point of view, there are different places where timezone may be set:
+
+1. Server on which Kill Bill runs
+2. JVM setting
+3. Database server
+
+*It is required to have Kill Bill runs in UTC for correct serialization of DateTime/LocalDate.* Actually, in Java, there is no UTC timezone setting but instead `GMT`. In a first approximation, we will consider those identical, even though they are not and could lead to some rare issues.
+
+When Kill Bill starts, it will override the default timezone if this one was specified as a system property with something different than GMT. The code will log a WARN message and proceed to do so, to avoid issues later down the road.
+
+=== REST APIs
+
+Kill Bill APIs that accept dates as an argument will allow for the following:
+
+* A fully qualified Datetime (a point in time)
+* A Date
+
+If there is a need to convert from a Datetime to a Date, the conversion will occur by specifying the account timezone, so the resulting Date is as seen by the customer. This would for instance be the case when triggering a future invoice by specifying a target Datetime.
+
+If there is a need to convert from a Date to Datetime, this is obviously more subtle as we can't infer the additional precision to compute the time. The Date is always interpreted to be a Date as seen by the customer, that is in the account timezone.
+
+The system will use the reference time on the account in such a way that converting back from that fully qualified Datetime using the account timezone would give us back the original Date provided.
+
+=== Multiple changes in a day
+
+So what happens if a user is making several subscription changes within the same day?
+
+In the default mode, Kill Bill will react to changes immediately and trigger a new invoice for each change, which in turn might result in a charge.
+
+Let's consider the following case, where there exists 3 monthly plans (Bronze, Silver and Gold), ordered by ascending price:
+
+* Initially, the customer is invoiced for the Bronze, from january 1st to feb 1st. By default a payment would also be made.
+* On January 1st again, the customer changes its mind and moves to Silver. A new invoice is generated that will credit the full month -- including the day of january 1st -- and the new plan is now invoiced from january 1st to february 1st and the credit generated is immediately used, so in the end the customer is really only invoiced for the difference of the price between the 2 plans; Additionally, a new payment is made for that amount.
+* If now the customer changes its plan on Jan 2nd, the portion from January 1st to January 2nd will be invoiced for the Silver plan and the portion from January 2nd to February 1st will be invoiced for the Gold plan.
+
+From an entitlement point of view, the system will reflect the current plan and therefore two different calls to retrieve the plan information on January 1st may lead to different results since there was a change of plan during that day.
+
+
+== Adding a new cache
+
+=== Overview
+
+1. Create a new CacheType in `@Cachable`
+2. Create a new cache loader in `org.killbill.billing.util.cache`. Make sure to extend `BaseCacheLoader` and reference your CacheType via `getCacheType()`. The loader should also be marked as `@Singleton`.
+3. Register your new cache loader in the constructor of `EhCacheCacheManagerProvider`
+4. Configure your new cache in ehcache.xml
+
+You're all set! To start caching your `SqlDao` calls, mark your method as `@Cachable` and use `@CachableKey` in the method arguments to create the cache key.
+
+=== Families of Caches
+
+There are different types objects cached in Kill Bill:
+
+* Id mapping caches (UUID -> Long); for e.g `accountRecordId`
+* Audit logs
+* Higher level resources (Tenant Catalog, Tenant OverdueConfig)
+
+==== Id mapping caches
+
+The information cached is immutable and does not have to be synchronized across Kill Bill instances; in the worst case, we have a cache miss on a specific instance, and then the cache will end up being populated.
+
+The mapping info is implemented in `DefaultNonEntityDao`; the call first provides a `CacheController` which will look for cached info, and if not found call the corresponding CacheLoader. This one in turn will call back the `DefaultNonEntityDao` with a null `CacheController`, which will result in making the call to the database and populate the cache.
+
+Also, there is some special logics in `EntitySqlDaoWrapperInvocationHandler` that will populate the cache when objects get created -- when they get retrieved actually the first time using `getById`. Since the pattern in Kill Bill is to retrieve store information using `getById` after object was created, this ends up populating the mapping cache.
+
+==== Audit logs
+
+The information cached here is mutable and needs to be synchronized across different instances of Kill Bill. https://github.com/killbill/killbill/issues/247[This has not been implemented.]
+
+The logics to cache information happens in `EntitySqlDaoWrapperInvocationHandler`.
+
+==== Higher level resources
+
+The information cached here is mutable and needs to be synchronized across different instances of Kill Bill. The code path is a bit more complex because:
+
+* We are caching higher abstraction than what is actually inserted in the raw tables; for e.g we store strings in the `tenant_kvs` table for the per tenant catalog and yet we cache the `VersionedCatalog` so that it does not have to rebuilt on each call.
+* We need to take care of the multi-node implementation which means we need some form of cache invalidation.
+
+There are different pieces for that puzzle -- let's look at the catalog, but this is similar to overdue for the overdue config xml files:
+
+In the catalog module, the service registers the `CacheInvalidationCallback` with the tenant module at `INIT_SERVICE`; this is required to make sure the tenant module which does not have dependency on the catalog can call catalog specific code to invalidate the entries when it detects some modifications. The per tenant catalog are cached in the catalog module in the `EhCacheCatalogCache`. The `EhCacheCatalogCache` offers the api to load and invalidate the cache.
+
+In the util module, we find the `TenantCatalogCacheLoader`; this is symmetrical with any other types of cache we discussed. The `TenantCatalogCacheLoader` is the one making the call to load information from disk. In that case this is slightly more complex because the `TenantCatalogCacheLoader` needs to return a higher level abstraction than the raw strings stored in disk, and the conversion requires some logic that exists in the catalog module. Since util does not have any dependency on the catalog module, the catalog module needs to also pass a `LoaderCallback` which knows how to make the transformation. Also note that the raw strings are loaded using the `TenantInternalApi` as opposed to just making a DAO call since the raw information lives in the tenant module.
+
+The tenant module is where the raw information is stored. It provides 2 sets of APIs:
+
+* An `TenantInternalApi` which is used internally to initialize `CacheInvalidationCallback` and retrieve information without going through the  lower level cache magic in `EntitySqlDaoWrapperInvocationHandler`.
+* A `TenantUserApi` which allows to store the raw data `addTenantKeyValue()`.
+In addition it contains also a small service that listens periodically to broadcast notifications when a catalog for a given tenant has changed. This is implemented in `TenantCacheInvalidation` and the goal here is to invoked the invalidation callback.
+
+== Adding a new plugin API
+
+Kill Bill supports multiple https://github.com/killbill/killbill-plugin-api[plugin APIs], which goal is to customize the system or interact with third party providers.
+
+The purpose of this doc is to *help with the engineering effort* required to add a new plugin API, and is not an exact exhaustive list of recipes to apply.
+
+=== Overview of the changes
+
+The following areas have to be considered when adding a new plugin API:
+
+* **Plugin Apis**: Add the new maven module into the repo https://github.com/killbill/killbill-plugin-api to match that new API, and define all the abstractions and APIs
+* **https://github.com/killbill/killbill-platform[Kill Bill platform] changes**:
+** Modify the OSGI magic to auto-detect plugins of that new type when they are discovered
+** Add JRuby support
+* **https://github.com/killbill/killbill[Kill Bill Core] changes**:
+** New Plugin API Wiring
+*** Add the Guice binding in the component module
+*** Make sure it is injected at the right place (where it needs to be used)
+** Plug the new plugin API into the code (modify the code to now call that API where it makes sense)
+** Decide/Implement mechanism to use if there are multiple plugins of that type registered
+* **Ruby**:
+** Enhance the https://github.com/killbill/killbill-plugin-framework-ruby[Ruby framework]
+** Create a a ruby test plugin
+* **Tests**:
+** https://github.com/killbill/killbill/tree/master/beatrix/src/test/java/org/killbill/billing/beatrix/integration[Beatrix tests]: add a new `beatrix` test that will test that API (and verify the plumbing is correct as well)
+** Write an https://github.com/killbill/killbill-integration-tests[integration test] that will use the ruby test plugin
+
+=== Gory details
+
+Let's assume we are trying to add new plugin API called `Foo`, in a Kill Bill module called `Bar`. In the case of the `PaymentPluginApi`, `Foo` = `Payment`, and the module `Bar` = https://github.com/killbill/killbill/tree/master/payment.
+
+==== Platform Changes
+
+The OSGI magic to register new plugins of a given type occurs in https://github.com/killbill/killbill-platform/blob/master/osgi/src/main/java/org/killbill/billing/osgi/KillbillActivator.java[`KillbillActivator`]:
+
+The following would need to be added in the `KillbillActivator`
+[source,java]
+----
+@Inject(optional = true)
+public void addFooPluginApiOSGIServiceRegistration(final OSGIServiceRegistration<FooPluginApi> fooProviderPluginRegistry) {
+    allRegistrationHandlers.add(fooProviderPluginRegistry);
+}
+----
+
+Additionally, there is Java platform piece of code that needs to be written to support Ruby plugins:
+
+1. In https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/bundles/jruby/src/main/java/org/killbill/billing/osgi/bundles/jruby/JRubyActivator.java[`JRubyActivator`], define new `KILLBILL_PLUGIN_JFOO = "Killbill::Plugin::Api::FooPluginApi"`, and modify `startWithContextClassLoader` to support `Foo`
+2. Create new class `JRubyFooPlugin`
+3. Add Guice binding where necessary
+
+
+==== Kill Bill Core Changes
+
+This section is a bit harder to describe as it depends on the plugin type, and what the code expects to do with that plugin API. But the main pieces are:
+
+1. Create a new `DefaultFooProviderPluginRegistryProvider implements Provider<OSGIServiceRegistration<FooPluginApi>>`
+2. Create new `DefaultFooProviderPluginRegistry implements OSGIServiceRegistration<FooPluginApi>`
+3. Add Guice bindings in the module for `DefaultBarModule`
+4. Inject the new registry `OSGIServiceRegistration<FooPluginApi>` where it is needed, that is at the place where the current code will need to interact with that new `FooPluginApi` (See example in `InvoicePluginDispatcher` for `InvoicePluginApi`)
+5. Define the mechanism to decide what happens when there are multiple plugins registered for that api. The code could walk through all plugins (ordering, aggregation or stop at first one that replies, ...), use some property or other mechanism to pick a specific plugin. For instance:
+** `PaymentPluginApi`: The Payment code will use the PaymentMethod associated the payment call to decide how to route to the correct plugin
+** `InvoicePluginApi`: The Invoice code will loop through all plugins and aggregate the results
+6. Potentially add some `NoOpFooProviderPluginProvider` and `NoOpFooPluginApi` if Kill Bill needs to ship with an embedded default plugin by default, or if those are needed for tests
+
+==== Beatrix tests
+
+Take a look at https://github.com/killbill/killbill/blob/master/beatrix/src/test/java/org/killbill/billing/beatrix/integration/TestWithTaxItems.java[TestWithTaxItems] which tests the `InvoicePluginApi`
+
+==== Ruby Framework
+
+1. A new class `foo.rb` must be defined similar to https://github.com/killbill/killbill-plugin-framework-ruby/blob/master/lib/killbill/invoice.rb[`invoice.rb`] for the `InvoicePluginApi` and add `require` in `killbill.rb`
+2. Regenerate the auto-generated plugin classes using the https://github.com/killbill/killbill-java-parser[generator]
+
+
+== Plugin Compatibility with API changes
+
+It would very convenient to make backward compatible API changes to a given `stable` Kill Bill version (e.g 0.20.x), but in order to do that we need to understand what is the impact on existing plugins (that were build prior such api change). This document tracks some investigation made to answers this question.
+
+=== Exporting a new API Class
+
+At the time of this writing the `OverdueApi` is not exported to plugins -- but https://github.com/killbill/killbill-api/issues/30[it should].
+
+In this experiment, I modified `killbill-platform` to export `OverdueApi`, and checked what was happening:
+
+Starting any of our Ruby plugin **would not work**.
+
+[source,ruby]
+----
+caused by: org.jruby.exceptions.RaiseException: (NameError) uninitialized constant Killbill::Plugin::Api::OverdueApi
+	at RUBY.load_missing_constant(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/activesupport-4.1.16/lib/active_support/dependencies.rb:520)
+	at RUBY.const_missing(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/activesupport-4.1.16/lib/active_support/dependencies.rb:180)
+	at org.jruby.RubyModule.const_get(org/jruby/RubyModule.java:2648)
+	at RUBY.to_class(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/killbill-8.3.0/lib/killbill.rb:12)
+	at org.jruby.RubyArray.each(org/jruby/RubyArray.java:1613)
+	at org.jruby.RubyEnumerable.inject(org/jruby/RubyEnumerable.java:866)
+	at RUBY.to_class(/var/tmp/bundles2/plugins/ruby/killbill-stripe/4.1.0/ROOT/gems/gems/killbill-8.3.0/lib/killbill.rb:11)
+	at
+----
+
+=== Adding a new API Method On a `KillbillApi`
+
+All the `KillbillApi` files are creating through Guice AOP proxy (in order to intercept the calls and verify permissions). We will run 2 experiments
+
+==== API file **not used** by the plugin
+
+In this experiment, i added a new method in the `Entitlement` class and started a a ruby payment plugin (e.g `stripe`), and verified the plugin loads fine and and work as expected.
+
+==== API file **is used** by the plugin
+
+In this experiment, I added a new method in the the `PaymentApi` class, and verified that plugin loads fine and and work as expected. In addition, i made sure, such plugin calls a method from that api (e.g `getPayment()`), and that such call works as expected.
+
+The test has been run both using a ruby plugin (`stripe`) and a java plugin (`adyen`).
+
+=== Adding a new API method on a **non** `KillbillApi`
+
+Some of our apis are embedded in our objects (e.g `Entitlement`). Such implementation are not created through Guice (and not using AOP) but instead are regular POJO, so it is important to validate those cases as well.
+
+==== API file **not used** by the plugin
+
+Skipped: (see next case)
+
+==== API file **is used** by the plugin
+
+In this experiment, i verified that adding a method on the `Entitlement` API, would not prevent the plugin to first retrieve `Entitlement` objects and second make API calls on this object.
+
+I ran the experiment using the adyen plugin. I also tried using stripe plugin but could not complete it because of this https://github.com/killbill/killbill-plugin-framework-ruby/issues/60[issue].
+
+=== Conclusion
+
+It seems like adding **new API methods** to either our `KillbillApi` objects or other API interface is well handled by plugins, in the sense they keep working as expected without having to be regenerated. Of course, such new APIs are not available to the plugins until they get rebuilt.
+
+== Releases
+
+Summary of the steps (and gotchas) to release Kill Bill.
+
+=== Versioning
+
+A Kill Bill version has major, minor and patch numbers:
+
+* major is currently locked at 0
+* even minor numbers are reserved for stable releases (production ready)
+* odd minor numbers are reserved for development releases (APIs and Plugin APIs can change)
+
+While plugins can use their own versioning scheme, official plugins have major, minor and patch numbers:
+
+* major tracks specific Kill Bill minor releases (e.g. 1.x.y for 0.14.z, 2.x.y for 0.15.z, 3.x.y for 0.16.z, etc.)
+* minor are used to track large changes in the plugin (e.g. gateway API version change)
+
+=== Kill Bill Release
+
+==== Pre-requisites
+
+* All code should be checked-in
+* All tests should pass on both the MySQL and Travis profiles:
+[source,bash]
+----
+mvn clean install -Pmysql
+mvn clean install -Ptravis
+----
+* Take a look at CircleCI
+
+==== Documentation updates
+
+* Update the NEWS file with GitHub issues closed for that release and summary of important changes or bug fixes. You can browse the commits since the latest tag via:
+[source,bash]
+----
+git log $(git describe --tags $(git rev-list --tags --max-count=1))..
+----
+* Create a release page. While the NEWS file is geared towards developers, the release notes are meant for users upgrading. Mention JAX-RS and DDL changes, new features, etc.
+* Update `killbill-server-update-list.properties` in https://github.com/killbill/killbill/blob/master/profiles/killbill/src/main/resources/update-checker/killbill-server-update-list.properties[killbill] and https://github.com/killbill/killbill/blob/master/profiles/killpay/src/main/resources/update-checker/killbill-server-update-list.properties[killpay] with a link to these release notes
+
+==== Release
+
+* To release, in each Java repo: `mvn release:clean && mvn release:prepare && mvn release:perform`
+* The order of release is:
+** killbill-api
+** killbill-oss-parent
+** killbill-plugin-api
+** killbill-oss-parent
+** killbill-commons
+** killbill-oss-parent
+** killbill-plugin-framework-ruby (with code regenerated)
+** killbill-currency-plugin-test (with update killbill gem)
+** killbill-notification-test-plugin (with update killbill gem)
+** killbill-payment-test-plugin (with update killbill gem)
+** killbill-platform (updated with the latest plugins)
+** killbill-oss-parent
+** killbill
+* If JAX-RS was changed, regenerate the client libraries and update Kaui.
+* Update killbill-docs, including XSD and DDL files in the branch `gh-pages`.
+
+=== Gotchas
+
+* To re-run a `release:perform` of an arbitrary tag:
+[source,bash]
+----
+mvn -DconnectionUrl=scm:git:git@github.com:killbill/killbill.git -Dtag=your_tag release:perform
+----
+* If `release:perform` fails because of Sonatype issues during the 'Closing staging repository...' stage, wait between 30 and 40 minutes - the operation should finish in the background. If it doesn't and/or the repository is dropped, try the following switches:
+[source,bash]
+----
+mvn -DkeepStagingRepositoryOnFailure=true -DkeepStagingRepositoryOnCloseRuleFailure=true -DautoReleaseAfterClose=true -DstagingProgressTimeoutMinutes=20 -DconnectionUrl=scm:git:git@github.com:killbill/killbill.git -Dtag=your_tag release:perform
+----
+* If the timeout happens during the 'Remote staging repositories are being released...' stage, wait again between 30 and 40 minutes - the operation should finish in the background. If it doesn't, try going to the UI and close it.
+* If the release fails with signature errors, e.g.:
+```
+Waiting for operation to complete.......................................
+
+[ERROR]
+[ERROR] Nexus Staging Rules Failure Report
+[ERROR] ==================================
+[ERROR]
+[ERROR] Repository "comning-1234" failures
+[ERROR]   Rule "signature-staging" failures
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-tests.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-tests.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-beatrix/0.3.6/killbill-beatrix-0.3.6-test-sources.jar.asc' is not a valid signature for 'killbill-beatrix-0.3.6-test-sources.jar'.
+[ERROR] *** Invalid Signature: '/com/ning/billing/killbill-osgi-bundles-test-payment/0.3.6/killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar.asc' is not a valid signature for 'killbill-osgi-bundles-test-payment-0.3.6-jar-with-dependencies.jar'.
+[ERROR]
+```
+keep re-trying to close (maybe try the **nexus-staging:release** goal manually). In my testing, you need **N** numbers of retries, where **N** is the original number of invalid signatures (after each run, you should have fewer and fewer errors). Alternatively, you can follow the steps http://www.sonatype.com/books/nexus-book/reference/staging-sect-managing-staging.html[here].
+* If you are having some issues and need to (re-)upload all the artifacts, you can do it manually:
+ * Go in the checkout/target directory and run `jar -cvf bundle.jar project.pom project.pom.asc project.jar project.jar.asc ....` where project is the name of your repo and include as many artifact with their signature as you have
+ * Then go under 'Staging Upload' and select 'Upload Mode' = 'Artifact Bundle', and select the bundle you just created
+
+An example of a script for the killbill-platform repo to generate the bundle.jar for each modules, which can then be updated later by hand:
+
+[source,bash]
+----
+for m in platform-api base lifecycle osgi-api osgi osgi-bundles platform-test server; do RES=""; cd $m/target; for i in `ls | grep asc`; do base=`echo $i | sed s/.asc//`; RES="$RES $base $base.asc"; done; rm -f bundle.jar; jar -cvf bundle.jar $RES;  cd ../..; done
+----

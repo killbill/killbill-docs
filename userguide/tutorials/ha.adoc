@@ -25,7 +25,7 @@ The Kill Bill `Account` abstraction has been enhanced to allow specifying a pare
 
 1. Every time the system computes a new invoice (or adjusts an existing one) for a given child `Account`, the parent gets notified and also computes a special summary invoice that will include all of the items for all the children on a given day.
 2. The payment system will ignore the child invoice as it knows this should be paid by the parent.
-3. At the end of each day (UTC time), the summary invoice will transition from `DRAFT` to `COMMITTED`.
+3. At the end of each day (UTC time, or as configued by the per-tenant `org.killbill.invoice.parent.commit.local.utc.time` property), the summary invoice will transition from `DRAFT` to `COMMITTED`.
 4. As a result, the payment system will attempt to make a payment for the parent summary invoice using the default payment method associated with the parent `Account`.
 
 As we can see, each child `Account` can still have its own subscriptions and matching invoices, but associated payments are delegated to the parent through the daily computation of a summary invoice.
@@ -48,6 +48,10 @@ When this occurs, any unpaid invoice is still owed by the previous parent. For i
 To put it differently, un- and re-parenting don't affect past invoices: children can return to do their own billing, in which case the parent is responsible for things billed up to un-parenting and children are responsible for things billed after that. Similarly, children will continue to be responsible for payments against anything that has already been billed before (re-)parenting but the parent will be responsible for bills moving forward.
 
 To avoid this behavior, child invoices should be adjusted (or written off) prior to un- or re-parenting, to start from a clean state.
+
+=== Invoices in DRAFT mode
+
+If a child `Account` is tagged with `AUTO_INVOICING_DRAFT`, the parent does not receive any notification until that child invoice gets committed.
 
 == Tutorial
 
@@ -246,8 +250,13 @@ Let's now verify what happens on the payment side:
 
 ----
 
-
 As expected we see one payment for the parent invoice and no payment for the child.
+
+== Advanced use-cases
+
+=== Committing parent invoices early
+
+Parent `DRAFT` invoices can be committed early if needed, through the `PUT /1.0/kb/invoices/<parentInvoiceId>/commitInvoice` API. If a new child invoice is generated prior the end of that day, the system will recreate a new `SUMMARY` invoice for that day.
 
 == Conclusion
 

@@ -34,7 +34,8 @@ Let's assume a new user subscribes to the shotgun-monthly plan on 2012-04-01.
 
 The plan is defined as follows:
 
-```
+[source,xml]
+----
 <plan name="shotgun-monthly">
     <product>Shotgun</product>
     <initialPhases>
@@ -61,11 +62,12 @@ The plan is defined as follows:
         </recurring>
     </finalPhase>
 </plan>
-```
+----
 
 Upon subscription creation, a new entry is added to the `bundles` and `subscriptions` tables, which look like this:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from bundles\G
 *************************** 1. row ***************************
             record_id: 1
@@ -99,11 +101,12 @@ charged_through_date: 2012-04-01 00:00:00
    account_record_id: 1
     tenant_record_id: 0
 1 row in set (0.00 sec)
-```
+----
 
 Associated with the subscription are a couple of subscription events, one `CREATE` marking the beginning of the subscription at the effective date `2012-04-01 00:01:14` and one `PHASE` event marking the date at which the `EVERGREEN` phase starts:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from subscription_events\G
 *************************** 1. row ***************************
               record_id: 1
@@ -142,11 +145,12 @@ billing_cycle_day_local: 0
       account_record_id: 1
        tenant_record_id: 0
 2 rows in set (0.00 sec)
-```
+----
 
 The subscription service has also recorded a future notification effective when the `EVERGREEN` phase starts:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from notifications\G
 *************************** 1. row ***************************
                 record_id: 1
@@ -165,11 +169,12 @@ processing_available_date: NULL
            effective_date: 2012-05-01 00:01:14
         future_user_token: 892a1fdf-45b5-404d-a492-99f612ba8b55
 1 row in set (0.00 sec)
-```
+----
 
 The entitlement subsystem has also a record of the start of the entitlement, in the `blocking_states` table (on older Kill Bill versions, this was not present so you could still see some data were this is missing and this is fine, the system knows how to handle this case):
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from blocking_states\G
 *************************** 1. row ***************************
         record_id: 1
@@ -190,18 +195,20 @@ block_entitlement: 0
 account_record_id: 1
  tenant_record_id: 0
 1 row in set (0.00 sec)
-```
+----
 
 Upon subscription creation, a bus event is triggered and caught by the invoicing subsystem, which invoices the account with a target date of 2012-04-01. To do so, it computes the billing events from these subscription events and blocking states (they are effectively markers between billable periods). In our case, these billing events are:
 
-```
+[source,java]
+----
 DefaultBillingEvent{type=CREATE, effectiveDate=2012-04-01T00:01:14.000Z, planPhaseName=shotgun-monthly-trial, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=1}
 DefaultBillingEvent{type=PHASE, effectiveDate=2012-05-01T00:01:14.000Z, planPhaseName=shotgun-monthly-evergreen, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=2}
-```
+----
 
 The target date being 2012-04-01, only the first one matters. Based on the catalog configuration, the following invoice and invoice item are generated (an invoice has always 1 or more invoice items associated with it):
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoices\G
 *************************** 1. row ***************************
         record_id: 1
@@ -243,13 +250,14 @@ MySQL [killbill]> select * from invoice_items\G
      created_date: 2012-04-01 00:01:15
 account_record_id: 1
  tenant_record_id: 0
-```
+----
 
 There is only a single `FIXED` item with a start date of 2012-04-01.
 
 Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice (using the default payment method on the account):
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoice_payments\G
 *************************** 1. row ***************************
                 record_id: 1
@@ -295,7 +303,7 @@ transaction_external_key: ae53501e-c9dd-45e3-8ec6-78da4e9f8d99
 
 MySQL [killbill]> select * from payments\G
 Empty set (0.00 sec)
-```
+----
 
 What happens is that the payment subsystem calls the `createPurchaseWithPaymentControl` API and specifies `__INVOICE_PAYMENT_CONTROL_PLUGIN__` as the control plugin to use (you can add your own via the system property `org.killbill.payment.invoice.plugin`). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the `invoice_payments` table (`success` is first set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to `true`. In case of failure, `success` would remain set to false and the next payment retry date would be computed, based on the system configuration.
 
@@ -310,7 +318,7 @@ In our scenario, no payment was actually processed, since the invoice amount is 
 
 === Reference time and fixed offset timezone
 
-Each account in Kill Bill has a reference time associated with it. It is the `created_date` value associated with the `accounts` row (you cannot change this). Additionally, it is associated with a fixed offset timezone, a special timezone used by the system for dates manipulation which ignores changes like DST (you cannot change it either). This timezone depends on the account timezone (UTC if none specified) and if DST was in effect at the reference time (this lets us handle gracefully DST gaps throughout the year with respect to invoicing, handling subscription changes, etc.).
+Each account in Kill Bill has a reference time associated with it. It is the `reference_time` value associated with the `accounts` row (specified at account creation time, default value is the `created_date`). Additionally, it is associated with a fixed offset timezone, a special timezone used by the system for dates manipulation which ignores changes like DST (you cannot change it either). This timezone depends on the account timezone (UTC if none specified) and if DST was in effect at the reference time (this lets us handle gracefully DST gaps throughout the year with respect to invoicing, handling subscription changes, etc.).
 
 For example, if the account timezone is America/Los_Angeles and the reference time is 2015-03-07T10:00:01.000Z, DST was not in effect and the fixed offset timezone is -08:00. If the reference time however is 2015-03-08T10:00:01.000Z, DST was in effect and the fixed offset timezone is -07:00.
 
@@ -333,7 +341,8 @@ DefaultBillingEvent{type=PHASE, effectiveDate=2012-05-01T00:01:14.000Z, planPhas
 
 Nothing has changed but since the target date is now 2012-05-01, both events need to be taken into account. The invoice subsystem recomputes all invoice items since the beginning of time, and come up with a `FIXED` item (trial period) and a `RECURRING` item (for the service period 2012-05-01 to 2012-06-01). Because the `FIXED` item is already present in the database, only the second one is persisted on disk, on a new invoice:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoices order by record_id desc limit 1\G
 *************************** 1. row ***************************
         record_id: 2
@@ -376,11 +385,12 @@ MySQL [killbill]> select * from invoice_items order by record_id desc limit 1\G
 account_record_id: 1
  tenant_record_id: 0
 1 row in set (0.00 sec)
-```
+----
 
 The subscription `charged_through_date` is updated to 2012-06-01:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from subscriptions\G
 *************************** 1. row ***************************
            record_id: 1
@@ -397,11 +407,12 @@ charged_through_date: 2012-06-01 00:00:00
         updated_date: 2012-05-02 00:14:44
    account_record_id: 1
     tenant_record_id: 0
-```
+----
 
 The system will also generate a new (future) notification on 2012-06-01. This invoice notification will be the trigger for the next invoice generation:
 
-```
+[source,mysql]
+----
 MySQL [killbill]>  select * from notifications\G
 *************************** 1. row ***************************
                 record_id: 2
@@ -420,11 +431,12 @@ processing_available_date: NULL
            effective_date: 2012-06-01 00:00:00
         future_user_token: aa2c96e2-71b4-4149-abdc-2889256c2b34
 1 row in set (0.00 sec)
-```
+----
 
 After the invoice is generated, an event is sent to the bus, which makes the payment subsystem react to it:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoice_payments order by record_id desc limit 1\G
 *************************** 1. row ***************************
                 record_id: 2
@@ -508,13 +520,14 @@ transaction_external_key: 943d005c-5f89-4664-88f5-c65f39a3a9c8
        account_record_id: 1
         tenant_record_id: 0
 1 row in set (0.00 sec)
-```
+----
 
 In this case, a `PURCHASE` (i.e. auto-capture) payment was performed. The `invoice_payments` entry is linked to the `payments` entry via `payment_id` and to the `transactions` table via `payment_cookie_id` (which is the transaction external key).
 
 If the payment didn't go through the first time (e.g. insufficient funds on the credit card), and the system was configured to retry the payments 8 days after, the data would look like this on a successful retry:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoice_payments order by record_id desc limit 1\G
 *************************** 1. row ***************************
                 record_id: 2
@@ -639,7 +652,7 @@ transaction_external_key: 6a5b6c15-0a8b-43ae-8b82-f6d66568eb8f
        account_record_id: 1
         tenant_record_id: 0
 2 rows in set (0.00 sec)
-```
+----
 
 A few things to notice:
 
@@ -651,7 +664,8 @@ A few things to notice:
 
 Let's consider the case where the administrator item adjusts for $10 the recurring item (for the service period 2012-05-01 to 2012-06-01). The second invoice now has 2 new items:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoice_items where invoice_id = 'fa759cb6-6702-4a1c-85a3-9df7b101d3bc'\G
 *************************** 1. row ***************************
         record_id: 2
@@ -723,7 +737,7 @@ account_record_id: 1
 account_record_id: 1
  tenant_record_id: 0
 3 rows in set (0.00 sec)
-```
+----
 
 The `ITEM_ADJ` of $-10 points to the recurring item (see `linked_item_id`). Because the balance of the invoice was $0, a credit item (`CBA_ADJ`) of $10 is also added and will be available when the next invoice is being generated.
 
@@ -733,7 +747,8 @@ A variation of the invoice item adjustment is refund with invoice item adjustmen
 
 This time, there would only be a single `ITEM_ADJ` (no `CBA_ADJ` item):
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoice_items where invoice_id = 'fa759cb6-6702-4a1c-85a3-9df7b101d3bc'\G
 *************************** 1. row ***************************
         record_id: 2
@@ -782,13 +797,14 @@ account_record_id: 1
 account_record_id: 1
  tenant_record_id: 0
 2 rows in set (0.01 sec)
-```
+----
 
 Note that the refund would have actually happened first and the `invoice_items` and `invoice_payments` tables would have been updated upon success.
 
 Here is the state of the payment related tables:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoice_payments where record_id > 2\G
 *************************** 1. row ***************************
                 record_id: 3
@@ -872,7 +888,7 @@ transaction_external_key: 212ce168-526e-4f23-85a5-ffaa67b189a8
        account_record_id: 1
         tenant_record_id: 0
 1 row in set (0.00 sec)
-```
+----
 
 A few things to notice:
 
@@ -886,7 +902,8 @@ Let's assume the user changes on 2012-05-02 to the blowdart-monthly plan.
 
 The plan is defined as follows:
 
-```
+[source,xml]
+----
 <plan name="blowdart-monthly">
     <product>Blowdart</product>
     <initialPhases>
@@ -927,7 +944,7 @@ The plan is defined as follows:
         </recurring>
     </finalPhase>
 </plan>
-```
+----
 
 For this scenario, we assume a `START_OF_SUBSCRIPTION` change alignment. Conceptually, the timeline for the subscriptions are as follows:
 
@@ -938,7 +955,8 @@ With a `START_OF_SUBSCRIPTION` change alignment, both timelines align on the sta
 
 Two new subscription events are recorded, one for the change and one for the future phase change:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from subscription_events where record_id > 2\G
 *************************** 1. row ***************************
               record_id: 3
@@ -977,11 +995,12 @@ billing_cycle_day_local: 0
       account_record_id: 1
        tenant_record_id: 0
 2 rows in set (0.00 sec)
-```
+----
 
 And a new invoice is generated with 3 items:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoices order by record_id desc limit 1\G
 *************************** 1. row ***************************
         record_id: 3
@@ -1070,7 +1089,7 @@ account_record_id: 1
 account_record_id: 1
  tenant_record_id: 0
 3 rows in set (0.00 sec)
-```
+----
 
 The `REPAIR_ADJ` item on the new invoice points to the `RECURRING` item on the second invoice that is being adjusted (repaired). The amount repaired is only $239.95 because of the previous item adjustment.
 
@@ -1080,7 +1099,8 @@ Note that the previous invoices have not been updated in that case.
 
 A new payment attempt is triggered, but aborted since the invoice balance is $0:
 
-```
+[source,mysql]
+----
 MySQL [killbill]> select * from invoice_payments order by record_id desc limit 1\G
 *************************** 1. row ***************************
                 record_id: 3
@@ -1123,7 +1143,7 @@ transaction_external_key: bac67833-ac7c-458d-8e2a-659c0cdfb0b6
        account_record_id: 1
         tenant_record_id: 0
 1 row in set (0.00 sec)
-```
+----
 
 == Invoicing internals
 
@@ -1199,6 +1219,44 @@ A new node `D`, child of `c`, is inserted representing that period. After the `R
 
 Finally, one last time, the tree is built and the computed invoice items become the resulting items, i.e. the items for the resulting invoice. In our case, two items are generated: the `RECURRING` kept as-is (outside the tree), and a repair from 2012-05-08 to 2012-06-01.
 
+== Keeping invoices in DRAFT mode
+
+In some situations, we would like Kill Bill to generate the invoices, but leave them in a `DRAFT` mode.
+
+Examples:
+
+* Case where we need to append invoice items after generation
+* Case where we want payment system to ignore the invoice until it has been `COMMITTED`
+
+This behavior can be configured at the account level through the `AUTO_INVOICING_DRAFT` tag: when an `Account` is tagged with `AUTO_INVOICING_DRAFT`, any automatic invoice generated by the system (such as when generating invoices for recurring and usage subscriptions) will end up in `DRAFT` mode. Generating invoices through API calls (e.g. adding external charges) will not be affected by this tag.
+
+=== Implementation expectation
+
+Any `DRAFT` invoice containing `RECURRING` or `USAGE` items will be taken into consideration by the system when computing subsequent invoices, regardless of the `AUTO_INVOICING_DRAFT` tag.
+
+As an example, let's assume a monthly recurring subscription billed on the 1st of the month:
+
+* `AUTO_INVOICING_DRAFT` is added
+* January 1st : `DRAFT` invoice generated with a `RECURRING` item from January 1st to February 1st
+* `AUTO_INVOICING_DRAFT` is removed
+* February 1st : `COMMITTED` invoice generated with a `RECURRING` item from February 1st to March 1st -- although the previous invoice has not been committed yet
+
+In other words, the feature assumes that at some point such `DRAFT` invoices will be committed by the user. Not doing so will lead to users not being billed for those specific periods.
+
+=== Invoice Date
+
+The invoice date is the one from when the `DRAFT` invoice was generated -- the date at which this invoice gets committed is not reflected. In particular, this may have some impact if the payment associated with such invoice fails, and dunning kicks-in: the `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds`  overdue configuration option will be based on the original invoice creation date (`DRAFT`).
+
+== Re-using invoices in DRAFT mode
+
+The account level `AUTO_INVOICING_REUSE_DRAFT` control tag will make the invoicing system reuse an existing `DRAFT` invoice instead of creating a new invoice when generating invoices for recurring and usage subscriptions, or when generating parent summary invoices:
+
+* If there is no existing `DRAFT` invoice, the system would default to normal behavior and create a new invoice
+* If there is one existing `DRAFT` invoice, the system would use this `DRAFT` invoice instead of creating a new one
+* If there is more than one, the system will use the earliest `DRAFT` invoice
+
+Similar to the `AUTO_INVOICING_DRAFT` feature, it is the responsibility of the user to to commit such `DRAFT` invoices.
+
 == Parked Accounts
 
 Because invoicing drives payments, any issue in the system or misconfiguration leading to wrong invoices could have a direct impact on your customers. In order to avoid bad invoicing (and potentially invalid customer payment) we have introduced a mechanism to PARK the accounts. Once an account has been parked, no more invoicing will happen until its state has been fixed (or until safety bounds have been removed). A account can become parked in the following scenarii:
@@ -1208,7 +1266,6 @@ First, the system now has a safety bound mechanism on the upper limit of invoice
 Second, the invoicing system will automatically park an account when an illegal state is reached during invoicing. This could be because the data associated with the account looks corrupted (which could happen because of previous bugs that did corrupt the data, manual data manipulation, or existing bug in the system).
 
 The way to get out of that state is to fix the issue that lead to that state in the first place and trigger a new invoice generation. For cases where there are many parked acounts, we have added an administrative https://github.com/killbill/killbill/blob/killbill-0.18.6/jaxrs/src/main/java/org/killbill/billing/jaxrs/resources/AdminResource.java#L262[api] to go through all parked accounts and issue an invoice generation for each of those, only leaving in the parked state, accounts whose state has not been fixed yet. If you think the issue that lead into that state is not a problem with the account state (data) but a bug in the system, please report to the https://groups.google.com/forum/#!forum/killbilling-users[mailing list].
-
 
 == Summary
 

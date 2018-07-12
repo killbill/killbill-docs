@@ -1,0 +1,70 @@
+= Entitlement subsystem
+
+== Overview and History
+
+Kill Bill has been designed http://killbill.io/blog/blockingstate-abstractions/[from day one] with an entitlement system. The idea behind it, is to separate the billing view and the entitlement view (i.e the service given to the user) attached to a subscription. There are many situations where the two views don't quite coincide: For example a user may be given access to a service (entitlement) prior being billed, or a user could cancel his subscription and yet the system might be configured to keep the billing running until the service was paid (EOT) to avoid pro-ration credit.
+
+Kill Bill can therefore be used to decide which user has access to a specific service, and at the same time (independently) compute the correct amount a given user should be charged.
+
+== Implementation: Blocking State
+
+The implementation of the entitlement module in Kill Bill is extremely powerful: It relies on the `blocking_states` table to insert rows that will control the entitlement associated with a subscription.
+
+Each row inserted has the following attributes:
+
+* `blockable_id` : The id of the object being blocked/unblocked (see `type` below)
+* `type` : The type of object being blocked (`ACCOUNT`, `SUBSCRIPTION_BUNDLE`, `SUBSCRIPTION`)
+* `state` : An opaque state that the service can interpret
+* `service`: The service inserting the rows
+* `block_entitlement` : Whether the entitlement is being blocked or unblocked
+* `block_change` : Whether the user can make change (change  `Plan`,..) on the entitlement or not
+* `effective_date`: The date at which this changes becomes effective
+
+== Services
+
+Different services can insert rows through apis to control the entitlement. Each service works independently from the other, but the system will aggregate the rows to decide what is the current state.
+
+For example, if 2 services, `SVC1` and `SVC2` insert the following events for a subscription `S`:
+
+* Time T0 : `SVC1` block `S` => `EntitlementState` associated to `S` would be `BLOCKED`
+* Time T1 : `SVC2` block `S` => `EntitlementState` associated to `S` would be `BLOCKED`
+* Time T2 : `SVC2` unblock `S` => `EntitlementState` associated to `S` would still be `BLOCKED`
+* Time T3 : `SVC1` unblock `S` => `EntitlementState` associated to `S` would now be `ACTIVE`
+
+In addition, when services insert rows they need to specify a `state`. The `state` is opaque for the system but can be interpreted by the service itself (we will see examples below).
+
+Note: It is mandatory to use different state name for a given service when blocking or unblocking a subscription otherwise the system will assume this is a duplicate and will prevent inserting the row.
+
+== Type Aggregation
+
+The system allows inserting rows across different types: `ACCOUNT`, `SUBSCRIPTION_BUNDLE`, `SUBSCRIPTION`. As expected, inserting a blocking row for an `ACCOUNT` type would block all entitlement attached to that account.
+
+For example, if a given service `SVC` insert the following rows for the subscriptions `S1` and `S2`, all attached to the same account `A`:
+
+* Time T0 : `SVC` block `A` => `EntitlementState` associated to `S1` and `S2` would be `BLOCKED`
+* Time T1 : `SVC` block `S1` => `EntitlementState` associated to `S1` and `S2` would be `BLOCKED`
+* Time T2 : `SVC` unblock `A` => `EntitlementState` associated to `S1` is still `BLOCKED` but `S2` would now become `ACTIVE`
+
+== Extensions
+
+Originally, the `blocking_states` table was meant for services to insert rows that the service itself would know how to interpret (using the `state`) and that the system would know how to interpret by aggregating the `block_entitlement` flags across types and services to control the state of the entitlement.
+
+The table now also includes a `block_billing` flag which also allows to block/unblock the billing associated to a specific type (`ACCOUNT`, `SUBSCRIPTION_BUNDLE`, `SUBSCRIPTION`). This mechanism can be seen as an overlay on top of the raw billing events to pause/resume billing. The invoicing system knows how to aggregate the raw billing events along with the `blocking_states` rows.
+
+In effect the `blocking_states` table now offers functions wider than the pure entitlement system (and could be seen by purist as a design violation).
+
+== Use Cases
+
+=== Kill Bill Modules
+
+Two of the Kill Bill system modules currently rely on that mechanism to control the entitlement state associated with a subscription:
+
+* The `entitlement` module itself uses the service name `entitlement-service` to insert its own rows. For example `pausing` or `resuming` a bundle translates into inserting the correct rows into the `blocking_states` table. The entitlement module would also insert such a row when the user decides to cancel a subscription to make sure the state becomes `CANCELLED`.
+* The `overdue` module will also insert rows matching the `overdue.xml` configuration when the subscription transitions through states. The overdue module knows how to interpret the state associated with each row and take appropriate actions. In addition it can leverage the `block_entitlement` flag to control the entitlement state.
+
+=== Plugins and Third Party Services
+
+Plugins (or third party services) can leverage the `blocking_states` mechanism through apis to control the entitlement (and also billing through the use the `block_billing` flag) associated with each subscription.
+
+Examples of such use case would be seen during a migration phase to control whether entitlement is active and when billing starts.
+

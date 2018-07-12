@@ -6,7 +6,7 @@ These sections can be defined in addition to other non usage based billing prici
 
 Each usage section will need to specify a `billingMode`:
 The only billing mode supported today is the `IN_ARREAR` mode, which allows to bill customer based on usage data from previous periods.
-We plan to add the `IN_ADVANCE` mode in the future to support prepaids like scenario -- e.g toll bridge pass-- where consumer purchases a
+We plan to add the `IN_ADVANCE` mode in the future to support prepaids-like scenario -- e.g toll bridge pass -- where consumer purchases a
 certain number of units *in advance* and such units are decremented as consumer uses the service.
 
 Each usage section will also need to specify a `usageType` and along with it, specify the `unit` (types) for which customer is being billed for -- e.g cell phone/minutes.
@@ -20,13 +20,19 @@ The following http://killbill.io/blog/usage-billing[ blog post] provides additio
 For each usage section, we support defining pricing *tiers* to allow billing customer differently based on their usage.
 Such tiers work differently depending of the usage type, `CONSUMABLE` versus `CAPACITY`.
 
-Each usage section also needs to define the `billingPeriod`, -- e.g `MONTHLY` -- to define how often and for which period consumers are being billed.
+Each usage section also needs to define the `billingPeriod` -- e.g `MONTHLY` -- to define how often and for which period consumers are being billed.
 
 ===== Consumable In Arrear Mode
 
-In the `CONSUMABLE` mode, each `tier` definition contains a `tieredBlock`, that defines the limits and price associated to a particular `unit` type.
-So for example, the following tier block section defines the pricing for the `cell-phone-minutes` unit, and can ne understood the following way:
+In this mode, each `tier` definition contains a `tieredBlock`, that defines the limits and price associated to a particular `unit` type. We support two `TierBlockPolicy` policies:
 
+* `ALL_TIER`: Users are charged across each tier based on their usage; the idea is to offer some form of tiered pricing where the upper level prices can be charged to a lower amount -- e.g clould usage where we want to reward users to consume more -- or higher -- e.g electricy bill to discourage users to consume more.
+* `TOP_TIER`: In this model we still go through each tier, but end up charging everything at the top tier pricing. In this model, it probably makes sense to offer lower pricing for the top tier, this is a rewarding model.
+
+
+===== Consumable In Arrear Mode: `ALL_TIER`
+
+Let's start with an example of a `tieredBlock` definition: The following tier block section defines the pricing for the `cell-phone-minutes` unit, and can be understood the following way:
 
 [source,bash]
 ----
@@ -117,15 +123,22 @@ Given the following usage data for the period:
 * 1500 cell-phone-minutes
 * 2048 Mbytes
 
-The consumer would be charged for:
-
-* cell-phone-minutes: 100 blocks of size 10 at 1.00 EUR + 50 blocks of size 10 at 0.50 EUR = 100 * 1.00 + 50 * 0.5 = 125
-* Mbytes: 1024 blocks of size 1 at 0.50 EUR + 1024 blocks of size 1 at 0.10 EUR = 1024 * 0.5 + 1024 * 0.1 = 614.4
 
 So the total amount would be 739.4.
 
-For more information on this model see our http://docs.killbill.io/latest/consumable_in_arrear.html[tutorial].
+For more information on this model, see our http://docs.killbill.io/latest/consumable_in_arrear.html[tutorial].
 
+
+===== Consumable In Arrear Mode: `TOP_TIER`
+
+Using the same example from the previous section would lead to a different result:
+
+The consumer would be charged for:
+
+* cell-phone-minutes: 150 blocks of size 10 at 0.50 EUR = 150 * 0.5 = 75
+* Mbytes: 2048 blocks of size 1 at 0.10 EUR = 2048 * 0.1 = 204.8
+
+So the total amount would be 279.8
 
 ===== Capacity In Arrear Mode
 
