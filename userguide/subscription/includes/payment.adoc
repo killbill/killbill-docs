@@ -9,15 +9,42 @@ First, there is a core payment system whose role is to manage the payment states
 This core payment system is not specific to the subscription billing use case, and can actually be used as a standalone system to provide a layer in front of various payment gateways.
 For an overview of the payment system in Kill Bill, please check http://docs.killbill.io/latest/userguide_payment.html[the payment guide].
 
-In addition, there is a payment control plugin -- see http://docs.killbill.io/latest/payment_control_plugin.html[payment control plugin guide]-- whose role is to provide the necessary logic to map the payments with the invoice:
+In order to support the subscription billing use case, and issue payments against existing invoices, there is a payment control plugin embedded into Kill Bill core -- see http://docs.killbill.io/latest/payment_control_plugin.html[payment control plugin guide]-- whose role is to provide the necessary logic to map the payments with the invoice:
 
-* The plugin is called prior the payment system attempts to make the payment call to provide the necessary sanity, such as verifying that invoice has a positive balance and is not marked as AUTO_PAY_OFF --and if not, it would abort the payment--, and also to interract with the invoicing system to record the payment attempts.
+* The plugin is called prior the payment system attempts to make the payment call to provide the necessary sanity, such as verifying the invoice balance, whether the `Account` was tagged as `AUTO_PAY_OFF`, ... and finally interract with the invoicing system to record the payment attempts.
 * The plugin is then called after the payment attempt to update the invoicing system about success/failure:
 ** In the case of success, this makes the invoice balance drops to zero.
 ** In the the case of failure, this provides the plugin with the opportunity to schedule a payment retry
 
 
 Note: The plugin linking the payment view to the invoice view has not been implemented as a standalone plugin, but instead it is part of the core Kill Bill source code. However, it implements the _PaymentControlPluginApi_ so logically it acts as such. It is possible to extend/change the behavior of such plugin by registering a standalone payment control plugin that would override the behavior of that default plugin, but this should only be used for advanced use case and extra caution would be required to not break the contract between the invoicing and payment system.
+
+=== Payment Methods
+
+A `PaymentMethod` represents an abstraction to identify a way of making payments for a specific `Account`. Each consumer `Account` can have several payment methods to allow making payments using different schemes -- credit cards, debit cards, paypal,... In order to allow the system to automatically make payments against unpaid invoices, one must specify a **default** payment method.
+
+The payment method really has two functions:
+
+* In the default use case, it allows the system to properly route the payment to the right Kill Bill plugin -- and its associated third party payment gateway. Note however that the static configuration between the payment instrument -- e.g the customer credit card -- and the plugin can be overriden in a payment control plugin to provide http://docs.killbill.io/0.20/payment_control_plugin.html#_payment_routing[payment routing capabilities].
+* It allows to track enough details to make the payment. For instance in the use case of a credit card, the system would keep track of a credit card token that can be used to issue the payment. Often, some of this information is stored inside the payment plugin.
+
+Kill Bill also allows to configure a special payment method, called **external payment method**, to allow recording payments that occured outside of the system. A typical use case is the one where a customer was invoiced through Kill Bill, and later makes payment by check: The payment needs to be recorded into the system to mark the invoice as being paid -- and brings its balance to zero. 
+
+
+One would typically create a default external payment method the following way, and later could use the returned `paymentMethodId` to issue external payments against invoices -- see http://docs.killbill.io/0.20/userguide_subscription.html#components-invoice-payments[Invoice Payment section].
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+----
 
 
 === Payment Retries
