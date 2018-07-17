@@ -1,4 +1,39 @@
-The invoice payment table is the bridge between the invoice and payment subsystems, and is used to compute invoice balances. It will contain the payments, refunds and chargebacks made against an invoice.
+Payments can be made against existing invoices, either automatically by the system or manually by leveraging our apis. Kill Bill allows to have multiple partial payments against a given invoice, but the reverse -- i.e one payment spanning multiple invoices is not (yet) supported.
+
+One Payment against one invoice is the default model, and this happens automatically by the system provided the customer `Account` has a valid default payment method - in which case it used to make the payment. However, one can customize the system on a per `Account` level to disable this behavior, using the following mechanisms:
+
+* `Account` does not have a default payment method -- the system will abort the payment.
+* `Account` has been tagged with one of the following:
+  ** `AUTO_PAY_OFF`: Prevent system from making automatic payments
+  ** `MANUAL_PAY`: Prevent system from making automatic payments and we expect those payments to happen outside of the Kill Bill system -- e.g checks.
+
+Anytime an `Account` has a positive balance, i.e. at least one `Invoice` was not (partially) paid, one can use our apis to issue a manual payment against such invoice. Based on what we said earlier, such situation can occur if the system was configured to not make payments or in cases where a payment was issued but failed. 
+
+
+The call below illustrates how to make such a payment -- against an existing unpaid invoice `99f91a42-a83f-4d59-b337-9df1b53f79b1`:
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "Content-Type: application/json" \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H 'X-Killbill-CreatedBy: demo' \
+-X POST \
+--data-binary '{
+    "accountId":  "27cf01b3-ee14-4d7f-a63a-16ad632b7bbb",
+    "paymentMethodId":  "7cb5362a-ca9a-4ae0-9623-381201ded137",
+    "targetInvoiceId":  "99f91a42-a83f-4d59-b337-9df1b53f79b1",
+    "purchasedAmount": 200.0
+}' \
+'http://127.0.0.1:8080/1.0/kb/invoices/99f91a42-a83f-4d59-b337-9df1b53f79b1/payments'
+----
+
+
+Kill Bill keeps track of the mapping between invoice and payments, in such a way that it can correctly compute the invoice balance -- and also return the payment details associated with a given invoice. Such mapping, `InvoicePayment`, is logically part of the invoice subsystem, and is returned when one fetches invoices. There exists 3 types of `InvoicePayment` as described below:
+
+
 
 If an invoice doesn't have any corresponding row in invoice payment, this means the invoice isn't paid (either because no payment was ever attempted, or the payment attempts weren't successful).
 
