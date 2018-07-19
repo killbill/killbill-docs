@@ -29,7 +29,11 @@ Each time Kill Bill is asked to return the catalog (either global or per-tenant 
 
 == Performance
 
-Kill Bill catalog module relies on caching to improve performance and avoid having to deserialize xml representation each time a call occurs. When a plugin is registered and returns a catalog, the caching does not happen at the Kill Bill level because only the plugin knows about the catalog data (and whether it has recently changed for instance). Therefore, the plugin/3rd party catalog service is in charge to implement the required caching strategy necessary for obtaining good performance.
+Every time Kill Bill core -- or invoice/payment/... plugins -- needs to access the catalog, the catalog plugin will be invoked. Having a cached version on your side is obviously critical, if not this will not scale very well.
+
+Additionally, Kill Bill will cache the catalog internally if `getLatestCatalogVersion` returns a non-null value: the date returned must match the latest `effectiveDate` of the `VersionedCatalog`. If the date has changed, the internal cache gets invalidated on the Kill Bill side and `getVersionedPluginCatalog` is called. Otherwise, the cached version is used.
+
+Finally, if you have very large catalogs (100k+ entries) and/or need to customize entries on a per-account level, you can use the `TenantContext#getAccountId` value to return the catalog for a given account when `getVersionedPluginCatalog` is called. In this case, `getLatestCatalogVersion` must return a `null` value.
 
 
 == Use Cases
