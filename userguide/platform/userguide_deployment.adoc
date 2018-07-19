@@ -66,6 +66,24 @@ Make sure to get familiar with https://www.docker.com/[Docker] first, before att
 
 Documentation for our images is available https://github.com/killbill/killbill-cloud/blob/master/docker/README.md[here]. Our http://killbill.io/blog/tag/docker/[blog] has also lots of tips on how to deploy to popular cloud providers. Our Docker Compose recipes work with all https://docs.docker.com/machine/drivers/[Docker Machine supported platforms].
 
+== Database engine
+
+By default, Kill Bill expects to run against a MySQL or MariaDB database. Our http://docs.killbill.io/latest/ddl.sql[DDL] is very simple by design though, so it is very easy to adapt it for other RDBMS.
+
+Specifically, for PostgreSQL, you just need to install the https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[ddl-postgresql] bridge, before installing the main DDL.
+
+The Kill Bill core team runs regression tests against both MariaDB 10.3 and PostgreSQL 10, but users have successfully deployed Kill Bill with Oracle MySQL, Percona, Aurora, etc.
+
+=== Failover
+
+We've tested various failover scenarii (Aurora RDS, master/slave MariaDB Docker setup and master/slave Percona Server on real hardware) and could confirm that Kill Bill is behaving as expected, i.e. queries in-flight will fail during a failover, but reconnection is automatic.
+
+Specifically for Aurora though, we did notice that:
+
+* Reconnection is r/o by default after the failover. `jdbc:mysql:aurora:` must be specified in the JDBC url for the reconnection to be r/w.
+* Triggering a failover in the RDS UI leads to a pretty short Kill Bill downtime (few secs). Terminating the master though ("delete instance") takes a bit longer (few minutes) -- this could be mitigated with more aggressive timeouts in the JDBC pool.
+
+
 == Bus and Notification queues
 
 === Bus events
