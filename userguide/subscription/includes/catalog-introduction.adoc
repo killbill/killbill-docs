@@ -1,5 +1,4 @@
 image:https://drive.google.com/uc?&id=0Bw8rymjWckBHcU9DbnVkY1FhR2M&w=960&amp;h=480[align=center]
-// https://drive.google.com/file/d/0Bw8rymjWckBHcU9DbnVkY1FhR2M/view?usp=sharing
 
 The Catalog is at the heart of the billing system.
 It is a data model that captures the core configuration of the billing system.
@@ -63,10 +62,33 @@ The catalog is also used by the invoicing system to make sure each each `Custome
 
 Catalog configuration allows to define if different subscriptions attached to a customer should be invoiced at the same time, or at the opposite if they should be billed separately on their own schedule (or a mix of both where some are grouped together on the same invoice and others are invoiced independently). In the simplest case, where all subscriptions are grouped together and there is a `BCD` defined (`Billing Period` is a multiple of the month), the customer gets one invoice per `Billing Period` on that (`BCD`) day. Note that grouping subscriptions together may by default lead to some leading pro-ration when the subscription is started on a different date than the `BCD` (as the system needs to realign invoicing on that particular date). This behavior is configured in the catalog through the http://docs.killbill.io/latest/userguide_subscription.html#_billing_alignment_rules[Billing Alignment Rules].
 
+==== Creating the Catalog
 
-==== Catalog Documentation
+In this section we look at getting the top level catalog created and configured.
+Note that the catalog currently requires **all attribute strings to be unique**, and those strings **cannot have space**.
 
-Where do you go from here to learn more:
+The XML document starts in a standard way. The main tag is “catalog”. Within the catalog opening tag you can specify the schema location.
+You can use the standard schema location (above) or you can have the code generate the current schema by executing:
+As an example, the killbill-catalog-x.y.z-xsd-tool.jar for the version `0.13.7` can be found http://search.maven.org/remotecontent?filepath=org/kill-bill/billing/killbill-catalog/0.13.7/killbill-catalog-0.13.7-xsd-tool.jar[here].
 
-* Basic Catalog Tutorial - how to create a simple three tier catalog with simple rules
-* Advanced Catalog Tutorial - enhancing the Basic Catalog Example with add-ons, discount plans, complex rules and catalog changes
+[source,bash]
+----
+java -jar catalog/target/killbill-catalog-x.y.z-xsd-tool.jar <output_filename>
+----
+
+The **order of content information in the catalog is important**. The first tag should be the “effectiveDate” (when the catalog becomes effective), then “catalogName” and then “currencies”, as shown below.
+
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CatalogSchema.xsd">
+        <effectiveDate>2013-02-08T00:00:00+00:00</effectiveDate>
+        <catalogName>SpyCarBasic</catalogName>
+        <currencies>
+                <currency>USD</currency>
+                <currency>GBP</currency>
+        </currencies>
+        ...
+</catalog>
+----
+

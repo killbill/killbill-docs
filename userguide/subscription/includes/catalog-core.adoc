@@ -1,9 +1,80 @@
-==== Overview
+The following set of sections will provide a deeper overview of the various catalog concepts.
 
-This tutorial builds on the Basic Tutorial to illustrate the more advanced features of the Kill Bill Catalog. The XML example for this tutorial can be found https://raw.github.com/killbill/killbill/master/catalog/src/test/resources/SpyCarAdvanced.xml[here].
+=== Products
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHT3dKd0U3a1RfcUE&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHT3dKd0U3a1RfcUE/view?usp=sharing
+
+The Product is a representation of the thing the customer is actually buying. Specifying a Product is very straightforward it has the following parameters:
+
+* Name - this is a string that is used to refer to the Product elsewhere in the catalog. For example “Super”
+* Category - The Product Category determines how Kill Bill allows the combining of products within a bundle. Kill Bill supports three categories of product: BASE, ADD_ON and STANDALONE.
+* Inclusion/Exclusion lists (optional) - these determine which addons can be purchased with a given base plan.
 
 
-==== Add-ons
+=== Plans
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHcl9mb2ZDMG12LXc&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHcl9mb2ZDMG12LXc/view?usp=sharing
+
+Each Plan has a name and refers to the purchase of a single product. Beyond that the Plans parameters are arranged by phase.
+In the illustration above we are showing a Plan with a 30 day Trial followed by an unlimited recurring or "evergreen" phase.
+For each phase of the plan we need to specify:
+
+* Phase Type - can be one of TRIAL, DISCOUNT, FIXEDTERM, EVERGREEN
+* Duration - the length of the phase in days, months, years or UNLIMITED
+* Billing Period - how frequently do we want to invoice for this phase. Can be DAILY, WEEKLY, BIWEEKLY, THIRTY_DAYS, MONTHLY, QUARTERLY, BIANNUAL, ANNUAL, BIENNIAL or NO_BILLING_PERIOD
+* Recurring Price - the recurring price that needs to be paid every billing period (unless no billing period was specified). The price needs to specify numeric values for every currency that the catalog supports.
+* Fixed Price - a fixed price charged at the beginning of the period in addition to the recurring price. This is also a multi currency price and must be specified for all currencies.
+* Usage Sections - outside the scope of that tutorial, which is focused on pure recurring subscriptions
+
+Plan, Phase and Usage sections can have a `prettyName` element which would correspond to the display name (such information is subsequently available on invoice item). This is useful for instance if a product is rebranded to a new name in a subsequent version (plan names don't need to be updated).
+
+Note that unlike `prettyName`, the `name` elements need to be globally unique in the catalog and must be conform to the `NCName` definition (i.e. it cannot contain symbol characters like `:, @, $, %, &, /, +, ,, ;,`, whitespace characters or parenthesis, and it cannot begin with a number, dot or minus character).
+
+For our example Spy Car catalog we specify three plans with two phases:
+
+. The first phase is of type Trial and it has a duration of 30 days a Billing Period set to “NO_BILLING_PERIOD”. There is no recurring price specified, and a Fixed Price of £0/$0.
+. The second phase is of type Evergreen and it has a Duration of UNLIMITED, a Billing Period of MONTHLY and recurring price of £75/$100 (or whatever is appropriate for the Product).
+
+[source,xml]
+----
+<plans>
+     <plan name="standard-monthly">
+         <product>Standard</product>
+         <initialPhases>
+             <phase type="TRIAL">
+                 <duration>
+                     <unit>DAYS</unit>
+                     <number>30</number>
+                 </duration>
+                 <billingPeriod>NO_BILLING_PERIOD</billingPeriod>
+                 <fixedPrice> <!-- empty price implies $0 -->
+                 </fixedPrice>
+             </phase>
+         </initialPhases>
+         <finalPhase type="EVERGREEN">
+             <duration>
+                 <unit>UNLIMITED</unit>
+             </duration>
+             <billingPeriod>MONTHLY</billingPeriod>
+             <recurringPrice>
+                 <price>
+                      <currency>GBP</currency>
+                      <value>75.00</value>
+                 </price>
+                 <price>
+                      <currency>USD</currency>
+                      <value>100.00</value>
+                  </price>
+             </recurringPrice>
+         </finalPhase>
+     </plan>
+     ...
+</plans>
+----
+
+=== Add-ons
 
 Having an explicit representation of Add-On products allows Kill Bill to be configured to only allow purchases of add-ons with particular base plans, and to trigger appropriate cancellations automatically when the base plan changes or is cancelled.
 
@@ -62,8 +133,7 @@ Finally, if the Base Plan of a Bundle containing `Sports` and `OilSlick` is upgr
 </products>
 ----
 
-
-==== Price lists
+=== Price lists
 
 image:https://drive.google.com/uc?&id=0Bw8rymjWckBHTXcwbHNjTXBnYkE&w=960&amp;h=480[align=center]
 // https://drive.google.com/file/d/0Bw8rymjWckBHTXcwbHNjTXBnYkE/view?usp=sharing
@@ -154,7 +224,7 @@ We refer to this as a “sticky” price list. Kill Bill can also support “non
 In the section on rules we explain how to configure these properties.
 
 
-==== Rules
+=== Rules
 
 
 There several different *Rules* that can be configured in the Kill Bill Catalog. Each Rule answers a specific question.
@@ -289,7 +359,7 @@ There are three types of Context:
 
 In the remainder of this section we illustrate each type of rule supported by the system.
 
-===== Billing Alignment Rules
+=== Billing Alignment Rules
 
 This rule uses the Creation Context and configures type of billing alignment used with a subscription. There are three kinds of alignment available:
 
@@ -326,9 +396,9 @@ This example will align addons with the base plan, monthlies to the Account bill
     </billingAlignmentCase>
 </billingAlignment>
 ----
-===== Subscription Alignment Rules
+=== Subscription Alignment Rules
 
-====== Plan Creation Add-On Phase Alignment
+==== Plan Creation Add-On Phase Alignment
 
 This rule also uses the Creation Context and determines how the phases of an Add-On plan aligns with an existing subscription.
 
@@ -368,7 +438,7 @@ In this example the product `OilSlick` is aligned to the START_OF_BUNDLE and the
 For more information on `Plan Creation Phase Alignment`, and in particular to understand how that works with apis (Subscription create or Subscription Change Plan) that specify a target `PhaseType`, you can also refer to this http://docs.killbill.io/latest/plan_alignment.html[documentation].
 
 
-====== Plan Cancellation Timing
+==== Plan Cancellation Timing
 
 This rule uses the Phase Context and is used to specify when a cancellation should occur.
 
@@ -405,7 +475,7 @@ In this example base plans are cancelled at the end of their term, add-on plans 
 </cancelPolicy>
 ----
 
-====== Plan Change Timing
+==== Plan Change Timing
 
 This rule uses the Change Context and, like the cancellation rule above, specifies when a plan change should occur.
 
@@ -449,7 +519,7 @@ In this example we specify that trials and upgrades occur immediately, anything 
 </changePolicy>
 ----
 
-====== Plan Change Phase Alignment
+==== Plan Change Phase Alignment
 
 In the section "Plan Creation Add-on Phase Alignment" above, we specified how to align the phases of an add-on with a base plan. This rule, which uses the Change Context, specifies how the phases of a new plan should align with the phases of the existing plan when a plan is changed.
 
@@ -489,7 +559,7 @@ In this example, addon changes are aligned to the start of the bundle, changes t
 For more information on `Plan Change Phase Alignment`, and in particular to understand how that works with apis (Subscription create or Subscription Change Plan) that specify a target `PhaseType`, you can also refer to this http://docs.killbill.io/latest/plan_alignment.html[documentation].
 
 
-====== Plan Change Price List Choice
+==== Plan Change Price List Choice
 
 This rule uses the Change Context and specifies which pricelist should be chosen for specific changes. The rule allows us to configure whether a price list is "sticky" or not.
 
@@ -526,13 +596,13 @@ Example:
 
 
 
-==== Catalog Versions
+=== Catalog Versions
 
 This far in the discussion we have been considering single stand-alone catalogs, but Kill Bill allows the catalog to be modified over time. This is done by creating a set of catalogs, one XML file for each version: The system will rank such files based on their `effectiveDate` to create the various versions. There is no version number proper, the `effectiveDate` associated to each catalog XML constitutes the version and each catalog is superseded by the next. In this way we can change prices, add new Plans, Products, Price Lists etc, retire Plans, Products, Price Lists, etc.
 
 Note that it is possible to remove entries in subsequent catalog versions: For example, removing a `Plan` in a new catalog version would prevent future custom to subscribe to such `Plan`. However existing subscriptions will still refer to them.
 
-===== Deferred Price Change
+==== Deferred Price Change
 
 Kill Bill supports the ability to make a price change to a plan that applies based on the catalog effective date for new purchases, but which is deferred for existing subscriptions.
 It is often the case that existing customers will need a notice period before prices are changed but you need to deliver the new prices to new purchases as soon as the change is announced.
