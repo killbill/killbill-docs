@@ -1174,90 +1174,6 @@ whose purpose would have been to bring the balance to 0, and provide the custome
 <div class="paragraph"><p>A REFUND_ADJ item would be used instead of CREDIT_ADJ if the invoice was paid and a refund had been issued.</p></div></div>
 <div class="sect3"><h4 id="_credit">Credit</h4><div class="paragraph"><p>Note that CREDIT_ADJ items are also used to represent credits created by the user (via APIs). In this case, a dummy invoice is created with a negative amount for the CREDIT_ADJ item. This makes the system generate a CBA_ADJ automatically, which in turn can be used as account credits. For example, here is how a $20 credit would be represented:</p></div>
 <table class="tableblock frame-all grid-all spread"><colgroup><col style="width: 16.6666%;"><col style="width: 16.6666%;"><col style="width: 16.6666%;"><col style="width: 16.6666%;"><col style="width: 16.6666%;"><col style="width: 16.667%;"></colgroup><thead><tr><th class="tableblock halign-left valign-top">Invoice #</th><th class="tableblock halign-left valign-top">Type</th><th class="tableblock halign-left valign-top">Description</th><th class="tableblock halign-left valign-top">Amount</th><th class="tableblock halign-left valign-top">Start date</th><th class="tableblock halign-left valign-top">End date</th></tr></thead><tbody><tr><td class="tableblock halign-left valign-top"><p class="tableblock">1029</p></td><td class="tableblock halign-left valign-top"><p class="tableblock">CREDIT_ADJ</p></td><td class="tableblock halign-left valign-top"></td><td class="tableblock halign-left valign-top"><p class="tableblock">$-20</p></td><td class="tableblock halign-left valign-top"><p class="tableblock">2013-04-20</p></td><td class="tableblock halign-left valign-top"><p class="tableblock">2013-04-20</p></td></tr></tbody></table></div></div>
-<div class="sect2"><h3 id="components-invoicing-usage">Usage Invoice Items</h3><div class="sect3"><h4 id="_usage_invoice_items">Usage Invoice Items</h4><div class="paragraph"><p>As described in the section <a href="http://docs.killbill.io/latest/userguide_subscription.html#components-catalog-usage">Usage Billing</a>,
-Kill Bill supports invoicing customers based on different usage type. The usage billing is always done on a per subscription
-level and for a given billing period; in addition, if the active <code>Plan</code> associated with the subscription contains multiple usage
-sections, each usage section is billed independently: As a result, we may see one or several <code>USAGE</code> invoice items per invoice,
-each associated with a given subscription, usage section and billing period.</p></div>
-<div class="paragraph"><p>So regarless of the usage type the following basic fields will always be seen:</p></div>
-<div class="ulist"><ul><li><p><code>planName</code>: The name of the <code>Plan</code> in the catalog</p></li><li><p><code>phaseName</code>: The name of the <code>PlanPhase</code> in the catalog</p></li><li><p><code>subscriptionId</code>: The ID of the subscription</p></li><li><p><code>usageName</code>: The name of the usage section in the catalog</p></li><li><p><code>startDate</code>: The start date for the period being invoiced</p></li><li><p><code>endDate</code>: The end date for the period being invoiced</p></li></ul></div>
-<div class="paragraph"><p>In addition, depending on the usage type for the usage section (e.g <code>CONSUMABLE</code>), and depending on the configuration of the system,
-we will see additional information.</p></div></div>
-<div class="sect3"><h4 id="_capacity_in_arrear_mode_2">Capacity In Arrear Mode</h4><div class="paragraph"><p>For each capacity in arrear usage section, we will see some json in the field <code>itemDetails</code>, to provide additional information:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
-  <span class="tok-s2">&quot;tierDetails&quot;</span>: <span class="tok-o">[</span>
-    <span class="tok-o">{</span>
-      <span class="tok-s2">&quot;tier&quot;</span>: 2,
-      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;bandwith-meg-sec&quot;</span>,
-      <span class="tok-s2">&quot;tierPrice&quot;</span>: 10,
-      <span class="tok-s2">&quot;quantity&quot;</span>: 200
-    <span class="tok-o">}</span>,
-    <span class="tok-o">{</span>
-      <span class="tok-s2">&quot;tier&quot;</span>: 3,
-      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;members&quot;</span>,
-      <span class="tok-s2">&quot;tierPrice&quot;</span>: 100,
-      <span class="tok-s2">&quot;quantity&quot;</span>: 60
-    <span class="tok-o">}</span>
-  <span class="tok-o">]</span>,
-  <span class="tok-s2">&quot;amount&quot;</span>: 100
-<span class="tok-o">}</span></code></pre></div></div>
-<div class="paragraph"><p>In this example we see that we were invoiced for 2 different units, and this shows the tier details for each unit, and the amount that will be charged.
-Note that because unit <code>members</code> reached tier 3, in the capacity in arrear model, the amount will be based on the pricing for this tier.</p></div></div>
-<div class="sect3"><h4 id="_consumable_in_arrear_mode_2">Consumable In Arrear Mode</h4><div class="paragraph"><p>In this mode, we are going through each tier level to compute the price based on the tier price and quantity. As described prevously, we support both <code>ALL_TIER</code> and <code>TOP_TIER</code> <code>TierBlockPolicy</code>.</p></div>
-<div class="paragraph"><p>We can configure the invoicing system to output one item per tier, or one aggregate item for all tiers. The section below will consider a use case of <code>ALL_TIER</code> policy, but the idea between aggregate or detail mode remains the same.</p></div></div>
-<div class="sect3"><h4 id="_agrregate_mode">Agrregate Mode</h4><div class="paragraph"><p>In the aggregate mode, we will see one <code>USAGE</code> item with the aggregate amount across unit and tiers. The <code>itemDetails</code> json will summarize the usage on a per tier basis and per unit basis:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
-  <span class="tok-s2">&quot;tierDetails&quot;</span>: <span class="tok-o">[</span>
-    <span class="tok-o">{</span>
-      <span class="tok-s2">&quot;tier&quot;</span>: 1,
-      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;cell-phone-minutes&quot;</span>,
-      <span class="tok-s2">&quot;tierPrice&quot;</span>: 2,
-      <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
-      <span class="tok-s2">&quot;quantity&quot;</span>: 20,
-      <span class="tok-s2">&quot;amount&quot;</span>: 40
-    <span class="tok-o">}</span>,
-    <span class="tok-o">{</span>
-      <span class="tok-s2">&quot;tier&quot;</span>: 2,
-      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;cell-phone-minutes&quot;</span>,
-      <span class="tok-s2">&quot;tierPrice&quot;</span>: 20,
-      <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
-      <span class="tok-s2">&quot;quantity&quot;</span>: 100,
-      <span class="tok-s2">&quot;amount&quot;</span>: 2000
-    <span class="tok-o">}</span>,
-    <span class="tok-o">{</span>
-      <span class="tok-s2">&quot;tier&quot;</span>: 1,
-      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;Mbytes&quot;</span>,
-      <span class="tok-s2">&quot;tierPrice&quot;</span>: 10,
-      <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
-      <span class="tok-s2">&quot;quantity&quot;</span>: 10,
-      <span class="tok-s2">&quot;amount&quot;</span>: 100
-    <span class="tok-o">}</span>
-  <span class="tok-o">]</span>,
-  <span class="tok-s2">&quot;amount&quot;</span>: 2140
-<span class="tok-o">}</span></code></pre></div></div>
-<div class="paragraph"><p>In this example, we see that we billed for two units <code>cell-phone-minutes</code> and <code>Mbytes</code>: For the <code>cell-phone-minutes</code>, the quantity recorded for the period was such, that we reached the maxium for tier 1 and started to bill some units for tier 2; for the <code>Mbytes</code> units, we billed  everything in the tier 1. The amount reported is the sum of the amount : 40 + 2000 + 100 = 2140.</p></div></div>
-<div class="sect3"><h4 id="_detail_mode">Detail Mode</h4><div class="paragraph"><p>Sometimes it is desirable to output one <code>USAGE</code> item per unit type and tier, so in this case the detail for the billing is inside each
-invoice item&#8201;&#8212;&#8201;and the aggregate amount is computed by summing the sum amount. In order to activate this mode, one needs to set
-the system property <code>org.killbill.invoice.item.result.behavior.mode</code> to <code>DETAIL</code>.</p></div>
-<div class="paragraph"><p>Each of the <code>USAGE</code> item will contain the following fields:</p></div>
-<div class="ulist"><ul><li><p><code>quantity</code>: Quantity consumed for the unit (type) and on the given tier</p></li><li><p><code>rate</code>: We reused the <code>rate</code> field normally reserved for <code>RECURING</code> type to output the price of the tier</p></li></ul></div>
-<div class="paragraph"><p>Also, the <code>itemDetails</code> json field will provide some additional details:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
-  <span class="tok-s2">&quot;tier&quot;</span>: 1,
-  <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;cell-phone-minutes&quot;</span>,
-  <span class="tok-s2">&quot;tierPrice&quot;</span>: 2,
-  <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
-  <span class="tok-s2">&quot;quantity&quot;</span>: 20,
-  <span class="tok-s2">&quot;amount&quot;</span>: 40
-<span class="tok-o">}</span></code></pre></div></div></div>
-<div class="sect3"><h4 id="_past_usage_periods">Past Usage Periods</h4><div class="paragraph"><p>By default the system is configured to look at the past 2 billing periods, but this can be changed by using the configuration <code>org.killbill.invoice.readMaxRawUsagePreviousPeriod</code> (default=2). Let&#8217;s assume a MONTHLY subscription that was invoiced for the following periods:</p></div>
-<div class="ulist"><ul><li><p><code>2018-01-01 - 2018-02-01</code></p></li><li><p><code>2018-02-01 - 2018-03-01</code></p></li><li><p><code>2018-03-01 - 2018-04-01</code></p></li></ul></div>
-<div class="paragraph"><p>On <code>2018-05-01</code>, the system will by default look to invoice for the period <code>2018-04-01 - 2018-05-01</code>, but it will also recompute items for the past 2 periods, <code>2018-03-01 - 2018-04-01</code> and <code>2018-02-01 - 2018-03-01</code>.</p></div>
-<div class="paragraph"><p>Late Usage Data:</p></div>
-<div class="paragraph"><p>If for some reason, there is some late usage reported in these past 2 periods, the system will include this delta. Depending on the type of usage and mode (e.g <code>AGGREGATE</code>) we will see one or several <code>USAGE</code> item for this period to reflect such additional charge. If the late usage is older than these past 2 periods, it is simply ignored.</p></div>
-<div class="paragraph"><p>Missing Usage Data:</p></div>
-<div class="paragraph"><p>Currently it is considered an error to delete past usage data in these past 2 periods, the invoicing system would throw an error and prevent invoicing to happen correctly. If the late missing data is older than these past 2 periods, it is simply ignored.</p></div>
-<div class="paragraph"><p>One can set the system property&#8201;&#8212;&#8201;or per-tenant config&#8201;&#8212;&#8201;<code>org.killbill.invoice.readMaxRawUsagePreviousPeriod</code> to <code>0</code> to ignore any past data&#8201;&#8212;&#8201;late usage or missing data.</p></div></div></div>
 <div class="sect2"><h3 id="invoicing-dry-run">Invoice Dry Run</h3><div class="sect3"><h4 id="_dry_run_modes">Dry Run Modes</h4><div class="paragraph"><p>In some situations, it is necessary to preview what a given customer will be invoiced for at a given date or after making a subscription change.
 Kill Bill provides dry-run invoices apis to accomplish such goal, and there are a few flavours for different use cases:</p></div>
 <div class="ulist"><ul><li><p>Next upcoming invoice: When is the next upcoming invoice for a given customer, and what will such invoice contain (items, amount, date, &#8230;&#8203;)?</p></li><li><p>Next upcoming invoice associated with a given subscription or bundle: When is the next upcoming invoice for a given subscription/bundle, and what will such invoice contain (items, amount, date, &#8230;&#8203;)?</p></li><li><p>Given a targetDate, what invoice will the system generate ?</p></li><li><p>Subscription modification: Given a change in a subscription (new subscription, change of plan, cancellation, &#8230;&#8203;), which invoice will the system generate ?</p></li></ul></div>
@@ -1524,6 +1440,90 @@ subscription_id: 06b826ad-73e6-4bdd-92fe-c9770a1ba30a
   <span class="tok-s2">&quot;isParentInvoice&quot;</span>: <span class="tok-nb">false</span>,
   <span class="tok-s2">&quot;auditLogs&quot;</span>: null
 <span class="tok-o">}</span></code></pre></div></div></div></div>
+<div class="sect2"><h3 id="components-invoicing-usage">Usage Billing</h3><div class="sect3"><h4 id="_usage_invoice_items">Usage Invoice Items</h4><div class="paragraph"><p>As described in the section <a href="http://docs.killbill.io/latest/userguide_subscription.html#components-catalog-usage">Usage Billing</a>,
+Kill Bill supports invoicing customers based on different usage type. The usage billing is always done on a per subscription
+level and for a given billing period; in addition, if the active <code>Plan</code> associated with the subscription contains multiple usage
+sections, each usage section is billed independently: As a result, we may see one or several <code>USAGE</code> invoice items per invoice,
+each associated with a given subscription, usage section and billing period.</p></div>
+<div class="paragraph"><p>So regarless of the usage type the following basic fields will always be seen:</p></div>
+<div class="ulist"><ul><li><p><code>planName</code>: The name of the <code>Plan</code> in the catalog</p></li><li><p><code>phaseName</code>: The name of the <code>PlanPhase</code> in the catalog</p></li><li><p><code>subscriptionId</code>: The ID of the subscription</p></li><li><p><code>usageName</code>: The name of the usage section in the catalog</p></li><li><p><code>startDate</code>: The start date for the period being invoiced</p></li><li><p><code>endDate</code>: The end date for the period being invoiced</p></li></ul></div>
+<div class="paragraph"><p>In addition, depending on the usage type for the usage section (e.g <code>CONSUMABLE</code>), and depending on the configuration of the system,
+we will see additional information.</p></div></div>
+<div class="sect3"><h4 id="_capacity_in_arrear_mode_2">Capacity In Arrear Mode</h4><div class="paragraph"><p>For each capacity in arrear usage section, we will see some json in the field <code>itemDetails</code>, to provide additional information:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
+  <span class="tok-s2">&quot;tierDetails&quot;</span>: <span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;tier&quot;</span>: 2,
+      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;bandwith-meg-sec&quot;</span>,
+      <span class="tok-s2">&quot;tierPrice&quot;</span>: 10,
+      <span class="tok-s2">&quot;quantity&quot;</span>: 200
+    <span class="tok-o">}</span>,
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;tier&quot;</span>: 3,
+      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;members&quot;</span>,
+      <span class="tok-s2">&quot;tierPrice&quot;</span>: 100,
+      <span class="tok-s2">&quot;quantity&quot;</span>: 60
+    <span class="tok-o">}</span>
+  <span class="tok-o">]</span>,
+  <span class="tok-s2">&quot;amount&quot;</span>: 100
+<span class="tok-o">}</span></code></pre></div></div>
+<div class="paragraph"><p>In this example we see that we were invoiced for 2 different units, and this shows the tier details for each unit, and the amount that will be charged.
+Note that because unit <code>members</code> reached tier 3, in the capacity in arrear model, the amount will be based on the pricing for this tier.</p></div></div>
+<div class="sect3"><h4 id="_consumable_in_arrear_mode_2">Consumable In Arrear Mode</h4><div class="paragraph"><p>In this mode, we are going through each tier level to compute the price based on the tier price and quantity. As described prevously, we support both <code>ALL_TIER</code> and <code>TOP_TIER</code> <code>TierBlockPolicy</code>.</p></div>
+<div class="paragraph"><p>We can configure the invoicing system to output one item per tier, or one aggregate item for all tiers. The section below will consider a use case of <code>ALL_TIER</code> policy, but the idea between aggregate or detail mode remains the same.</p></div></div>
+<div class="sect3"><h4 id="_agrregate_mode">Agrregate Mode</h4><div class="paragraph"><p>In the aggregate mode, we will see one <code>USAGE</code> item with the aggregate amount across unit and tiers. The <code>itemDetails</code> json will summarize the usage on a per tier basis and per unit basis:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
+  <span class="tok-s2">&quot;tierDetails&quot;</span>: <span class="tok-o">[</span>
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;tier&quot;</span>: 1,
+      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;cell-phone-minutes&quot;</span>,
+      <span class="tok-s2">&quot;tierPrice&quot;</span>: 2,
+      <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
+      <span class="tok-s2">&quot;quantity&quot;</span>: 20,
+      <span class="tok-s2">&quot;amount&quot;</span>: 40
+    <span class="tok-o">}</span>,
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;tier&quot;</span>: 2,
+      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;cell-phone-minutes&quot;</span>,
+      <span class="tok-s2">&quot;tierPrice&quot;</span>: 20,
+      <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
+      <span class="tok-s2">&quot;quantity&quot;</span>: 100,
+      <span class="tok-s2">&quot;amount&quot;</span>: 2000
+    <span class="tok-o">}</span>,
+    <span class="tok-o">{</span>
+      <span class="tok-s2">&quot;tier&quot;</span>: 1,
+      <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;Mbytes&quot;</span>,
+      <span class="tok-s2">&quot;tierPrice&quot;</span>: 10,
+      <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
+      <span class="tok-s2">&quot;quantity&quot;</span>: 10,
+      <span class="tok-s2">&quot;amount&quot;</span>: 100
+    <span class="tok-o">}</span>
+  <span class="tok-o">]</span>,
+  <span class="tok-s2">&quot;amount&quot;</span>: 2140
+<span class="tok-o">}</span></code></pre></div></div>
+<div class="paragraph"><p>In this example, we see that we billed for two units <code>cell-phone-minutes</code> and <code>Mbytes</code>: For the <code>cell-phone-minutes</code>, the quantity recorded for the period was such, that we reached the maxium for tier 1 and started to bill some units for tier 2; for the <code>Mbytes</code> units, we billed  everything in the tier 1. The amount reported is the sum of the amount : 40 + 2000 + 100 = 2140.</p></div></div>
+<div class="sect3"><h4 id="_detail_mode">Detail Mode</h4><div class="paragraph"><p>Sometimes it is desirable to output one <code>USAGE</code> item per unit type and tier, so in this case the detail for the billing is inside each
+invoice item&#8201;&#8212;&#8201;and the aggregate amount is computed by summing the sum amount. In order to activate this mode, one needs to set
+the system property <code>org.killbill.invoice.item.result.behavior.mode</code> to <code>DETAIL</code>.</p></div>
+<div class="paragraph"><p>Each of the <code>USAGE</code> item will contain the following fields:</p></div>
+<div class="ulist"><ul><li><p><code>quantity</code>: Quantity consumed for the unit (type) and on the given tier</p></li><li><p><code>rate</code>: We reused the <code>rate</code> field normally reserved for <code>RECURING</code> type to output the price of the tier</p></li></ul></div>
+<div class="paragraph"><p>Also, the <code>itemDetails</code> json field will provide some additional details:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span class="tok-o">{</span>
+  <span class="tok-s2">&quot;tier&quot;</span>: 1,
+  <span class="tok-s2">&quot;tierUnit&quot;</span>: <span class="tok-s2">&quot;cell-phone-minutes&quot;</span>,
+  <span class="tok-s2">&quot;tierPrice&quot;</span>: 2,
+  <span class="tok-s2">&quot;tierBlockSize&quot;</span>: 1,
+  <span class="tok-s2">&quot;quantity&quot;</span>: 20,
+  <span class="tok-s2">&quot;amount&quot;</span>: 40
+<span class="tok-o">}</span></code></pre></div></div></div>
+<div class="sect3"><h4 id="_past_usage_periods">Past Usage Periods</h4><div class="paragraph"><p>By default the system is configured to look at the past 2 billing periods, but this can be changed by using the configuration <code>org.killbill.invoice.readMaxRawUsagePreviousPeriod</code> (default=2). Let&#8217;s assume a MONTHLY subscription that was invoiced for the following periods:</p></div>
+<div class="ulist"><ul><li><p><code>2018-01-01 - 2018-02-01</code></p></li><li><p><code>2018-02-01 - 2018-03-01</code></p></li><li><p><code>2018-03-01 - 2018-04-01</code></p></li></ul></div>
+<div class="paragraph"><p>On <code>2018-05-01</code>, the system will by default look to invoice for the period <code>2018-04-01 - 2018-05-01</code>, but it will also recompute items for the past 2 periods, <code>2018-03-01 - 2018-04-01</code> and <code>2018-02-01 - 2018-03-01</code>.</p></div>
+<div class="paragraph"><p>Late Usage Data:</p></div>
+<div class="paragraph"><p>If for some reason, there is some late usage reported in these past 2 periods, the system will include this delta. Depending on the type of usage and mode (e.g <code>AGGREGATE</code>) we will see one or several <code>USAGE</code> item for this period to reflect such additional charge. If the late usage is older than these past 2 periods, it is simply ignored.</p></div>
+<div class="paragraph"><p>Missing Usage Data:</p></div>
+<div class="paragraph"><p>Currently it is considered an error to delete past usage data in these past 2 periods, the invoicing system would throw an error and prevent invoicing to happen correctly. If the late missing data is older than these past 2 periods, it is simply ignored.</p></div>
+<div class="paragraph"><p>One can set the system property&#8201;&#8212;&#8201;or per-tenant config&#8201;&#8212;&#8201;<code>org.killbill.invoice.readMaxRawUsagePreviousPeriod</code> to <code>0</code> to ignore any past data&#8201;&#8212;&#8201;late usage or missing data.</p></div></div></div>
 <div class="sect2"><h3 id="components-invoice-payments">Invoice Payments</h3><div class="paragraph"><p>Payments can be made against existing invoices, either automatically by the system or manually by leveraging our apis. Kill Bill allows to have multiple partial payments against a given invoice, but the reverse&#8201;&#8212;&#8201;i.e one payment spanning multiple invoices is not (yet) supported.</p></div>
 <div class="paragraph"><p>One Payment against one invoice is the default model, and this happens automatically by the system provided the customer <code>Account</code> has a valid default payment method - in which case it used to make the payment. However, one can customize the system on a per <code>Account</code> level to disable this behavior, using the following mechanisms:</p></div>
 <div class="ulist"><ul><li><p><code>Account</code> does not have a default payment method&#8201;&#8212;&#8201;the system will abort the payment.</p></li><li><p><code>Account</code> has been tagged with one of the following:</p><div class="ulist"><ul><li><p><code>AUTO_PAY_OFF</code>: Prevent system from making automatic payments</p></li><li><p><code>MANUAL_PAY</code>: Prevent system from making automatic payments and we expect those payments to happen outside of the Kill Bill system&#8201;&#8212;&#8201;e.g checks.</p></li></ul></div></li></ul></div>
@@ -1599,7 +1599,7 @@ java -jar killbill-overdue-*-xsd-tool.jar schema.xsd</code></pre></div></div></d
 <div class="paragraph"><p><strong>Price list</strong> - Price lists are collections of plans that might be associated with a particular program (e.g. an affiliate program or a discount program). A plan can be in many price lists. There must be a default price list that is used when no pricelist is specified. When a subscription changes plans, Catalog rules can be used to determine which Price list the new Plan should use.</p></div>
 <div class="paragraph"><p><strong>Product</strong> - Products represent the product or service that the customer buys.</p></div>
 <div class="paragraph"><p><strong>Subscription</strong> - A Subscription is a contract that associates an account with a plan and a specific start date. The subscription will trigger automated payments based on the terms of the plan.</p></div>
-<div class="paragraph"><p><strong>Tag</strong> - Tags can be added to Accounts, Bundles or Subscriptions. There are two kinds of tags: System Tags and User Tags. System Tags can impact the behaviour of the system and include things like: AUTO_PAY_OFF or AUTO_BILLING_OFF. User Tags are informational only, and can be created through the admin UI. User Tags are used to identify collections of Users, Subscriptions or Bundles so that they can easily be found or reported on later.</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2018-07-31 21:49:14 UTC</div><script>
+<div class="paragraph"><p><strong>Tag</strong> - Tags can be added to Accounts, Bundles or Subscriptions. There are two kinds of tags: System Tags and User Tags. System Tags can impact the behaviour of the system and include things like: AUTO_PAY_OFF or AUTO_BILLING_OFF. User Tags are informational only, and can be created through the admin UI. User Tags are used to identify collections of Users, Subscriptions or Bundles so that they can easily be found or reported on later.</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2018-07-31 21:57:25 UTC</div><script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
