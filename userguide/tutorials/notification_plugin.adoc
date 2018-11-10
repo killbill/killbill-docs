@@ -6,7 +6,14 @@ Notification plugins implement the `OSGIKillbillEventDispatcher.OSGIKillbillEven
 
 == Retries
 
-By default, if your plugin triggers a runtime exception, the event is redispatched right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property). In some cases, you may want to retry at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` with your own retry schedule.
+By default, if your plugin triggers a runtime exception, the event is redispatched right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property).
+
+In some cases, you may want to retry at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried. In terms or responsabilities:
+
+* Plugin is in charge of deciding whether an `NotificationPluginApiRetryException` should be thrown and attach the associated retry schedule to it.
+* Kill Bill manages the retry logic and also keeps count of # exiting retries versus retry schedule.
+
+It is expected that the plugin will simply pass the same retry schedule for each retry iteration, but this is not enforced -- and left for the plugin to decide. Kill Bill will look at the most recent retry schedule attached to the exception currently being handled and determine what to do based on that. If for instance a first schedule included 2 retries 10 days apart, and then upon retrying one time, the new schedule now includes only 1 retry, the cycle of retries would end there (as the latest schedule contains only one retry and Kill Bill already retried one time).
 
 For example:
 
@@ -20,4 +27,15 @@ Because of such behavior, any plugin can trigger retries at any time: it is henc
 
 === Internals
 
-When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried (you don't have to keep count in the plugin, Kill Bill will do it for you). Retriable events are serialized as `RetryNotificationEvent` objects and placed in the `notifications-retries:extBusEvent-listener-service` notification queue.
+Retriable events are serialized as `RetryNotificationEvent` objects and placed in the `notifications-retries:extBusEvent-listener-service` notification queue. An example of such notification would look like:
+
+[source,json]
+----
+{
+  "originalEvent": "{\"busEvent\":{\"name\":\"Foo\",\"value\":1,\"type\":\"Baz\",\"searchKey1\":65,\"searchKey2\":34,\"userToken\":\"ad62379c-d929-4dd6-9d6a-049f024943f0\"},\"busEventClass\":\"org.killbill.bus.TestEventBusBase$MyEvent\"}",
+  "originalEventClass": "org.killbill.queue.retry.SubscriberNotificationEvent",
+  "originalEffectiveDate": "2018-11-10T00:53:16.000Z",
+  "retryNb": 1
+}
+----
+
