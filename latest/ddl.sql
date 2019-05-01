@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS accounts;
 CREATE TABLE accounts (
     record_id serial unique,
     id varchar(36) NOT NULL,
-    external_key varchar(255) NULL,
+    external_key varchar(255) NOT NULL,
     email varchar(128) DEFAULT NULL,
     name varchar(100) DEFAULT NULL,
     first_name_length int DEFAULT NULL,
@@ -15,6 +15,7 @@ CREATE TABLE accounts (
     parent_account_id varchar(36) DEFAULT NULL,
     is_payment_delegated_to_parent boolean DEFAULT FALSE,
     payment_method_id varchar(36) DEFAULT NULL,
+    reference_time datetime NOT NULL,
     time_zone varchar(50) NOT NULL,
     locale varchar(5) DEFAULT NULL,
     address1 varchar(100) DEFAULT NULL,
@@ -27,7 +28,6 @@ CREATE TABLE accounts (
     phone varchar(25) DEFAULT NULL,
     notes varchar(4096) DEFAULT NULL,
     migrated boolean default false,
-    is_notified_for_invoices boolean NOT NULL,
     created_date datetime NOT NULL,
     created_by varchar(50) NOT NULL,
     updated_date datetime DEFAULT NULL,
@@ -37,22 +37,28 @@ CREATE TABLE accounts (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE UNIQUE INDEX accounts_id ON accounts(id);
 CREATE UNIQUE INDEX accounts_external_key ON accounts(external_key, tenant_record_id);
+CREATE INDEX accounts_parents ON accounts(parent_account_id);
 CREATE INDEX accounts_tenant_record_id ON accounts(tenant_record_id);
+CREATE INDEX accounts_email_tenant_record_id ON accounts(email, tenant_record_id);
+CREATE INDEX accounts_company_name_tenant_record_id ON accounts(company_name, tenant_record_id);
+CREATE INDEX accounts_name_tenant_record_id ON accounts(name, tenant_record_id);
+
 
 DROP TABLE IF EXISTS account_history;
 CREATE TABLE account_history (
     record_id serial unique,
     id varchar(36) NOT NULL,
     target_record_id bigint /*! unsigned */ not null,
-    external_key varchar(255) NULL,
+    external_key varchar(255) NOT NULL,
     email varchar(128) DEFAULT NULL,
     name varchar(100) DEFAULT NULL,
     first_name_length int DEFAULT NULL,
     currency varchar(3) DEFAULT NULL,
     billing_cycle_day_local int DEFAULT NULL,
     parent_account_id varchar(36) DEFAULT NULL,
-    payment_method_id varchar(36) DEFAULT NULL,
     is_payment_delegated_to_parent boolean default false,
+    payment_method_id varchar(36) DEFAULT NULL,
+    reference_time datetime NOT NULL,
     time_zone varchar(50) NOT NULL,
     locale varchar(5) DEFAULT NULL,
     address1 varchar(100) DEFAULT NULL,
@@ -65,7 +71,6 @@ CREATE TABLE account_history (
     phone varchar(25) DEFAULT NULL,
     notes varchar(4096) DEFAULT NULL,
     migrated boolean default false,
-    is_notified_for_invoices boolean NOT NULL,
     change_type varchar(6) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -122,7 +127,7 @@ DROP TABLE IF EXISTS bus_ext_events;
 CREATE TABLE bus_ext_events (
     record_id serial unique,
     class_name varchar(128) NOT NULL,
-    event_json varchar(2048) NOT NULL,
+    event_json text NOT NULL,
     user_token varchar(36),
     created_date datetime NOT NULL,
     creating_owner varchar(50) NOT NULL,
@@ -142,7 +147,7 @@ DROP TABLE IF EXISTS bus_ext_events_history;
 CREATE TABLE bus_ext_events_history (
     record_id serial unique,
     class_name varchar(128) NOT NULL,
-    event_json varchar(2048) NOT NULL,
+    event_json text NOT NULL,
     user_token varchar(36),
     created_date datetime NOT NULL,
     creating_owner varchar(50) NOT NULL,
@@ -155,6 +160,7 @@ CREATE TABLE bus_ext_events_history (
     search_key2 bigint /*! unsigned */ not null default 0,
     PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+CREATE INDEX bus_ext_events_history_tenant_account_record_id ON bus_ext_events_history(search_key2, search_key1);
 
 /*! SET default_storage_engine=INNODB */;
 
@@ -190,7 +196,7 @@ CREATE INDEX catalog_override_phase_definition_idx ON catalog_override_phase_def
 DROP TABLE IF EXISTS catalog_override_plan_phase;
 CREATE TABLE catalog_override_plan_phase (
     record_id serial unique,
-    phase_number smallint /*! unsigned */ NOT NULL,
+    phase_number int /*! unsigned */ NOT NULL,
     phase_def_record_id bigint /*! unsigned */ not null,
     target_plan_def_record_id bigint /*! unsigned */ not null,
     created_date datetime NOT NULL,
@@ -199,6 +205,102 @@ CREATE TABLE catalog_override_plan_phase (
     PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX catalog_override_plan_phase_idx ON catalog_override_plan_phase(tenant_record_id, phase_number, phase_def_record_id);
+
+DROP TABLE IF EXISTS catalog_override_usage_definition;
+create table catalog_override_usage_definition
+(
+record_id serial unique,
+parent_usage_name varchar(255) NOT NULL,
+type varchar(255) NOT NULL,
+fixed_price decimal(15,9) NULL,
+recurring_price decimal(15,9) NULL,
+currency varchar(3) NOT NULL,
+effective_date datetime NOT NULL,
+created_date datetime NOT NULL,
+created_by varchar(50) NOT NULL,
+tenant_record_id bigint /*! unsigned */ not null default 0,
+PRIMARY KEY(record_id)
+);
+CREATE INDEX catalog_override_usage_definition_idx ON catalog_override_usage_definition(tenant_record_id, parent_usage_name, currency);
+
+
+DROP TABLE IF EXISTS catalog_override_tier_definition;
+create table catalog_override_tier_definition
+(
+record_id serial unique,
+fixed_price decimal(15,9) NULL,
+recurring_price decimal(15,9) NULL,
+currency varchar(3) NOT NULL,
+effective_date datetime NOT NULL,
+created_date datetime NOT NULL,
+created_by varchar(50) NOT NULL,
+tenant_record_id bigint /*! unsigned */ not null default 0,
+PRIMARY KEY(record_id)
+);
+CREATE INDEX catalog_override_tier_definition_idx ON catalog_override_usage_definition(tenant_record_id, currency);
+
+DROP TABLE IF EXISTS catalog_override_block_definition;
+create table catalog_override_block_definition
+(
+record_id serial unique,
+parent_unit_name varchar(255) NOT NULL,
+size decimal(15,9) NOT NULL,
+max decimal(15,9) NULL,
+currency varchar(3) NOT NULL,
+price decimal(15,9) NOT NULL,
+effective_date datetime NOT NULL,
+created_date datetime NOT NULL,
+created_by varchar(50) NOT NULL,
+tenant_record_id bigint /*! unsigned */ not null default 0,
+PRIMARY KEY(record_id)
+);
+CREATE INDEX catalog_override_block_definition_idx ON catalog_override_block_definition(tenant_record_id, parent_unit_name, currency);
+
+
+DROP TABLE IF EXISTS catalog_override_phase_usage;
+create table catalog_override_phase_usage
+(
+record_id serial unique,
+usage_number int /*! unsigned */,
+usage_def_record_id  bigint /*! unsigned */ not null,
+target_phase_def_record_id bigint /*! unsigned */ not null,
+created_date datetime NOT NULL,
+created_by varchar(50) NOT NULL,
+tenant_record_id bigint /*! unsigned */ not null default 0,
+PRIMARY KEY(record_id)
+);
+CREATE INDEX catalog_override_phase_usage_idx ON catalog_override_phase_usage(tenant_record_id, usage_number, usage_def_record_id);
+
+DROP TABLE IF EXISTS catalog_override_usage_tier;
+create table catalog_override_usage_tier
+(
+record_id serial unique,
+tier_number int /*! unsigned */,
+tier_def_record_id bigint /*! unsigned */ not null,
+target_usage_def_record_id bigint /*! unsigned */ not null,
+created_date datetime NOT NULL,
+created_by varchar(50) NOT NULL,
+tenant_record_id bigint /*! unsigned */ not null default 0,
+PRIMARY KEY(record_id)
+);
+CREATE INDEX catalog_override_usage_tier_idx ON catalog_override_usage_tier(tenant_record_id, tier_number, tier_def_record_id);
+
+
+DROP TABLE IF EXISTS catalog_override_tier_block;
+create table catalog_override_tier_block
+(
+record_id serial unique,
+block_number int /*! unsigned */,
+block_def_record_id bigint /*! unsigned */ not null,
+target_tier_def_record_id bigint /*! unsigned */ not null,
+created_date datetime NOT NULL,
+created_by varchar(50) NOT NULL,
+tenant_record_id bigint /*! unsigned */ NOT NULL default 0,
+PRIMARY KEY(record_id)
+);
+CREATE INDEX catalog_override_tier_block_idx ON catalog_override_tier_block(tenant_record_id, block_number, block_def_record_id);
+
+
 
 /*! SET default_storage_engine=INNODB */;
 
@@ -267,7 +369,7 @@ CREATE TABLE bundles (
     PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE UNIQUE INDEX bundles_id ON bundles(id);
-CREATE INDEX bundles_key ON bundles(external_key);
+CREATE UNIQUE INDEX bundles_external_key ON bundles(external_key, tenant_record_id);
 CREATE INDEX bundles_account ON bundles(account_id);
 CREATE INDEX bundles_tenant_account_record_id ON bundles(tenant_record_id, account_record_id);
 
@@ -296,9 +398,32 @@ CREATE TABLE blocking_states (
     PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX blocking_states_id ON blocking_states(blockable_id);
+CREATE INDEX blocking_states_id_real ON blocking_states(id);
 CREATE INDEX blocking_states_tenant_account_record_id ON blocking_states(tenant_record_id, account_record_id);
 
 /*! SET default_storage_engine=INNODB */;
+
+DROP TABLE IF EXISTS invoice_tracking_ids;
+CREATE TABLE invoice_tracking_ids (
+    record_id serial unique,
+    id varchar(36) NOT NULL,
+    tracking_id varchar(128) NOT NULL,
+    invoice_id varchar(36) NOT NULL,
+    subscription_id varchar(36),
+    unit_type varchar(255) NOT NULL,
+    record_date date NOT NULL,
+    is_active boolean default true,
+    created_by varchar(50) NOT NULL,
+    created_date datetime NOT NULL,
+    updated_by varchar(50) NOT NULL,
+    updated_date datetime NOT NULL,
+    account_record_id bigint /*! unsigned */ not null,
+    tenant_record_id bigint /*! unsigned */ not null default 0,
+    PRIMARY KEY(record_id)
+) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+CREATE INDEX invoice_tracking_tenant_account_date_idx ON invoice_tracking_ids(tenant_record_id, account_record_id, record_date);
+CREATE INDEX invoice_tracking_invoice_id_idx ON invoice_tracking_ids(invoice_id);
+
 
 DROP TABLE IF EXISTS invoice_items;
 CREATE TABLE invoice_items (
@@ -311,6 +436,7 @@ CREATE TABLE invoice_items (
     bundle_id varchar(36),
     subscription_id varchar(36),
     description varchar(255),
+    product_name varchar(255),
     plan_name varchar(255),
     phase_name varchar(255),
     usage_name varchar(255),
@@ -320,6 +446,8 @@ CREATE TABLE invoice_items (
     rate numeric(15,9) NULL,
     currency varchar(3) NOT NULL,
     linked_item_id varchar(36),
+    quantity int,
+    item_details text,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
     account_record_id bigint /*! unsigned */ not null,
@@ -377,6 +505,8 @@ CREATE TABLE invoice_payments (
 CREATE UNIQUE INDEX invoice_payments_id ON invoice_payments(id);
 CREATE INDEX invoice_payments_invoice_id ON invoice_payments(invoice_id);
 CREATE INDEX invoice_payments_reversals ON invoice_payments(linked_invoice_payment_id);
+CREATE INDEX invoice_payments_payment_id ON invoice_payments(payment_id);
+CREATE INDEX invoice_payments_payment_cookie_id ON invoice_payments(payment_cookie_id);
 CREATE INDEX invoice_payments_tenant_account_record_id ON invoice_payments(tenant_record_id, account_record_id);
 
 DROP TABLE IF EXISTS invoice_parent_children;
@@ -395,6 +525,7 @@ CREATE TABLE invoice_parent_children (
 CREATE UNIQUE INDEX invoice_parent_children_id ON invoice_parent_children(id);
 CREATE INDEX invoice_parent_children_invoice_id ON invoice_parent_children(parent_invoice_id);
 CREATE INDEX invoice_parent_children_tenant_account_record_id ON invoice_parent_children(tenant_record_id, account_record_id);
+CREATE INDEX invoice_parent_children_child_invoice_id ON invoice_parent_children(child_invoice_id);
 
 /*! SET default_storage_engine=INNODB */;
 
@@ -520,6 +651,7 @@ CREATE UNIQUE INDEX payments_id ON payments(id);
 CREATE UNIQUE INDEX payments_key ON payments(external_key, tenant_record_id);
 CREATE INDEX payments_accnt ON payments(account_id);
 CREATE INDEX payments_tenant_account_record_id ON payments(tenant_record_id, account_record_id);
+CREATE INDEX payments_tenant_record_id_state_name ON payments(tenant_record_id, state_name);
 
 
 DROP TABLE IF EXISTS payment_history;
@@ -560,7 +692,7 @@ CREATE TABLE payment_transactions (
     processed_currency varchar(3),
     payment_id varchar(36) NOT NULL,
     gateway_error_code varchar(32),
-    gateway_error_msg varchar(256),
+    gateway_error_msg text,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
     updated_by varchar(50) NOT NULL,
@@ -591,7 +723,7 @@ CREATE TABLE payment_transaction_history (
     processed_currency varchar(3),
     payment_id varchar(36) NOT NULL,
     gateway_error_code varchar(32),
-    gateway_error_msg varchar(256),
+    gateway_error_msg text,
     change_type varchar(6) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -699,6 +831,7 @@ CREATE TABLE tag_definitions (
     record_id serial unique,
     id varchar(36) NOT NULL,
     name varchar(20) NOT NULL,
+    applicable_object_types varchar(500),
     description varchar(200) NOT NULL,
     is_active boolean default true,
     created_by varchar(50) NOT NULL,
@@ -717,6 +850,7 @@ CREATE TABLE tag_definition_history (
     id varchar(36) NOT NULL,
     target_record_id bigint /*! unsigned */ not null,
     name varchar(30) NOT NULL,
+    applicable_object_types varchar(500),
     description varchar(200),
     is_active boolean default true,
     change_type varchar(6) NOT NULL,
@@ -804,7 +938,7 @@ DROP TABLE IF EXISTS notifications;
 CREATE TABLE notifications (
     record_id serial unique,
     class_name varchar(256) NOT NULL,
-    event_json varchar(2048) NOT NULL,
+    event_json text NOT NULL,
     user_token varchar(36),
     created_date datetime NOT NULL,
     creating_owner varchar(50) NOT NULL,
@@ -828,7 +962,7 @@ DROP TABLE IF EXISTS notifications_history;
 CREATE TABLE notifications_history (
     record_id serial unique,
     class_name varchar(256) NOT NULL,
-    event_json varchar(2048) NOT NULL,
+    event_json text NOT NULL,
     user_token varchar(36),
     created_date datetime NOT NULL,
     creating_owner varchar(50) NOT NULL,
@@ -843,12 +977,13 @@ CREATE TABLE notifications_history (
     future_user_token varchar(36),
     PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+CREATE INDEX notifications_history_tenant_account_record_id ON notifications_history(search_key2, search_key1);
 
 DROP TABLE IF EXISTS bus_events;
 CREATE TABLE bus_events (
     record_id serial unique,
     class_name varchar(128) NOT NULL,
-    event_json varchar(2048) NOT NULL,
+    event_json text NOT NULL,
     user_token varchar(36),
     created_date datetime NOT NULL,
     creating_owner varchar(50) NOT NULL,
@@ -868,7 +1003,7 @@ DROP TABLE IF EXISTS bus_events_history;
 CREATE TABLE bus_events_history (
     record_id serial unique,
     class_name varchar(128) NOT NULL,
-    event_json varchar(2048) NOT NULL,
+    event_json text NOT NULL,
     user_token varchar(36),
     created_date datetime NOT NULL,
     creating_owner varchar(50) NOT NULL,
@@ -881,6 +1016,7 @@ CREATE TABLE bus_events_history (
     search_key2 bigint /*! unsigned */ not null default 0,
     PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+CREATE INDEX bus_events_history_tenant_account_record_id ON bus_events_history(search_key2, search_key1);
 
 drop table if exists sessions;
 create table sessions (
@@ -1000,7 +1136,7 @@ CREATE TABLE tenant_kvs (
    updated_by varchar(50) DEFAULT NULL,
    PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
-CREATE INDEX tenant_kvs_key ON tenant_kvs(tenant_key);
+CREATE INDEX tenant_kvs_trid_key ON tenant_kvs(tenant_record_id, tenant_key);
 
 
 DROP TABLE IF EXISTS tenant_broadcasts;
