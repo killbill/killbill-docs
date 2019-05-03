@@ -19,15 +19,34 @@ These files always contain the latest version, matching the latest code in that 
 
 To access a specific version:
 
-* For Kill Bill itself, we publish a full DDL file per major version, available from our http://killbill.io/downloads/[downloads page] (http://docs.killbill.io/latest/ddl.sql[latest example]).
+* For Kill Bill itself, we publish a full DDL file per major version, available at http://docs.killbill.io/<VERSION>/ddl.sql (http://docs.killbill.io/0.20/ddl.sql[0.20 example]). The DDL for the latest stable version of Kill Bill is at http://docs.killbill.io/latest/ddl.sql[http://docs.killbill.io/latest/ddl.sql].
 * For individual plugins, you can get the DDL file of a given version on GitHub by looking-up the specific tag (for v4.0.2 of the CyberSource plugin, it would be at https://github.com/killbill/killbill-cybersource-plugin/tree/v4.0.2/db/ddl.sql).
 
-== Migrations
+== Migrations with Docker images
+
+The `Migrations tooling` section below goes into details on how migrations are handled for individual components, and the tooling available to you to update your database schema when upgrading Kill Bill.
+
+If you are using our standard Docker images, the procedure is simplified and as follows:
+
+1. Update the `/var/lib/killbill/kpm.yml` file in one of your containers to reflect the new version of Kill Bill you want to upgrade to.
+2. Run `$MIGRATIONS_CMD`. This will:
+  ** Configure the database for migrations if needed (i.e. create the `schema_version` table(s), see below)
+  ** Fetch all migrations needed to upgrade to the Kill Bill version specified in the `kpm.yml`
+  ** Display the SQL that would be run (for Kill Bill and each plugin) and prompt the user whether it should be applied
+
+Depending on your dataset size, you may or may not want the script to apply these directly (e.g. you may prefer to use an online-schema-change tool for production), in which case you can simply grab the SQL output instead.
+
+Caveats:
+
+* This is only supported since `killbill/killbill:0.20.10`
+* Ruby migrations aren't supported (if you have any, see the manual steps below)
+
+== Migrations tooling
 
 In order to ease the database migrations, we decided to rely on standard tools for migrating from one given version to a higher version:
 
-* For java componenents (Kill Bill itself, java plugins), we rely on https://flywaydb.org/[Flyway]
-* For ruby components (ruby plugins, KAUI, ...), we rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]
+* For Java componenents (Kill Bill itself, java plugins), we rely on https://flywaydb.org/[Flyway]
+* For Ruby components (ruby plugins, KAUI, ...), we rely on http://edgeguides.rubyonrails.org/active_record_migrations.html[Active Record migrations]
 
 In addition to these standard tools, we also enhanced our existing tooling to support the following use cases:
 
