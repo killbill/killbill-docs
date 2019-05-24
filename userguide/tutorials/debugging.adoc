@@ -97,9 +97,9 @@ Here is an https://github.com/killbill/killbill-integration-tests/blob/165b76b58
 
 Our Docker images use Ansible behind the scenes to install and configure Kill Bill in the container. The actual Ansible commands run are available in the images via the environment variables `$KPM_INSTALL_CMD` and `$START_TOMCAT_CMD`.
 
-If you need to debug this setup process, you can start a container via `docker run -ti killbill/killbill:0.20.0 bash` and execute these commands manually.
+If you need to debug this setup process, you can start a container via `docker run -ti killbill/killbill:0.20.10 bash` and execute these commands manually.
 
-The Ansible command to start Tomcat can also be modified via the `$START_TOMCAT_OPTS` variable. One useful setting is to create the container using `START_TOMCAT_OPTS='--skip-tags tomcat_cleanup'` (e.g. `docker run -e START_TOMCAT_OPTS='--skip-tags tomcat_cleanup' -ti killbill/killbill:0.20.0`). While by default Ansible will cleanup the Tomcat directories (such as `webapps/ROOT`), this option will skip this task. This is especially useful when developping on Kill Bill: you can replace specific jars in the `webapps/ROOT` directory and simply restart the container to test your changes.
+The Ansible command to start Tomcat can also be modified via the `$START_TOMCAT_OPTS` variable. One useful setting is to create the container using `START_TOMCAT_OPTS='--skip-tags tomcat_cleanup'` (e.g. `docker run -e START_TOMCAT_OPTS='--skip-tags tomcat_cleanup' -ti killbill/killbill:0.20.10`). While by default Ansible will cleanup the Tomcat directories (such as `webapps/ROOT`), this option will skip this task. This is especially useful when developping on Kill Bill: you can replace specific jars in the `webapps/ROOT` directory and simply restart the container to test your changes.
 
 == Performance and profiling
 
@@ -532,8 +532,18 @@ In your message, specify:
 kpm diagnostic --killbill-api-credentials=bob lazar \
                --killbill-credentials=admin password \
                --killbill-url=http://127.0.0.1:8080 \
-               --killbill-web-path=/var/lib/tomcat7/webapps/ROOT/ \
-               --kaui-web-path=/var/lib/tomcat7/webapps/ROOT/ \
-               --log-dir=/var/lib/tomcat7/logs \
-               --account_export=ACCOUNT_ID
+               --killbill-web-path=/var/lib/tomcat/webapps/ROOT.war \
+               --log-dir=/var/lib/tomcat/logs \
+               --account-export=ACCOUNT_ID
+----
+
+If you are using our standard Docker images, you can simply run the following command in the Kill Bill container:
+
+[source,bash]
+----
+$KPM_DIAGNOSTIC_CMD -e killbill_user=admin \
+                    -e killbill_password=password \
+                    -e killbill_api_key=bob \
+                    -e killbill_api_secret=lazar \
+                    -e killbill_account=ACCOUNT_ID
 ----
