@@ -55,5 +55,7 @@ Upon payment failure, the plugin may attempt a payment retry: There are 2 system
 * Upon _PLUGIN_FAILURE_ -- when the payment plugin returns a _CANCELED_ status --,  the payment system will look at the property _org.killbill.payment.failure.retry.start.sec_, and possibly schedule some retries based on that value. By default, this property is set with a default value of _300_, which means that the payment would be scheduled to be retried one time 300 seconds -- or 5 minutes -- after the failure. _PLUGIN_FAILURE_ are often linked to transient errors from third party gateway and so it often make sense to retry those fairly soon after the initial failure was seen, but of course this all depends on use case.
 
 
+Payment retries in Kill Bill are implemented as payment transaction retries: For each retry attempt, the system will create a new `PaymentTransaction` associated with the same `Payment` object. Since the `paymentMethodId` is defined at the `Payment` level, it means that the same `paymentMethodId` will be used for each retry. If the goal is to retry with a new payment method, then one needs to create a new `Payment` associated with the different payment method. If there are ongoing retries scheduled, it is possible to cancel those but this is more for cleanliness, because once a payment has been successful, any other retry would be aborted -- the system ensures that there cannot be any double payment.
+
 
 
