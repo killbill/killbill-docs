@@ -1,198 +1,170 @@
-= Kill Bill AWS Deployment
+= Kill Bill on AWS
 
 == Introduction
 
-In this tutorial, we will explore how we can deploy Kill Bill in AWS by leveraging the existing Docker Kill Bill container.
+Running Kill Bill on AWS using our official CloudFormation template is the easiest and fastest way to get started. *It is also the only method of installation that is certified by the core developers for a Highly Available, horizontally scalable and production-ready installation.*
 
-The deployment deploy one EC2 instance where Kill Bill, Kaui and the MySQL containers will run.
+With the click of a button, the template will install and configure:
 
-Note that those steps are mostly for the purpose of a demo; they omit production-like features such as DB backup, monitoring, or even deploying multiple EC2 instances for HA or horizontal scalability purpose. However, all those are more a matter of configuring AWS towards that end and spawning more instances, so in final, the steps can be used as *a basis* to deploy Kill Bill in the cloud to handle your production traffic.
+* Kill Bill and Kaui on a custom AMI optimized for AWS workloads (integrated with CloudWatch, SQS, SES, X-Ray and more)
+* Auto Scaling Groups, to automatically scale up and down the number of instances as needed (such as when batches of invoices are generated)
+* A load balancer, integrated with our internal healthchecks to promptly take out of rotation unhealthy instances
+* A RDS Aurora Cluster with automatic failover
 
-=== Requirements
+Kill Bill comes with the Analytics and Stripe plugins pre-configured: you get a subscription billing management solution as feature-rich as popular SaaS platforms, but you are in control.
 
-==== AWS API user
+== Installation
 
-You need to create an AWS account and have an access to the AWS console.
+For installation support along the way, reach out to `support@killbill.io`.
 
-Once logged-in, create a new https://console.aws.amazon.com/iam/home?#/users[IAM user]:
+=== Configuration options
 
-1. Click "Add User". On the next screen, pick a username and make sure to check "Programmatic access".
-2. Attach the following policy. Replace `%AWS_ACCOUNT_ID%` with your account ID (that you can get from the https://console.aws.amazon.com/billing/home?#/account[My Account] page) and update the region `eu-west-1` as needed:
+The installation supports the following configuration options:
 
-[source]
-----
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "TheseActionsDontSupportResourceLevelPermissions",
-            "Effect": "Allow",
-            "Action": [
-                "ec2:CreateKeyPair",
-                "ec2:DeleteKeyPair",
-                "ec2:ImportKeyPair",
-                "ec2:Describe*",
-                "ec2:CreateTags",
-                "ec2:CreateSecurityGroup",
-                "ec2:AuthorizeSecurityGroupIngress"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Sid": "ThisActionsSupportResourceLevelPermissions",
-            "Effect": "Allow",
-            "Action": ["ec2:RunInstances"],
-            "Resource": [
-                "arn:aws:ec2:eu-west-1::image/ami-*",
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:instance/*",
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:key-pair/*",
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:network-interface/*",
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:placement-group/*",
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:security-group/*",
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:subnet/*",
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:volume/*"
-                ]
-        },
-        {
-            "Sid": "TheseActionsSupportResourceLevelPermissions",
-            "Effect": "Allow",
-            "Action": [
-                "ec2:TerminateInstances",
-                "ec2:StopInstances",
-                "ec2:StartInstances",
-                "ec2:RebootInstances"
-            ],
-            "Resource": [
-                "arn:aws:ec2:eu-west-1:%AWS_ACCOUNT_ID%:instance/*"
-            ]
-        }
-    ]
-}
-----
-3. Note the access key and secret
+* *VpcId:* the VPC to use for the installation. In your AWS Console, go to *Services* and search for *VPC*. Under *Your VPCs*, locate the VPC ID you would like to use or create a new one.
+* *Subnets:* the subnets to use, associated with at least two different availability zones. In the VPC Dashboard, go to *Subnets* and find two subnets in your VPC *in two different availability zones*. Alternatively, create new ones (use 10.0.0.0/24 and 10.0.1.0/24 as the IPv4 CIDR for instance).
+* *KeyName:* name of an existing EC2 KeyPair to enable SSH access to the instances. You can create a new one by going to *Key Pairs* in your EC2 Dashboard.
+* *HTTPLocation:* IP address range allowed to access the load balancer (you can always use 0.0.0.0/0 initially and adjust access later on).
+* *EnvType:* environment purpose (test, prod, etc.)
+* *InstanceType:* the EC2 instance type to use for Kill Bill. Here are some guidelines:
+** `m5.large`: test environment
+** `c5.xlarge`: up to 5,000 subscriptions
+** `c5.2xlarge`: up to 50,000 subscriptions
+** `c5.4xlarge`: beyond 50,000 subscriptions
+* *KillBillServerCapacity:* the initial number of Kill Bill instances in the Auto Scaling group. Here are some guidelines:
+** `1`: test environment
+** `2`: up to 5,000 subscriptions
+** `3`: up to 50,000 subscriptions
+** `4`: beyond 50,000 subscriptions
+* *KauiServerCapacity:* the initial number of Kaui instances in the Auto Scaling group. We recommend using the default value `2`.
+* *DBClass:* the database instance type to use for RDS. Here are some guidelines:
+** `db.t3.medium`: test environment
+** `db.r5.xlarge`: up to 5,000 subscriptions
+** `db.r5.2xlarge`: up to 50,000 subscriptions
+** `db.r5.4xlarge`: beyond 50,000 subscriptions
+* *DBName:* database name for Kill Bill. We recommend using the default value *killbill*.
+* *KauiDBName:* database name for Kaui. We recommend using the default value *kaui*.
+* *DBUser:* database admin username
+* *DBPassword:* database admin password
+* *EnableCloudWatchMetrics:* whether to record Kill Bill metrics in CloudWatch. Strongly recommended for production. When enabled, a default monitoring dashboard will be created.
 
-Populate the following environment variables:
+=== Setup steps
 
-* `AWS_ACCESS_KEY_ID`: IAM user access key
-* `AWS_SECRET_ACCESS_KEY`: IAM user secret key
-* `AWS_DEFAULT_REGION`: AWS region (matching the policy above)
+1. Start the installation process and populate the configuration options in the CloudFormation form.
+2. Launch the stack.
+3. Upon success, the Outputs tab will display the load balancer URL. Kill Bill is available on port 80 while Kaui on port 9090.
 
-==== AWS VPC
+You can log-in to Kaui by going to http://<LOAD_BALANCER_URL>:9090 (make sure your IP address can access the load balancer, as defined by the parameter `HTTPLocation`, or add it to the security group as needed). Default credentials are: admin/password.
 
-1. Go to Services -> VPC -> Your VPCs and locate the VPC ID you would like to use from the VPC column. Populate the `AWS_VPC_ID` environment variable with it.
-2. Go to Services -> VPC -> Subnets. Examine the Availability Zone column to verify that zone `a` exists and matches your VPC ID (if it doesn't, you must create a new subnet in that zone).
+=== Upgrade steps
 
-==== Docker
+The Kill Bill core team will provide new AMIs whenever necessary.
 
-This guids assumes you have installed https://docs.docker.com/install/[Docker], https://docs.docker.com/machine/install-machine/[Docker Machine] and https://docs.docker.com/compose/install/[Docker Compose].
+Because the CloudFormation from AWS Marketplace will always reflect the latest AMI ids, you can simply update the stack with the latest CloudFormation template and the instances in the AutoScaling groups will be updated automatically.
 
-== EC2 setup
+We strongly recommend to always test the upgrade in a test environment first.
 
-Create the `saas` machine as such:
+== Stripe integration
+
+Kill Bill on AWS comes pre-bundled with our Stripe plugin.
+
+=== Configuration
+
+Go to https://dashboard.stripe.com/test/apikeys and copy your `Secret key`.
+
+Then, go to the Kaui plugin configuration page (`/admin_tenants/1?active_tab=PluginConfig`), and configure the `stripe-pro` plugin with your key:
 
 [source,bash]
 ----
-docker-machine --debug \
-               create  \
-               --driver amazonec2 \
-               --amazonec2-access-key $AWS_ACCESS_KEY_ID \
-               --amazonec2-secret-key $AWS_SECRET_ACCESS_KEY \
-               --amazonec2-vpc-id $AWS_VPC_ID \
-               --amazonec2-region $AWS_DEFAULT_REGION \
-               --amazonec2-zone a \
-               --amazonec2-instance-type c4.xlarge \
-               --amazonec2-root-size 250 \
-               saas
+com.killbill.billing.plugin.stripe.apiKey=sk_test_XXX
 ----
 
-Note: we recommand using `c4.xlarge` instances or larger (at least 7.5GB RAM).
+=== Payment Method flow
 
-If the command is successful, run:
+To charge a payment instrument (card, bank account, etc.), you first need to collect the payment instrument details in Stripe and create an associated payment method in Kill Bill.
 
-1. `eval "$(docker-machine env saas)"`
-2. `docker ps`
+==== Using Stripe Checkout
 
-You should have no error and the output should be empty:
+_Use this method if you don't want to generate your own form to tokenize cards._
 
-[source]
-----
-CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
-----
+To save credit cards using https://stripe.com/docs/payments/checkout[Stripe Checkout]:
 
-== Kill Bill Setup
-
-Next, create a docker-compose.yml file similar to the one below:
-
-[source,yaml]
-----
-version: '3.2'
-volumes:
-  db:
-services:
-  killbill:
-    image: killbill/killbill:0.20.10
-    ports:
-      - "8080:8080"
-    environment:
-      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
-      - KILLBILL_DAO_USER=root
-      - KILLBILL_DAO_PASSWORD=killbill
-  kaui:
-    image: killbill/kaui:1.0.6
-    ports:
-      - "9090:8080"
-    environment:
-      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
-      - KAUI_CONFIG_DAO_USER=root
-      - KAUI_CONFIG_DAO_PASSWORD=killbill
-      - KAUI_KILLBILL_URL=http://killbill:8080
-  db:
-    image: killbill/mariadb:0.20
-    volumes:
-      - type: volume
-        source: db
-        target: /var/lib/mysql
-    expose:
-      - "3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=killbill
-----
-
-and run:
-
+1. Create a Kill Bill account
+2. Call `/plugins/killbill-stripe-pro/checkout` to generate a Session:
++
 [source,bash]
-----
-docker-compose up
-----
-
-3 containers will start:
-
-* one for MariaDB (shared database, used by both Kill Bill and Kaui)
-* one for Kill Bill
-* one for Kaui
-
-Get the public IP of you EC2 instance:
-
+-----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -H "X-Killbill-Reason: demo" \
+     -H "X-Killbill-Comment: demo" \
+     "http://<ELB_ADDRESS>/plugins/killbill-stripe-pro/checkout?kbAccountId=<KB_ACCOUNT_ID>"
+-----
+3. Redirect the user to the Stripe checkout page. The `sessionId` is returned as part of the `formFields` (`id` key):
++
+[source,javascript]
+-----
+stripe.redirectToCheckout({ sessionId: 'cs_test_XXX' });
+-----
+4. After entering the credit card, a $1 authorization will be triggered. Call `addPaymentMethod` to create the Stripe payment method and pass the `sessionId` in the plugin properties. This will void the authorization (if successful) and store the payment method in Kill Bill:
++
 [source,bash]
-----
-docker-machine ip saas
-----
+-----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -H "X-Killbill-Reason: demo" \
+     -H "X-Killbill-Comment: demo" \
+     -d "{ \"pluginName\": \"killbill-stripe-pro\"}" \
+     "http://<ELB_ADDRESS>/1.0/kb/accounts/<KB_ACCOUNT_ID>/paymentMethods?pluginProperty=sessionId=cs_test_XXX"
+-----
 
-and verify you can access Kaui at http://W.X.Y.Z:9090.
+==== Other methods
 
-== Stripe setup
+If you are using https://stripe.com/docs/stripe-js/elements/quickstart[Stripe Elements] or storing payment methods in Stripe via any other way (or if you want to migrate from another billing system and already have customers in Stripe), the flow to setup Kill Bill accounts is as follows:
 
-Go to the Kaui tenant page:
-
-1. Click the "Plugin Config" tab
-2. Enter "stripe" as the plugin name
-3. Specify your Stripe secret key
-
-== End to end testing
-
-Use our https://github.com/killbill/killbill-stripe-demo[demo] to test a full end to end flow:
-
-* Use Stripe.js to tokenize the card
-* Store the token in Kill Bill for subsequent (or recurring) payments
-* Create subscriptions, generate invoices and trigger automatic payments
-* Retrieve a Kill Bill payment in your Stripe dashboard
+1. Create a Kill Bill account
+2. Attach the custom field `STRIPE_CUSTOMER_ID` to the Kill Bill account. The custom field value should be the Stripe customer id
++
+[source,bash]
+-----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -H "X-Killbill-Reason: demo" \
+     -H "X-Killbill-Comment: demo" \
+     -d "[ { \"objectType\": \"ACCOUNT\", \"name\": \"STRIPE_CUSTOMER_ID\", \"value\": \"cus_XXXXX\" }]" \
+     "http://<ELB_ADDRESS>/1.0/kb/accounts/<ACCOUNT_ID>/customFields"
+-----
+3. Sync the payment methods from Stripe to Kill Bill:
++
+[source,bash]
+-----
+curl -v \
+     -X PUT \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -H "X-Killbill-Reason: demo" \
+     -H "X-Killbill-Comment: demo" \
+     "http://<ELB_ADDRESS>/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods/refresh"
+-----
