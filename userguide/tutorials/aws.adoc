@@ -2,7 +2,7 @@
 
 == Introduction
 
-Running Kill Bill on AWS using our official CloudFormation template is the easiest and fastest way to get started. *It is also the only method of installation that is certified by the core developers for a Highly Available, horizontally scalable and production-ready installation.*
+Running Kill Bill on AWS using our https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds[official CloudFormation template] is the easiest and fastest way to get started. *It is also the only method of installation that is certified by the core developers for a Highly Available, horizontally scalable and production-ready installation.*
 
 With the click of a button, the template will install and configure:
 
@@ -11,7 +11,15 @@ With the click of a button, the template will install and configure:
 * A load balancer, integrated with our internal healthchecks to promptly take out of rotation unhealthy instances
 * A RDS Aurora Cluster with automatic failover
 
-Kill Bill comes with the Analytics and Stripe plugins pre-configured: you get a subscription billing management solution as feature-rich as popular SaaS platforms, but you are in control.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aws/cloudwatch.png[align=center]
+
+
+Kill Bill comes with the Analytics plugin pre-configured: you get a subscription billing management solution as feature-rich as popular SaaS platforms, but you are in control.
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aws/analytics.png[align=center]
+
 
 == Installation
 
@@ -50,11 +58,13 @@ The installation supports the following configuration options:
 
 === Setup steps
 
-1. Start the installation process and populate the configuration options in the CloudFormation form.
+1. Start the installation process by going to https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds[AWS Marketplace]: click *Continue to Subscribe* and populate the configuration options in the CloudFormation form.
 2. Launch the stack.
 3. Upon success, the Outputs tab will display the load balancer URL. Kill Bill is available on port 80 while Kaui on port 9090.
 
-You can log-in to Kaui by going to http://<LOAD_BALANCER_URL>:9090 (make sure your IP address can access the load balancer, as defined by the parameter `HTTPLocation`, or add it to the security group as needed). Default credentials are: admin/password.
+You can log-in to Kaui by going to http://<LOAD_BALANCER_URL>:9090 (make sure your IP address can access the load balancer, as defined by the parameter `HTTPLocation`, or add it to the security group as needed). Default credentials are: *admin/password*.
+
+Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide for an introduction to Kaui.
 
 === Upgrade steps
 
@@ -63,108 +73,3 @@ The Kill Bill core team will provide new AMIs whenever necessary.
 Because the CloudFormation from AWS Marketplace will always reflect the latest AMI ids, you can simply update the stack with the latest CloudFormation template and the instances in the AutoScaling groups will be updated automatically.
 
 We strongly recommend to always test the upgrade in a test environment first.
-
-== Stripe integration
-
-Kill Bill on AWS comes pre-bundled with our Stripe plugin.
-
-=== Configuration
-
-Go to https://dashboard.stripe.com/test/apikeys and copy your `Secret key`.
-
-Then, go to the Kaui plugin configuration page (`/admin_tenants/1?active_tab=PluginConfig`), and configure the `stripe-pro` plugin with your key:
-
-[source,bash]
-----
-com.killbill.billing.plugin.stripe.apiKey=sk_test_XXX
-----
-
-=== Payment Method flow
-
-To charge a payment instrument (card, bank account, etc.), you first need to collect the payment instrument details in Stripe and create an associated payment method in Kill Bill.
-
-==== Using Stripe Checkout
-
-_Use this method if you don't want to generate your own form to tokenize cards._
-
-To save credit cards using https://stripe.com/docs/payments/checkout[Stripe Checkout]:
-
-1. Create a Kill Bill account
-2. Call `/plugins/killbill-stripe-pro/checkout` to generate a Session:
-+
-[source,bash]
------
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "Accept: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -H "X-Killbill-Reason: demo" \
-     -H "X-Killbill-Comment: demo" \
-     "http://<ELB_ADDRESS>/plugins/killbill-stripe-pro/checkout?kbAccountId=<KB_ACCOUNT_ID>"
------
-3. Redirect the user to the Stripe checkout page. The `sessionId` is returned as part of the `formFields` (`id` key):
-+
-[source,javascript]
------
-stripe.redirectToCheckout({ sessionId: 'cs_test_XXX' });
------
-4. After entering the credit card, a $1 authorization will be triggered. Call `addPaymentMethod` to create the Stripe payment method and pass the `sessionId` in the plugin properties. This will void the authorization (if successful) and store the payment method in Kill Bill:
-+
-[source,bash]
------
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "Accept: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -H "X-Killbill-Reason: demo" \
-     -H "X-Killbill-Comment: demo" \
-     -d "{ \"pluginName\": \"killbill-stripe-pro\"}" \
-     "http://<ELB_ADDRESS>/1.0/kb/accounts/<KB_ACCOUNT_ID>/paymentMethods?pluginProperty=sessionId=cs_test_XXX"
------
-
-==== Other methods
-
-If you are using https://stripe.com/docs/stripe-js/elements/quickstart[Stripe Elements] or storing payment methods in Stripe via any other way (or if you want to migrate from another billing system and already have customers in Stripe), the flow to setup Kill Bill accounts is as follows:
-
-1. Create a Kill Bill account
-2. Attach the custom field `STRIPE_CUSTOMER_ID` to the Kill Bill account. The custom field value should be the Stripe customer id
-+
-[source,bash]
------
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "Accept: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -H "X-Killbill-Reason: demo" \
-     -H "X-Killbill-Comment: demo" \
-     -d "[ { \"objectType\": \"ACCOUNT\", \"name\": \"STRIPE_CUSTOMER_ID\", \"value\": \"cus_XXXXX\" }]" \
-     "http://<ELB_ADDRESS>/1.0/kb/accounts/<ACCOUNT_ID>/customFields"
------
-3. Sync the payment methods from Stripe to Kill Bill:
-+
-[source,bash]
------
-curl -v \
-     -X PUT \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "Accept: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -H "X-Killbill-Reason: demo" \
-     -H "X-Killbill-Comment: demo" \
-     "http://<ELB_ADDRESS>/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods/refresh"
------
