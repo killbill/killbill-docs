@@ -1,0 +1,61 @@
+= Serverless deployment on Google Cloud
+
+== Introduction
+
+This tutorial will show you how to setup a serverless Kill Bill deployment on Google Cloud using Cloud Run. This is a great way to get started with Kill Bill, and to quickly deploy prototyping and test environments.
+
+Note: for a highly-scalable, production-ready, installation, take a look at our http://docs.killbill.io/0.20/aws.html[official AWS CloudFormation template] instead.
+
+== Installation
+
+=== Requirements
+
+* https://console.cloud.google.com[Google Cloud Platform account]
+* `gcloud` https://cloud.google.com/sdk/gcloud/[command-line tool]
+
+=== Cloud SQL instance configuration
+
+Go to https://console.cloud.google.com/sql[Could SQL]:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/gcp/CloudSQL1.png[align=center]
+
+* Create instance
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/gcp/CloudSQL2.png[align=center]
+
+* Choose MySQL
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/gcp/CloudSQL3.png[align=center]
+
+* Configuration
+** Instance ID: killbill
+** Root password: killbill
+
+Click Create, wait a few minutes for the database to be up, and write down the Public IP address for later use.
+
+Under the connections tab, add 0.0.0.0/0 as an Authorized Network (it doesn't seem like the Cloud SQL Proxy is integrated yet with Cloud Run and jdbc drivers unfortunately).
+
+Finally, install the DDL schema:
+
+* Whitelist your IP address: `gcloud sql connect killbill --user=root --quiet`
+* Enter the password (`killbill`)
+* Create the database: `create database killbill;`
+* Run the http://docs.killbill.io/latest/ddl.sql[Kill Bill DDL schema creation script]
+* Run the https://raw.githubusercontent.com/killbill/killbill-admin-ui/master/db/ddl.sql[Kaui DDL schema creation script]
+
+=== Cloud Run service configuration
+
+Go to https://console.cloud.google.com/run[Cloud Run]:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/gcp/CloudRun1.png[align=center]
+
+* Create service
+* Select the Kill Bill image on gcr.io // TODO
+* Configuration
+** Allow unauthenticated invocations
+** Show optional settings
+*** Memory allocated: 2GiB
+*** Environment variables:
+**** KILLBILL_DAO_USER=root
+**** KILLBILL_DAO_PASSWORD=killbill
+**** KILLBILL_DAO_URL=jdbc:mysql://<CLOUD_SQL_IP_ADDESS>:3306/killbill
