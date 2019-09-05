@@ -525,6 +525,7 @@ CREATE TABLE invoice_tracking_ids (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX invoice_tracking_tenant_account_date_idx ON invoice_tracking_ids(tenant_record_id, account_record_id, record_date);
 CREATE INDEX invoice_tracking_invoice_id_idx ON invoice_tracking_ids(invoice_id);
+CREATE INDEX invoice_tracking_id_idx ON invoice_tracking_ids(id);
 
 
 DROP TABLE IF EXISTS invoice_tracking_id_history;
@@ -1014,6 +1015,8 @@ CREATE TABLE custom_fields (
 CREATE UNIQUE INDEX custom_fields_id ON custom_fields(id);
 CREATE INDEX custom_fields_object_id_object_type ON custom_fields(object_id, object_type);
 CREATE INDEX custom_fields_tenant_account_record_id ON custom_fields(tenant_record_id, account_record_id);
+CREATE INDEX custom_fields_name_value ON custom_fields(field_name, field_value);
+
 
 DROP TABLE IF EXISTS custom_field_history;
 CREATE TABLE custom_field_history (
