@@ -96,13 +96,13 @@ The polling delay is configured by `org.killbill.payment.janitor.unknown.retries
 
 The on-the-fly Janitor is invoked:
 
-* Whenever a payment (or set of payments) is retrieved via API and the flag `withPluginInfo` is set.
+* Whenever a payment (or set of payments) is retrieved via API and the flag `withPluginInfo` is set. In this case, a GET operation might result in data being written to disk (but it's not really new state, it's just existing state being updated that was incomplete).
 * Whenever an operation is performed on an existing payment (either initiated internally by Kill Bill or externally via our payment APIs): the Janitor is invoked first to get the latest state to ensure the internal state machine prevents disallowed transitions in case the state couldn't be fixed (or if it's already in a final state). For example, if an authorization state is currently UNKNOWN and you attempt to capture it, the Janitor will ask the plugin first to fix the state and either let the capture go through (if the authorization is fixed as SUCCESS) or disallow it (if the authorization couldn't be fixed or was unsuccessful).
 
-Note however that the `notifyPendingPaymentOfStateChanged` operation will not invoke the Janitor.
+Note however that the `notifyPendingPaymentOfStateChanged` operation will not invoke the Janitor (as this API is often called from payment plugins, we don't want the state to be fixed twice).
 
 ==== Janitor and Control Plugins
 
-When the Janitor fixes a payment, it will re-run the Payment Control state machine (i.e. go through Payment Control plugins) only if the payment was originaly triggered by Kill Bill.
+When the Janitor fixes a payment, it will re-run the Payment Control state machine (i.e. go through Payment Control plugins) if needed. So for instance, invoice payments that were created as part of a RECURRING invoicing may end up being fixed automatically by the Janitor, and the balance associated with the invoice would then be correctly reflected.
 
-In practice, this means that invoice payments triggered by API will not be retried automatically.
+Any invoice payment triggered by API and fixed by the Janitor would not be retried, in order to leave full control to the caller to decide what to do and whether to retry. Invoice payments triggered automatically by the system and fixed by the Janitor would however be retried as configured.
