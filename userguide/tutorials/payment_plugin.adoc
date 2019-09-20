@@ -43,70 +43,19 @@ When building PaymentTransactionInfoPlugin objects, it is very important to corr
 * if the gateway wasn't contacted (DNS error, SSL handshake error, socket connect timeout, etc.), the plugin should return CANCELED
 * for all other cases (socket read timeout, 500 returned, etc.), the plugin should return UNDEFINED
 
-You should try to avoid UNDEFINED as much as possible, because it is the only case where Kill Bill cannot retry payments (since the payment may or may not have happened). Kill Bill will also attempt to fix these states by polling the plugin via getPaymentInfo: if the plugin subsequently returns PROCESSED for example (maybe by querying the gateway directly), the internal payment state (as well as invoices balance, etc.) will be reflected.
+You should try to avoid UNDEFINED as much as possible, because it is the only case where Kill Bill cannot retry payments (since the payment may or may not have happened).
 
+==== Janitor integration
+
+Kill Bill will attempt to fix PENDING and UNKNOWN states by polling the plugin via `getPaymentInfo`: if the plugin subsequently returns PROCESSED for example (maybe by querying the gateway directly), the internal payment state (as well as invoice balance, etc.) will be reflected.
+
+The Janitor will match internal transactions against plugin transactions via the transaction id: make sure `getKbTransactionPaymentId` is correctly implemented.
 
 === Plugin Activation
 
 When a payment operation occurs, Kil Bill will chose which payment plugin to go to based on the `paymentMethodId` specified. The `paymentMethodId` will map to an specific payment method, which in turns contains the name of the plugin to chose for the payment.
 
-== Payment plugins frameworks
+== Payment plugins framework
 
-To help with writing payment plugins, we developed https://github.com/killbill/killbill-plugin-framework-java[Java] and https://github.com/killbill/killbill-plugin-framework-ruby[Ruby] frameworks which ensure that the plugin will respect the previous mentioned conditions. If you are developing your own plugin, we strongly encourage you to use these libraries. The easiest is to copy an existing plugin and modify it for your gateway. The https://github.com/killbill/killbill-adyen-plugin[Adyen] plugin (Java) and https://github.com/killbill/killbill-cybersource-plugin[CyberSource] (Ruby) plugins are good starting points.
+To help with writing payment plugins, we developed a https://github.com/killbill/killbill-plugin-framework-java[Java] framework which ensures that the plugin will respect the previous mentioned conditions. If you are developing your own plugin, we strongly encourage you to use this library. The easiest is to copy an existing plugin and modify it for your gateway. The https://github.com/killbill/killbill-adyen-plugin[Adyen] plugin is a good starting point.
 
-=== ActiveMerchant plugin generation
-
-https://github.com/activemerchant/active_merchant[ActiveMerchant] is a Ruby gem supporting dozens of gateways. For convenience, we provide a tool to generate a plugin based on an ActiveMerchant connector (if your gateway is not supported by ActiveMerchant yet, it is almost always easier and faster to first write the ActiveMerchant connector and generate the plugin code, rather than implementing your plugin from scratch).
-
-First, clone the https://github.com/killbill/killbill-plugin-framework-ruby[killbill-plugin-framework-ruby] repository and run:
-
-[source,ruby]
-----
-./script/generate active_merchant gateway_name /path/to/dir
-----
-
-Replace gateway_name with the snake case of your ActiveMerchant gateway (e.g. yandex, stripe, paypal_express, etc.).
-
-This will generate a tree of files ready to be plugged into Kill Bill. Most of the work will consist of filling in the blanks in api.rb (payment plugin API for ActiveMerchant gateways) and application.rb (sinatra application for ActiveMerchant integrations, i.e. Offsite Payments). For example, make sure the right constructor parameters are passed in the initialize method. Check the https://github.com/killbill/killbill-stripe-plugin/blob/master/lib/stripe/api.rb[Stripe plugin] for an example.
-
-The generator comes with a series a basic unit and integration tests (the latter requires gateway credentials in your local YAML configuration file). To run them:
-
-[source,ruby]
-----
-rm -f Gemfile.lock Jarfile.lock .jbundler/classpath.rb
-bundle install
-# Run gem install jbundler if needed
-jbundle install
-bundle exec rake
-bundle exec rake test:remote:spec
-----
-
-Not all tests will work with your gateway (maybe some features are not supported): feel free to remove them. But make sure some basic calls are working noneless (e.g. purchase), as it will make debugging in Kill Bill much harder otherwise.
-
-=== Building Ruby plugins
-
-Unlike Java plugins, which are deployed as jars, Ruby plugins need a specific directory structure on the filesystem to run (containing all of the gems dependencies). Fortunately, we provide scripts to generate self-contained artifacts: all you need to do is untar (or unzip) these.
-
-==== Prerequisites
-
-Ruby 2.1+ or JRuby 1.7.20+ is recommended. If you don't have a Ruby installation yet, use https://rvm.io/rvm/install[RVM]:
-
-[source,bash]
-----
-gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
-\curl -sSL https://get.rvm.io | bash -s stable --ruby
-----
-
-After following the post-installation instructions, you should have access to the `ruby` and `gem` executables.
-
-Install the following gems:
-
-[source,bash]
-----
-gem install bundler
-gem install jbundler
-----
-
-==== Build
-
-Please refer to the http://docs.killbill.io/latest/plugin_development.html#_build_2[Plugin Development Documentation]

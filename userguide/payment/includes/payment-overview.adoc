@@ -76,6 +76,33 @@ In addition to the payment state transitions, each `PaymentTransaction` has a st
 Note that the first 3 cases are normal cases but the last 2 are errors that are unrelated to the user being able to make the payment operation:
 
 * in the case of a hard plugin failure (CANCELED result code), the gateway was probably down and the payment wasn't attempted: there is no attempt to fix those.
-* in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction status* and move the payment to its appropriate state. If the plugin cannot tell if the payment went through, the transaction will stay in an UNKNOWN state. It is advisable to check that those are rare instances and fix the data appropriately (by checking manually the status in the gateway for example).
+* in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction status* and move the payment to its appropriate state. If the plugin cannot tell if the payment went through, the transaction will stay in an UNKNOWN state. It is advisable to check that those are rare instances and fix the data appropriately (by checking manually the status in the gateway for example). See the section Janitor below for more details.
 
 If a payment is aborted by a control plugin, a payment attempt row is recorded with a state of ABORTED (no payment nor payment transaction is created). Kill Bill will return a 422 HTTP code.
+
+=== Janitor
+
+PENDING and UNKNOWN transaction states should be temporary: the payment plugin needs to eventually tell Kill Bill what the final state of these transactions should be. This can be done explicitly by the plugin by calling the `notifyPendingTransactionOfStateChanged` PaymentApi (for instance, when receiving a webhook event from the gateway) or implicitly by the Janitor.
+
+The Janitor refers to a set of internal Kill Bill features to help ensure transactions end up in a terminal state: these are the Janitor notification queue and the on-the-fly Janitor. They both work by calling the plugin (via `getPaymentInfo` PaymentPluginApi) and updating the state owned by Kill Bill if it has changed. It is imperative payment plugin developers take great care when implementing this API for this mechanism to work (see our Payment Plugin developer documentation for more details).
+
+==== Janitor notification queue
+
+A Janitor notification entry is inserted whenever a payment results in a non terminal state (whether the payment was initiated internally by Kill Bill or externally via our payment APIs). Kill Bill will then periodically poll the plugin to attempt to fix the state.
+
+The polling delay is configured by `org.killbill.payment.janitor.unknown.retries` for UNKNOWN transactions (default `5m,1h,1d,1d,1d,1d,1d`) and `org.killbill.payment.janitor.pending.retries` for PENDING transactions (default `1h, 1d`). Companies relying on PENDING for offline payment methods (ACH, Boleto, etc.) should increase the number of attempts, as such payments can be slow (they can take multiple days to execute).
+
+==== On-the-fly Janitor
+
+The on-the-fly Janitor is invoked:
+
+* Whenever a payment (or set of payments) is retrieved via API and the flag `withPluginInfo` is set. In this case, a GET operation might result in data being written to disk (but it's not really new state, it's just existing state being updated that was incomplete).
+* Whenever an operation is performed on an existing payment (either initiated internally by Kill Bill or externally via our payment APIs): the Janitor is invoked first to get the latest state to ensure the internal state machine prevents disallowed transitions in case the state couldn't be fixed (or if it's already in a final state). For example, if an authorization state is currently UNKNOWN and you attempt to capture it, the Janitor will ask the plugin first to fix the state and either let the capture go through (if the authorization is fixed as SUCCESS) or disallow it (if the authorization couldn't be fixed or was unsuccessful).
+
+Note however that the `notifyPendingPaymentOfStateChanged` operation will not invoke the Janitor (as this API is often called from payment plugins, we don't want the state to be fixed twice).
+
+==== Janitor and Control Plugins
+
+When the Janitor fixes a payment, it will re-run the Payment Control state machine (i.e. go through Payment Control plugins) if needed. So for instance, invoice payments that were created as part of a RECURRING invoicing may end up being fixed automatically by the Janitor, and the balance associated with the invoice would then be correctly reflected.
+
+Any invoice payment triggered by API and fixed by the Janitor would not be retried, in order to leave full control to the caller to decide what to do and whether to retry. Invoice payments triggered automatically by the system and fixed by the Janitor would however be retried as configured.
