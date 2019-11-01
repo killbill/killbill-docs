@@ -4,21 +4,21 @@
 
 === AWS
 
-Running Kill Bill on AWS using our http://docs.killbill.io/latest/aws.html[One-Click installer] is the easiest and fastest way to get started.
+Already familiar with AWS? Running Kill Bill on AWS using our http://docs.killbill.io/latest/aws.html[One-Click installer] is the easiest and fastest way to get started.
 
 === Docker
 
-You can also run Kill Bill locally using Docker.
+You can run Kill Bill locally using our official Docker images.
 
-If you are not yet familiar with Docker, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. It is quite easy to get it up and running, and will greatly simplify the Kill Bill stack setup.
+If you are not yet familiar with Docker, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. It is quite easy to get it up and running, and will greatly simplify the Kill Bill stack setup (Tomcat and MySQL configuration will be done for you).
 
-First, make sure docker, docker-machine and docker-compose are https://docs.docker.com/install/[installed].
+First, make sure docker and docker-compose are https://docs.docker.com/install/[installed].
 
 For example, on a Mac:
 
 [source,bash]
 ----
-brew install docker docker-compose docker-machine
+brew install docker docker-compose
 ----
 
 Or on Ubuntu:
@@ -26,27 +26,9 @@ Or on Ubuntu:
 [source,bash]
 ----
 sudo apt-get install docker docker-compose virtualbox
-base=https://github.com/docker/machine/releases/download/v0.14.0 &&
-  curl -L $base/docker-machine-$(uname -s)-$(uname -m) >/tmp/docker-machine &&
-  sudo install /tmp/docker-machine /usr/local/bin/docker-machine
 ----
 
-The next step is to create a Docker machine to run your containers:
-
-[source,bash]
-----
-docker-machine create -d virtualbox --virtualbox-memory "4096" killbill
-eval $(docker-machine env killbill)
-----
-
-Retrieve the IP address of the Docker machine via:
-
-[source,bash]
-----
-docker-machine ip killbill
-----
-
-We will assume it's 192.168.99.100 in the rest of this guide.
+We will assume the Docker containers are accessible at 127.0.0.1 in the rest of this guide (if you are using docker-machine, you would need to retrieve the IP address of the Docker machine first).
 
 Next, create a docker-compose.yml file similar to the one below:
 
@@ -59,11 +41,9 @@ volumes:
   db:
 services:
   killbill:
-    image: killbill/killbill:0.20.10
+    image: killbill/killbill:0.20.13
     ports:
       - "8080:8080"
-      - "8000:8000"
-      - "12345:12345"
     environment:
       - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
       - KILLBILL_DAO_USER=root
@@ -102,18 +82,18 @@ docker-compose up
 * one for Kill Bill (accessible on port 8080)
 * one for Kaui (accessible on port 9090)
 
-The startup sequence lasts a few minutes. It is ready when you see the message "Kill Bill server has started".
+The startup sequence lasts a couple of minutes. It is ready when you see the message "INFO: Server startup". If it takes a long time or if the container crashes, verify you have enough memory allocated to Docker. On a Mac for instance, go to Docker Desktop Preferences and set the Memory to 4GiB in the Advanced panel.
 
-You can log-in to Kaui by going to http://192.168.99.100:9090 (replace with your Docker machine IP address as needed). Default credentials are:
+You can now log-in to Kaui by going to http://127.0.0.1:9090. Default credentials are:
 
 * username: admin
 * password: password
 
-You can also go to http://192.168.99.100:8080/api.html to explore our APIs.
+You can also go to http://127.0.0.1:8080/api.html to explore our APIs.
 
 == Using Kill Bill with Kaui
 
-Go to http://192.168.99.100:9090[http://192.168.99.100:9090] (update the IP address as needed). You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is `admin`/`password`, which grants full access.
+Go to http://127.0.0.1:9090[http://127.0.0.1:9090]. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is `admin`/`password`, which grants full access.
 
 Because Kill Bill supports multi-tenancy (where each tenant has its own data, configuration, etc.), the next step is to create your own tenant. We will assume the api key is `bob` and api secret `lazar` in the rest of this guide.
 
@@ -148,7 +128,7 @@ To trigger payments, Kill Bill will need to integrate with a payment provider (s
 
 For simplicity in this tutorial, we will assume your customers send you checks. To create the payment method in Kaui, click the + next to Payment Methods on the main account page. The plugin name should be set to $$__EXTERNAL_PAYMENT__$$, leave all other fields blank and make sure the checkbox Default Payment Method is checked.
 
-Once you are ready to integrate with a real payment processor (see http://docs.killbill.io/latest/multi_gateways.html[this tutorial]), all you'll have to do is to create a new payment method for that account. The rest of this tutorial will still apply.
+Once you are ready to integrate with a real payment processor, all you'll have to do is to create a new payment method for that account. The rest of this tutorial will still apply.
 
 === Creating Your First Subscription
 
