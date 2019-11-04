@@ -53,9 +53,39 @@ Note that both of these deployment options rely on https://github.com/killbill/k
 
 Make sure to get familiar with https://www.docker.com/[Docker] first, before attempting to install Kill Bill. The project has lots of great https://docs.docker.com/[docs] to help you get setup.
 
+For a step-by-step tutorial, check out our http://docs.killbill.io/latest/getting_started.html[Getting Started guide].
+
 Documentation for our images is available https://github.com/killbill/killbill-cloud/blob/master/docker/README.md[here]. Our http://killbill.io/blog/tag/docker/[blog] has also lots of tips on how to deploy to popular cloud providers. Our Docker Compose recipes work with all https://docs.docker.com/machine/drivers/[Docker Machine supported platforms].
 
 Container configuration can be done by bind mounting a custom `killbill.properties` (for configuration) and/or a custom `kpm.yml` (to specify plugins to install) file: `-v /path/to/killbill.properties:/var/lib/killbill/killbill.properties -v /path/to/kpm.yml:/var/lib/killbill/kpm.yml`. Note that on MacOS, `/path/to` must be under `/Users`.
+
+=== Tomcat
+
+Users familiar with Java technologies can also install Kill Bill directly in their Web container of choice, such as Tomcat.
+
+If you don't have it yet, you can download the Tomcat container http://tomcat.apache.org/download-80.cgi[here] (get the Core binary distribution). The documentation is available http://tomcat.apache.org/tomcat-8.0-doc/index.html[here].
+
+In the rest of this guide, we will assume you have installed Tomcat in a directory called *CATALINA_HOME*.
+
+The Kill Bill configuration properties need to be added at the end of the file *CATALINA_HOME/conf/catalina.properties*. The minimal set of system properties required is the ones for the jdbc parameters (refer to our http://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details). For example (update the values as needed):
+
+[source,java]
+----
+org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+org.killbill.dao.user=killbill
+org.killbill.dao.password=killbill
+org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+org.killbill.billing.osgi.dao.user=killbill
+org.killbill.billing.osgi.dao.password=killbill
+----
+
+Download the current stable version of the Kill Bill war from https://search.maven.org/search?q=a:killbill-profiles-killbill[Maven Central] and place it under *CATALINA_HOME/webapps/ROOT.war* (delete the directory *CATALINA_HOME/webapps/ROOT* if it exists).
+
+Once this is setup, you can start the Tomcat container using the script *CATALINA_HOME/bin/startup.sh*. The server will be started in the background but logs can be followed at *CATALINA_HOME/logs/catalina.out*.
+
+Follow similar steps to install Kaui (also available from https://search.maven.org/search?q=a:kaui-standalone[Maven Central]).
+
+Note: unlike other installation methods, you will also need to install and configure your database manually. See below for more details.
 
 == Database engine
 
