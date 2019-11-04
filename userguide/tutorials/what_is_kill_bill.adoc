@@ -8,28 +8,82 @@ The *subscription billing* features let you create recurring or usage based subs
 
 The *payment* features let you connect with virtually any payment gateway and processor (Stripe, Braintree, PayPal, Adyen, CyberSource, etc.) to charge your customers (using credit or debit cards, ACH, wire transfers, Bitcoin, etc.) for their subscriptions or one-off payments (e.g. shopping cart-type websites like Amazon or Zappos).
 
-== Architecture
 
-We refer to Kill Bill as a *platform* because of its extensibility: you can write plugins to modify the behavior of the system or to integrate with third-party vendors, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). A lot of open-source plugins are available on our http://github.com/killbill/killbill[GitHub organization].
-
-Kill Bill is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, instead your website (it could be a custom e-commerce website, a Drupal or WordPress deployment, etc.) will trigger REST API calls (over HTTP) to process subscriptions or orders. We also provide *Kaui*, the Kill Bill administrative UI, an interface to interact with Kill Bill for your support and finance teams (to manage refunds, invoice adjustments, etc.).
-
-Conceptually, Kill Bill is deployed as such:
-
-* Customers interact with your custom e-commerce website (in blue), which issues REST API calls to Kill Bill. You are responsible for designing and building that piece
-* Kill Bill (in pink), with its database, manages subscriptions, invoices, payments, etc.
-* Kill Bill interacts with third-party services (in green), such as payment processors like Stripe and PayPal. You are responsible for choosing and signing contracts with these services
-
-image::architecture.svg[format=svg,align=center]
-
+== Overview
 
 Check this video for a quick tour:
 
 https://www.youtube.com/watch?v=f2IHcz3OLYo[image:http://img.youtube.com/vi/f2IHcz3OLYo/0.jpg[align=center]]
 
-== The Kill Bill Platform
+=== Big Picture
 
-Some of the features of the Kill Bill platform include:
+At a high level we provide 2 pieces of software that **you will have to deploy and manage** in your own data center or in any public cloud.
+//TODO For convenience we also offer a managed version running in AWS that you can use for free to get started very quickly.
+
+* Kill Bill, or Kill Bill server is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, but instead your website (it could be a custom e-commerce website, a Drupal or WordPress deployment, etc.) will trigger REST API calls (over HTTP) to process subscriptions or orders.
+* KAUI, our Back-office UI, which provides an interface to interact with Kill Bill for your support and finance teams (to manage refunds, invoice adjustments, etc.).
+{empty} +
+{empty} +
+
+[caption=""] 
+//.Kill Bill: Big Picture
+image::../assets/what_is_killbill/KillBill_High_level.png[format=png,align=center,title-align=center]
+
+
+So, in the diagram above, we can see that:
+
+* Customers interact with your website, which then issues REST API calls to Kill Bill. **You are responsible for designing and building that piece**.
+* Kill Bill, with its database, **manages all the state associated with the subscriptions, invoices, payments, etc.**
+* KAUI is the **Back-office UI for your teams**, and it includes role based access control to provide different priviledges for different teams/users:
+  ** Your customer support team will use to access/modify consumer accounts data
+  ** Your product team  will use to configure catalog information, billing rules, ...
+  ** You finance/accounting team will access it for different types of reports
+  ** Your engineering team will access it for running quick dev scenarios
+
+
+=== Deployment
+
+Kill Bill is packaged as a WAR and is therefore executed within a web container (typically Tomcat). While you can deploy Kill Bill directly as a WAR inside a container, we also provide easier deployment options:
+
+* Docker containers 
+* 1-click button AWS instances
+* Hosted cloud deployment
+
+
+=== Kill Bill Platform
+
+We refer to Kill Bill as a *platform* because of its extensibility: You can write plugins to **modify the behavior of the system** or to **integrate with third-party vendors**, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). We offer some open-source plugins on our http://github.com/killbill/killbill[GitHub organization], but it is likely that if you need to tune the system to match your business needs you will need to write your own. 
+
+{empty} +
+As an example let's imagine a Kill Bill deployment with two plugins, the first one a tax plugin that will interact with a 3rd party tax provider, and the second one, a payment plugin that will interact with a payment gateway.
+
+{empty} +
+
+[caption=""] 
+//.Kill Bill: Big Picture
+image::../assets/what_is_killbill/KillBill_Plugins.png[format=png,align=center,title-align=center]
+
+=== Kill Bill Model
+
+Most billing systems out there have been designed to be batch oriented, i.e invoice generation and payments are made in batches at specific points in time. We have taken a different approach, and have built a system that is **event driven**, and where operations will happen in sequence.
+
+A typical scenario is one where a subscription gets created, eventually leading to the creation of an _invoice_ and a _payment_. Reusing our example from above, i.e a deployment with the 2 plugins, the following would occur:
+
+{empty} +
+
+[caption=""] 
+//.Kill Bill: Big Picture
+image::../assets/what_is_killbill/KillBill_Subscription_Flow.png[format=png,align=center,title-align=center]
+
+
+The flow diagram above highlights a couple of important aspects of the system:
+
+1. The creation of the subscription will generate a series of internal events that will lead to the generation of the _invoice_ and its associated _payment_. If needed such behavior can also be configured.
+2. Because of its plugin architecture, it is easy to extend the system by writing plugins. The diagrams above assumes the plugins interact with 3rd party systems, but of course all the tax logic could for instnace be implemented in the plugin itself.
+3. Kill Bill offers well defined extension points for these plugins to be highly effective and modify the behavior of the system as needed.
+
+
+== Features
 
 * Core Foundations
 ** High level of integrity and *robustness*
@@ -37,7 +91,8 @@ Some of the features of the Kill Bill platform include:
 ** A *plugin framework* where open-source and proprietary plugins can be added to modify the behavior of the system, and/or to interact with third party systems
 ** A robust persistent *event bus*, that is used both internally and externally (events are visible to plugins and to other services via HTTP push notifications)
 ** An *auditing* framework that keeps track of all the changes that occurred (who?, when?, what?)
-* Core services, each of which exposing its own APIs and publishing bus events, which are consumed by other core services or plugins:
+* Core services, each of which exposing its own APIs and publishing bus events, which are consumed by other core services or 
+plugins:
 ** Account
 ** Catalog
 ** Subscription and entitlement
@@ -45,15 +100,15 @@ Some of the features of the Kill Bill platform include:
 ** Invoice: invoice generation and management (e.g. ability to adjust invoice items) for subscriptions and one-off charges
 ** Payment: payment gateways integration for recurring and one-off payments
 ** Overdue: dunning management (in case of unpaid invoices for instance)
+* Multi-tenancy: Kill Bill has been designed as a multi-tenant system, meaning **you can run multiple logical instances of Kill Bill with a single server and database** (see this http://killbill.io/blog/subscription-service-using-kill-bill[blog post] which illustrates some of the use cases).
 * Plugins
+** Ability to easily connect to third party services
+** Ability to modify behavior of the system to match custom business logic
 
-Contrary to most (SaaS) billing solutions, Kill Bill is *not* a batch oriented system, but instead, it is driven by events occurring in the system (for example, the creation of a new subscription will create a new event that the invoicing core service will process and as result a new invoice may be created along with a new event, which the payment core service will then process, ...).
 
-Kill Bill is packaged as a WAR and is therefore executed within a web container (typically Tomcat). It offers https://killbill.github.io/slate/[REST APIs] to manage the state associated with accounts, subscriptions, invoices, payments, ...
-
-Kill Bill supports multi-tenancy, meaning you can run multiple logical instances of Kill Bill with a single server and database (see this http://killbill.io/blog/subscription-service-using-kill-bill[blog post] which illustrates some of the use cases).
 
 == Where to Start?
+
 
 === Layman's Next Steps
 
