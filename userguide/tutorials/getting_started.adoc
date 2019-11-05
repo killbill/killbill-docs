@@ -146,6 +146,195 @@ Kill Bill will now automatically charge the user on a monthly basis. You can est
 
 Now that you are familiar with the basics, the next step is to integrate Kill Bill in your application using our APIs. Our https://killbill.github.io/slate/[API documentation] contains snippets to help you get started.
 
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step1" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step1" data-toggle="tab" href="#curl-step1" role="tab" aria-controls="curl-step1" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step1" data-toggle="tab" href="#java-step1" role="tab" aria-controls="java-step1" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step1" data-toggle="tab" href="#ruby-step1" role="tab" aria-controls="ruby-step1" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step1" data-toggle="tab" href="#python-step1" role="tab" aria-controls="python-step1" aria-selected="false">Python</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="go-tab-step1" data-toggle="tab" href="#go-step1" role="tab" aria-controls="go-step1" aria-selected="false">Go</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="php-tab-step1" data-toggle="tab" href="#php-step1" role="tab" aria-controls="php-step1" aria-selected="false">PHP</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step1" role="tabpanel" aria-labelledby="curl-tab-step1">
+++++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{ "name": "John Doe", "currency": "USD"}' \
+     'http://127.0.0.1:8080/1.0/kb/accounts'
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step1" role="tabpanel" aria-labelledby="java-tab-step1">
+++++
+[source,java]
+----
+import org.killbill.billing.catalog.api.Currency;
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.RequestOptions;
+import org.killbill.billing.client.api.gen.AccountApi;
+import org.killbill.billing.client.model.gen.Account;
+
+KillBillHttpClient client = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                   "admin",
+                                                   "password",
+                                                   "bob",
+                                                   "lazar");
+AccountApi accountApi = new AccountApi(client);
+
+Account body = new Account();
+body.setName("John Doe");
+body.setCurrency(Currency.USD);
+
+RequestOptions requestOptions = RequestOptions.builder()
+                                              .withCreatedBy("tutorial")
+                                              .build();
+Account account = accountApi.createAccount(body, requestOptions);
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
+++++
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+body = KillBillClient::Model::Account.new
+body.name = 'John Doe'
+body.currency = 'USD'
+
+account = body.create('tutorial', nil, nil, options)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step1" role="tabpanel" aria-labelledby="python-tab-step1">
+++++
+[source,python]
+----
+import killbill
+
+killbill.configuration.base_uri = 'http://127.0.0.1:8080'
+killbill.configuration.username = 'admin'
+killbill.configuration.password = 'password'
+
+account_api = killbill.api.AccountApi()
+body = killbill.models.account.Account(name='John Doe', currency='USD')
+account = account_api.create_account(body, 'tutorial', 'bob', 'lazar')
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="go-step1" role="tabpanel" aria-labelledby="go-tab-step1">
+++++
+[source,go]
+----
+
+import (
+	"context"
+	"encoding/base64"
+	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/killbill/kbcli/kbclient"
+	"github.com/killbill/kbcli/kbclient/account"
+	"github.com/killbill/kbcli/kbmodel"
+)
+
+trp := httptransport.New("127.0.0.1:8080", "", nil)
+
+authWriter := runtime.ClientAuthInfoWriterFunc(
+	func(r runtime.ClientRequest, _ strfmt.Registry) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte("admin:password"))
+		if err := r.SetHeaderParam("Authorization", "Basic "+encoded); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiKey", "bob"); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiSecret", "lazar"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+createdBy := "tutorial"
+defaults := kbclient.KillbillDefaults{
+	CreatedBy: &createdBy,
+}
+
+client := kbclient.New(trp, strfmt.Default, authWriter, defaults)
+body := &kbmodel.Account{
+	Name:     "John Doe",
+	Currency: "USD",
+}
+
+newAccount, err := client.Account.CreateAccount(
+	context.Background(),
+	&account.CreateAccountParams{
+		Body:                  body,
+		ProcessLocationHeader: true,
+	})
+if err == nil {
+	print(newAccount.GetPayload().AccountID)
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="php-step1" role="tabpanel" aria-labelledby="php-tab-step1">
+++++
+[source,php]
+----
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$config = Killbill\Client\Swagger\Configuration::getDefaultConfiguration();
+$config->setHost('http://127.0.0.1:8080')
+       ->setUsername('admin')
+       ->setPassword('password')
+       ->setApiKey('X-Killbill-ApiKey', 'bob')
+       ->setApiKey('X-Killbill-ApiSecret', 'lazar');
+
+$accountApi = new Killbill\Client\Swagger\Api\AccountApi(null, $config);
+
+$accountData = new Killbill\Client\Swagger\Model\Account();
+$accountData->setName('John Doe');
+$accountData->setCurrency('USD');
+
+$account = $accountApi->createAccount($accountData, 'tutorial', NULL, NULL);
+----
+++++
+  </div>
+</div>
+++++
+
 We also have lots of examples in our https://github.com/killbill/killbill-integration-tests[Ruby] and https://github.com/killbill/killbill/tree/master/profiles/killbill/src/test/java/org/killbill/billing/jaxrs[Java] integration tests.
 
 For support along the way, do *not* open GitHub issues. Instead, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[Google Groups].
