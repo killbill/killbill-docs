@@ -20,6 +20,15 @@ Asciidoctor::Extensions.register do
           })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
           ga('create','#{ga_account_id}','auto');
           ga('send','pageview');
+          var getOutboundLink = function(url) {
+            ga('send', {
+              hitType: 'event',
+              eventCategory: 'outbound',
+              eventAction: 'click',
+              eventLabel: url,
+              hitCallback: function(){document.location = url;}
+            });
+          }
           </script>)
       end
     end
