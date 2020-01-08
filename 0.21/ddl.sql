@@ -566,6 +566,7 @@ CREATE TABLE invoice_items (
     plan_name varchar(255),
     phase_name varchar(255),
     usage_name varchar(255),
+    catalog_effective_date datetime,
     start_date date,
     end_date date,
     amount numeric(15,9) NOT NULL,
@@ -604,6 +605,7 @@ CREATE TABLE invoice_item_history (
     plan_name varchar(255),
     phase_name varchar(255),
     usage_name varchar(255),
+    catalog_effective_date datetime,
     start_date date,
     end_date date,
     amount numeric(15,9) NOT NULL,
@@ -739,6 +741,20 @@ CREATE UNIQUE INDEX invoice_parent_children_id ON invoice_parent_children(id);
 CREATE INDEX invoice_parent_children_invoice_id ON invoice_parent_children(parent_invoice_id);
 CREATE INDEX invoice_parent_children_tenant_account_record_id ON invoice_parent_children(tenant_record_id, account_record_id);
 CREATE INDEX invoice_parent_children_child_invoice_id ON invoice_parent_children(child_invoice_id);
+
+DROP TABLE IF EXISTS invoice_billing_events;
+CREATE TABLE invoice_billing_events (
+    record_id serial unique,
+    id varchar(36) NOT NULL,
+    invoice_id varchar(36) NOT NULL,
+	billing_events blob NOT NULL,
+    created_by varchar(50) NOT NULL,
+    created_date datetime NOT NULL,
+    account_record_id bigint /*! unsigned */ not null,
+    tenant_record_id bigint /*! unsigned */ not null default 0,
+    PRIMARY KEY(record_id)
+) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+CREATE UNIQUE INDEX invoice_billing_events_invoice_id ON invoice_billing_events(invoice_id);
 
 /*! SET default_storage_engine=INNODB */;
 
@@ -960,7 +976,6 @@ CREATE TABLE invoice_payment_control_plugin_auto_pay_off (
     account_id varchar(36) NOT NULL,
     plugin_name varchar(50) NOT NULL,
     payment_id varchar(36),
-    payment_method_id varchar(36) NOT NULL,
     amount numeric(15,9),
     currency varchar(3),
     is_active boolean default true,
