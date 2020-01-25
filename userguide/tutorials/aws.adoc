@@ -4,11 +4,11 @@
 
 The core development team publishes official images on the AWS Marketplace, which lets you quickly get started with Kill Bill in the cloud.
 
-== Installation via our standalone AMI
+== Installation via Our Standalone AMI
 
-Running Kill Bill on AWS using our +++<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_'); return false;">official AMI</a>+++ lets you deploy Kill Bill, Kaui and MySQL in a single EC2 instance. It is perfect for test environments or for small production deployments where high availability isn't a concern.
+Running Kill Bill on AWS using our official AMI lets you deploy Kill Bill, Kaui and MySQL in a single EC2 instance. It is perfect for test environments or for small production deployments where high availability isn't a concern.
 
-=== Setup steps
+=== Setup Steps
 
 1. Start the installation process by going to +++<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>+++: click *Continue to Subscribe* and accept Terms.
 2. After a few minutes, click *Continue to Configuration* and *Continue to Launch*
@@ -20,6 +20,10 @@ Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_ki
 
 == Installation via CloudFormation
 
+The Standalone AMIs are very convenient to start a full stack on one EC2 instance, but for production deployments, we suggest to use our CloudFormation tempate to start a full stack.
+
+=== Overview of the Stack
+
 Running Kill Bill on AWS using our +++<a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">official CloudFormation template</a>+++ is the easiest and fastest way to get started with a production cluster. *It is also the only method of installation that is certified by the core developers for a Highly Available, horizontally scalable and production-ready installation.*
 
 With the click of a button, the template will install and configure:
@@ -29,28 +33,79 @@ With the click of a button, the template will install and configure:
 * A load balancer, integrated with our internal healthchecks to promptly take out of rotation unhealthy instances
 * A RDS Aurora Cluster with automatic failover
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aws/cloudwatch.png[align=center]
 
-By installating additional plugins suchs as our free Analytics plugin, you get a subscription billing management solution as feature-rich as popular SaaS platforms, but you are in control.
+The following diagram shows the various AWS entities that we be created by CloudFormation:
+
+image:/userguide/assets/aws/cf_stack.png[align=center]
 
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aws/analytics.png[align=center]
+The elastic load balancer will listen on the port `80` for routing traffic to our Kill Bill server instances, and on the port `9090` for accessing KAUI, our admin UI. Internally, both Kill Bill server instances, and KAUI server instances will listen on port `8080`.
+
+The CloudFormation template allows to specify different groups of subnets to isolate the Kill Bill server and KAUI server instances with the RDS instances. Typically one would specify at least 2 subnets, in different availability zones for each of those groups. 
+
+The CloudFormation template will also create individual security groups for the various components:
+
+* LB Security group: Opens ingress `9090`  and `80`, and everything for egress.
+* KB Security group: Opens ingress `8080`, and everything for egress.
+* RDS Security group: Opens ingress `3306`, and everything for egress.
+
+
+**Pre-requisites:** The CloudFormation template will require thr following:
+
+* A valid VPC
+* A VPC Internet Gateway configured to access all the touside world
+* Valid subnets for the VPC as described above
+
+**Example:** Given a VPC with a CIDR of `192.168.0.0/16`
+
+An example of a valid routing table for would be 
+
+|===
+|Destination |Target
+
+|192.168.0.0/16
+|local
+
+|0.0.0.0/0
+|igw-08bbaa2909129b953
+|===
+
+
+Regarding the subnets, the following configuration would work:
+
+* Kill Bill server and KAUI server instances subnets: `192.168.64.0/18` (zone `1e`) and `192.168.192.0/18` (zone `1b`)
+* RDS subnets: `192.168.128.0/18` (zone `1e`) and `192.168.0.0/18` (zone `1b`)
+
+
+=== CloudWatch Integration
+
+Our AMIs come pre-configured with CloudWatch integration to allow for better diagnostics. Below is a screenshot of the metrics that come for free:
+
+
+image:/userguide/assets/img/aws/cloudwatch.png[align=center]
+
+
+In order to have business metrics, we also allow to install additional plugins suchs as our free https://github.com/killbill/killbill-analytics-plugin[Analytics plugin]. This provides a subscription billing management solution as feature-rich as popular SaaS platforms, but that you can control. Below is a screenshot of such business metrics:
+
+
+image:/userguide/assets/img/aws/analytics.png[align=center]
 
 
 For installation support along the way, reach out to `support@killbill.io`.
 
-=== Configuration options
+=== Configuration Options
 
 The installation supports the following configuration options:
 
 * *VpcId:* the VPC to use for the installation. In your AWS Console, go to *Services* and search for *VPC*. Under *Your VPCs*, locate the VPC ID you would like to use or create a new one.
-* *Subnets:* the subnets to use, associated with at least two different availability zones. In the VPC Dashboard, go to *Subnets* and find two subnets in your VPC *in two different availability zones*. Alternatively, create new ones (use 10.0.0.0/24 and 10.0.1.0/24 as the IPv4 CIDR for instance).
+* *Subnets:* the subnets to use for the KB and KAUi instances. They should be associated with at least two different availability zones. In the VPC Dashboard, go to *Subnets* and find two subnets in your VPC *in two different availability zones*. Alternatively, create new ones (use 10.0.0.0/24 and 10.0.1.0/24 as the IPv4 CIDR for instance).
+* *RDSSubnets:* the subnets to use for the RDS instance. The RDS instances require a subnet group with at least two different availability zones.
 * *KeyName:* name of an existing EC2 KeyPair to enable SSH access to the instances. You can create a new one by going to *Key Pairs* in your EC2 Dashboard.
 * *HTTPLocation:* IP address range allowed to access the load balancer (you can always use 0.0.0.0/0 initially and adjust access later on).
 * *EnvType:* environment purpose (test, prod, etc.)
 * *InstanceType:* the EC2 instance type to use for Kill Bill. Here are some guidelines:
-** `m5.large`: test environment
-** `c5.xlarge`: up to 5,000 subscriptions
+** `t2.medium` -> `t2.xlarge`: test environment
+** `m5.large`: up to 5,000 subscriptions
 ** `c5.2xlarge`: up to 50,000 subscriptions
 ** `c5.4xlarge`: beyond 50,000 subscriptions
 * *KillBillServerCapacity:* the initial number of Kill Bill instances in the Auto Scaling group. Here are some guidelines:
@@ -59,6 +114,7 @@ The installation supports the following configuration options:
 ** `3`: up to 50,000 subscriptions
 ** `4`: beyond 50,000 subscriptions
 * *KauiServerCapacity:* the initial number of Kaui instances in the Auto Scaling group. We recommend using the default value `2`.
+* *KBAdminPassword:* the `admin` password that will be used for the default `root` user which has all the permissions. By default such password is set to `password`. Typically, one would use the `root` user to create additional roles (along with their permissions) to limit the scope of what specific applications or users can do. See our https://docs.killbill.io/latest/user_management.html[User Management Documentation].
 * *DBClass:* the database instance type to use for RDS. Here are some guidelines:
 ** `db.t3.medium`: test environment
 ** `db.r5.xlarge`: up to 5,000 subscriptions
@@ -70,7 +126,7 @@ The installation supports the following configuration options:
 * *DBPassword:* database admin password
 * *EnableCloudWatchMetrics:* whether to record Kill Bill metrics in CloudWatch. Strongly recommended for production. When enabled, a default monitoring dashboard will be created.
 
-=== Setup steps
+=== Setup Steps
 
 1. Start the installation process by going to +++<a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>+++: click *Continue to Subscribe* and populate the configuration options in the CloudFormation form.
 2. Launch the stack.
@@ -80,7 +136,7 @@ You can log-in to Kaui by going to http://<LOAD_BALANCER_URL>:9090 (make sure yo
 
 Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide for an introduction to Kaui.
 
-=== Upgrade steps
+=== Upgrade Steps
 
 The Kill Bill core team will provide new AMIs whenever necessary.
 
