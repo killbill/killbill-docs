@@ -2,23 +2,15 @@
 
 == Overview
 
-**Terminology**: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api.
+**Terminology**: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api. For example, when using the `-u admin:password` in most of our cURL examples, the user is `admin` and its password is `password`.
 
 **Assumptions**: We assume the reader went through the http://docs.killbill.io/latest/getting_started.html[Getting started] documentation and has a running system (both killbill and kaui) running on IP=`127.0.0.1`.
 
-Each request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The credentials are passed in the request using http basic authentication mechanism. Kill Bill relies on http://shiro.apache.org/[shiro] for the backend implementation.
+=== Shiro
 
+Each api request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The full list of available permissions can be found https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/security/Permission.java[here].
 
-Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the `api_key`/`api_secret` for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant.
-
-The full list of available permissions can be found https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/security/Permission.java[here].
-
-
-== User Management APIs
-
-=== Configuration overview
-
-Shiro supports multiple backend implementations, and we integrated a few of them including:
+The credentials are passed in the request using http basic authentication mechanism and Kill Bill relies on http://shiro.apache.org/[shiro] for the backend implementation. Shiro supports multiple backend implementations, and we integrated a few of them including:
 
 * Simple configuration file (`shiro.ini` file)
 * Database configuration
@@ -27,7 +19,18 @@ Shiro supports multiple backend implementations, and we integrated a few of them
 
 For simple deployments where only few static users/roles need to be assigned, the `shiro.ini` file is the simplest and the best option. By default both Kill Bill (`shiro.ini`) and Kaui ship with an `admin` user (and its password `password`) that has all the permissions. One can immediatly log-in to Kaui using such user, and start configuring tenants as needed.
 
-Changing such user (e.g to use `superadmin`) or password would require editing `shiro.ini` on the Kill Bill side to make sure this initial user can log-in to Kaui (see below).
+Changing such user (e.g to use `superadmin`) or its password to something else than `password` would require editing `shiro.ini` configuration file on the Kill Bill side to make sure this initial user can log-in to Kaui (see below).
+
+For production deployments, we recommend not using the default `admin` (and its default password `password`).
+
+=== Tenant Access
+
+Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the `api_key`/`api_secret` for all tenants would have full control of the entire system. It is common practise to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant.
+
+This documentation is only specific to `users`, `roles` and associated `permissions`, which are cross tenants configurations.
+
+== User Management APIs 
+
 
 === Database configuration
 
@@ -53,7 +56,7 @@ root = *:*
 
 You can use the property `org.killbill.security.shiroResourcePath` to specify the location of this file. When using Docker, you can bind mount the file, e.g. specify `-v /path/to/shiro.ini:/var/lib/killbill/shiro.ini -e KILLBILL_SECURITY_SHIRO_RESOURCE_PATH=file:/var/lib/killbill/shiro.ini`.
 
-===== Role and user setup
+===== Role and User Setup
 
 Let's create a new role `customer_support`:
 
@@ -96,7 +99,7 @@ curl -v \
 ----
 
 
-==== Tenant setup
+==== Tenant Setup
 
 Since we did not give access for all the tenant management to our new `CS` account, let's have our superadmin create a first tenant:
 
