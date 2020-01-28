@@ -29,11 +29,25 @@ boolean isInvoicingSystemEnabled();
 
 == Per tenant properties
 
+Some of our configuration properties can be specified at the tenant level, i.e they can differ for each tenant that specified its own properties. Such properties will have an `InternalTenantContext` in the signature of the method. Example:
+
+
+[source,java]
+----
+@Config("org.killbill.invoice.sanitySafetyBoundEnabled")
+@Default("true")
+@Description("Whether internal sanity checks to prevent mis- and double-billing are enabled")
+boolean isSanitySafetyBoundEnabled(@Param("dummy") final InternalTenantContext tenantContext);
+----
+
+
+The following configuration files have some per-tenant properties:
+
 * https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/InvoiceConfig.java[Invoice configuration]
 * https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/PaymentConfig.java[Payment configuration]
 * https://github.com/killbill/killbill/blob/master/util/src/main/java/org/killbill/billing/util/config/definition/NotificationConfig.java[Push notifications configuration]
 
-You can upload these properties via the `/1.0/kb/tenants/uploadPerTenantConfig` endpoint, e.g.:
+You can upload these properties via the `/1.0/kb/tenants/uploadPerTenantConfig` endpoint, and each call should contain the full list of properties for a given tenant, i.e doing a subsequent call would overwrite previous properties. For instance to change the invoice dryRun notification schedule for the tenant `boblazar`, one could use the following cURL:
 
 [source]
 ----
@@ -48,7 +62,7 @@ curl -v \
      "http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig"
 ----
 
-You can also specify these values in your main `killbill.properties` file (used as a fallback, the per-tenant configuration takes precedence).
+You can also specify these values in your main `killbill.properties` file (used as a fallback, but the per-tenant configuration would take precedence).
 
 == Global properties
 
