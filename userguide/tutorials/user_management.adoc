@@ -31,17 +31,14 @@ This documentation is only specific to `users`, `roles` and associated `permissi
 
 == User Management APIs 
 
+For a large entreprise solution, an LDAP or Okta integration is probably the most flexible, but it is also the most complex, and so for those that require the flexibility of an RBAC systems without the associated complexity, Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database.
 
-=== Database configuration
-
-For a large entreprise solution, an LDAP integration is probably the most flexible. For cases where LDAP is not available, a good middle ground is to rely on a mixed solution between the `shiro.ini` file and the database backend. This is what the rest of this section will describe.
-
-Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database. As described earlier, apis calls require authorization/authentication so there is a catch-22 situation here, hence the mixed approach:
+This solution relies on a mixed solution between the `shiro.ini` file and the database backend: An initial user must be configured in the `shiro.ini` with at least enough permissions to use the User Management APIs:
 
 * The `shiro.ini` file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity, we will call it `superadmin` and will assign one role containing all permissions.
 * Once deployed, the 'superadmin' is now able to make api calls to configure new users/roles.
 
-==== Kill Bill setup
+=== Kill Bill setup
 
 The `shiro.ini` file will look like the following:
 
@@ -56,7 +53,7 @@ root = *:*
 
 You can use the property `org.killbill.security.shiroResourcePath` to specify the location of this file. When using Docker, you can bind mount the file, e.g. specify `-v /path/to/shiro.ini:/var/lib/killbill/shiro.ini -e KILLBILL_SECURITY_SHIRO_RESOURCE_PATH=file:/var/lib/killbill/shiro.ini`.
 
-===== Role and User Setup
+=== Role and User Setup
 
 Let's create a new role `customer_support`:
 
@@ -99,7 +96,7 @@ curl -v \
 ----
 
 
-==== Tenant Setup
+=== Tenant Setup
 
 Since we did not give access for all the tenant management to our new `CS` account, let's have our superadmin create a first tenant:
 
@@ -114,7 +111,7 @@ curl -v \
      "http://127.0.0.1:8080/1.0/kb/tenants"
 ----
 
-==== Validation
+=== Validation
 
 Assuming our `cs` user knows about the `api_key` and `api_secret` of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permission set).
 
@@ -149,7 +146,7 @@ curl -v \
      "http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1/refunds"
 ----
 
-=== LDAP configuration
+== LDAP configuration
 
 To enable LDAP, Kill Bill needs to be launched with the following System Properties:
 
