@@ -95,7 +95,7 @@ You can also go to http://127.0.0.1:8080/api.html to explore our APIs.
 
 === Tomcat
 
-Users familiar with Java technologies can also install Kill Bill directly in their Web container of choice, such as Tomcat.
+Users familiar with Java technologies can also install Kill Bill directly in their Web container of choice, such as Tomcat. We recommend using Tomcat version 8.5.
 
 If you don't have it yet, you can download the Tomcat container http://tomcat.apache.org/download-80.cgi[here] (get the Core binary distribution). The documentation is available http://tomcat.apache.org/tomcat-8.0-doc/index.html[here].
 
@@ -105,7 +105,15 @@ Notes:
 
 * Unlike other installation methods, you will also need to install and configure your database manually. See https://docs.killbill.io/latest/userguide_deployment.html[our deployment guide] for more details.
 * Installation on Windows might work, but isn't tested nor recommended by the core team.
-* Further Tomcat optimizations might be required depending on your environment, such as installing the https://tomcat.apache.org/native-doc/[Apache Tomcat Native Library] (done for you when using Ansible, Docker, or in our Cloud Marketplace instances).
+* We recommend installing the https://tomcat.apache.org/native-doc/[Apache Tomcat Native Library] (automatically done for you when using Ansible, Docker, or in our Cloud Marketplace instances).
+
+==== Tomcat configuration
+
+Recommended Tomcat configuration files can be found https://github.com/killbill/killbill-cloud/tree/master/ansible/templates/tomcat/conf[here]. The `.j2` extension is for the Jinja templating language: you must render the files first using your custom variables, which depend on your environment (take a look at an example of such variables https://github.com/killbill/killbill-cloud/blob/master/ansible/group_vars/all.yml[here]). https://ansible.sivel.net/test/[This website] can be used to perform the rendering online if you do not have Jinja installed.
+
+Once rendered, `setenv2.sh` should be placed in *CATALINA_HOME/bin* and all other files should be placed in *CATALINA_HOME/conf*.
+
+Using these default configuration files, Tomcat will start on port 8080, which should be the only port open for ingress traffic in production (egress traffic should not be restricted).
 
 ==== Kill Bill
 
@@ -119,7 +127,10 @@ org.killbill.dao.password=killbill
 org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
 org.killbill.billing.osgi.dao.user=killbill
 org.killbill.billing.osgi.dao.password=killbill
+logback.configurationFile=/var/lib/killbill/config/logback.xml
 ----
+
+Place the logging configuration file https://github.com/killbill/killbill-cloud/blob/master/ansible/templates/killbill/logback.xml.j2[logback.xml] as `/var/lib/killbill/config/logback.xml` (refer to the Jinja templating language instructions above).
 
 Download the current stable version of the Kill Bill war from https://search.maven.org/search?q=a:killbill-profiles-killbill[Maven Central] (make sure to download the `killbill-profiles-killbill-X.Y.Z.war` file and not the `jetty-console.war`, `jar-with-dependencies.war` or `jar-with-dependencies-sources.war` one) and place it under *CATALINA_HOME/webapps/ROOT.war* (delete the directory *CATALINA_HOME/webapps/ROOT* if it exists).
 

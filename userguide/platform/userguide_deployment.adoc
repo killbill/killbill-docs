@@ -33,7 +33,7 @@ Kill Bill is fundamentally a backend system, so the following considerations sho
 * Verify the integration with your payment gateway(s): very few payment transactions (if any) should be in an `UNKNOWN` state. Make sure to fix these manually via the Payment Admin API, if the plugin is unable to do it automatically.
 * Have a monitoring system in place (we recommend https://github.com/killbill/killbill-cloud/tree/master/docker/compose[Elasticseach, Logstash, Kibana, InfluxDB and Grafana], which can be easily setup for Kill Bill) and watch your logs constantly: any `WARN` or `ERROR` entry should be reviewed, as well as stacktraces.
 * Monitor metrics at `/1.0/metrics` and integrate the healthcheck at `/1.0/healthcheck` with your load balancer.
-* Join our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] to get notified of new releases or ask questions.
+* Join our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] to get notified of new releases or ask questions. Due to the high traffic, we're not always available for help right away: if you need peace of mind for your production deployment, consider becoming a https://github.com/sponsors/pierre[GitHub Sponsor] to get priority support via alternative channels.
 
 == Deployment options
 
@@ -45,11 +45,15 @@ When deploying Kill Bill, the following pieces will need to be deployed in addit
 * The configuration files and system properties
 * The database along with the various schemas (see our http://docs.killbill.io/latest/database_migrations.html[database migrations guide])
 
-Because a lot of pieces need to be in place, and because a lot can go wrong, users are *strongly* encouraged to use our pre-built https://registry.hub.docker.com/u/killbill/killbill[Docker images] and https://github.com/killbill/killbill-cloud/tree/master/docker[Docker Compose] recipes. We also maintain recipes to deploy the open-source https://www.elastic.co/products[Elastic stack] and the open-source https://www.influxdata.com/time-series-platform/[InfluxData stack] integrated with Kill Bill.
+Because a lot of pieces need to be in place, and because a lot can go wrong, users are *strongly* encouraged to use either our pre-built https://docs.killbill.io/latest/aws.html[AMIs] on AWS or our pre-built https://registry.hub.docker.com/u/killbill/killbill[Docker images].
 
-Experienced users can also opt for our https://github.com/killbill/killbill-cloud/tree/master[Ansible playbooks] (Ansible is an open-source IT Automation tool), to install and configure https://tomcat.apache.org/[Apache Tomcat], https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] and Kill Bill individually.
+If these options aren't possible in your environment, default to a manual Tomcat installation.
 
-Note that both of these deployment options rely on https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM], the Kill Bill Package Manager. KPM can fetch existing (signed) artifacts for the main killbill war and for each of the plugins, and deploy them at the right place. Using KPM gives you the most flexibility without having to re-invent the wheel, but significantly increases the deployment complexity. To be directly used by our most advanced users only.
+Our https://docs.killbill.io/latest/getting_started.html[Getting Started] guide has step by step instructions for all of these options.
+
+Finally, experienced users can also opt for our https://github.com/killbill/killbill-cloud/tree/master[Ansible playbooks] (Ansible is an open-source IT Automation tool), to install and configure https://tomcat.apache.org/[Apache Tomcat], https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] and Kill Bill individually.
+
+Note that all these deployment options rely on https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM], the Kill Bill Package Manager. KPM can fetch existing (signed) artifacts for the main killbill war and for each of the plugins, and deploy them at the right place. Using KPM directly gives you the most flexibility without having to re-invent the wheel, but significantly increases the deployment complexity. To be used by our most advanced users only.
 
 === Docker
 
@@ -59,7 +63,7 @@ Container configuration can be done by bind mounting a custom `killbill.properti
 
 == Database engine
 
-The Kill Bill core team is typically using `mysql` for most of the production deployments and for its testing, but we also run regression tests against both MariaDB 10.3 and PostgreSQL 10, and users have successfully deployed Kill Bill with Oracle MySQL, Percona, Aurora, etc.
+The Kill Bill core team is typically using `mysql` for most of the production deployments and for its testing, but we also run regression tests against both MariaDB 10 and PostgreSQL 12, and users have successfully deployed Kill Bill with Oracle MySQL, Percona, Aurora, etc.
 
 We have kept our DDL schema (and the queries we run) as simple as possible so it is easy to adapt it for other RDBMS.
 
@@ -124,11 +128,15 @@ In addition to the bus events, which are dispatched immediately, Kill Bill also 
 
 The future notifications also rely on two tables: the `notifications` and `notifications_history`, and the mechanism to move processed entries is similar to what we described for the bus event.
 
-== Logging and GDPR
+== Logging and Data Governance
 
 If you are using Tomcat, `CATALINA_BASE/logs/catalina.out` does not rotate. Make sure to make your main appender `ch.qos.logback.core.rolling.RollingFileAppender` instead of the default `ch.qos.logback.core.ConsoleAppender` (`STDOUT`/`STDERR` is redirected to `CATALINA_BASE/logs/catalina.out`).
 
-Make sure also to install both the http://felix.apache.org/downloads.cgi[Felix Log bundle] and the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/bundles/logger[Kill Bill Log bundle] in your `platform` directory (`/var/tmp/bundles/platform` by default), otherwise OSGI logs (including from JRuby plugins) will end up in `STDOUT`/`STDERR` (hence in `CATALINA_BASE/logs/catalina.out`). Both bundles are included in the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles[defaultbundles package].
+Make sure also to install the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/bundles/logger[Kill Bill Log bundle] in your `platform` directory (`/var/tmp/bundles/platform` by default), otherwise OSGI logs (including from JRuby plugins) will end up in `STDOUT`/`STDERR` (hence in `CATALINA_BASE/logs/catalina.out`). It is included in the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles[defaultbundles package].
+
+=== PII and GDPR
+
+We recommend not storing any Personally Identifiable Information (PII) in Kill bill, such as names, email addresses, etc. to limit your compliance burden. Kill Bill accounts have an external key property, which can be set to an id in an external system (e.g. CRM). Have your custom code and plugins fetch this information on-demand instead of storing it inside Kill Bill.
 
 === Mask PANs
 
@@ -204,7 +212,6 @@ If you are passing PANs via plugin properties, make sure to disable query parame
 
 In order for plugin logs to be handled by the main logger, make sure to:
 
-* Install http://felix.apache.org/documentation/subprojects/apache-felix-log.html[Apache Felix Log] under `/var/tmp/bundles/platform` (provided in the default plugins package)
 * Install `killbill-platform-osgi-bundles-logger` under `/var/tmp/bundles/platform` (also provided in the default plugins package)
 * Add `org.osgi.service.log` to `Import-Package` in your `MANIFEST.MF`
 * Add the following dependencies in compile scope in your plugin:
