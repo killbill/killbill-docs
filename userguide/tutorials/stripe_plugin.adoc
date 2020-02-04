@@ -10,3 +10,59 @@ Select the appropriate instructions for your link:https://docs.docker.com/instal
 
 Select the appropriate instructions for your link:https://docs.docker.com/compose/install/[preferred operating system].
 
+=== Step 3:  Create a docker-compose.yaml file
+
+In a terminal, type the following:
+
+[source, bash]
+----
+$ mkdir killbill
+$ cd killbill
+----
+
+With your favorite text editor, create a `+docker-compose.yaml+` file and reflect the following:
+
+[source,yaml]
+----
+version: '3.7'
+volumes:
+  db:
+services:
+  killbill:
+    image: killbill/killbill:0.22.2
+    ports:
+      - "8080:8080"
+    environment:
+      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
+      - KILLBILL_DAO_USER=root
+      - KILLBILL_DAO_PASSWORD=killbill
+  kaui:
+    image: killbill/kaui:2.0.1
+    ports:
+      - "9090:8080"
+    environment:
+      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
+      - KAUI_CONFIG_DAO_USER=root
+      - KAUI_CONFIG_DAO_PASSWORD=killbill
+      - KAUI_KILLBILL_URL=http://killbill:8080
+  db:
+    image: killbill/mariadb:0.22
+    volumes:
+      - type: volume
+        source: db
+        target: /var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=killbill
+----
+
+Note that you may have to change the link:https://docs.docker.com/compose/compose-file/compose-versioning/[version] of the yaml file you create, according to which version of Docker you are using.
+
+Save the file, and run:
+
+[source,bash]
+----
+$ docker-compose up
+----
+
