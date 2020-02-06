@@ -148,7 +148,7 @@ that starting the CFN stack will typically take in the order of 15-20', mostly b
 RDS cluster, so be patient...
 
 
-Let's start with the https://console.amazonaws.cn/cloudformation[CloudFormation console]: The stack will have a status which will be `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, try to locate from the `Resources` tab which resource fail to initialize properly.
+Let's start with the https://console.aws.amazon.com/cloudformation[CloudFormation console]: The stack will have a status which will be `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, try to locate from the `Resources` tab which resource fail to initialize properly.
 
 ==== Possible Issues
 
@@ -161,13 +161,14 @@ If you think there is an issue with the CFN template itself, please report any i
 **AWS Errors**
 
 Typical Issues are:
+
   * Insufficient IAM Permissions
   * Limit Exceeded
   * Security Group Does Not Exist in VPC
   * RDS Cluster failed to come up
   * ...
 
-Make sure to check our `Pre-requisites` section to ensure you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.amazonaws.cn/en_us/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation]
+Make sure to check our `Pre-requisites` section to ensure you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation]
     
 **Service Unavailable**
 
@@ -184,25 +185,26 @@ We suggest to check the following:
 
 **SSH to EC2 Instances**
 
-In order to answer these questions, you will first need to be able to SHH to the EC2 instances:
+In order to answer these questions, you will first need to be able to SSH to the EC2 instances:
 
 From the EC2 dashboard, you can locate the instances by filtering on a prefix of the name of your stack, in my case `my-stack`,
-and as indicated below you will see the instances for KIll Bill server and KAUI. In the example below we see one of each:
+and as indicated below you will see the instances for Kill Bill server and KAUI. In the example below we see one of each:
 
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-instances.png[align=center]
 
-You can select one instance and and then from the description tag, you will have access to:
+You can select one instance and then from the description tag, you will have access to:
+
 1. Public DNS
 2. The security group
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-description.png[align=center]
 
-You will need to first click on the security group link to open the inbound port 22 required for SHH, as shown below:
+You will need to first click on the security group link to open the inbound port 22 required for SSH, as shown below:
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/security-group.png[align=center]
 
-Then, you can issue the SHH command, by copying the Public DNS from the description tab:
+Then, you can issue the SSH command, by copying the Public DNS from the description tab:
 
 ```
 # SSH as ubuntu user
@@ -229,9 +231,18 @@ Other logs of interest may include:
 The Kill Bill/KAUI server logs are located under `/var/lib/tomcat/logs/`, with the main 2 interesting logs being:
 * `killbill.out`: All Kill Bill server logs, configured as `INFO` by default
 * `kaui.out`: All KAUI server logs, configured as `INFO` by default
-* `localhost_access_log...`: Access requests to the severs
+* `localhost_access_log...`: Access requests to the servers
 
 The configuration of the logging (log rotation, log level, ...) can be found in `/var/lib/killbill/config/logback.xml`
+
+If you update the `logback.xml` (or any configuration file) you will need to restart the service. In order to restart the service, you can run as `root` the following command:
+
+```
+# Restart  killbill server instance
+> service killbill restart
+# Restart  kaui server instance
+> service kaui restart
+```
 
 **Access to the Database**
 
