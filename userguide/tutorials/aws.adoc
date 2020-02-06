@@ -138,6 +138,190 @@ You can log-in to Kaui by going to http://<LOAD_BALANCER_URL>:9090 (make sure yo
 
 Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide for an introduction to Kaui.
 
+=== TroubleShooting Section
+
+==== Stack Creation
+
+There are a couple of possible issues when starting the stack from CloudFormation (CFN) and so the goal of this section
+is to provide some tips debugging the issues, and knowledge about where to find various logs. Also keep in mind
+that starting the CFN stack will typically take in the order of 15-20', mostly because of the time it takes to setup the 
+RDS cluster, so be patient...
+
+
+Let's start with the https://console.aws.amazon.com/cloudformation[CloudFormation console]: The stack will have a status which will be `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, try to locate from the `Resources` tab which resource fail to initialize properly.
+
+==== Possible Issues
+
+The main possible issues can be summarized as:
+
+**Issues with the template**
+
+If you think there is an issue with the CFN template itself, please report any issue to `support@killbill.io`
+
+**AWS Errors**
+
+Typical Issues are:
+
+  * Insufficient IAM Permissions
+  * Limit Exceeded
+  * Security Group Does Not Exist in VPC
+  * RDS Cluster failed to come up
+  * ...
+
+Make sure to check our `Pre-requisites` section to ensure you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation]
+    
+**Service Unavailable**
+
+We suggest to check the following:
+
+1. Is there any issues reported in the CFN logs
+2. Is the database up and running and accessible from the Kill Bill/Kaui ec2 instances?
+3. Is the database schema correctly installed?
+4. Is the Kill Bill/Kaui server correctly started and listening to the port `8080`?
+5. Are Kill Bill/Kaui server accessible from the LB, respectively on port `80` and `9090`?
+6. Are there any errors, stack traces in our logs
+
+==== Practical Tips
+
+**SSH to EC2 Instances**
+
+In order to answer these questions, you will first need to be able to SSH to the EC2 instances:
+
+From the EC2 dashboard, you can locate the instances by filtering on a prefix of the name of your stack, in my case `my-stack`,
+and as indicated below you will see the instances for Kill Bill server and KAUI. In the example below we see one of each:
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-instances.png[align=center]
+
+You can select one instance and then from the description tag, you will have access to:
+
+1. Public DNS
+2. The security group
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-description.png[align=center]
+
+You will need to first click on the security group link to open the inbound port 22 required for SSH, as shown below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/security-group.png[align=center]
+
+Then, you can issue the SSH command, by copying the Public DNS from the description tab:
+
+```
+# SSH as ubuntu user
+> ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<PUBLIC_DNS>
+# Move to tomcat user
+> sudo su - tomcat
+```
+
+**CFN LOGS**
+
+
+If there are any issue with CFN, it should be available from `/var/log/cfn-init-cmd.log` or `/var/log/cfn-init.log`
+
+Other logs of interest may include:
+```
+/var/log/cfn-wire.log
+/var/log/cloud-init-output.log
+/var/log/awslogs.logs
+/var/log/xray/xray.log
+```
+
+**Kill Bill/KAUI Server Logs**
+
+The Kill Bill/KAUI server logs are located under `/var/lib/tomcat/logs/`, with the main 2 interesting logs being:
+* `killbill.out`: All Kill Bill server logs, configured as `INFO` by default
+* `kaui.out`: All KAUI server logs, configured as `INFO` by default
+* `localhost_access_log...`: Access requests to the servers
+
+The configuration of the logging (log rotation, log level, ...) can be found in `/var/lib/killbill/config/logback.xml`
+
+If you update the `logback.xml` (or any configuration file) you will need to restart the service. In order to restart the service, you can run as `root` the following command:
+
+```
+# Restart  killbill server instance
+> service killbill restart
+# Restart  kaui server instance
+> service kaui restart
+```
+
+**Access to the Database**
+
+From any Kill Bill EC2 instance, it is possible to access the RDS database. On each node, there is `mysql` client installed
+allowing to access the database. The database hostname can be obtained from the CFN Resources screen, or one can also
+extract this information the `killbill.propertes` file:
+
+```
+> grep 'org.killbill.dao' /var/lib/killbill/config/killbill.properties 
+org.killbill.dao.password=killbill
+org.killbill.dao.url=jdbc:mysql:aurora://mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill
+org.killbill.dao.user=killbill
+```
+
+Based on such info, the following command would allow to get a mysql prompt:
+
+```
+> mysql -h mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com -u killbill -pkillbill killbill
+> show tables
+> ...
+```
+
+**Sevice Health**
+
+Since both Kill Bill/KAUI server listen on port `8080`, one can easily check if the service is running by issuing the following command:
+
+```
+telnet 127.0.0.1 8080
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.
+```
+
+For the Kill Bill server specifically some useful commands are:
+
+
+```
+# Healthcheck
+> curl http://127.0.0.1:8080/1.0/healthcheck
+```
+
+```
+# Check which Kill Bill & plugin versions
+> curl -u admin:<KBAdminPassword> http://127.0.0.1:8080/1.0/kb/nodesInfo | jq 
+[
+  {
+    "nodeName": "ip-192-168-65-236.ec2.internal",
+    "bootTime": "2020-02-02T21:26:44.000Z",
+    "lastUpdatedDate": "2020-02-02T21:26:44.000Z",
+    "kbVersion": "0.22.1",
+    "apiVersion": "0.53.17",
+    "pluginApiVersion": "0.26.3",
+    "commonVersion": "0.23.7",
+    "platformVersion": "0.39.12",
+    "pluginsInfo": [
+      {
+        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
+        "pluginKey": null,
+        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
+        "version": null,
+        "state": "RUNNING",
+        "isSelectedForStart": true,
+        "services": []
+      },
+      {
+        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
+        "pluginKey": null,
+        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
+        "version": null,
+        "state": "RUNNING",
+        "isSelectedForStart": true,
+        "services": []
+      }
+    ]
+  }
+]
+```
+
+
 === Upgrade Steps
 
 The Kill Bill core team will provide new AMIs whenever necessary.
