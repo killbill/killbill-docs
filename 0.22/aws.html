@@ -682,9 +682,112 @@ nav[data-toggle=toc] .nav .nav>li>.active, nav[data-toggle=toc] .nav .nav>li>.ac
 <div class="sect2"><h3 id="_setup_steps_2">Setup Steps</h3><div class="olist arabic"><ol class="arabic"><li><p>Start the installation process by going to <a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>: click <strong>Continue to Subscribe</strong> and populate the configuration options in the CloudFormation form.</p></li><li><p>Launch the stack.</p></li><li><p>Upon success, the Outputs tab will display the load balancer URL. Kill Bill is available on port 80 while Kaui on port 9090.</p></li></ol></div>
 <div class="paragraph"><p>You can log-in to Kaui by going to <a class="bare" href="http://&lt;LOAD_BALANCER_URL&gt;:9090">http://&lt;LOAD_BALANCER_URL&gt;:9090</a> (make sure your IP address can access the load balancer, as defined by the parameter <code>HTTPLocation</code>, or add it to the security group as needed). Default credentials are: <strong>admin/password</strong>.</p></div>
 <div class="paragraph"><p>Take a look at our <a href="http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui">Getting Started</a> guide for an introduction to Kaui.</p></div></div>
+<div class="sect2"><h3 id="_troubleshooting_section">TroubleShooting Section</h3><div class="sect3"><h4 id="_stack_creation">Stack Creation</h4><div class="paragraph"><p>There are a couple of possible issues when starting the stack from CloudFormation (CFN) and so the goal of this section
+is to provide some tips debugging the issues, and knowledge about where to find various logs. Also keep in mind
+that starting the CFN stack will typically take in the order of 15-20', mostly because of the time it takes to setup the
+RDS cluster, so be patient&#8230;&#8203;</p></div>
+<div class="paragraph"><p>Let&#8217;s start with the <a href="https://console.aws.amazon.com/cloudformation">CloudFormation console</a>: The stack will have a status which will be <code>CREATE_IN_PROGRESS</code> for the duration of the initialization, and will then either transition to <code>CREATE_COMPLETE</code> or <code>CREATE_FAILED</code>. In case of <code>CREATE_FAILED</code>, try to locate from the <code>Resources</code> tab which resource fail to initialize properly.</p></div></div>
+<div class="sect3"><h4 id="_possible_issues">Possible Issues</h4><div class="paragraph"><p>The main possible issues can be summarized as:</p></div>
+<div class="paragraph"><p><strong>Issues with the template</strong></p></div>
+<div class="paragraph"><p>If you think there is an issue with the CFN template itself, please report any issue to <code>support@killbill.io</code></p></div>
+<div class="paragraph"><p><strong>AWS Errors</strong></p></div>
+<div class="paragraph"><p>Typical Issues are:</p></div>
+<div class="ulist"><ul><li><p>Insufficient IAM Permissions</p></li><li><p>Limit Exceeded</p></li><li><p>Security Group Does Not Exist in VPC</p></li><li><p>RDS Cluster failed to come up</p></li><li><p>&#8230;&#8203;</p></li></ul></div>
+<div class="paragraph"><p>Make sure to check our <code>Pre-requisites</code> section to ensure you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the <a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html">AWS troubleshooting documentation</a></p></div>
+<div class="paragraph"><p><strong>Service Unavailable</strong></p></div>
+<div class="paragraph"><p>We suggest to check the following:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>Is there any issues reported in the CFN logs</p></li><li><p>Is the database up and running and accessible from the Kill Bill/Kaui ec2 instances?</p></li><li><p>Is the database schema correctly installed?</p></li><li><p>Is the Kill Bill/Kaui server correctly started and listening to the port <code>8080</code>?</p></li><li><p>Are Kill Bill/Kaui server accessible from the LB, respectively on port <code>80</code> and <code>9090</code>?</p></li><li><p>Are there any errors, stack traces in our logs</p></li></ol></div></div>
+<div class="sect3"><h4 id="_practical_tips">Practical Tips</h4><div class="paragraph"><p><strong>SSH to EC2 Instances</strong></p></div>
+<div class="paragraph"><p>In order to answer these questions, you will first need to be able to SSH to the EC2 instances:</p></div>
+<div class="paragraph"><p>From the EC2 dashboard, you can locate the instances by filtering on a prefix of the name of your stack, in my case <code>my-stack</code>,
+and as indicated below you will see the instances for Kill Bill server and KAUI. In the example below we see one of each:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-instances.png" alt="ec2 instances"></span></p></div>
+<div class="paragraph"><p>You can select one instance and then from the description tag, you will have access to:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>Public DNS</p></li><li><p>The security group</p></li></ol></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-description.png" alt="ec2 description"></span></p></div>
+<div class="paragraph"><p>You will need to first click on the security group link to open the inbound port 22 required for SSH, as shown below:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/security-group.png" alt="security group"></span></p></div>
+<div class="paragraph"><p>Then, you can issue the SSH command, by copying the Public DNS from the description tab:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># SSH as ubuntu user
+&gt; ssh -i  &lt;LOCATION_KEY&gt;/&lt;KEY_NAME&gt;.pem ubuntu@&lt;PUBLIC_DNS&gt;
+# Move to tomcat user
+&gt; sudo su - tomcat</code></pre></div></div>
+<div class="paragraph"><p><strong>CFN LOGS</strong></p></div>
+<div class="paragraph"><p>If there are any issue with CFN, it should be available from <code>/var/log/cfn-init-cmd.log</code> or <code>/var/log/cfn-init.log</code></p></div>
+<div class="paragraph"><p>Other logs of interest may include:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>/var/log/cfn-wire.log
+/var/log/cloud-init-output.log
+/var/log/awslogs.logs
+/var/log/xray/xray.log</code></pre></div></div>
+<div class="paragraph"><p><strong>Kill Bill/KAUI Server Logs</strong></p></div>
+<div class="paragraph"><p>The Kill Bill/KAUI server logs are located under <code>/var/lib/tomcat/logs/</code>, with the main 2 interesting logs being:
+* <code>killbill.out</code>: All Kill Bill server logs, configured as <code>INFO</code> by default
+* <code>kaui.out</code>: All KAUI server logs, configured as <code>INFO</code> by default
+* <code>localhost_access_log&#8230;&#8203;</code>: Access requests to the servers</p></div>
+<div class="paragraph"><p>The configuration of the logging (log rotation, log level, &#8230;&#8203;) can be found in <code>/var/lib/killbill/config/logback.xml</code></p></div>
+<div class="paragraph"><p>If you update the <code>logback.xml</code> (or any configuration file) you will need to restart the service. In order to restart the service, you can run as <code>root</code> the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Restart  killbill server instance
+&gt; service killbill restart
+# Restart  kaui server instance
+&gt; service kaui restart</code></pre></div></div>
+<div class="paragraph"><p><strong>Access to the Database</strong></p></div>
+<div class="paragraph"><p>From any Kill Bill EC2 instance, it is possible to access the RDS database. On each node, there is <code>mysql</code> client installed
+allowing to access the database. The database hostname can be obtained from the CFN Resources screen, or one can also
+extract this information the <code>killbill.propertes</code> file:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>&gt; grep 'org.killbill.dao' /var/lib/killbill/config/killbill.properties
+org.killbill.dao.password=killbill
+org.killbill.dao.url=jdbc:mysql:aurora://mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill
+org.killbill.dao.user=killbill</code></pre></div></div>
+<div class="paragraph"><p>Based on such info, the following command would allow to get a mysql prompt:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>&gt; mysql -h mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com -u killbill -pkillbill killbill
+&gt; show tables
+&gt; ...</code></pre></div></div>
+<div class="paragraph"><p><strong>Sevice Health</strong></p></div>
+<div class="paragraph"><p>Since both Kill Bill/KAUI server listen on port <code>8080</code>, one can easily check if the service is running by issuing the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>telnet 127.0.0.1 8080
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.</code></pre></div></div>
+<div class="paragraph"><p>For the Kill Bill server specifically some useful commands are:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Healthcheck
+&gt; curl http://127.0.0.1:8080/1.0/healthcheck</code></pre></div></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Check which Kill Bill &amp; plugin versions
+&gt; curl -u admin:&lt;KBAdminPassword&gt; http://127.0.0.1:8080/1.0/kb/nodesInfo | jq
+[
+  {
+    "nodeName": "ip-192-168-65-236.ec2.internal",
+    "bootTime": "2020-02-02T21:26:44.000Z",
+    "lastUpdatedDate": "2020-02-02T21:26:44.000Z",
+    "kbVersion": "0.22.1",
+    "apiVersion": "0.53.17",
+    "pluginApiVersion": "0.26.3",
+    "commonVersion": "0.23.7",
+    "platformVersion": "0.39.12",
+    "pluginsInfo": [
+      {
+        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
+        "pluginKey": null,
+        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
+        "version": null,
+        "state": "RUNNING",
+        "isSelectedForStart": true,
+        "services": []
+      },
+      {
+        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
+        "pluginKey": null,
+        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
+        "version": null,
+        "state": "RUNNING",
+        "isSelectedForStart": true,
+        "services": []
+      }
+    ]
+  }
+]</code></pre></div></div></div></div>
 <div class="sect2"><h3 id="_upgrade_steps_2">Upgrade Steps</h3><div class="paragraph"><p>The Kill Bill core team will provide new AMIs whenever necessary.</p></div>
 <div class="paragraph"><p>Because the CloudFormation from AWS Marketplace will always reflect the latest AMI ids, you can simply update the stack with the latest CloudFormation template and the instances in the AutoScaling groups will be updated automatically.</p></div>
-<div class="paragraph"><p>We strongly recommend to always test the upgrade in a test environment first.</p></div></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-02-01 23:09:14 UTC</div><script>
+<div class="paragraph"><p>We strongly recommend to always test the upgrade in a test environment first.</p></div></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-02-06 00:59:13 UTC</div><script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
