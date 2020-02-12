@@ -552,11 +552,51 @@ kpm  diagnostic \
 
 === Upgrade Steps
 
+==== Newer AMIs
+
+
 The Kill Bill core team will provide new AMIs whenever necessary.
 
 Because the CloudFormation from AWS Marketplace will always reflect the latest AMI ids, you can simply update the stack with the latest CloudFormation template and the instances in the AutoScaling groups will be updated automatically.
-
 We strongly recommend to always test the upgrade in a test environment first.
+
+We recomment to rely on the CloudFormation `ChangeSet` functionality to get a sense of what would be updated if the change was submitted. Here are some steps below:
+
+[1]. Update your CloudFormation template with the new Kill Bill and/or KAUI AMIs
+
+[2]. Create a new ChangeSet
+
+As a pre-requisite, make sure you have the capabilities to perform the operation, and then proceed with the change set:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set.png[align=center]
+
+
+If you do have the permissions, you will be prompted with the following message, that you will need to acknowledge:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/change-set-capabilities.png[align=center]
+
+
+[3]. Upload your new template
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-template.png[align=center]
+
+Go through the steps, accepting the defaults
+
+[4]. Review the CloudFormation changes
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-diff.png[align=center]
+
+If those seem to match your template diff, then proceed with the change.
+
+[6]. Wait for the new stack to be up
+
+After cloud formation change is done, you will see the `STATUS` or your stack transition back to `CREATE_COMPLETE`.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-success.png[align=center]
+
+However, the old instances may not have yet completed the shutdown sequence and so effectively the change is not really complete. You should really check your EC2 Dashboard and verify the state of the instances (old and new). For example in the screenshot below we can see that the old KAUI instance got `terminated` and the new one is `running`, and so at this point the upgrade has completed.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/kaui-terminated.png[align=center]
 
 == Default configuration
 
