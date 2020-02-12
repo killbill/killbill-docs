@@ -647,6 +647,8 @@ nav[data-toggle=toc] .nav .nav>li>.active, nav[data-toggle=toc] .nav .nav>li>.ac
 .listingblock .pygments .tok-vi { color: #f8f8f2 } /* Name.Variable.Instance */
 .listingblock .pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style></head><body data-spy="scroll" data-target="#toc" class="book"><div class="container"><div class="row"><div id="header" class="col-sm-2 border-columns"><a href="/0.22/"><img class="logo rounded mx-auto d-block sticky-top" src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/logo.png"></a><nav id="toc" data-toggle="toc" class="toc sticky-top col-sm-2"></nav></div><div class="col-sm-8"><div id="header"><h1>Kill Bill on AWS</h1></div><div id="content"><div class="sect1"><h2 id="_introduction">Introduction</h2><div class="sectionbody"><div class="paragraph"><p>The core development team publishes official images on the AWS Marketplace, which lets you quickly get started with Kill Bill in the cloud.</p></div></div></div>
 <div class="sect1"><h2 id="_installation_via_our_standalone_ami">Installation via Our Standalone AMI</h2><div class="sectionbody"><div class="paragraph"><p>Running Kill Bill on AWS using our official AMI lets you deploy Kill Bill, Kaui and MySQL in a single EC2 instance. It is perfect for test environments or for small production deployments where high availability isn&#8217;t a concern.</p></div>
+<div class="paragraph"><p>After launching the AMI you should have a setup that looks like the following:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/standalone_deployment.png" alt="standalone deployment"></span></p></div>
 <div class="sect2"><h3 id="_setup_steps">Setup Steps</h3><div class="olist arabic"><ol class="arabic"><li><p>Start the installation process by going to <a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>: click <strong>Continue to Subscribe</strong> and accept Terms. You will need some AWS permissions <code>aws-marketplace:*</code> to click on the Subscribe button.</p></li><li><p>After a few minutes, click <strong>Continue to Configuration</strong> and <strong>Continue to Launch</strong></p><div class="ulist"><ul><li><p>Make sure you enable the `auto-assign `public IP:</p></li></ul></div></li></ol></div>
 <div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/std-enable-public-ip.png" alt="std enable public ip"></span></p></div>
 <div class="ulist"><ul><li><p>Make sure you open the ingress port <code>443</code>, and <code>8443</code> on your security group:</p></li></ul></div>
@@ -656,8 +658,89 @@ nav[data-toggle=toc] .nav .nav>li>.active, nav[data-toggle=toc] .nav .nav>li>.ac
 <div class="paragraph"><p>Upon success, once the instance is running, Kill Bill is running on port 8443 and Kaui on port 443.</p></div>
 <div class="paragraph"><p>You can log-in to Kaui by going to <a class="bare" href="https://&lt;INSTANCE_IP_&gt;:443">https://&lt;INSTANCE_IP_&gt;:443</a> (make sure your IP address can address this port, or add it to the security group as needed). Default credentials are: <strong>admin/password</strong>. The first few requests might be a bit slow as Kill Bill initializes itself.</p></div>
 <div class="paragraph"><p>Take a look at our <a href="http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui">Getting Started</a> guide for an introduction to Kaui.</p></div></div>
-<div class="sect2"><h3 id="_configuration">Configuration</h3><div class="paragraph"><p>Kill Bill global properties are defined in <code>/var/lib/killbill/config/killbill.properties</code>. This is where you can change the MySQL credentials for instance. Take a look at our <a href="https://docs.killbill.io/latest/userguide_configuration.html">configuration guide</a> for more details.</p></div>
+<div class="sect2"><h3 id="_configuration">Configuration</h3></div>
+<div class="sect2"><h3 id="_ssl_certificates">SSL Certificates</h3><div class="paragraph"><p>We have configured <code>nginx</code> to listen to port <code>443</code> (and forward traffic to KAUI) and so by default accessing the service from a web browser will show a <code>Not Secure</code> site. In order to make the site secure, you will need to add a valid certificate. The easiest option to add the certificate is to rely on <code>Let’s Encrypt</code>, a Certificate Authority (CA) that provides an easy way to obtain and install free TLS/SSL certificates.</p></div>
+<div class="paragraph"><p>The steps to add the certifcate are fairly simple and rely on a tool called <code>cerbot</code>.</p></div>
+<div class="paragraph"><p>[1]. Verify <code>cerbot</code> is installed or install it</p></div>
+<div class="paragraph"><p>Our latest image should have <code>cerbot</code> by default, but if not this can be added using the following:</p></div>
+<div class="paragraph"><p>Note: Check our <code>TroubleShooting</code> section to see how to login to the EC2 machine</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># As root sudo su -
+sudo su -
+# Install cerbot if not already present
+add-apt-repository -y ppa:certbot/certbot
+apt install -y python-certbot-nginx</code></pre></div></div>
+<div class="paragraph"><p>[2]. Stop all services</p></div>
+<div class="paragraph"><p><code>cerbot</code> will need to have access to port <code>80</code> and <code>443</code></p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Stop kaui
+&gt; service kaui stop
+# Stop killbill
+&gt; service killbill stop
+# Stop nginx
+&gt; service killbill nginx</code></pre></div></div>
+<div class="paragraph"><p>Make sure your AWS security groups allow incoming traffic on port <code>80</code> and port <code>443</code> for all IPs</p></div>
+<div class="paragraph"><p>[3]. Setup your domain’s CNAME Record to point to the public DNS of your EC2 instance.</p></div>
+<div class="dlist"><dl><dt class="hdlist1">Create a <code>CNAME</code> to map your public DNS&#8201;&#8212;&#8201;e.g <code><a class="bare" href="https://ec2-18-234-168-57.compute-1.amazonaws.com">https://ec2-18-234-168-57.compute-1.amazonaws.com</a></code>&#8201;&#8212;&#8201;to a legit <code>CNAME</code>, otherwise <code>cerbot</code> will fail with the following error: `Error creating new order </dt><dd><p>Cannot issue for "ec2-18-234-168-57.compute-1.amazonaws.com": The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy`</p></dd></dl></div>
+<div class="paragraph"><p>The configuration of your CNAME needs to happen from the UI of your domain provider (<code>Namecheap</code>, <code>Cloudflare</code>, &#8230;&#8203;)</p></div>
+<div class="paragraph"><p>[4]. Modify the nginx <code>killbill.conf</code> server sections</p></div>
+<div class="paragraph"><p>The <code>server_name</code> by default specifies <code>_</code>. Instead you need to replace this with your <code>CNAME</code>:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>server {
+    listen 443;
+    server_name &lt;CNAME&gt;;
+
+...</code></pre></div></div>
+<div class="paragraph"><p>[5]. Run <code>certbot</code></p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>&gt; sudo certbot --nginx -d &lt;CNAME&gt;</code></pre></div></div>
+<div class="paragraph"><p>If successful you will see a message like:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>...
+IMPORTANT NOTES:
+ - Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/standalone.killbill.io/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/standalone.killbill.io/privkey.pem
+   Your cert will expire on 2020-05-11. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot again
+   with the "certonly" option. To non-interactively renew *all* of
+   your certificates, run "certbot renew"
+ - If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le</code></pre></div></div>
+<div class="paragraph"><p>[6]. Restart all services</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Start nginx
+&gt; service killbill nginx
+# Start killbill
+&gt; service killbill stop
+# Start kaui
+&gt; service kaui stop</code></pre></div></div>
+<div class="paragraph"><p>Note: You can edit your security groups and remove the <code>port</code> <code>80</code>, and also reduce the visibility for other ports by specifying a tighter range of incoming IPs.</p></div>
+<div class="paragraph"><p>The <code>Let&#8217;s Encrypt</code> certifcates are only valid 90 days and will therefore neeed to be renewed. <code>certbot</code> will create a cron entry under <code>/etc/cron.d/certbot</code> to make this process transparent.</p></div></div>
+<div class="sect2"><h3 id="_kill_bill">Kill Bill</h3><div class="paragraph"><p>Kill Bill global properties are defined in <code>/var/lib/killbill/config/killbill.properties</code>. This is where you can change the MySQL credentials for instance. Take a look at our <a href="https://docs.killbill.io/latest/userguide_configuration.html">configuration guide</a> for more details.</p></div>
 <div class="paragraph"><p>This is also where you can change the default Kill Bill admin credentials: specify <code>org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini</code> and create the <code>shiro.ini</code> file accordingly (see our <a href="https://docs.killbill.io/latest/user_management.html">RBAC guide</a> for more details).</p></div></div>
+<div class="sect2"><h3 id="_troubleshooting_section">TroubleShooting Section</h3><div class="paragraph"><p>After launching the EC2 instance, the full stack should come up, with all services enabled and running, that is:</p></div>
+<div class="ulist"><ul><li><p>An nginx instance receiving traffic on port <code>443</code> and <code>8443</code></p></li><li><p>A instance of Kill Bill server listening on <code>127.0.0.1:8080</code> (and receiving external traffic through nginx on port <code>8443</code>)</p></li><li><p>A instance of Kaui listening on <code>127.0.0.1:3000</code> (and receiving external traffic through nginx on port <code>443</code>)</p></li><li><p>A local <code>mysql</code> server running on port <code>3306</code></p></li></ul></div>
+<div class="paragraph"><p>In this section, we will provide some tips to verify the health of the system, and what to do when things are not working</p></div>
+<div class="paragraph"><p><strong>SSH to EC2 Instances</strong></p></div>
+<div class="paragraph"><p>From the EC2 dashboard, in the instance <code>Description</code> tab, you can copy the public DNS, called <code>Public DNS (IPv4)</code>.
+Then, using the private key you specified when creating the instance:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># SSH as ubuntu user
+&gt; ssh -i  &lt;LOCATION_KEY&gt;/&lt;KEY_NAME&gt;.pem ubuntu@&lt;PUBLIC_DNS&gt;
+# Move to tomcat user
+&gt; sudo su - tomcat</code></pre></div></div>
+<div class="paragraph"><p><strong>Service Health</strong></p></div>
+<div class="paragraph"><p>All services are started using System V init scripts, and so the status of the service can be retrieved:</p></div>
+<div class="ulist"><ul><li><p>Kill Bill server: <code>service killbill status</code></p></li><li><p>KAUI server: <code>service kaui status</code></p></li><li><p>Nginx server: <code>service nginx status</code></p></li></ul></div>
+<div class="paragraph"><p>Similarly one can <code>start</code>, <code>stop</code> the services using simalar command&#8201;&#8212;&#8201;e.g <code>service kaui stop</code> to stop KAUI.</p></div>
+<div class="paragraph"><p>In order to verify the health of the Kill Bill server instance, you can issue the following commands:</p></div>
+<div class="ulist"><ul><li><p>Healthcheck endpoint: <code>curl <a class="bare" href="http://127.0.0.1:8080/1.0/healthcheck">http://127.0.0.1:8080/1.0/healthcheck</a></code></p></li><li><p>System info: <code>curl -u admin:password <a class="bare" href="http://127.0.0.1:8080/1.0/kb/nodesInfo">http://127.0.0.1:8080/1.0/kb/nodesInfo</a></code></p></li></ul></div>
+<div class="paragraph"><p><strong>Log Files</strong></p></div>
+<div class="paragraph"><p>Tomcat logs are under <code>/var/lib/tomcat/logs/</code>:</p></div>
+<div class="ulist"><ul><li><p>KAUI logs: <code>/var/lib/tomcat/logs/kaui.out</code></p></li><li><p>Kill Bill server logs: <code>/var/lib/tomcat/logs/catalina.out</code></p></li></ul></div>
+<div class="paragraph"><p>Nginx logs can be found under <code>/var/log/nginx/</code></p></div>
+<div class="ulist"><ul><li><p>Access logs: <code>/var/log/nginx/access.log</code></p></li><li><p>Error logs: <code>/var/log/nginx/error.log</code></p></li></ul></div>
+<div class="paragraph"><p><strong>Database</strong></p></div>
+<div class="paragraph"><p>In order to access the database, one can use the following command  <code>mysql -u root -proot</code>. There is one <code>killbill</code> and one <code>kaui</code> database created and used by the respective application</p></div>
+<div class="paragraph"><p><strong>Nginx</strong></p></div>
+<div class="paragraph"><p>The configuration files are located under <code>/etc/nginx/</code>&#8201;&#8212;&#8201;e.g <code>/etc/nginx/sites-enabled/killbill.conf</code></p></div></div>
 <div class="sect2"><h3 id="_upgrade_steps">Upgrade steps</h3><div class="paragraph"><p>Note: you must switch to the <code>tomcat</code> user first in order to upgrade Kill Bill or Kaui (<code>sudo su - tomcat</code>).</p></div>
 <div class="paragraph"><p>The configuration file <code>/var/lib/killbill/kpm.yml</code> specifies the Kill Bill version (and its plugins) running on the instance. After updating this file with the new version(s), simply execute <code>$KPM_INSTALL_KB_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps/ROOT</code> and restart the instance.</p></div>
 <div class="paragraph"><p>A similar process can be used for Kaui: update <code>/var/lib/kaui/kpm.yml</code>, run <code>$KPM_INSTALL_KAUI_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps2/ROOT</code> and restart the instance.</p></div></div></div></div>
@@ -688,7 +771,7 @@ nav[data-toggle=toc] .nav .nav>li>.active, nav[data-toggle=toc] .nav .nav>li>.ac
 <div class="sect2"><h3 id="_setup_steps_2">Setup Steps</h3><div class="olist arabic"><ol class="arabic"><li><p>Start the installation process by going to <a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>: click <strong>Continue to Subscribe</strong> and populate the configuration options in the CloudFormation form.</p></li><li><p>Launch the stack.</p></li><li><p>Upon success, the Outputs tab will display the load balancer URL. Kill Bill is available on port 80 while Kaui on port 9090.</p></li></ol></div>
 <div class="paragraph"><p>You can log-in to Kaui by going to <a class="bare" href="http://&lt;LOAD_BALANCER_URL&gt;:9090">http://&lt;LOAD_BALANCER_URL&gt;:9090</a> (make sure your IP address can access the load balancer, as defined by the parameter <code>HTTPLocation</code>, or add it to the security group as needed). Default credentials are: <strong>admin/password</strong>.</p></div>
 <div class="paragraph"><p>Take a look at our <a href="http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui">Getting Started</a> guide for an introduction to Kaui.</p></div></div>
-<div class="sect2"><h3 id="_troubleshooting_section">TroubleShooting Section</h3><div class="sect3"><h4 id="_stack_creation">Stack Creation</h4><div class="paragraph"><p>There are a couple of possible issues when starting the stack from CloudFormation (CFN) and so the goal of this section
+<div class="sect2"><h3 id="_troubleshooting_section_2">TroubleShooting Section</h3><div class="sect3"><h4 id="_stack_creation">Stack Creation</h4><div class="paragraph"><p>There are a couple of possible issues when starting the stack from CloudFormation (CFN) and so the goal of this section
 is to provide some tips debugging the issues, and knowledge about where to find various logs. Also keep in mind
 that starting the CFN stack will typically take in the order of 15-20', mostly because of the time it takes to setup the
 RDS cluster, so be patient&#8230;&#8203;</p></div>
@@ -860,7 +943,7 @@ Escape character is '^]'.</code></pre></div></div>
 <div class="sect2"><h3 id="_analytics_plugin">Analytics plugin</h3><div class="paragraph"><p>The plugin comes with a few pre-configured reports:</p></div>
 <div class="ulist"><ul><li><p><code>Subscriptions creation</code>: count the number of subscriptions being created per day (effective on that day, i.e. pending subscriptions are ignored). Refreshed every hour.</p></li><li><p><code>Effective cancellations</code>: count the number of subscriptions being canceled per day (only effective cancellations are taken into account: end of term cancellations are ignored for instance). Refreshed every hour.</p></li><li><p><code>Overdue accounts</code>: count the number of overdue accounts per day (defined as having a negative balance, i.e. owing money). Refreshed once a day at 6am GMT.</p></li></ul></div>
 <div class="paragraph"><p>Custom reports can be added by following our <a href="https://docs.killbill.io/latest/userguide_analytics.html">Analytics guide</a>.</p></div>
-<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/analytics_reports.png" alt="analytics reports"></span></p></div></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-02-10 18:24:08 UTC</div><script>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/analytics_reports.png" alt="analytics reports"></span></p></div></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-02-12 17:04:14 UTC</div><script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
