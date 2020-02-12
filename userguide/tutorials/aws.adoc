@@ -35,6 +35,102 @@ Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_ki
 
 === Configuration
 
+=== SSL Certificates
+
+We have configured `nginx` to listen to port `443` (and forward traffic to KAUI) and so by default accessing the service from a web browser will show a `Not Secure` site. In order to make the site secure, you will need to add a valid certificate. The easiest option to add the certificate is to rely on `Let’s Encrypt`, a Certificate Authority (CA) that provides an easy way to obtain and install free TLS/SSL certificates.
+
+The steps to add the certifcate are fairly simple and rely on a tool called `cerbot`.
+
+[1]. Verify `cerbot` is installed or install it
+
+Our latest image should have `cerbot` by default, but if not this can be added using the following:
+
+Note: Check our `TroubleShooting` section to see how to login to the EC2 machine
+
+```
+# As root sudo su -
+sudo su -
+# Install cerbot if not already present
+add-apt-repository -y ppa:certbot/certbot
+apt install -y python-certbot-nginx
+```
+
+[2]. Stop all services
+
+`cerbot` will need to have access to port `80` and `443`
+
+```
+# Stop kaui
+> service kaui stop
+# Stop killbill
+> service killbill stop
+# Stop nginx
+> service killbill nginx
+```
+
+Make sure your AWS security groups allow incoming traffic on port `80` and port `443` for all IPs 
+
+[3]. Setup your domain’s CNAME Record to point to the public DNS of your EC2 instance.
+
+Create a `CNAME` to map your public DNS -- e.g `https://ec2-18-234-168-57.compute-1.amazonaws.com` -- to a legit `CNAME`, otherwise `cerbot` will fail with the following error: `Error creating new order :: Cannot issue for "ec2-18-234-168-57.compute-1.amazonaws.com": The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy`
+
+The configuration of your CNAME needs to happen from the UI of your domain provider (`Namecheap`, `Cloudflare`, ...)
+
+[4]. Modify the nginx `killbill.conf` server sections
+
+The `server_name` by default specifies `_`. Instead you need to replace this with your `CNAME`:
+
+```
+server {
+    listen 443;
+    server_name <CNAME>;
+
+...
+```
+
+[5]. Run `certbot`
+
+```
+> sudo certbot --nginx -d <CNAME>
+```
+
+If successful you will see a message like:
+
+
+```
+...
+IMPORTANT NOTES:
+ - Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/standalone.killbill.io/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/standalone.killbill.io/privkey.pem
+   Your cert will expire on 2020-05-11. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot again
+   with the "certonly" option. To non-interactively renew *all* of
+   your certificates, run "certbot renew"
+ - If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le
+```
+
+[5]. Restart all services
+
+```
+# Start nginx
+> service killbill nginx
+# Start killbill
+> service killbill stop
+# Start kaui
+> service kaui stop
+```
+
+Note: You can edit your security groups and remove the `port` `80`, and also reduce the visibility for other ports by specifying a tighter range of incoming IPs.
+
+The `Let's Encrypt` certifcates are only valid 90 days and will therefore neeed to be renewed. `certbot` will create a cron entry under `/etc/cron.d/certbot` to make this process transparent.
+
+=== Kill Bill
+
 Kill Bill global properties are defined in `/var/lib/killbill/config/killbill.properties`. This is where you can change the MySQL credentials for instance. Take a look at our https://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details.
 
 This is also where you can change the default Kill Bill admin credentials: specify `org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini` and create the `shiro.ini` file accordingly (see our https://docs.killbill.io/latest/user_management.html[RBAC guide] for more details).
