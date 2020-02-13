@@ -191,6 +191,31 @@ Nginx logs can be found under `/var/log/nginx/`
 * Access logs: `/var/log/nginx/access.log`
 * Error logs: `/var/log/nginx/error.log`
 
+**System Diagnostics**
+
+In order to get some support, the first thing we would require is some information about your deployment. We have created a `diagnostic` command for that effect:
+
+```
+# Login as 'tomcat'
+> sudo su - tomcat
+#
+# Assume a 'bob/lazar' tenant
+# Assume some credentials 'admin/password'
+#
+> kpm  diagnostic \
+  --killbill-credentials=admin password \
+  --bundles-dir=/var/lib/killbill/bundles \
+  --database-name=killbill \
+  --database-credentials=root root \
+  --killbill-api-credentials=bob lazar \
+  --kaui-web-path=/var/lib/tomcat/webapps2 \
+  --killbill-url=http://127.0.0.1:8080 \
+  --database-host=127.0.0.1:3306
+
+...
+Diagnostic data exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip 
+```
+
 **Database**
 
 In order to access the database, one can use the following command  `mysql -u root -proot`. There is one `killbill` and one `kaui` database created and used by the respective application
@@ -498,13 +523,105 @@ For the Kill Bill server specifically some useful commands are:
 ]
 ```
 
+**System Diagnostics**
+
+In order to get some support, the first thing we would require is some information about your deployment. We have created a `diagnostic` command that can be run on the Kill Bill server nodes and the KAUI nodes.
+
+In order to get information about your Kill Bill server installation, the following command can be used:
+
+```
+# Login as 'tomcat'
+> sudo su - tomcat
+#
+# Assume a 'bob/lazar' tenant
+# Assume some credentials 'admin/password'
+# Details about DB host can be extracted from '/var/lib/killbill/config/killbill.properties'
+#
+> kpm  diagnostic \
+  --killbill-credentials=admin password \
+  --bundles-dir=/var/lib/killbill/bundles \
+  --database-name=killbill \
+  --database-credentials=killbill killbill \
+  --killbill-api-credentials=bob lazar \
+  --killbill-web-path=/var/lib/tomcat/webapps \
+  --database-host=my-stack-rdscluster-1uvr93sm7pzp.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com
+
+...
+Diagnostic data exported under /tmp/killbill-diagnostics-20200212-26849-c0rrz3/killbill-diagnostics-02-12-20.zip 
+```
+
+Note that there is also a `--account-export=<account_id>` flag to export the data associated with a specific Kill Bill `account_id`.
+
+
+In order to get information about your Kaui server installation, the following command can be used:
+
+```
+# Login as 'tomcat'
+> sudo su - tomcat
+#
+# Assume a 'bob/lazar' tenant
+# Assume some credentials 'admin/password'
+# Details about DB host and killbill-url can be extracted from '/var/lib/tomcat/bin/setenv2.sh'
+# 
+kpm  diagnostic \
+  --killbill-credentials=admin password \
+  --bundles-dir=/var/lib/killbill/bundles \
+  --database-name=killbill \
+  --database-credentials=killbill killbill \
+  --killbill-api-credentials=bob lazar \
+  --kaui-web-path=/var/lib/tomcat/webapps \
+  --killbill-url=http://sbrossie-LB-1LJYJ1QHYSWQX-650823949.us-east-1.elb.amazonaws.com:80 \
+  --database-host=sbrossier-rdscluster-1uvr93sm7pzp.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com
+```
+
+
 === Upgrade Steps
+
+==== Newer AMIs
+
 
 The Kill Bill core team will provide new AMIs whenever necessary.
 
 Because the CloudFormation from AWS Marketplace will always reflect the latest AMI ids, you can simply update the stack with the latest CloudFormation template and the instances in the AutoScaling groups will be updated automatically.
-
 We strongly recommend to always test the upgrade in a test environment first.
+
+We recommend to rely on the CloudFormation `ChangeSet` functionality to get a sense of what would be updated if the change was submitted. For more information about the CloudFormation `ChangeSet` functionality see this https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks.html[documentation]. Below is a summary of the steps:
+
+[1]. Update your CloudFormation template with the new Kill Bill and/or KAUI AMIs
+
+[2]. Create a new ChangeSet
+
+As a pre-requisite, make sure you have the capabilities to perform the operation, and then proceed with the change set:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set.png[align=center]
+
+
+If you do have the permissions, you will be prompted with the following message, that you will need to acknowledge:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/change-set-capabilities.png[align=center]
+
+
+[3]. Upload your new template
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-template.png[align=center]
+
+Go through the steps, accepting the defaults
+
+[4]. Review the CloudFormation changes
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-diff.png[align=center]
+
+If those seem to match your template diff, then proceed with the change.
+
+[6]. Wait for the new stack to be up
+
+After CloudFormation change is done, you will see the `STATUS` or your stack transitions back to `CREATE_COMPLETE`.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-success.png[align=center]
+
+However, the old instances may not have yet completed the shutdown sequence and so effectively the change is not really complete. You should really check your EC2 Dashboard and verify the state of the instances (old and new). For example in the screenshot below we can see that the old KAUI instance got `terminated` and the new one is `running`, and so at this point the upgrade has completed.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/kaui-terminated.png[align=center]
 
 == Default configuration
 
