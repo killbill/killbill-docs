@@ -254,30 +254,21 @@ account_record_id: 1
 
 There is only a single `FIXED` item with a start date of 2012-04-01.
 
-Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice (using the default payment method on the account):
+Upon invoice generation, an event is triggered and caught by the payment subsystem, which triggers a payment for that invoice (using the default payment method on the account).
+
+What happens is that the payment subsystem calls the `createPurchaseWithPaymentControl` API and specifies `__INVOICE_PAYMENT_CONTROL_PLUGIN__` as the control plugin to use (you can add your own via the system property `org.killbill.payment.invoice.plugin`). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the `invoice_payments` table (`success` is first set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to `true`. In case of failure, `success` would remain set to false and the next payment retry date would be computed, based on the system configuration.
+
+While the link between invoice and payments is encapsulated in the `invoice_payments` table, there is one level of indirection with the `payments` table through the `payment_attempts` table, to manage aborted payments and retries:
+
+* Aborted payments: In a situation where the invoice was already paid (or there is a $0 balance), the invoice control plugin would abort the payment. In such situations, we would end up with a row in the `payment_attempts` table with an `ABORTED` state and no row in the `invoice_payments`, `payments` and `payment_transactions` tables.
+* Payment Retries: In a situation where we see a payment failure (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated with an attempt in a `RETRIED` state.
+
+Note also that the `payment_attempts` entry is linked to the invoice via the plugin property `IPCD_INVOICE_ID` (which points to the invoice id).
+
+In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the `ABORTED` state:
 
 [source,mysql]
 ----
-MySQL [killbill]> select * from invoice_payments\G
-*************************** 1. row ***************************
-                record_id: 1
-                       id: ac421b90-b13b-461f-bfd7-517807a895f0
-                     type: ATTEMPT
-               invoice_id: 5c6369d2-cd18-489f-9fe5-748e72f9938e
-               payment_id: NULL
-             payment_date: 2012-04-01 00:01:15
-                   amount: 0.000000000
-                 currency: USD
-       processed_currency: USD
-        payment_cookie_id: ae53501e-c9dd-45e3-8ec6-78da4e9f8d99
-linked_invoice_payment_id: NULL
-                  success: 0
-               created_by: PaymentRequestProcessor
-             created_date: 2012-04-01 00:01:15
-        account_record_id: 1
-         tenant_record_id: 0
-1 row in set (0.00 sec)
-
 MySQL [killbill]> select * from payment_attempts\G
 *************************** 1. row ***************************
                record_id: 1
@@ -301,20 +292,16 @@ transaction_external_key: ae53501e-c9dd-45e3-8ec6-78da4e9f8d99
         tenant_record_id: 0
 1 row in set (0.00 sec)
 
+MySQL [killbill]> select * from invoice_payments\G
+Empty set (0.00 sec)
+
 MySQL [killbill]> select * from payments\G
 Empty set (0.00 sec)
 ----
 
-What happens is that the payment subsystem calls the `createPurchaseWithPaymentControl` API and specifies `__INVOICE_PAYMENT_CONTROL_PLUGIN__` as the control plugin to use (you can add your own via the system property `org.killbill.payment.invoice.plugin`). This plugin is responsible to compute the payment amount (typically the invoice balance) and to insert a row in the `invoice_payments` table (`success` is first set to false, to implement a two-phase commit strategy). The payment is then delegated to the payment system (a payment and/or a transaction are recorded if necessary). Upon success, the entry is updated with the metadata from the payment (the plugin could have decided to pay less than the requested amount for example) and the success flag is set to `true`. In case of failure, `success` would remain set to false and the next payment retry date would be computed, based on the system configuration.
+Note: if the payment didn't go through because a custom payment control plugin aborted the payment (after the built-in `__INVOICE_PAYMENT_CONTROL_PLUGIN__`), there would be a row in `invoice_payments` (with the `success` flag set to false and a `NULL` `payment_id`) and a corresponding `ABORTED` row in `payment_attempts`.
 
-While the link between invoice and payments is encapsulated in the `invoice_payments` table, there is one level of indirection with the `payments` table through the `payment_attempts` table, to manage aborted payments and retries:
-
-* Aborted payments: In a situation where the invoice was already paid (or there is a $0 balance), the invoice control plugin would abort the payment. In such situations, we would end up with a row in the `payment_attempts` table with an `ABORTED` state and no row in the `payments` and `payment_transactions` tables.
-* Payment Retries: In a situation where we see a payment failure (e.g. insufficient funds), a payment will be associated with multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated with an attempt in a `RETRIED` state.
-
-Note also that the `payment_attempts` entry is linked to the invoice via the plugin property `IPCD_INVOICE_ID` (which points to the invoice id).
-
-In our scenario, no payment was actually processed, since the invoice amount is zero (trial). Hence the `ABORTED` state. See below for an example of an actual payment and what would happen in case of payment failures.
+See below for an example of an actual payment and what would happen in case of payment failures.
 
 === Reference time and fixed offset timezone
 
