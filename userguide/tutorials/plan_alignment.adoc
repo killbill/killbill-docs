@@ -2,32 +2,31 @@
 
 == Overview
 
-In the Kill Bill model, `Subscriptions` are associated to a `Plan` (defined in the catalog), and `Plans` are made of several `PlanPhases`.
-The idea behind the model is to accurately represent the transitions from different phases (e.g `TRIAL` -> `EVERGREEN`) without having the system/user to take any actions:
+In the Kill Bill model, `Subscriptions` are associated with a `Plan` (defined in the catalog), and `Plans` are made of several `PlanPhases`.
+The idea behind the model is to accurately represent the transitions from different phases (e.g `TRIAL` -> `EVERGREEN`) without requiring the system or user to take any actions.
 Subscriptions automatically transition from one `PlanPhase` to the next, as defined by the shape of the `Plan` and the clock moving forward.
 
-When changing the `Plan` associated to a subscription (e.g upgrade), the system needs to understand how to align phases from original `Plan` to new `Plan` to make sure the user ends up in the right phase. Let's consider the following example with two similar `Plans` (`silver-monthly` and `gold-monthly`) both containing two phases, namely a 7 days `TRIAL` phase, followed by a monthly `EVERGREEN` (recurring forever until cancelled) phase.
+When changing the `Plan` associated with a subscription (e.g upgrade), the system needs to understand how to align phases from the original `Plan` to the new `Plan` to make sure the user ends up in the right phase. Let's consider the following example with two similar `Plans` (`silver-monthly` and `gold-monthly`) both containing two phases, namely a 7 days `TRIAL` phase, followed by a monthly `EVERGREEN` (recurring forever until cancelled) phase.
 
-* On january 1st, subscription is initially created with a `silver-monthly` `Plan`, and starts with the 7 days `TRIAL` period.
+* On january 1st, a subscription is initially created with a `silver-monthly` `Plan`, and starts with the 7 day `TRIAL` period.
 * On january 4th, while the subscription is still in `TRIAL`, the user upgrades to a `gold-monthly` plan.
 
 As a company offering those plans, you have the choice to define the behavior of such operation:
 
-1. You may want to restart a full 7 days `TRIAL` period (the `Plan` being different, one way want the user to have a fully 7 days period to experiment)
+1. You may want to restart a full 7 days `TRIAL` period (the `Plan` being different, one may want the user to have a full 7 days period to experiment)
 2. You may want to offer the remaining of the `TRIAL` period (4 days left)
 3. You may want to skip the `TRIAL` altogether (The user already made up his mind he liked the product and upgraded to `gold-monthly` so he is already committed).
 
-In order to provide this level of flexibility, the catalog contains alignement rules to specify such behaviors.
-
-Such alignement rules exist both for operations that create `Subscription` (to decide on how to align Add-On `Plan` with respect to the `Base` `Plan`) and also, as mentionned in the previous example for change `Plan` operations.
+In order to provide this level of flexibility, the catalog contains alignment rules to specify such behaviors.
+These alignement rules exist both for operations that create `Subscriptions` (to decide on how to align Add-On `Plan` with respect to the `Base` `Plan`) and also, as mentioned in the previous example for change `Plan` operations.
 The http://docs.killbill.io/latest/userguide_subscription.html#_subscription_alignment_rules[Kill Bill Subscription Guide] provides an overview of such alignments.
 
 
-In addition to specifying alignment policies, our apis also allow to specify a target `PlanPhase`. The specification of such target `PlanPhase` can be used when creating a new `Subscription` or when changing `Plan`. With the previously defined `gold-monthly` plan, we could create a subscription with a target `PlanPhase` set to `EVERGREEN` to make sure the user skips the `TRIAL` phase and directly starts on `EVERGREEN` phase. Note that this is also achievable by creating more `Plan` entries in the catalog (e.g a `gold-monthly-notrial` `Plan`), but this would force administrators to duplicate the plans and may also be an issue from an analytics point of view (depending on which/how metrics are being computed).
+In addition to specifying alignment policies, our apis also allow you to specify a target `PlanPhase`. The specification of such target `PlanPhase` can be used when creating a new `Subscription` or when changing a `Plan`. With the previously defined `gold-monthly` plan, we could create a subscription with a target `PlanPhase` set to `EVERGREEN` to make sure the user skips the `TRIAL` phase and directly starts on `EVERGREEN` phase. Note that this is also achievable by creating more `Plan` entries in the catalog (e.g a `gold-monthly-notrial` `Plan`), but this would force administrators to duplicate the plans and may also be an issue from an analytics point of view (depending on which/how metrics are being computed).
 
-The rest of this documentation will look at various scenarii to understand the impact of `Plan` alignment and ability to skip `PlanPhase`.
+The rest of this documentation will look at various scenarios to understand the impact of `Plan` alignment and ability to skip `PlanPhase`.
 
-== Scenarii
+== Scenarios
 
 === Subscription Creation with Target PlanPhase specified
 
