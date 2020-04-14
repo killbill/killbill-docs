@@ -6,7 +6,7 @@ We provide a **1-click** option to deploy Kill Bill server, KAUI, and the mysql 
 
 We also provide another AMI that can be used within the scope of a production deployment, where we rely on a separate enterprise-ready database (RDS), and a multi-node deployment.
 
-=== One Node Deployement 
+=== One Node Deployment 
 
 In order to get started as quick as possible we offer an AMI that also bundles the mysql database as part of the same image. This makes it very easy to get started, as this only requires the click of a button.
 
@@ -61,11 +61,49 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/stan
 
 In this model, we rely on AWS ELB to correctly spread the traffic among the various nodes, and also to route traffic to either  Kill Server or KAUI based on the incoming port.
 
-In order to get started,
+In order to get started, you can follow the same set of instructions as for the One Node Deployment, but instead **TODO AWSMP Link/AMI**
 
-TODO create AMI, and refer to it
+Also when starting the AMIs, you will need to specify the new properties for your RDS instance, and this can be achieved by leveraging the `userdata.sh` script that AWS will run when booting the instance. You can rely on the following script, by simply editing the properties under `EDIT FOLLOWING PROPERTIES BELOW AS NEEDED`:
 
 
+```
+#!/bin/bash
+
+SRC_PROPS="/var/lib/killbill/config/killbill.properties"
+DST_PROPS="/var/lib/killbill/config/killbill.properties"
+
+OVERLAY_PROPS="/tmp/overlay.properties"
+
+PROP_MERGE_SCRIPT="/var/lib/tomcat/bin/merge_props.rb"
+
+function write_overlay_props() {
+  cat <<_EOF > $OVERLAY_PROPS
+#
+# EDIT FOLLOWING PROPERTIES BELOW AS NEEDED
+# e.g to overwrite dao properties, uncomment following lines
+#
+#org.killbill.dao.url=jdbc:mysql://mydatabase:3306/killbill
+#org.killbill.dao.user=myuser
+#org.killbill.dao.password=mypwd
+#org.killbill.billing.osgi.dao.url=jdbc:mysql://mydatabase:3306/killbill
+#org.killbill.billing.osgi.dao.user=myuser
+#org.killbill.billing.osgi.dao.password=mypwd
+#
+# e.g for a new property, uncomment following lines
+org.killbill.dontexist=foo
+_EOF
+}
+
+# Create overlay file
+write_overlay_props
+
+# Merge existing properties and overlay properties
+su -l -c "$PROP_MERGE_SCRIPT $SRC_PROPS $OVERLAY_PROPS $DST_PROPS" tomcat
+```
+
+The userdata.sh script can be specified when booting the instance as shown below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/userdata.png[align=center]
 
 
 == Configuration
