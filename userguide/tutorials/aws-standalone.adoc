@@ -69,36 +69,40 @@ Also when starting the AMIs, you will need to specify the new properties for you
 ```
 #!/bin/bash
 
-SRC_PROPS="/var/lib/killbill/config/killbill.properties"
-DST_PROPS="/var/lib/killbill/config/killbill.properties"
+#set -x
 
-OVERLAY_PROPS="/tmp/overlay.properties"
 
-PROP_MERGE_SCRIPT="/var/lib/tomcat/bin/merge_props.rb"
+DB_PROPS="/tmp/db.properties.$$"
+KB_PROPS="/tmp/kb.properties.$$"
 
-function write_overlay_props() {
-  cat <<_EOF > $OVERLAY_PROPS
+UPDATE_PROP_SCRIPT="/var/lib/tomcat/bin/updateProperties.sh"
+
+function write_db_props() {
+  cat <<_EOF > $DB_PROPS
 #
-# EDIT FOLLOWING PROPERTIES BELOW AS NEEDED
-# e.g to overwrite dao properties, uncomment following lines
+# EDIT FOLLOWING DB PROPERTIES BELOW AS NEEDED
 #
-#org.killbill.dao.url=jdbc:mysql://mydatabase:3306/killbill
-#org.killbill.dao.user=myuser
-#org.killbill.dao.password=mypwd
-#org.killbill.billing.osgi.dao.url=jdbc:mysql://mydatabase:3306/killbill
-#org.killbill.billing.osgi.dao.user=myuser
-#org.killbill.billing.osgi.dao.password=mypwd
+DB_SERVER="dbserver:3306"
+DB_USER="myuser"
+DB_PASSWORD="mypwd"
+KILLBILL_DB_NAME="killbill"
+KAUI_DB_NAME="kaui"
+_EOF
+}
+
+function write_kb_props() {
+  cat <<_EOF > $KB_PROPS
 #
-# e.g for a new property, uncomment following lines
+# EDIT FOLLOWING KB PROPERTIES BELOW AS NEEDED
+#
 org.killbill.dontexist=foo
 _EOF
 }
 
-# Create overlay file
-write_overlay_props
+write_db_props
+write_kb_props
 
-# Merge existing properties and overlay properties
-su -l -c "$PROP_MERGE_SCRIPT $SRC_PROPS $OVERLAY_PROPS $DST_PROPS" tomcat
+su -l -c "cd /var/lib/tomcat/bin && $UPDATE_PROP_SCRIPT $DB_PROPS $KB_PROPS" tomcat
 ```
 
 The userdata.sh script can be specified when booting the instance as shown below:
