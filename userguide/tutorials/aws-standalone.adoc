@@ -97,8 +97,50 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/user
 
 Make sure that the security group for the EC2 instance also includes the security group for the RDS instance to ensure your EC2 instances can connect to RDS.
 
+3. Install database schema
 
-3. Add the ELB in front of the EC2 instances
+In order to install the database schema, you will need to `ssh` to one EC2 instance using your private key -- make sure you have alowed incoming SSH traffic on port `22` in your security group.
+
+```
+# SSH as ubuntu user
+> ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<EC2_NAME>
+# Move to tomcat user
+> sudo su - tomcat
+```
+
+Once logged in, and reusing the credentials, DB url examples from our user data script, create the 2 databases `killbill` and `kaui`:
+
+```
+> mysql -h standalone-db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol
+mysql> create database killbill;
+mysql> create database kaui;
+^D
+```
+
+Then, you can install the schemas:
+* killbill schema: `http://docs.killbill.io/latest/ddl.sql`
+* kaui schema: `https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql`
+
+
+In order to install it:
+
+```
+# install killbill schema -- assumes it was saved as killbill.ddl
+> mysql -h standalone-db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol killbill < killbill.ddl
+# install kaui schema -- assumes it was saved as kaui.ddl
+> mysql -h standalone-db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol kaui < kaui.ddl
+```
+
+4. Restart service
+
+```
+> sudo service killbill stop
+# Optionally clean existing logs
+> rm /var/lib/tomcat/logs/*
+> sudo service killbill start
+```
+
+5. Add the ELB in front of the EC2 instances
 
 TODO
 
