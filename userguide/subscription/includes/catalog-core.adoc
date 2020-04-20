@@ -355,20 +355,26 @@ In the remainder of this section we illustrate each type of rule supported by th
 
 === Billing Alignment Rules
 
-This rule uses the Creation Context and configures the type of billing alignment used with a subscription. There are three kinds of alignment available:
+Billing alignment is concerned with specifying the day on which a particular subscription is to be billed. If an account has multiple subscriptions it is often desirable that they be billed on the same day.
 
-* ACCOUNT - this alignment means that the billing cycle of the subscription will be lined up with the bill cycle day of the account (if you didn't specify a value, the system will generate one using the first recurring bill date of all subscriptions with an `ACCOUNT` billing alignment). In some cases, this is undesirable because it means that a proration charge will be applied on first billing to line up the cycles.
-* SUBSCRIPTION - this alignment will cause the subscriptions bill cycle to line up with the first bill day of the subscription plan. So, if the subscription starts on January 3rd and has a 15 day free trial, the first billed day with be January 18th and the bill cycle day for the subscription will be set to 18.
-* BUNDLE - this alignment is useful for add-ons because it sets the bill cycle day to be aligned with whatever the base plan is using.
+If the billing period for a subscription is MONTHLY or a multiple of MONTHLY (such as QUARTERLY, ANNUAL, etc.) then we define the Bill Cycle Day (BCD). This is the date on which the billing occurs for that subscription each month. If multiple subscriptions have the same BCD, they may be billed on the same invoice. However, if the BCD for a new subscription differs from its start date, then the initial bill will have to be prorated. This will also occur anytime the BCD for a subscription is changed.
 
-Example:
+If a BCD falls on a date past the end of a given month, such as April 31, it will be set to the last day of that month.
 
-. Predicate: productCategory=ADD_ON ; Result: BUNDLE
-. Predicate: billingPeriod=MONTH ; Result: ACCOUNT
-. Predicate: billingPeriod=ANNUAL ; Result: SUBSCRIPTION
-. Predicate: ; Result: ACCOUNT
+The Billing Alignment Rules specify the policy for billing alignment for the current subscription. There are three kinds of alignment available:
 
-This example will align addons with the base plan, monthlies to the Account bill cycle day and annuals to their first billed day. Anything else is aligned with the Account.
+* ACCOUNT - this alignment means that the billing cycle of the subscription will be lined up with the BCD of the account. If a day value is not specified, the system will generate one using the first recurring bill date of all subscriptions with an `ACCOUNT` billing alignment. In some cases this is undesirable, because it means that the bill amount will need to be prorated on the first billing to line up the cycles.
+* SUBSCRIPTION - this alignment will cause the subscription's bill cycle to line up with the first bill day of the subscription plan. For example, if the subscription starts on January 3rd and has a 15 day free trial, the first billed day will be January 18th, and the BCD for the subscription will be set to 18.
+* BUNDLE - this alignment sets the BCD to the same day the base plan is using. This may be useful for add-ons.
+
+For example, suppose we have a MONTHLY subscription, billed on the 15th of the month, and we add an ANNUAL subscription.
+If we start the ANNUAL on the 8th, we have 2 choices:
+
+1. We can use an ACCOUNT alignement, so everything gets invoiced on the 15th. This would require an initial proration for the ANNUAL subscription from the 8th to the 15th, to align it with the MONTHLY subscription.
+2. We can use a SUBSCRIPTION alignment and keep the ANNUAL on its own invoice, once a year on the 8th. This avoids any leading proration, but requires separate invoices.
+
+
+The next example will align addons with the base plan, monthlies to the Account bill cycle day and annuals to their first billed day. Anything else is aligned with the Account.
 
 [source,xml]
 ----
@@ -395,7 +401,7 @@ This example will align addons with the base plan, monthlies to the Account bill
 
 ==== Plan Creation Add-On Phase Alignment
 
-This rule also uses the Creation Context and determines how the phases of an Add-On plan aligns with an existing subscription.
+This rule also uses the Creation Context and determines how the phases of an Add-On plan align with an existing subscription.
 
 image:https://drive.google.com/uc?&id=0Bw8rymjWckBHaDN0Y0NIbTFCaU0&w=960&amp;h=480[align=center]
 // https://drive.google.com/file/d/0Bw8rymjWckBHaDN0Y0NIbTFCaU0/view?usp=sharing
