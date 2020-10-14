@@ -103,6 +103,40 @@ You can log-in to Kaui by going to http://<LOAD_BALANCER_URL>:9090 (make sure yo
 
 Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide for an introduction to Kaui.
 
+=== SSL
+
+You can configure the load balancer to accept SSL connections.
+
+First, find the load balancer in the EC2 console:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/find-lb.png[align=center]
+
+Two HTTP listeners are configured by default, on ports 9090 (Kaui) and 80 (Kill Bill). You need to add two additional HTTPS listeners.
+
+For example, to expose Kaui behind port 443, the configuration would look like this (note the Forward To section):
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/add-lb-listener.png[align=center]
+
+If you don't have SSL certificates in ACM nor IAM, you can import a new one right away on this page.
+
+Tip: you can upload a self-signed certificate:
+
+```
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout privateKey.key -out certificate.crt
+openssl rsa -in privateKey.key -text > private.pem
+openssl x509 -inform PEM -in certificate.crt > public.pem
+```
+
+Import the content of `private.pem` (omit everything before `-----BEGIN RSA PRIVATE KEY-----`) and `public.pem` in the first two textboxes of this page, and make sure to select IAM (not ACM).
+
+Finally, you need to allow HTTPS traffic in your security group:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/lb-security-group.png[align=center]
+
+The load balancer is now configured to redirect SSL traffic on port 443 to Kaui. You can do the same for Kill Bill and disable the HTTP rules in your Security Group.
+
+Tip: if you are using a self-signed certificate, Chrome will complain about the certificate being invalid (`NET::ERR_CERT_INVALID`). On this error page, type `thisisunsafe` on your keyboard to bypass the error.
+
 == TroubleShooting Section
 
 === Stack Creation
@@ -337,7 +371,6 @@ kpm  diagnostic \
   --killbill-url=http://sbrossie-LB-1LJYJ1QHYSWQX-650823949.us-east-1.elb.amazonaws.com:80 \
   --database-host=sbrossier-rdscluster-1uvr93sm7pzp.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com
 ```
-
 
 == Upgrade Steps
 
