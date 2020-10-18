@@ -2,45 +2,98 @@
 
 == Overview
 
-Single AMI deployments are a way to deploy the Kill Bill stack, that is both Kill Bill server and the administrative UI (KAUI), in the same EC2 instance. We provide a `Single-Tier` option that is suitable for testing and experiments, and a `Multi-Tier` option for production deployments. Both of these deployment options rely on the same underlying AMI, but for the `Multi-Tier` option there is a list of prerequisite -- e.g external database -- along with a startup script to be provided when launching the instance.
+Single AMI deployments are a way to deploy the Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI), from one AMI. We offer two options. The `Single-Tier` option uses only a single EC2 instance. This is suitable for testing and experiments. The `Multi-Tier` option uses two or more EC2 instances, and is designed for production deployments. Both of these deployment options rely on the same underlying AMI, but for the `Multi-Tier` option there is a list of prerequisites, such as an external database, along with a startup script to be provided when launching the instance.
 
 
-=== Single-Tier Deployments
+== Single-Tier Deployments
 
-In order to get started as quickly as possible we offer an AMI that also bundles the mysql database as part of the same image. This makes it very easy to get started, as this only requires the click of a button. It is perfect for test environments but we don't recommend it for production deployments.
+The single-tier deployment option is designed to get you started as quickly as possible. Everything you need: Kill Bill, KAUI, and the MariaDB (MySQL) database, is bundled in the AMI and can be launched on a single EC2 instance with just one click. This makes it very suitable for test environments, but we don't recommend it for production deployments.
 
-After launching the AMI you should have a setup that looks like the following:
+The AMI also comes with a running instance of the load balancer `nginx` that acts as a reverse proxy and spreads the incoming traffic to either Kill Bill or KAUI based on the incoming port. The EC2 instance will be an instance of Ubuntu Linux. The organization of the single-tier system looks like this:
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-tier-ami_deployment.png[align=center]
 
-In this model, the AMI comes with a running instance of `nginx` that acts as a reverse proxy and spreads the incoming traffic to either Kill Server or KAUI based on the incoming port.
+In this model, the Kill Bill server and KAUI are deployed within the `tomcat` application server. Requests are handled by `nginx`. Requests received on port 443 are delivered to KAUI, and those received on port 8443 are delivered to Kill Bill. Both Kill Bill and KAUI communicate as needed with the `mysql` database.  
 
-In order to get started, follow the instructions below:
-
-. Start the installation process by going to +++<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>+++: click *Continue to Subscribe* and accept Terms. You will need some AWS permissions `aws-marketplace:*` to click on the Subscribe button.
-. After a few minutes, click *Continue to Configuration* and *Continue to Launch*
-
-* Make sure you enable the `auto-assign `public IP:
-
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/std-enable-public-ip.png[align=center]
-
-* Make sure you open the ingress port `443`, and `8443` on your security group:
-
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/std-security-group.png[align=center]
-
-* Make sure you specify an existing known key-pair (for SSH access)
-
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/std-key-pair.png[align=center]
+=== Getting Started
 
 
-Upon success, once the instance is running, Kill Bill is running on port 8443 and Kaui on port 443.
+To start the installation process, point your browser to +++<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>+++: 
 
-You can log-in to Kaui by going to https://<INSTANCE_IP_>:443 (make sure your IP address can address this port, or add it to the security group as needed). Default credentials are: *admin/password*. The first few requests might be a bit slow as Kill Bill initializes itself.
+If you are new to AWS, you will be asked to create an account and provide billing information. Once your account is validated,
+you should see the following image at the top of your screen:
 
-Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide for an introduction to Kaui.
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-subscribe.png[align=center]
+
+Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-terms-ask.png[align=center]
+
+Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click **Continue to Configuration**.
+
+The next page will give several configuration options. 
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-configuration.png[align=center]
+
+In most cases you should accept the defaults. Then click **Continue to Launch**.
+
+The next page will give you several options for the launch method. We recommend that you choose **Launch through EC2**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-launch.png[align=center]
+
+All other options will disappear. Click **Launch**.
+
+The next page is titled **Choose Instance Type**. Your instance type is already chosen, so click **Review and Launch** at the bottom of the page.
+
+The following page is headed **Review Instance Launch**. This provides a chance to review the details of your chosen instance. Then click **Launch** at the bottom of the page.
+
+Next you will see a very important popup that asks you to choose or create a **key pair**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-keypair.png[align=center]
+
+The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Then click **Download Key Pair**. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance.
+
+When the key pair is generated, click **Launch Instances**. You should see the screen below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-launching.png[align=center]
+
+Your instance is finally launching! To follow what is happening on the EC2 Dashboard, scroll all the way down to the bottom, and click **View Instance** at the bottom right. This will take you to the `Instances` screen which is part of the EC2 Dashboard.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-instances.png[align=center]
 
 
-=== Multi-Tier Deployments
+In a short time, the **Instance State** for your instance should indicate `Running`. You will need to scroll to the right to see all of the information available about your instance.
+
+You are almost set, but there is one more thing you should do, and that is to scroll down in the menu on the left side to select **Security Groups**. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for `Inbound Rules`. You should see:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound.png[align=center]
+
+These rules enable the ports that must be open to access KAUI and Kill Bill from a browser. To enable direct login to your instance using SSH, you need to add one more port. Click on **Edit Inbound Rules**. Then add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0. Your Inbound Rules should now look like this:  
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound-new.png[align=center]
+
+=== Initial Testing
+
+You can now login to KAUI from your browser using the URL https://INSTANCE_IP:443, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as **Public IPV4 Address**. This should display the KAUI login screen. The default credentials are: *admin/password*. The first few requests might be a bit slow as Kill Bill initializes itself.
+
+For an introduction to KAUI, see our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide.
+
+You can also login in directly to your instance from a terminal or command window. You may have no need to do this for a while, but you should try it and make sure it works. You may need to do this for system monitoring or troubleshooting later.
+
+To login, use the secure shell command:
+
+`ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP`
+
+Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.
+
+On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 `ssh` is available but may need to be activated through the Settings screen.
+
+The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
+
+For more information about the organization of your instance, see the Configuration and Troubleshooting sections below. To exit from your login, type `exit`.
+
+
+== Multi-Tier Deployments
 
 
 For production deployments, allocating a separate RDS database instance and allowing multiple nodes to handle traffic behind a load balancer is the recommended option. In this model, we rely on AWS ELB to correctly spread the traffic among the various nodes, and also to route traffic to either  Kill Server or KAUI based on the incoming port. Note that such deployment option requires a bit more setup and so we also provide an (easier) way to deploy using https://docs.killbill.io/latest//aws-cf.html[CloudFormation templates]. However, the benefits of this option is that it provides more control in the deployment.
@@ -146,42 +199,38 @@ In order to install it:
 
 === SSL Certificates
 
-We have configured `nginx` to listen to port `443` (and forward traffic to KAUI) and so by default accessing the service from a web browser will show a `Not Secure` site. In order to make the site secure, you will need to add a valid certificate. The easiest option to add the certificate is to rely on `Let’s Encrypt`, a Certificate Authority (CA) that provides an easy way to obtain and install free TLS/SSL certificates.
+We have configured `nginx` to listen to port `443` (and forward traffic to KAUI). By default, accessing the service from a web browser will show a `Not Secure` site. In order to make the site secure, you will need to add a valid certificate. The easiest option to add the certificate is to rely on `Let’s Encrypt`, a Certificate Authority (CA) that provides an easy way to obtain and install free TLS/SSL certificates.
 
-The steps to add the certifcate are fairly simple and rely on a tool called `cerbot`.
+The steps to add the certifcate are fairly simple and rely on a tool called `certbot`.
 
-[1]. Verify `cerbot` is installed or install it
+[1]. Verify `certbot` is installed or install it
 
-Our latest image should have `cerbot` by default, but if not this can be added using the following:
-
-Note: Check our `TroubleShooting` section to see how to login to the EC2 machine
+Our latest image should include `certbot` by default, but if not this can be added using the following:
 
 ```
-# As root sudo su -
-sudo su -
-# Install cerbot if not already present
-add-apt-repository -y ppa:certbot/certbot
-apt install -y python-certbot-nginx
+# Install certbot if not already present
+sudo add-apt-repository -y ppa:certbot/certbot
+sudo apt install -y python-certbot-nginx
 ```
 
 [2]. Stop all services
 
-`cerbot` will need to have access to port `80` and `443`
+`certbot` will need to have access to port `80` and `443`
 
 ```
 # Stop kaui
-> service kaui stop
+> sudo service kaui stop
 # Stop killbill
-> service killbill stop
+> sudo service killbill stop
 # Stop nginx
-> service killbill nginx
+> sudo service nginx stop
 ```
 
 Make sure your AWS security groups allow incoming traffic on port `80` and port `443` for all IPs 
 
 [3]. Setup your domain’s CNAME Record to point to the public DNS of your EC2 instance.
 
-Create a `CNAME` to map your public DNS -- e.g `https://ec2-18-234-168-57.compute-1.amazonaws.com` -- to a legit `CNAME`, otherwise `cerbot` will fail with the following error: `Error creating new order :: Cannot issue for "ec2-18-234-168-57.compute-1.amazonaws.com": The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy`
+Create a `CNAME` to map your public DNS -- e.g `https://ec2-18-234-168-57.compute-1.amazonaws.com` -- to a legit `CNAME`, otherwise `certbot` will fail with the following error: `Error creating new order :: Cannot issue for "ec2-18-234-168-57.compute-1.amazonaws.com": The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy`
 
 The configuration of your CNAME needs to happen from the UI of your domain provider (`Namecheap`, `Cloudflare`, ...)
 
@@ -227,11 +276,11 @@ IMPORTANT NOTES:
 
 ```
 # Start nginx
-> service killbill nginx
+> sudo service nginx start
 # Start killbill
-> service killbill stop
+> sudo service killbill start
 # Start kaui
-> service kaui stop
+> sudo service kaui start
 ```
 
 Note: You can edit your security groups and remove the `port` `80`, and also reduce the visibility for other ports by specifying a tighter range of incoming IPs.
@@ -240,7 +289,7 @@ The `Let's Encrypt` certifcates are only valid 90 days and will therefore neeed 
 
 === Kill Bill
 
-Kill Bill global properties are defined in `/var/lib/killbill/config/killbill.properties`. This is where you can change the MySQL credentials for instance. Take a look at our https://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details.
+Kill Bill global properties are defined in `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the MySQL credentials. Take a look at our https://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details.
 
 This is also where you can change the default Kill Bill admin credentials: specify `org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini` and create the `shiro.ini` file accordingly (see our https://docs.killbill.io/latest/user_management.html[RBAC guide] for more details).
 
