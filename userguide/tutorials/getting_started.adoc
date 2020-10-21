@@ -136,50 +136,57 @@ You can also go to http://<IP>:8080/api.html to explore the KillBill APIs.
 
 === Tomcat
 
-Users familiar with Java technologies can also install Kill Bill directly in their Web container of choice, such as Tomcat. We recommend using Tomcat version 8.5.
+Users familiar with Java technologies can also install Kill Bill directly in the Web container of their choice, such as Tomcat. We recommend using Tomcat version 8.5.
 
-==== Tomcat Installation Step
+==== Tomcat Installation
 
-===== Step 1
+1. Download the Tomcat container from http://tomcat.apache.org/download-80.cgi[here] (get the Core binary distribution). 
 
-If you don't have it yet, you can download the Tomcat container http://tomcat.apache.org/download-80.cgi[here] (get the Core binary distribution). The documentation is available http://tomcat.apache.org/tomcat-8.0-doc/index.html[here].
+1. Install Tomcat as per the instructions specified http://tomcat.apache.org/tomcat-8.0-doc/index.html[here].
 
-In the rest of this guide, we will assume you have installed Tomcat in a directory called *CATALINA_HOME*.
+1. The rest of the guide assumes that you have installed Tomcat in a directory called *CATALINA_HOME*.
 
-Notes:
-
-* Unlike other installation methods, you will also need to install and configure your database manually. See https://docs.killbill.io/latest/userguide_deployment.html#_database_engine[our deployment guide] for more details.
-* Installation on Windows might work, but isn't tested nor recommended by the core team.
-* We recommend installing the https://tomcat.apache.org/native-doc/[Apache Tomcat Native Library] (automatically done for you when using Ansible, Docker, or in our Cloud Marketplace instances).
 
 ==== Tomcat configuration
 
-Recommended Tomcat configuration files can be found https://github.com/killbill/killbill-cloud/tree/master/ansible/templates/tomcat/conf[here]. The `.j2` extension is for the Jinja templating language: you must render the files first using your custom variables, which depend on your environment (take a look at an example of such variables https://github.com/killbill/killbill-cloud/blob/master/ansible/group_vars/all.yml[here]). https://ansible.sivel.net/test/[This website] can be used to perform the rendering online if you do not have Jinja installed.
+1. Download the Recommended Tomcat configuration files from  https://github.com/killbill/killbill-cloud/tree/master/ansible/templates/tomcat/conf[here].The configuration files have the `.j2` extension for the Jinja templating language. 
 
-Once rendered, `setenv2.sh` should be placed in *CATALINA_HOME/bin* and all other files should be placed in *CATALINA_HOME/conf*.
+1. Render the files  using your custom variables (take a look at an example of such variables https://github.com/killbill/killbill-cloud/blob/master/ansible/group_vars/all.yml[here]). The , custom variables depend on your environment.  https://ansible.sivel.net/test/[This website] can be used to perform the rendering online if you do not have Jinja installed.
+
+1. Place the `setenv2.sh` in *CATALINA_HOME/bin* 
+
+1. Plase the other files in *CATALINA_HOME/conf*.
 
 Using these default configuration files, Tomcat will start on port 8080, which should be the only port open for ingress traffic in production (egress traffic should not be restricted).
 
-==== Kill Bill
+==== Kill Bill Configuration
 
-The Kill Bill configuration properties need to be added at the end of the file *CATALINA_HOME/conf/catalina.properties*. The minimal set of system properties required is the ones for the jdbc parameters (refer to our http://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details). For example (update the values as needed):
+1. Add the Kill Bill configuration properties at the end of the *CATALINA_HOME/conf/catalina.properties* file.  At the  minimum, the  JDBC  parameters need to be added. So, for example, you can add the following(update the values as needed):
 
-[source,java]
-----
-org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.dao.user=killbill
-org.killbill.dao.password=killbill
-org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.billing.osgi.dao.user=killbill
-org.killbill.billing.osgi.dao.password=killbill
-logback.configurationFile=/var/lib/killbill/config/logback.xml
-----
+ org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.dao.user=killbill
+ org.killbill.dao.password=killbill
+ org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.billing.osgi.dao.user=killbill
+ org.killbill.billing.osgi.dao.password=killbill
+ logback.configurationFile=/var/lib/killbill/config/logback.xml
 
-Place the logging configuration file https://github.com/killbill/killbill-cloud/blob/master/ansible/templates/killbill/logback.xml.j2[logback.xml] as `/var/lib/killbill/config/logback.xml` (refer to the Jinja templating language instructions above).
 
-Download the current stable version of the Kill Bill war from https://search.maven.org/search?q=a:killbill-profiles-killbill[Maven Central] (make sure to download the `killbill-profiles-killbill-X.Y.Z.war` file and not the `jetty-console.war`, `jar-with-dependencies.war` or `jar-with-dependencies-sources.war` one) and place it under *CATALINA_HOME/webapps/ROOT.war* (delete the directory *CATALINA_HOME/webapps/ROOT* if it exists).
+1. Place the logging configuration file https://github.com/killbill/killbill-cloud/blob/master/ansible/templates/killbill/logback.xml.j2[logback.xml] as `/var/lib/killbill/config/logback.xml` (refer to the Jinja templating language instructions above).
+
+1. Download the current stable version of the Kill Bill war from https://search.maven.org/search?q=a:killbill-profiles-killbill[Maven Central] (make sure to download the `killbill-profiles-killbill-X.Y.Z.war` file and not the `jetty-console.war`, `jar-with-dependencies.war` or `jar-with-dependencies-sources.war` one) and place it under *CATALINA_HOME/webapps/ROOT.war* (delete the directory *CATALINA_HOME/webapps/ROOT* if it exists).
 
 Once this is setup, you can start the Tomcat container using the script *CATALINA_HOME/bin/startup.sh*. The server will be started in the background but logs can be followed at *CATALINA_HOME/logs/catalina.out*.
+
+==== Database configuration
+
+Unlike other installation methods, you will also need to install and configure your database manually. 
+
+1. Configure the database as per the  https://docs.killbill.io/latest/userguide_deployment.html#_database_engine[deployment guide] here
+
+==== Other Notes
+1. Installation on Windows might work, but isn't tested nor recommended by the core team.
+1. We recommend installing the https://tomcat.apache.org/native-doc/[Apache Tomcat Native Library] (automatically done for you when using Ansible, Docker, or in our Cloud Marketplace instances).
 
 ==== Kaui
 
