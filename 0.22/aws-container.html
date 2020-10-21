@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]--><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Asciidoctor 1.5.7.1"><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.css"><title>Hierarchical Accounts Tutorial</title><style>/*Default CSS*/
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]--><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Asciidoctor 1.5.7.1"><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.css"><title>Serverless installation</title><style>/*Default CSS*/
 
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
 /* Remove the comments around the @import statement below when using this as a custom stylesheet */
@@ -645,179 +645,31 @@ nav[data-toggle=toc] .nav .nav>li>.active, nav[data-toggle=toc] .nav .nav>li>.ac
 .listingblock .pygments .tok-vc { color: #f8f8f2 } /* Name.Variable.Class */
 .listingblock .pygments .tok-vg { color: #f8f8f2 } /* Name.Variable.Global */
 .listingblock .pygments .tok-vi { color: #f8f8f2 } /* Name.Variable.Instance */
-.listingblock .pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style></head><body data-spy="scroll" data-target="#toc" class="book"><div class="container"><div class="row"><div id="header" class="col-sm-2 border-columns"><a href="/0.22/"><img class="logo rounded mx-auto d-block sticky-top" src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/logo.png"></a><nav id="toc" data-toggle="toc" class="toc sticky-top col-sm-2"></nav></div><div class="col-sm-8"><div id="header"><h1>Hierarchical Accounts Tutorial</h1></div><div id="content"><div class="sect1"><h2 id="_overview">Overview</h2><div class="sectionbody"><div class="paragraph"><p>Starting with Kill Bill 0.18.x, we have introduced support for Hierarchical Accounts (HA). In this tutorial, we will review what the feature is about, and then explore how it works and which APIs to use.</p></div>
-<div class="paragraph"><p>Let&#8217;s first review what we have prior to introducing the HA feature: In the Kill Bill terminology, a customer will be represented as a Kill Bill <code>Account</code>, and such <code>Account</code> will then be invoiced based on its current subscriptions and one-off charges. Payments will also be made by using the default payment method associated with the <code>Account</code>.</p></div>
-<div class="paragraph"><p>The idea of the HA feature is to delegate some of the payment operations associated with an <code>Account</code> to a <code>parent Account</code>. Some typical use cases are:</p></div>
-<div class="ulist"><ul><li><p>Affiliate model: In this scenario, payments associated with some customers are made through the <code>parent Account</code> but each individual <code>Account</code> will manage its own subscriptions and will have access to its associated invoices.</p></li><li><p>Sub-Organization: In large organizations, it is common to see sub-organizations working independently, and yet the parent organization is responsible for the payments.</p></li></ul></div>
-<div class="paragraph"><p>The new HA feature allows for the following:</p></div>
-<div class="ulist"><ul><li><p>Ability to set an <code>Account</code> as the child of another <code>Account</code></p></li><li><p>Ability to specify on an <code>Account</code> that it will be responsible for paying its own invoices (default behaviour)</p></li><li><p>Ability to specify on an <code>Account</code> that the parent will be responsible for the payments</p></li><li><p>Ability to transfer credit from child <code>Account</code> to parent <code>Account</code></p></li><li><p>Ability to list all children <code>Account</code></p></li></ul></div></div></div>
-<div class="sect1"><h2 id="_how_does_it_work">How does it work?</h2><div class="sectionbody"><div class="paragraph"><p>The Kill Bill <code>Account</code> abstraction has been enhanced to allow specifying a parent <code>Account</code> and whether or not that parent <code>Account</code> is responsible to pay its children&#8217;s invoices. A parent <code>Account</code> is an <code>Account</code> that contains one or more children <code>Account</code>. When such a parent <code>Account</code> exists and when its children have been configured to delegate their payments, the following happens:</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>Every time the system computes a new invoice (or adjusts an existing one) for a given child <code>Account</code>, the parent gets notified and also computes a special summary invoice that will include all of the items for all the children on a given day.</p></li><li><p>The payment system will ignore the child invoice as it knows this should be paid by the parent.</p></li><li><p>At the end of each day (UTC time, or as configued by the per-tenant <code>org.killbill.invoice.parent.commit.local.utc.time</code> property), the summary invoice will transition from <code>DRAFT</code> to <code>COMMITTED</code>.</p></li><li><p>As a result, the payment system will attempt to make a payment for the parent summary invoice using the default payment method associated with the parent <code>Account</code>.</p></li></ol></div>
-<div class="paragraph"><p>As we can see, each child <code>Account</code> can still have its own subscriptions and matching invoices, but associated payments are delegated to the parent through the daily computation of a summary invoice.</p></div>
-<div class="paragraph"><p>The balance associated with both the child invoice and parent summary invoice will be zero until the end of the day when the transition from <code>DRAFT</code> to <code>COMMITTED</code> occurs. At this point, if the payment succeeds, then such invoice balances remain at zero. If not, then each invoice balance (child and parent) becomes equal to its invoice amount.</p></div>
-<div class="paragraph"><p>In terms of dunning (overdue), since the parent <code>Account</code> is the one making the payments, then overdue system will compute dunning state based on the per-tenant overdue configuration and parent <code>Account&#8217;s payment state. The children `Account</code> will inherit the same dunning state as their parent. As a result, one unpaid parent invoice that did not contain any invoice item for a given child would still put this child in an overdue state.</p></div>
-<div class="sect2"><h3 id="_un_and_re_parenting">Un- and Re-parenting</h3><div class="paragraph"><p>Children can be un-parented or re-parented to a different parent <code>Account</code>.</p></div>
-<div class="paragraph"><p>Common use-cases:</p></div>
-<div class="ulist"><ul><li><p>Affiliate parent goes out of business but the child would like to continue using the service without interruption</p></li><li><p>Ownership transfer: a service provider company (parent <code>Account</code>) created a child account for a specific customer or project. During the Proof Of Concept (POC) phase, the service provider pays the bills. Past the POC stage, the company transfers ownership to the customer so it starts paying its own bills</p></li></ul></div>
-<div class="paragraph"><p>When this occurs, any unpaid invoice is still owed by the previous parent. For instance, if the child had an unpaid invoice of $10, both parent and child still have an account balance of $10 after un-parenting. Payment retries will continue, i.e. if a retry (by the parent) is scheduled after un-parenting occurs, and if the payment retry is successful, the parent will pay the child invoice (and bring back both account balances to $0), even though the relationship doesn&#8217;t exist anymore. Any new invoice generated after un-parenting would only be owed by the child though.</p></div>
-<div class="paragraph"><p>To put it differently, un- and re-parenting don&#8217;t affect past invoices: children can return to do their own billing, in which case the parent is responsible for things billed up to un-parenting and children are responsible for things billed after that. Similarly, children will continue to be responsible for payments against anything that has already been billed before (re-)parenting but the parent will be responsible for bills moving forward.</p></div>
-<div class="paragraph"><p>To avoid this behavior, child invoices should be adjusted (or written off) prior to un- or re-parenting, to start from a clean state.</p></div></div>
-<div class="sect2"><h3 id="_invoices_in_draft_mode">Invoices in DRAFT mode</h3><div class="paragraph"><p>If a child <code>Account</code> is tagged with <code>AUTO_INVOICING_DRAFT</code>, the parent does not receive any notification until that child invoice gets committed.</p></div></div></div></div>
-<div class="sect1"><h2 id="_tutorial">Tutorial</h2><div class="sectionbody"><div class="paragraph"><p>We will generate a child <code>Account</code> associated with one parent <code>Account</code> to see what happens (we assume the defauly demo bob/lazar tenant already exists).</p></div>
-<div class="paragraph"><p>Let&#8217;s first create the parent <code>Account</code> (we can see its ID in the <code>Location</code> header that is being returned) and also add a default payment method:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;Parent&quot;,&quot;email&quot;:&quot;parent@example.com&quot;,&quot;currency&quot;:&quot;USD&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span>
-
-&lt; Location: http://127.0.0.1:8080/1.0/kb/accounts/09d5dfdf-eff2-4b45-96d8-535ea269178e
-
-curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;pluginName&quot;:&quot;__EXTERNAL_PAYMENT__&quot;,&quot;pluginInfo&quot;:{}}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts/09d5dfdf-eff2-4b45-96d8-535ea269178e/paymentMethods?isDefault=true&quot;</span></code></pre></div></div>
-<div class="paragraph"><p>Let&#8217;s now create the child <code>Account</code> (notice the new fields <code>parentAccountId</code> and <code>isPaymentDelegatedToParent</code> in the json):</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;name&quot;:&quot;C1&quot;,&quot;email&quot;:&quot;c1@example.com&quot;,&quot;currency&quot;:&quot;USD&quot;,&quot;parentAccountId&quot;:&quot;09d5dfdf-eff2-4b45-96d8-535ea269178e&quot;, &quot;isPaymentDelegatedToParent&quot;:true}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/accounts&quot;</span>
-
-&lt; Location: http://127.0.0.1:8080/1.0/kb/accounts/ea58b7dd-eb23-4065-a3e5-980291d45ab8</code></pre></div></div>
-<div class="paragraph"><p>Let&#8217;s now create a subscription for the child <code>Account</code> (we&#8217;ll use a simple monthly plan with no trial called <code>zoo-monthly</code>):</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-     -X POST <span class="tok-se">\</span>
-     --data-binary <span class="tok-s1">&#39;{&quot;accountId&quot;:&quot;ea58b7dd-eb23-4065-a3e5-980291d45ab8&quot;,&quot;externalKey&quot;:&quot;s1&quot;,&quot;planName&quot;:&quot;zoo-monthly&quot;}&#39;</span> <span class="tok-se">\</span>
-     <span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/subscriptions&quot;</span></code></pre></div></div>
-<div class="paragraph"><p>If we inspect our database entries, we see that there is a COMMITTED invoice for the child and a DRAFT invoice for the parent:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash">mysql&gt; <span class="tok-k">select</span> * from invoices where <span class="tok-nv">account_id</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;ea58b7dd-eb23-4065-a3e5-980291d45ab8&#39;</span><span class="tok-se">\G</span>
-*************************** 1. row ***************************
-        record_id: 45545
-               id: 742c700d-e957-4948-a0bb-b16c0e4a4ecb
-       account_id: ea58b7dd-eb23-4065-a3e5-980291d45ab8
-     invoice_date: 2016-12-09
-      target_date: 2016-12-09
-         currency: USD
-           status: COMMITTED
-         migrated: 0
-   parent_invoice: 0
-       created_by: SubscriptionBaseTransition
-     created_date: 2016-12-09 21:11:12
-account_record_id: 6750
- tenant_record_id: 338
-<span class="tok-m">1</span> row in <span class="tok-nb">set</span> <span class="tok-o">(</span>0.00 sec<span class="tok-o">)</span>
-
-mysql&gt; <span class="tok-k">select</span> * from invoices where <span class="tok-nv">account_id</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;09d5dfdf-eff2-4b45-96d8-535ea269178e&#39;</span><span class="tok-se">\G</span>
-*************************** 1. row ***************************
-        record_id: 45546
-               id: 5a056e57-1089-4d15-a2b2-27df996dfbb1
-       account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
-     invoice_date: 2016-12-09
-      target_date: NULL
-         currency: USD
-           status: DRAFT
-         migrated: 0
-   parent_invoice: 1
-       created_by: CreateParentInvoice
-     created_date: 2016-12-09 21:11:13
-account_record_id: 6749
- tenant_record_id: 338
-<span class="tok-m">1</span> row in <span class="tok-nb">set</span> <span class="tok-o">(</span>0.00 sec<span class="tok-o">)</span></code></pre></div></div>
-<div class="paragraph"><p>Let&#8217;s now move the clock to the end of the day to trigger the transition from <code>DRAFT</code> to <code>COMMITTED</code>:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash">curl -v <span class="tok-se">\</span>
-    -X POST <span class="tok-se">\</span>
-     -u admin:password <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiKey: bob&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-ApiSecret: lazar&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
-     -H <span class="tok-s2">&quot;X-Killbill-CreatedBy: demo&quot;</span> <span class="tok-se">\</span>
-    <span class="tok-s1">&#39;http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-12-10&#39;</span></code></pre></div></div>
-<div class="paragraph"><p>Let&#8217;s look again at the parent invoice (and also the item it contains):</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash">mysql&gt;  <span class="tok-k">select</span> * from invoices where <span class="tok-nv">account_id</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;09d5dfdf-eff2-4b45-96d8-535ea269178e&#39;</span><span class="tok-se">\G</span>
-*************************** 1. row ***************************
-        record_id: 45546
-               id: 5a056e57-1089-4d15-a2b2-27df996dfbb1
-       account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
-     invoice_date: 2016-12-09
-      target_date: NULL
-         currency: USD
-           status: COMMITTED
-         migrated: 0
-   parent_invoice: 1
-       created_by: CreateParentInvoice
-     created_date: 2016-12-09 21:11:13
-account_record_id: 6749
- tenant_record_id: 338
-<span class="tok-m">1</span> row in <span class="tok-nb">set</span> <span class="tok-o">(</span>0.00 sec<span class="tok-o">)</span>
-
-&gt; <span class="tok-k">select</span> * from invoice_items  where <span class="tok-nv">invoice_id</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;5a056e57-1089-4d15-a2b2-27df996dfbb1&#39;</span><span class="tok-se">\G</span>
-*************************** 1. row ***************************
-        record_id: 59901
-               id: bed7bd0d-4557-435c-9208-f09ef08d36c3
-             <span class="tok-nb">type</span>: PARENT_SUMMARY
-       invoice_id: 5a056e57-1089-4d15-a2b2-27df996dfbb1
-       account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
- child_account_id: ea58b7dd-eb23-4065-a3e5-980291d45ab8
-        bundle_id: NULL
-  subscription_id: NULL
-      description: ea58b7dd-eb23-4065-a3e5-980291d45ab8 summary
-        plan_name: NULL
-       phase_name: NULL
-       usage_name: NULL
-       start_date: NULL
-         end_date: NULL
-           amount: 34.000000000
-             rate: NULL
-         currency: USD
-   linked_item_id: NULL
-       created_by: CreateParentInvoice
-     created_date: 2016-12-09 21:11:13
-account_record_id: 6749
- tenant_record_id: 338</code></pre></div></div>
-<div class="paragraph"><p>We can see that the parent invoice contains only one <code>PARENT_SUMMARY</code> item and that its state is now <code>COMMITTED</code> as expected.</p></div>
-<div class="paragraph"><p>Let&#8217;s now verify what happens on the payment side:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"> mysql&gt; <span class="tok-k">select</span> * from payments where <span class="tok-nv">account_id</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;09d5dfdf-eff2-4b45-96d8-535ea269178e&#39;</span><span class="tok-se">\G</span>
- *************************** 1. row ***************************
-               record_id: 17634
-                      id: b75a7646-091d-471c-824c-4cef375de714
-              account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
-       payment_method_id: 857aea5d-9c55-475b-8094-7746e96448de
-            external_key: e9f07f58-4332-44ee-8c4a-05c89395a308
-              state_name: PURCHASE_SUCCESS
- last_success_state_name: PURCHASE_SUCCESS
-              created_by: PaymentRequestProcessor
-            created_date: 2016-12-10 00:00:00
-              updated_by: PaymentRequestProcessor
-            updated_date: 2016-12-10 00:00:00
-       account_record_id: 6749
-        tenant_record_id: 338
- <span class="tok-m">1</span> row in <span class="tok-nb">set</span> <span class="tok-o">(</span>0.00 sec<span class="tok-o">)</span>
-
- mysql&gt;
- mysql&gt; <span class="tok-k">select</span> * from payments where <span class="tok-nv">account_id</span> <span class="tok-o">=</span> <span class="tok-s1">&#39;ea58b7dd-eb23-4065-a3e5-980291d45ab8&#39;</span><span class="tok-se">\G</span>
- Empty <span class="tok-nb">set</span> <span class="tok-o">(</span>0.01 sec<span class="tok-o">)</span></code></pre></div></div>
-<div class="paragraph"><p>As expected we see one payment for the parent invoice and no payment for the child.</p></div></div></div>
-<div class="sect1"><h2 id="_advanced_use_cases">Advanced use-cases</h2><div class="sectionbody"><div class="sect2"><h3 id="_committing_parent_invoices_early">Committing parent invoices early</h3><div class="paragraph"><p>Parent <code>DRAFT</code> invoices can be committed early if needed, through the <code>PUT /1.0/kb/invoices/&lt;parentInvoiceId&gt;/commitInvoice</code> API. If a new child invoice is generated prior the end of that day, the system will recreate a new <code>SUMMARY</code> invoice for that day.</p></div></div></div></div>
-<div class="sect1"><h2 id="_conclusion">Conclusion</h2><div class="sectionbody"><div class="paragraph"><p>There is a lot more to demo (regarding dunning, invoice adjustment, &#8230;&#8203;), but this should provide a highlight of what the feature is about. Note that this is a new feature in 0.18 and as such it should be seen as Beta (you are responsible to verify it works accordingly to your use case, load, &#8230;&#8203;).</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-10-21 05:57:18 UTC</div><script>
+.listingblock .pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style></head><body data-spy="scroll" data-target="#toc" class="book"><div class="container"><div class="row"><div id="header" class="col-sm-2 border-columns"><a href="/0.22/"><img class="logo rounded mx-auto d-block sticky-top" src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/logo.png"></a><nav id="toc" data-toggle="toc" class="toc sticky-top col-sm-2"></nav></div><div class="col-sm-8"><div id="header"><h1>Serverless installation</h1></div><div id="content"><div class="sect1"><h2 id="_overview">Overview</h2><div class="sectionbody"><div class="paragraph"><p>AWS Fargate is a serverless compute engine for containers. Using it in conjunction with Amazon Elastic Container Service (ECS), you can run Kill Bill in containers without the need to deploy and manage any server.</p></div>
+<div class="paragraph"><p>While we recommend using our <a href="https://docs.killbill.io/latest/aws-cf.html">Cloudformation template</a> to deploy a production ready environment, running Kill Bill on ECS with Fargate is a great way to quickly deploy test environments.</p></div></div></div>
+<div class="sect1"><h2 id="_instructions">Instructions</h2><div class="sectionbody"><div class="paragraph"><p>First, subscribe to the product in the AWS Marketplace.</p></div>
+<div class="paragraph"><p>Then, create an AWS Fargate Cluster:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster.png" alt="ecs cluster"></span></p></div>
+<div class="paragraph"><p>Select the Networking only template:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster-fargate.png" alt="ecs cluster fargate"></span></p></div>
+<div class="paragraph"><p>Enter a name:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster-name.png" alt="ecs cluster name"></span></p></div>
+<div class="paragraph"><p>If all goes well, you should see a success screen:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster-success.png" alt="ecs cluster success"></span></p></div>
+<div class="paragraph"><p>Then, create a Fargate Task Definition:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-task-definition-fargate.png" alt="ecs task definition fargate"></span></p></div>
+<div class="paragraph"><p>Go to the bottom and select Configure via JSON:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-task-definition-via-json.png" alt="ecs task definition via json"></span></p></div>
+<div class="paragraph"><p>Enter the vontent of the following JSON file: <a class="bare" href="https://killbill-amp.s3.amazonaws.com/task.json">https://killbill-amp.s3.amazonaws.com/task.json</a></p></div>
+<div class="paragraph"><p>Notes: once the UI has been populated from this JSON, make sure to update the Task Role and Task execution IAM roles (<code>ecsTaskExecutionRole</code> is a good default). Also, update the <code>awslogs-region</code> for each container in case you are deploying in another region than <code>us-east-1</code>. You can also modify the environment variable <code>KILLBILL_ADMIN_PASSWORD</code> (which is the password for the Kill Bill user) to change the default value.</p></div>
+<div class="paragraph"><p>You can then run the task from your cluster:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-run-task.png" alt="ecs run task"></span></p></div>
+<div class="paragraph"><p>Choose FARGATE as the launch type and select an existing VPC and subnet:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-run-task-config.png" alt="ecs run task config"></span></p></div>
+<div class="paragraph"><p>The Security group needs to have port 8080 open for Kill Bill and 9090 for Kaui:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-run-task-security-group.png" alt="ecs run task security group"></span></p></div>
+<div class="paragraph"><p>It takes a few minutes for the task to start. Once all the containers are healthy, you can access Kaui at <a class="bare" href="http://PUBLIC_IP:9090/users/sign_in">http://PUBLIC_IP:9090/users/sign_in</a> and Kill Bill at <a class="bare" href="http://PUBLIC_IP:8080/api.html">http://PUBLIC_IP:8080/api.html</a>.</p></div>
+<div class="paragraph"><p>Logs are by default forwarded to CloudWatch in the Log Group <code>/ecs/killbill</code>.</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-10-21 05:57:18 UTC</div><script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
