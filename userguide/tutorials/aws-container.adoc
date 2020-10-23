@@ -1,0 +1,55 @@
+= Serverless installation
+
+== Overview
+
+AWS Fargate is a serverless compute engine for containers. Using it in conjunction with Amazon Elastic Container Service (ECS), you can run Kill Bill in containers without the need to deploy and manage any server.
+
+While we recommend using our https://docs.killbill.io/latest/aws-cf.html[Cloudformation template] to deploy a production ready environment, running Kill Bill on ECS with Fargate is a great way to quickly deploy test environments.
+
+== Instructions
+
+First, subscribe to the product in the AWS Marketplace.
+
+Then, create an AWS Fargate Cluster:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster.png[align=center]
+
+Select the Networking only template:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster-fargate.png[align=center]
+
+Enter a name:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster-name.png[align=center]
+
+If all goes well, you should see a success screen:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-cluster-success.png[align=center]
+
+Then, create a Fargate Task Definition:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-task-definition-fargate.png[align=center]
+
+Go to the bottom and select Configure via JSON:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-task-definition-via-json.png[align=center]
+
+Enter the vontent of the following JSON file: https://killbill-amp.s3.amazonaws.com/task.json
+
+Notes: once the UI has been populated from this JSON, make sure to update the Task Role and Task execution IAM roles (`ecsTaskExecutionRole` is a good default). Also, update the `awslogs-region` for each container in case you are deploying in another region than `us-east-1`. You can also modify the environment variable `KILLBILL_ADMIN_PASSWORD` (which is the password for the Kill Bill user) to change the default value.
+
+You can then run the task from your cluster:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-run-task.png[align=center]
+
+Choose FARGATE as the launch type and select an existing VPC and subnet:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-run-task-config.png[align=center]
+
+The Security group needs to have port 8080 open for Kill Bill and 9090 for Kaui:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ecs-run-task-security-group.png[align=center]
+
+It takes a few minutes for the task to start. Once all the containers are healthy, you can access Kaui at http://PUBLIC_IP:9090/users/sign_in and Kill Bill at http://PUBLIC_IP:8080/api.html.
+
+Logs are by default forwarded to CloudWatch in the Log Group `/ecs/killbill`.
