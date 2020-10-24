@@ -1,0 +1,421 @@
+= Installation via CloudFormation
+
+CloudFormation deployments leverage the capabilites of AWS infrastructure to provide a **prodution ready** deployment with a **1-click** button: Both Kill Bill and KAUI instances can be scaled up or down, and CloudWatch provides the requires metrics to follow what is happening, and the RDS database comes automatically configured and ready for use.
+
+== Overview of the Stack
+
+Running Kill Bill on AWS using our +++<a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">official CloudFormation template</a>+++ is the easiest and fastest way to get started with a production cluster. *It is also the only method of installation that is certified by the core developers for a Highly Available, horizontally scalable and production-ready installation.*
+
+With the click of a button, the template will install and configure:
+
+* Kill Bill and Kaui on a custom AMI optimized for AWS workloads (integrated with CloudWatch, SQS, SES, X-Ray and more)
+* Auto Scaling Groups, to automatically scale up and down the number of instances as needed (such as when batches of invoices are generated)
+* A load balancer, integrated with our internal healthchecks to promptly take out of rotation unhealthy instances
+* A RDS Aurora Cluster with automatic failover
+
+
+The following diagram shows the various AWS entities that will be created by CloudFormation:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/cf_stack.png[align=center]
+
+
+The elastic load balancer will listen on the port `80` for routing traffic to our Kill Bill server instances, and on the port `9090` for accessing KAUI, our admin UI. Internally, both Kill Bill server instances, and KAUI server instances will listen on port `8080`.
+
+The CloudFormation template allows to specify different groups of subnets to isolate the Kill Bill server and KAUI server instances with the RDS instances. Typically one would specify at least 2 subnets, in different availability zones for each of those groups. 
+
+The CloudFormation template will also create individual security groups for the various components:
+
+* LB Security group: Opens ingress `9090`  and `80`, and everything for egress.
+* KB Security group: Opens ingress `8080`, and everything for egress.
+* RDS Security group: Opens ingress `3306`, and everything for egress.
+
+
+**Pre-requisites:** The CloudFormation template will require thr following:
+
+* A valid VPC
+* A VPC Internet Gateway configured to access all the touside world
+* Valid subnets for the VPC as described above
+
+**Example:** Given a VPC with a CIDR of `192.168.0.0/16`
+
+An example of a valid routing table for would be 
+
+|===
+|Destination |Target
+
+|192.168.0.0/16
+|local
+
+|0.0.0.0/0
+|igw-08bbaa2909129b953
+|===
+
+
+Regarding the subnets, the following configuration would work:
+
+* Kill Bill server and KAUI server instances subnets: `192.168.64.0/18` (zone `1e`) and `192.168.192.0/18` (zone `1b`)
+* RDS subnets: `192.168.128.0/18` (zone `1e`) and `192.168.0.0/18` (zone `1b`)
+
+== CloudWatch Integration
+
+Our AMIs come pre-configured with CloudWatch integration to allow for better diagnostics. Below is a screenshot of the metrics that come for free:
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aws/cloudwatch.png[align=center]
+
+
+In order to have business metrics, we also allow to install additional plugins suchs as our free https://github.com/killbill/killbill-analytics-plugin[Analytics plugin]. This provides a subscription billing management solution as feature-rich as popular SaaS platforms, but that you can control. Below is a screenshot of such business metrics:
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aws/analytics.png[align=center]
+
+
+For installation support along the way, reach out to `support@killbill.io`.
+
+== Configuration Options
+
+The installation supports the following configuration options:
+
+* *VpcId:* the VPC to use for the installation. In your AWS Console, go to *Services* and search for *VPC*. Under *Your VPCs*, locate the VPC ID you would like to use or create a new one.
+* *Subnets:* the subnets to use for the KB and KAUi instances. They should be associated with at least two different availability zones. In the VPC Dashboard, go to *Subnets* and find two subnets in your VPC *in two different availability zones*. Alternatively, create new ones (use 10.0.0.0/24 and 10.0.1.0/24 as the IPv4 CIDR for instance).
+* *RDSSubnets:* the subnets to use for the RDS instance. The RDS instances require a subnet group with at least two different availability zones.
+* *KeyName:* name of an existing EC2 KeyPair to enable SSH access to the instances. You can create a new one by going to *Key Pairs* in your EC2 Dashboard.
+* *HTTPLocation:* IP address range allowed to access the load balancer (you can always use 0.0.0.0/0 initially and adjust access later on).
+* *EnvType:* environment purpose (test, prod, etc.). No difference in the stack being created but stack will send this variable to `CloudWatch` as a dimension.
+* *InstanceType:* the EC2 instance type to use for Kill Bill.
+* *KillBillServerCapacity:* the initial number of Kill Bill instances in the Auto Scaling group.
+* *KauiServerCapacity:* the initial number of Kaui instances in the Auto Scaling group. We recommend using the default value `2`.
+* *KBAdminPassword:* the `admin` password that will be used for the default `root` user which has all the permissions. By default such password is set to `password`. Typically, one would use the `root` user to create additional roles (along with their permissions) to limit the scope of what specific applications or users can do. See our https://docs.killbill.io/latest/user_management.html[User Management Documentation].
+* *DBClass:* the database instance type to use for RDS.
+* *DBName:* database name for Kill Bill. We recommend using the default value *killbill*.
+* *KauiDBName:* database name for Kaui. We recommend using the default value *kaui*.
+* *DBUser:* database admin username
+* *DBPassword:* database admin password
+* *EnableCloudWatchMetrics:* whether to record Kill Bill metrics in CloudWatch. Strongly recommended for production. When enabled, a default monitoring dashboard will be created.
+
+== Setup Steps
+
+1. Start the installation process by going to +++<a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>+++: click *Continue to Subscribe* and populate the configuration options in the CloudFormation form.
+2. Launch the stack.
+3. Upon success, the Outputs tab will display the load balancer URL. Kill Bill is available on port 80 while Kaui on port 9090.
+
+You can log-in to Kaui by going to http://<LOAD_BALANCER_URL>:9090 (make sure your IP address can access the load balancer, as defined by the parameter `HTTPLocation`, or add it to the security group as needed). Default credentials are: *admin/password*.
+
+Take a look at our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide for an introduction to Kaui.
+
+=== SSL
+
+You can configure the load balancer to accept SSL connections.
+
+First, find the load balancer in the EC2 console:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/find-lb.png[align=center]
+
+Two HTTP listeners are configured by default, on ports 9090 (Kaui) and 80 (Kill Bill). You need to add two additional HTTPS listeners.
+
+For example, to expose Kaui behind port 443, the configuration would look like this (note the Forward To section):
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/add-lb-listener.png[align=center]
+
+If you don't have SSL certificates in ACM nor IAM, you can import a new one right away on this page.
+
+Tip: you can upload a self-signed certificate:
+
+```
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout privateKey.key -out certificate.crt
+openssl rsa -in privateKey.key -text > private.pem
+openssl x509 -inform PEM -in certificate.crt > public.pem
+```
+
+Import the content of `private.pem` (omit everything before `-----BEGIN RSA PRIVATE KEY-----`) and `public.pem` in the first two textboxes of this page, and make sure to select IAM (not ACM).
+
+Finally, you need to allow HTTPS traffic in your security group:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/lb-security-group.png[align=center]
+
+The load balancer is now configured to redirect SSL traffic on port 443 to Kaui. You can do the same for Kill Bill and disable the HTTP rules in your Security Group.
+
+Tip: if you are using a self-signed certificate, Chrome will complain about the certificate being invalid (`NET::ERR_CERT_INVALID`). On this error page, type `thisisunsafe` on your keyboard to bypass the error.
+
+== TroubleShooting Section
+
+=== Stack Creation
+
+There are a couple of possible issues when starting the stack from CloudFormation (CFN) and so the goal of this section
+is to provide some tips debugging the issues, and knowledge about where to find various logs. Also keep in mind
+that starting the CFN stack will typically take in the order of 15-20', mostly because of the time it takes to setup the 
+RDS cluster, so be patient...
+
+
+Let's start with the https://console.aws.amazon.com/cloudformation[CloudFormation console]: The stack will have a status which will be `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, try to locate from the `Resources` tab which resource fail to initialize properly.
+
+=== Possible Issues
+
+The main possible issues can be summarized as:
+
+**Issues with the template**
+
+If you think there is an issue with the CFN template itself, please report any issue to `support@killbill.io`
+
+**AWS Errors**
+
+Typical Issues are:
+
+  * Insufficient IAM Permissions
+  * Limit Exceeded
+  * Security Group Does Not Exist in VPC
+  * RDS Cluster failed to come up
+  * ...
+
+Make sure to check our `Pre-requisites` section to ensure you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation]
+    
+**Service Unavailable**
+
+We suggest to check the following:
+
+1. Is there any issues reported in the CFN logs
+2. Is the database up and running and accessible from the Kill Bill/Kaui ec2 instances?
+3. Is the database schema correctly installed?
+4. Is the Kill Bill/Kaui server correctly started and listening to the port `8080`?
+5. Are Kill Bill/Kaui server accessible from the LB, respectively on port `80` and `9090`?
+6. Are there any errors, stack traces in our logs
+
+=== Practical Tips
+
+**SSH to EC2 Instances**
+
+In order to answer these questions, you will first need to be able to SSH to the EC2 instances:
+
+From the EC2 dashboard, you can locate the instances by filtering on a prefix of the name of your stack, in my case `my-stack`,
+and as indicated below you will see the instances for Kill Bill server and KAUI. In the example below we see one of each:
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-instances.png[align=center]
+
+You can select one instance and then from the description tag, you will have access to:
+
+1. Public DNS
+2. The security group
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-description.png[align=center]
+
+You will need to first click on the security group link to open the inbound port 22 required for SSH, as shown below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/security-group.png[align=center]
+
+Then, you can issue the SSH command, by copying the Public DNS from the description tab:
+
+```
+# SSH as ubuntu user
+> ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<PUBLIC_DNS>
+# Move to tomcat user
+> sudo su - tomcat
+```
+
+**CFN LOGS**
+
+
+If there are any issue with CFN, it should be available from `/var/log/cfn-init-cmd.log` or `/var/log/cfn-init.log`
+
+Other logs of interest may include:
+```
+/var/log/cfn-wire.log
+/var/log/cloud-init-output.log
+/var/log/awslogs.logs
+/var/log/xray/xray.log
+```
+
+**Kill Bill/KAUI Server Logs**
+
+The Kill Bill/KAUI server logs are located under `/var/lib/tomcat/logs/`, with the main 2 interesting logs being:
+
+* `killbill.out`: All Kill Bill server logs, configured as `INFO` by default
+* `kaui.out`: All KAUI server logs, configured as `INFO` by default
+* `localhost_access_log...`: Access requests to the servers
+
+The configuration of the logging (log rotation, log level, ...) can be found in `/var/lib/killbill/config/logback.xml`
+
+If you update the `logback.xml` (or any configuration file) you will need to restart the service. In order to restart the service, you can run as `root` the following command:
+
+```
+# Restart  killbill server instance
+> service killbill restart
+# Restart  kaui server instance
+> service kaui restart
+```
+
+**Access to the Database**
+
+From any Kill Bill EC2 instance, it is possible to access the RDS database. On each node, there is `mysql` client installed
+allowing to access the database. The database hostname can be obtained from the CFN Resources screen, or one can also
+extract this information from the `killbill.propertes` file:
+
+```
+> grep 'org.killbill.dao' /var/lib/killbill/config/killbill.properties 
+org.killbill.dao.password=killbill
+org.killbill.dao.url=jdbc:mysql:aurora://mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill
+org.killbill.dao.user=killbill
+```
+
+Based on such info, the following command would allow to get a mysql prompt:
+
+```
+> mysql -h mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com -u killbill -pkillbill killbill
+> show tables
+> ...
+```
+
+**Sevice Health**
+
+Since both Kill Bill/KAUI server listen on port `8080`, one can easily check if the service is running by issuing the following command:
+
+```
+telnet 127.0.0.1 8080
+Trying 127.0.0.1...
+Connected to 127.0.0.1.
+Escape character is '^]'.
+```
+
+For the Kill Bill server specifically some useful commands are:
+
+
+```
+# Healthcheck
+> curl http://127.0.0.1:8080/1.0/healthcheck
+```
+
+```
+# Check which Kill Bill & plugin versions
+> curl -u admin:<KBAdminPassword> http://127.0.0.1:8080/1.0/kb/nodesInfo | jq 
+[
+  {
+    "nodeName": "ip-192-168-65-236.ec2.internal",
+    "bootTime": "2020-02-02T21:26:44.000Z",
+    "lastUpdatedDate": "2020-02-02T21:26:44.000Z",
+    "kbVersion": "0.22.1",
+    "apiVersion": "0.53.17",
+    "pluginApiVersion": "0.26.3",
+    "commonVersion": "0.23.7",
+    "platformVersion": "0.39.12",
+    "pluginsInfo": [
+      {
+        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
+        "pluginKey": null,
+        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
+        "version": null,
+        "state": "RUNNING",
+        "isSelectedForStart": true,
+        "services": []
+      },
+      {
+        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
+        "pluginKey": null,
+        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
+        "version": null,
+        "state": "RUNNING",
+        "isSelectedForStart": true,
+        "services": []
+      }
+    ]
+  }
+]
+```
+
+**System Diagnostics**
+
+In order to get some support, the first thing we would require is some information about your deployment. We have created a `diagnostic` command that can be run on the Kill Bill server nodes and the KAUI nodes.
+
+In order to get information about your Kill Bill server installation, the following command can be used:
+
+```
+# Login as 'tomcat'
+> sudo su - tomcat
+#
+# Assume a 'bob/lazar' tenant
+# Assume some credentials 'admin/password'
+# Details about DB host can be extracted from '/var/lib/killbill/config/killbill.properties'
+#
+> kpm  diagnostic \
+  --killbill-credentials=admin password \
+  --bundles-dir=/var/lib/killbill/bundles \
+  --database-name=killbill \
+  --database-credentials=killbill killbill \
+  --killbill-api-credentials=bob lazar \
+  --killbill-web-path=/var/lib/tomcat/webapps \
+  --database-host=my-stack-rdscluster-1uvr93sm7pzp.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com
+
+...
+Diagnostic data exported under /tmp/killbill-diagnostics-20200212-26849-c0rrz3/killbill-diagnostics-02-12-20.zip 
+```
+
+Note that there is also a `--account-export=<account_id>` flag to export the data associated with a specific Kill Bill `account_id`.
+
+
+In order to get information about your Kaui server installation, the following command can be used:
+
+```
+# Login as 'tomcat'
+> sudo su - tomcat
+#
+# Assume a 'bob/lazar' tenant
+# Assume some credentials 'admin/password'
+# Details about DB host and killbill-url can be extracted from '/var/lib/tomcat/bin/setenv2.sh'
+# 
+kpm  diagnostic \
+  --killbill-credentials=admin password \
+  --bundles-dir=/var/lib/killbill/bundles \
+  --database-name=killbill \
+  --database-credentials=killbill killbill \
+  --killbill-api-credentials=bob lazar \
+  --kaui-web-path=/var/lib/tomcat/webapps \
+  --killbill-url=http://sbrossie-LB-1LJYJ1QHYSWQX-650823949.us-east-1.elb.amazonaws.com:80 \
+  --database-host=sbrossier-rdscluster-1uvr93sm7pzp.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com
+```
+
+== Upgrade Steps
+
+=== Newer AMIs
+
+
+The Kill Bill core team will provide new AMIs whenever necessary.
+
+Because the CloudFormation from AWS Marketplace will always reflect the latest AMI ids, you can simply update the stack with the latest CloudFormation template and the instances in the AutoScaling groups will be updated automatically.
+We strongly recommend to always test the upgrade in a test environment first.
+
+We recommend to rely on the CloudFormation `ChangeSet` functionality to get a sense of what would be updated if the change was submitted. For more information about the CloudFormation `ChangeSet` functionality see this https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks.html[documentation]. Below is a summary of the steps:
+
+[1]. Update your CloudFormation template with the new Kill Bill and/or KAUI AMIs
+
+[2]. Create a new ChangeSet
+
+As a pre-requisite, make sure you have the capabilities to perform the operation, and then proceed with the change set:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set.png[align=center]
+
+
+If you do have the permissions, you will be prompted with the following message, that you will need to acknowledge:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/change-set-capabilities.png[align=center]
+
+
+[3]. Upload your new template
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-template.png[align=center]
+
+Go through the steps, accepting the defaults
+
+[4]. Review the CloudFormation changes
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-diff.png[align=center]
+
+If those seem to match your template diff, then proceed with the change.
+
+[5]. Wait for the new stack to be up
+
+After CloudFormation change is done, you will see the `STATUS` or your stack transitions back to `CREATE_COMPLETE`.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set-success.png[align=center]
+
+However, the old instances may not have yet completed the shutdown sequence and so effectively the change is not really complete. You should really check your EC2 Dashboard and verify the state of the instances (old and new). For example in the screenshot below we can see that the old KAUI instance got `terminated` and the new one is `running`, and so at this point the upgrade has completed.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/kaui-terminated.png[align=center]

@@ -1,40 +1,78 @@
 = Getting Started
 
+This document explains what you need to get started using Kill Bill in your chosen environment. The first step is installing Kill Bill itself and the Kaui administrative console, along with their required database, in the environment you will be using.
+
 == Installation
 
-=== AWS
+There are several different ways to get Kill Bill and Kaui up and running. The packages can be installed on your local computer (Windows, Mac, or Linux) or on a Linux server in the cloud. The three principal options are:
 
-Already familiar with AWS? Running Kill Bill on AWS using our http://docs.killbill.io/latest/aws.html[One-Click installer] is the easiest and fastest way to get started.
+1. Use our one-click installer to install the programs using a ready-to-run container on a fresh AWS Ubuntu instance that you provide
+2. Install Docker on your local machine or a new or existing cloud server instance. Then install Kill Bill and Kaui in a Docker container.
+3. Install Kill Bill and Kaui, together with a MySQL database, directly on an Apache Tomcat server in your chosen environment.
+
+These options are discussed in the remainder of this document.
+
+=== AWS (One-Click)
+
+If you prefer to run Kill Bill on a cloud server, and are familiar with AWS, this is the easiest and fastest way to get started. Just try out our http://docs.killbill.io/latest/aws.html[One-Click installer]. 
 
 === Docker
 
-You can run Kill Bill locally using our official Docker images.
+You can run Kill Bill locally or in the cloud using our official Docker images. These require the installation of Docker and Docker Compose. Docker Compose is used to setup and manage the three separate Docker containers required by Kill Bill: One each for Kill Bill itself, for Kaui, and for the shared SQL database engine.
 
-If you are not yet familiar with Docker, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. It is quite easy to get it up and running, and will greatly simplify the Kill Bill stack setup (Tomcat and MySQL configuration will be done for you).
+The principal steps in the installation are:
 
-The following will assume you are deploying Kill Bill locally. Take a look at the Docker documentation to adapt the commands to your environment. Our http://killbill.io/blog/tag/docker/[blog] has also lots of tips on how to deploy to popular cloud providers.
+1. Make sure that the required versions of Docker and Docker Compose are installed in your chosen environment.
+2. Prepare a YAML file to control the loading of KillBill and the other necessary packages using Docker Compose.
+3. Run Docker Compose to launch the packages in the web server.
 
-First, make sure docker and docker-compose are https://docs.docker.com/install/[installed].
+If you are working with Mac or Windows, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. This will describe the procedures for setting up and testing Docker in a Mac or Windows environment using Docker Desktop. It is quite easy to get it up and running. This approach will greatly simplify the Kill Bill stack setup, as Tomcat and MySQL configuration will be done for you.
+If you cannot use Docker Desktop, you may still be able to install Docker with older methods using Docker Toolbox. For details see https://docs.docker.com/toolbox/toolbox_install_mac/[Install Docker Toolbox on MacOS] or https://docs.docker.com/toolbox/toolbox_install_windows/[Install Docker Toolbox on Windows].
 
-For example, on a Mac:
+If you are using a Linux environment, read the appropriate sections of the https://docs.docker.com/install/[Docker Engine Overview].
+
+If you are not using Docker Desktop, proceed with the steps below. The rest of the discussion assumes you are working with a command line interface (CLI) on Mac, Windows, or Linux. On Mac open the Terminal application, or on Windows use the Command window.
+
+Your Linux flavor is assumed to be Ubuntu, either on a local machine or on an AWS instance. Our http://killbill.io/blog/tag/docker/[blog] has tips on how to deploy to other popular cloud providers. If you are using a different Linux flavor, you may have to adapt some of the commands. 
+
+To check whether Docker and Docker Compose are already installed, and what versions you have, open a command (or terminal) window and type the following commands:
+
+   docker --version
+   docker-compose --version
+   
+
+The versions that we are expecting for this discussion are:
+
+* Docker: 19.03.6 or higher
+* Docker Compose: 1.25.4 or higher
+
+
+If Docker or Docker Compose are not installed, on a Mac, one option is to try to install them using Homebrew:
 
 [source,bash]
 ----
 brew install docker docker-compose
 ----
 
-Or on Ubuntu:
+This may require that the free package Homebrew be installed first. See https://osxdaily.com/2018/03/07/how-install-homebrew-mac-os/[How to install Homebrew on Mac].
+
+On Ubuntu we can use the following commands to install Docker:
 
 [source,bash]
 ----
-sudo apt-get install docker docker-compose virtualbox
+sudo apt-get update
+sudo apt-get install docker virtualbox
+----
+We have *not* installed Docker Compose in these commands, because the Ubuntu archive is not guaranteed to provide the latest version. Instead you should use the command
+
+[source,bash]
+----
+sudo curl -L https://github.com/docker/compose/releases/download/1.25.4/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
 ----
 
-We will assume the Docker containers are accessible at 127.0.0.1 in the rest of this guide (if you are using docker-machine, you would need to retrieve the IP address of the Docker machine first).
+This command should be set to load the latest stable release. For information on releases see the https://github.com/docker/compose/releases[releases page].
 
-Next, create a docker-compose.yml file similar to the one below:
-
-> Note: You should https://docs.docker.com/compose/compose-file/compose-versioning/[change the version] in docker-compose.yml file according to your installed Docker version.
+The next step is to create a YAML file called docker-compose.yml, similar to the one below. The version of the file shown is 3.2, which works with Docker 17.04.0 or higher. For information on compose file formats see https://docs.docker.com/compose/compose-file/compose-versioning/[compose file formats]
 
 [source,yaml]
 ----
@@ -43,15 +81,16 @@ volumes:
   db:
 services:
   killbill:
-    image: killbill/killbill:0.22.2
+    image: killbill/killbill:0.22.12
     ports:
       - "8080:8080"
     environment:
       - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
       - KILLBILL_DAO_USER=root
       - KILLBILL_DAO_PASSWORD=killbill
+      - KILLBILL_CATALOG_URI=SpyCarAdvanced.xml
   kaui:
-    image: killbill/kaui:2.0.1
+    image: killbill/kaui:2.0.5
     ports:
       - "9090:8080"
     environment:
@@ -71,31 +110,35 @@ services:
       - MYSQL_ROOT_PASSWORD=killbill
 ----
 
-and run:
+Now place this file in your current directory and run:
 
 [source,bash]
 ----
 docker-compose up
 ----
 
-3 containers will start:
+If all goes well 3 containers will start:
 
 * one for MariaDB (shared database, used by both Kill Bill and Kaui)
 * one for Kill Bill (accessible on port 8080)
 * one for Kaui (accessible on port 9090)
 
-The startup sequence lasts a couple of minutes. It is ready when you see the message "INFO: Server startup". If it takes a long time or if the container crashes, verify you have enough memory allocated to Docker. On a Mac for instance, go to Docker Desktop Preferences and set the Memory to 4GiB in the Advanced panel.
+The startup sequence lasts a couple of minutes. It is ready when you see the message "INFO: Server startup". If it takes a long time or if the container crashes, verify you have enough memory allocated to Docker. On a Mac for instance, go to Docker Desktop Preferences and set the Memory to 4GiB in the Advanced panel. On Ubuntu, be sure you have at least 4GiB of RAM.
 
-You can now log-in to Kaui by going to http://127.0.0.1:9090. Default credentials are:
+You should now be able to log-in to Kaui by going to http://<IP>:9090. If Docker is running on your local machine, <IP> is 127.0.0.1. Otherwise, it is the IP of your server.
+
+You will be presented with a login page. Default credentials are:
 
 * username: admin
 * password: password
 
-You can also go to http://127.0.0.1:8080/api.html to explore our APIs.
+You can also go to http://<IP>:8080/api.html to explore the KillBill APIs.
 
 === Tomcat
 
 Users familiar with Java technologies can also install Kill Bill directly in their Web container of choice, such as Tomcat. We recommend using Tomcat version 8.5.
+
+==== Tomcat Installation Steps
 
 If you don't have it yet, you can download the Tomcat container http://tomcat.apache.org/download-80.cgi[here] (get the Core binary distribution). The documentation is available http://tomcat.apache.org/tomcat-8.0-doc/index.html[here].
 
@@ -103,7 +146,7 @@ In the rest of this guide, we will assume you have installed Tomcat in a directo
 
 Notes:
 
-* Unlike other installation methods, you will also need to install and configure your database manually. See https://docs.killbill.io/latest/userguide_deployment.html[our deployment guide] for more details.
+* Unlike other installation methods, you will also need to install and configure your database manually. See https://docs.killbill.io/latest/userguide_deployment.html#_database_engine[our deployment guide] for more details.
 * Installation on Windows might work, but isn't tested nor recommended by the core team.
 * We recommend installing the https://tomcat.apache.org/native-doc/[Apache Tomcat Native Library] (automatically done for you when using Ansible, Docker, or in our Cloud Marketplace instances).
 
@@ -152,7 +195,7 @@ kaui.db.password=killbill
 
 And download the current version of the Kaui war from https://search.maven.org/search?q=a:kaui-standalone[Maven Central].
 
-== Using Kill Bill with Kaui
+== Getting Started without code (Kaui)
 
 Go to http://127.0.0.1:9090[http://127.0.0.1:9090]. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is `admin`/`password`, which grants full access.
 
@@ -203,7 +246,7 @@ You should see the invoice and the payment by clicking on the Invoices and Payme
 
 Kill Bill will now automatically charge the user on a monthly basis. You can estimate the amount which will be billed at a future date by triggering a dry-run invoice. On the main account page, in the Billing Info section, click the *Trigger invoice generation* wand (specify a date at least a month in the future).
 
-== Using Kill Bill from Your App
+== Getting Started with code (API Client)
 
 Now that you are familiar with the basics, the next step is to integrate Kill Bill in your application using our APIs. Our https://killbill.github.io/slate/[API documentation] contains snippets to help you get started.
 
@@ -834,4 +877,4 @@ Explore our full https://killbill.github.io/slate/[API documentation].
 
 We also have lots of examples in our https://github.com/killbill/killbill-integration-tests[Ruby] and https://github.com/killbill/killbill/tree/master/profiles/killbill/src/test/java/org/killbill/billing/jaxrs[Java] integration tests.
 
-For support along the way, do *not* open GitHub issues. Instead, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[Google Group]. Our +++<a href="https://github.com/sponsors/pierre" onclick="getOutboundLink('https://github.com/sponsors/pierre'); return false;">GitHub sponsors</a>+++ can also jump on our VIP community Slack channel.
+For support along the way, do *not* open GitHub issues. Instead, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[Google Group]. Our +++<a href="https://github.com/sponsors/killbill" onclick="getOutboundLink('https://github.com/sponsors/killbill'); return false;">GitHub sponsors</a>+++ can also jump on our VIP community Slack channel.

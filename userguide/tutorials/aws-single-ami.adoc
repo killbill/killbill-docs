@@ -1,0 +1,387 @@
+= Installation via Single AMI
+
+== Overview
+
+Single AMI deployments are a way to deploy the Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI), from one AMI. We offer two options. The `Single-Tier` option uses only a single EC2 instance. This is suitable for testing and experiments. The `Multi-Tier` option uses two or more EC2 instances, and is designed for production deployments. Both of these deployment options rely on the same underlying AMI, but for the `Multi-Tier` option there is a list of prerequisites, such as an external database, along with a startup script to be provided when launching the instance.
+
+
+== Single-Tier Deployments
+
+The single-tier deployment option is designed to get you started as quickly as possible. Everything you need: Kill Bill, KAUI, and the MariaDB (MySQL) database, is bundled in the AMI and can be launched on a single EC2 instance with just one click. This makes it very suitable for test environments, but we don't recommend it for production deployments.
+
+The AMI also comes with a running instance of the load balancer `nginx` that acts as a reverse proxy and spreads the incoming traffic to either Kill Bill or KAUI based on the incoming port. The EC2 instance will be an instance of Ubuntu Linux. The organization of the single-tier system looks like this:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-tier-ami_deployment.png[align=center]
+
+In this model, the Kill Bill server and KAUI are deployed within the `tomcat` application server. Requests are handled by `nginx`. Requests received on port 443 are delivered to KAUI, and those received on port 8443 are delivered to Kill Bill. Both Kill Bill and KAUI communicate as needed with the `mysql` database.  
+
+=== Getting Started
+
+
+To start the installation process, point your browser to +++<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>+++: 
+
+If you are new to AWS, you will be asked to create an account and provide billing information. Once your account is validated,
+you should see the following image at the top of your screen:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-subscribe.png[align=center]
+
+Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-terms-ask.png[align=center]
+
+Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click **Continue to Configuration**.
+
+The next page will give several configuration options. 
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-configuration.png[align=center]
+
+In most cases you should accept the defaults. Then click **Continue to Launch**.
+
+The next page will give you several options for the launch method. We recommend that you choose **Launch through EC2**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-launch.png[align=center]
+
+All other options will disappear. Click **Launch**.
+
+The next page is titled **Choose Instance Type**. Your instance type is already chosen, so click **Review and Launch** at the bottom of the page.
+
+The following page is headed **Review Instance Launch**. This provides a chance to review the details of your chosen instance. Then click **Launch** at the bottom of the page.
+
+Next you will see a very important popup that asks you to choose or create a **key pair**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-keypair.png[align=center]
+
+The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Then click **Download Key Pair**. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance.
+
+When the key pair is generated, click **Launch Instances**. You should see the screen below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-launching.png[align=center]
+
+Your instance is finally launching! To follow what is happening on the EC2 Dashboard, scroll all the way down to the bottom, and click **View Instance** at the bottom right. This will take you to the `Instances` screen which is part of the EC2 Dashboard.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-instances.png[align=center]
+
+
+In a short time, the **Instance State** for your instance should indicate `Running`. You will need to scroll to the right to see all of the information available about your instance.
+
+You are almost set, but there is one more thing you should do, and that is to scroll down in the menu on the left side to select **Security Groups**. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for `Inbound Rules`. You should see:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound.png[align=center]
+
+These rules enable the ports that must be open to access KAUI and Kill Bill from a browser. To enable direct login to your instance using SSH, you need to add one more port. Click on **Edit Inbound Rules**. Then add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0. Your Inbound Rules should now look like this:  
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound-new.png[align=center]
+
+=== Initial Testing
+
+You can now login to KAUI from your browser using the URL https://INSTANCE_IP:443, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as **Public IPV4 Address**. This should display the KAUI login screen. The default credentials are: *admin/password*. The first few requests might be a bit slow as Kill Bill initializes itself.
+
+For an introduction to KAUI, see our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide.
+
+You can also login in directly to your instance from a terminal or command window. You may have no need to do this for a while, but you should try it and make sure it works. You may need to do this for system monitoring or troubleshooting later.
+
+To login, use the secure shell command:
+
+`ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP`
+
+Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.
+
+On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 `ssh` is available but may need to be activated through the Settings screen.
+
+The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
+
+For more information about the organization of your instance, see the Configuration and Troubleshooting sections below. To exit from your login, type `exit`.
+
+
+== Multi-Tier Deployments
+
+
+For production deployments, allocating a separate RDS database instance and allowing multiple nodes to handle traffic behind a load balancer is the recommended option. In this model, we rely on AWS ELB to correctly spread the traffic among the various nodes, and also to route traffic to either  Kill Server or KAUI based on the incoming port. Note that such deployment option requires a bit more setup and so we also provide an (easier) way to deploy using https://docs.killbill.io/latest//aws-cf.html[CloudFormation templates]. However, the benefits of this option is that it provides more control in the deployment.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multi-tier-ami_deployment.png[align=center]
+
+
+The steps are the following:
+
+**Notes:** We are waiting for AWS Marketplace team to approve our `Multi-Tier` AMI, and will update this doc with the link when it is ready.
+
+[1] Setup of the RDS instance
+
+You can chose any options that are `mysql` or `postgresql` compatible. Using Aurora (mysql) is probably a good choice.
+Make sure to correctly setup your VPC, and subnets.
+
+[2] Start the instances
+
+The steps are similar to the one described for the section `Single-Tier Deployment` above, but in addition, when starting the instance, you will need to specify the properties associated with your RDS instance. In order to make it easy, we have created a `User data` template script, which will need to be edited to specify the real values:
+
+```
+#!/bin/bash
+
+DB_PROPS="/var/tmp/db.props.$$"
+KB_PROPS="/var/tmp/kb.props.$$"
+
+cat <<_EOF > $DB_PROPS
+#
+# EDIT FOLLOWING DB PROPERTIES BELOW AS NEEDED
+#
+DB_SERVER=db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com:3306
+DB_USER=admin
+DB_PASSWORD=5Xn21rhxr3Km4jC7N7ol
+KILLBILL_DB_NAME=killbill
+KAUI_DB_NAME=kaui
+_EOF
+
+cat <<_EOF > $KB_PROPS
+#
+# EDIT FOLLOWING KB PROPERTIES BELOW AS NEEDED
+#
+org.killbill.dontexist=foo
+_EOF
+
+su -l -c "cd /var/lib/tomcat/bin && /var/lib/tomcat/bin/updateProperties.sh $DB_PROPS $KB_PROPS" tomcat
+```
+
+Specifying such user data script in the AWS UI is shown below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/userdata.png[align=center]
+
+
+Make sure that the security group for the EC2 instance also includes the security group for the RDS instance to ensure your EC2 instances can connect to RDS.
+
+[3] Install database schema
+
+In order to install the database schema, you will need to `ssh` to one EC2 instance using your private key -- make sure you have alowed incoming SSH traffic on port `22` in your security group.
+
+```
+# SSH as ubuntu user
+> ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<EC2_NAME>
+# Move to tomcat user
+> sudo su - tomcat
+```
+
+Once logged in, and reusing the credentials, DB url examples from our user data script, create the 2 databases `killbill` and `kaui`:
+
+```
+> mysql -h db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol
+mysql> create database killbill;
+mysql> create database kaui;
+^D
+```
+
+Then, you can install the schemas:
+
+* killbill schema: `http://docs.killbill.io/latest/ddl.sql`
+* kaui schema: `https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql`
+
+
+In order to install it:
+
+```
+# install killbill schema -- assumes it was saved as killbill.ddl
+> mysql -h db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol killbill < killbill.ddl
+# install kaui schema -- assumes it was saved as kaui.ddl
+> mysql -h db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol kaui < kaui.ddl
+```
+
+[4] Restart service
+
+```
+> sudo service killbill stop
+# Optionally clean existing logs
+> rm /var/lib/tomcat/logs/*
+> sudo service killbill start
+```
+
+[5] Add the ELB in front of the EC2 instances
+
+
+== Configuration
+
+=== SSL Certificates
+
+We have configured `nginx` to listen to port `443` (and forward traffic to KAUI). By default, accessing the service from a web browser will show a `Not Secure` site. In order to make the site secure, you will need to add a valid certificate. The easiest option to add the certificate is to rely on `Let’s Encrypt`, a Certificate Authority (CA) that provides an easy way to obtain and install free TLS/SSL certificates.
+
+The steps to add the certifcate are fairly simple and rely on a tool called `certbot`.
+
+[1]. Verify `certbot` is installed or install it
+
+Our latest image should include `certbot` by default, but if not this can be added using the following:
+
+```
+# Install certbot if not already present
+sudo add-apt-repository -y ppa:certbot/certbot
+sudo apt install -y python-certbot-nginx
+```
+
+[2]. Stop all services
+
+`certbot` will need to have access to port `80` and `443`
+
+```
+# Stop kaui
+> sudo service kaui stop
+# Stop killbill
+> sudo service killbill stop
+# Stop nginx
+> sudo service nginx stop
+```
+
+Make sure your AWS security groups allow incoming traffic on port `80` and port `443` for all IPs 
+
+[3]. Setup your domain’s CNAME Record to point to the public DNS of your EC2 instance.
+
+Create a `CNAME` to map your public DNS -- e.g `https://ec2-18-234-168-57.compute-1.amazonaws.com` -- to a legit `CNAME`, otherwise `certbot` will fail with the following error: `Error creating new order :: Cannot issue for "ec2-18-234-168-57.compute-1.amazonaws.com": The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy`
+
+The configuration of your CNAME needs to happen from the UI of your domain provider (`Namecheap`, `Cloudflare`, ...)
+
+[4]. Modify the nginx `killbill.conf` server sections
+
+The `server_name` by default specifies `_`. Instead you need to replace this with your `CNAME`:
+
+```
+server {
+    listen 443;
+    server_name <CNAME>;
+
+...
+```
+
+[5]. Run `certbot`
+
+```
+> sudo certbot --nginx -d <CNAME>
+```
+
+If successful you will see a message like:
+
+
+```
+...
+IMPORTANT NOTES:
+ - Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/deployment.killbill.io/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/deployment.killbill.io/privkey.pem
+   Your cert will expire on 2020-05-11. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot again
+   with the "certonly" option. To non-interactively renew *all* of
+   your certificates, run "certbot renew"
+ - If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le
+```
+
+[6]. Restart all services
+
+```
+# Start nginx
+> sudo service nginx start
+# Start killbill
+> sudo service killbill start
+# Start kaui
+> sudo service kaui start
+```
+
+Note: You can edit your security groups and remove the `port` `80`, and also reduce the visibility for other ports by specifying a tighter range of incoming IPs.
+
+The `Let's Encrypt` certifcates are only valid 90 days and will therefore neeed to be renewed. `certbot` will create a cron entry under `/etc/cron.d/certbot` to make this process transparent.
+
+=== Kill Bill
+
+Kill Bill global properties are defined in `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the MySQL credentials. Take a look at our https://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details.
+
+This is also where you can change the default Kill Bill admin credentials: specify `org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini` and create the `shiro.ini` file accordingly (see our https://docs.killbill.io/latest/user_management.html[RBAC guide] for more details).
+
+== TroubleShooting Section
+
+
+After launching the EC2 instance, the full stack should come up, with all services enabled and running, that is:
+
+* An nginx instance receiving traffic on port `443` and `8443`
+* A instance of Kill Bill server listening on `127.0.0.1:8080` (and receiving external traffic through nginx on port `8443`)
+* A instance of Kaui listening on `127.0.0.1:3000` (and receiving external traffic through nginx on port `443`)
+* A local `mysql` server running on port `3306`
+
+In this section, we will provide some tips to verify the health of the system, and what to do when things are not working
+
+**SSH to EC2 Instances**
+
+From the EC2 dashboard, in the instance `Description` tab, you can copy the public DNS, called `Public DNS (IPv4)`.
+Then, using the private key you specified when creating the instance:
+
+```
+# SSH as ubuntu user
+> ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<PUBLIC_DNS>
+# Move to tomcat user
+> sudo su - tomcat
+```
+
+**Service Health**
+
+All services are started using System V init scripts, and so the status of the service can be retrieved:
+
+* Kill Bill server: `service killbill status`
+* KAUI server: `service kaui status`
+* Nginx server: `service nginx status`
+
+Similarly one can `start`, `stop` the services using simalar command -- e.g `service kaui stop` to stop KAUI.
+
+In order to verify the health of the Kill Bill server instance, you can issue the following commands:
+
+* Healthcheck endpoint: `curl http://127.0.0.1:8080/1.0/healthcheck`
+* System info: `curl -u admin:password http://127.0.0.1:8080/1.0/kb/nodesInfo`
+
+**Log Files**
+
+Tomcat logs are under `/var/lib/tomcat/logs/`:
+
+* KAUI logs: `/var/lib/tomcat/logs/kaui.out`
+* Kill Bill server logs: `/var/lib/tomcat/logs/catalina.out`
+
+Nginx logs can be found under `/var/log/nginx/`
+
+* Access logs: `/var/log/nginx/access.log`
+* Error logs: `/var/log/nginx/error.log`
+
+**System Diagnostics**
+
+In order to get some support, the first thing we would require is some information about your deployment. We have created a `diagnostic` command for that effect:
+
+```
+# Login as 'tomcat'
+> sudo su - tomcat
+#
+# Assume a 'bob/lazar' tenant
+# Assume some credentials 'admin/password'
+#
+> kpm  diagnostic \
+  --killbill-credentials=admin password \
+  --bundles-dir=/var/lib/killbill/bundles \
+  --database-name=killbill \
+  --database-credentials=root root \
+  --killbill-api-credentials=bob lazar \
+  --kaui-web-path=/var/lib/tomcat/webapps2 \
+  --killbill-url=http://127.0.0.1:8080 \
+  --database-host=127.0.0.1:3306
+
+...
+Diagnostic data exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip 
+```
+
+**Database**
+
+In order to access the database, one can use the following command  `mysql -u root -proot`. There is one `killbill` and one `kaui` database created and used by the respective application
+
+
+**Nginx**
+
+The configuration files are located under `/etc/nginx/` -- e.g `/etc/nginx/sites-enabled/killbill.conf`
+
+== Upgrade steps
+
+Note: you must switch to the `tomcat` user first in order to upgrade Kill Bill or Kaui (`sudo su - tomcat`).
+
+The configuration file `/var/lib/killbill/kpm.yml` specifies the Kill Bill version (and its plugins) running on the instance. After updating this file with the new version(s), simply execute `$KPM_INSTALL_KB_CMD`, delete the cached directory `/var/lib/tomcat/webapps/ROOT` and restart the instance.
+
+A similar process can be used for Kaui: update `/var/lib/kaui/kpm.yml`, run `$KPM_INSTALL_KAUI_CMD`, delete the cached directory `/var/lib/tomcat/webapps2/ROOT` and restart the instance.
