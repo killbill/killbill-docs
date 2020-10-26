@@ -287,13 +287,13 @@ Note: You can edit your security groups and remove the `port` `80`, and also red
 
 The `Let's Encrypt` certifcates are only valid 90 days and will therefore neeed to be renewed. `certbot` will create a cron entry under `/etc/cron.d/certbot` to make this process transparent.
 
-=== Kill Bill
+=== Kill Bill Properties
 
 Kill Bill global properties are defined in `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the MySQL credentials. Take a look at our https://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details.
 
 This is also where you can change the default Kill Bill admin credentials: specify `org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini` and create the `shiro.ini` file accordingly (see our https://docs.killbill.io/latest/user_management.html[RBAC guide] for more details).
 
-== TroubleShooting Section
+== TroubleShooting
 
 
 After launching the EC2 instance, the full stack should come up, with all services enabled and running, that is:
@@ -303,36 +303,47 @@ After launching the EC2 instance, the full stack should come up, with all servic
 * A instance of Kaui listening on `127.0.0.1:3000` (and receiving external traffic through nginx on port `443`)
 * A local `mysql` server running on port `3306`
 
-In this section, we will provide some tips to verify the health of the system, and what to do when things are not working
 
-**SSH to EC2 Instances**
+In this section, we will provide some tips to verify the operation of the system, and what to do when things are not working.
 
-From the EC2 dashboard, in the instance `Description` tab, you can copy the public DNS, called `Public DNS (IPv4)`.
-Then, using the private key you specified when creating the instance:
+=== System Health
+
+
+To verify the overall health of the Kill Bill server instance, you can issue the following command:
 
 ```
-# SSH as ubuntu user
-> ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<PUBLIC_DNS>
-# Move to tomcat user
-> sudo su - tomcat
+curl http://127.0.0.1:8080/1.0/healthcheck
 ```
 
-**Service Health**
+This will return a series of messages giving the health of various system components.
 
-All services are started using System V init scripts, and so the status of the service can be retrieved:
+A detailed system information report is available using the following command:
 
-* Kill Bill server: `service killbill status`
-* KAUI server: `service kaui status`
-* Nginx server: `service nginx status`
+```
+curl -u <ADMIN>:<PASSWORD> http://127.0.0.1:8080/1.0/kb/nodesInfo
+```
+Here <ADMIN> and <PASSWORD> are your administrator access credentials.
 
-Similarly one can `start`, `stop` the services using simalar command -- e.g `service kaui stop` to stop KAUI.
+The Kill Bill single-tier option is composed of four services. The status of each service can be checked by the following commands:
 
-In order to verify the health of the Kill Bill server instance, you can issue the following commands:
+* Kill Bill service: `sudo service killbill status`
+* KAUI service: `sudo service kaui status`
+* Nginx service: `sudo service nginx status`
+* Mysql service: `sudo service mysql status`
 
-* Healthcheck endpoint: `curl http://127.0.0.1:8080/1.0/healthcheck`
-* System info: `curl -u admin:password http://127.0.0.1:8080/1.0/kb/nodesInfo`
+For each report there should be a line near the top with the following form:
 
-**Log Files**
+```
+Active: active (running) since Sat 2020-10-24 20:13:43 UTC; 1 day 1h ago
+```
+
+
+Similarly you can `start` or `stop` the services using similar commands, such as `sudo service kaui stop` to stop KAUI.
+
+
+=== Log Files
+
+The system maintains a series of logfiles that should be helpful when troubleshooting is needed.
 
 Tomcat logs are under `/var/lib/tomcat/logs/`:
 
@@ -344,16 +355,16 @@ Nginx logs can be found under `/var/log/nginx/`
 * Access logs: `/var/log/nginx/access.log`
 * Error logs: `/var/log/nginx/error.log`
 
-**System Diagnostics**
+=== System Diagnostics
 
-In order to get some support, the first thing we would require is some information about your deployment. We have created a `diagnostic` command for that effect:
+If support is needed, we may require some additional detailed information about your deployment. We have created a `diagnostic` command for this purpose. to run this command:
 
 ```
 # Login as 'tomcat'
 > sudo su - tomcat
 #
-# Assume a 'bob/lazar' tenant
-# Assume some credentials 'admin/password'
+# Set your access credentials. This example
+#   assumes the default credentials are used:
 #
 > kpm  diagnostic \
   --killbill-credentials=admin password \
@@ -366,12 +377,33 @@ In order to get some support, the first thing we would require is some informati
   --database-host=127.0.0.1:3306
 
 ...
-Diagnostic data exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip 
+The diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip 
 ```
 
-**Database**
+=== Databases
 
-In order to access the database, one can use the following command  `mysql -u root -proot`. There is one `killbill` and one `kaui` database created and used by the respective application
+To access the mysql (MariaDB) databases, you can use the following command:
+
+```
+mysql -u root -proot
+```
+
+This enables interactive access to the database manager. There is one `killbill` and one `kaui` database created and used by the respective applications. To verify the tables in each database, you can type:
+
+```
+use killbill;
+show tables;
+```
+or
+
+```
+use kaui;
+show tables;
+```
+
+Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!
+
+To exit the mysql interactive mode, type `exit`.
 
 
 **Nginx**
