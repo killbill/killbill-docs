@@ -22,5 +22,5 @@ git config user.email "contact@killbill.io"
 git add $VERSION
 git add latest
 git commit -m "Docs update"
-git push -f gh-pages:gh-pages
+git push -f "https://${GH_TOKEN}:x-oauth-basic@${GH_REF}" gh-pages:gh-pages
 popd
