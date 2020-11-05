@@ -136,48 +136,216 @@ You can also go to http://<IP>:8080/api.html to explore the KillBill APIs.
 
 === Tomcat
 
-Users familiar with Java technologies can also install Kill Bill directly in their Web container of choice, such as Tomcat. We recommend using Tomcat version 8.5.
+Users familiar with Java technologies can also install Kill Bill directly in the Web container of their choice. We recommend using Tomcat version 8.5. This section covers the instructions for installing Kill Bill in Tomcat. If this approach is followed, you will also need to configure the database manually as explained below.
 
-==== Tomcat Installation Steps
+==== Tomcat Installation and configuration
 
-If you don't have it yet, you can download the Tomcat container http://tomcat.apache.org/download-80.cgi[here] (get the Core binary distribution). The documentation is available http://tomcat.apache.org/tomcat-8.0-doc/index.html[here].
+The first step in installing Kill Bill in Tomcat is to download and install Tomcat. For this, you need to follow the steps given below:
 
-In the rest of this guide, we will assume you have installed Tomcat in a directory called *CATALINA_HOME*.
+. Download the Core binary distribution of the Tomcat container from http://tomcat.apache.org/download-80.cgi[here] 
+(At the time of writing, *8.5.59* is the latest version, however it can change in the future as newer versions are released.) The downloaded zip file contains a folder called *apache-tomcat-8.5.59* 
 
-Notes:
+. Extract *apache-tomcat-8.5.59* and place it on any location on your computer. This path will be refered to as *TOMCAT_HOME* from now on. (For example, if you place *apache-tomcat-8.5.59* in a directory called ```C:\Software```, *TOMCAT_HOME* refers to ```C:\Software\apache-tomcat-8.5.59```). It should look like this:
 
-* Unlike other installation methods, you will also need to install and configure your database manually. See https://docs.killbill.io/latest/userguide_deployment.html#_database_engine[our deployment guide] for more details.
-* Installation on Windows might work, but isn't tested nor recommended by the core team.
-* We recommend installing the https://tomcat.apache.org/native-doc/[Apache Tomcat Native Library] (automatically done for you when using Ansible, Docker, or in our Cloud Marketplace instances).
+ $TOMCAT_HOME
+     --bin
+     --conf
+     --lib
+     --logs
+     --temp
+     --webapps
+     --work
+ 
 
-==== Tomcat configuration
 
-Recommended Tomcat configuration files can be found https://github.com/killbill/killbill-cloud/tree/master/ansible/templates/tomcat/conf[here]. The `.j2` extension is for the Jinja templating language: you must render the files first using your custom variables, which depend on your environment (take a look at an example of such variables https://github.com/killbill/killbill-cloud/blob/master/ansible/group_vars/all.yml[here]). https://ansible.sivel.net/test/[This website] can be used to perform the rendering online if you do not have Jinja installed.
+. Ensure that you have *JDK 8* or higher installed (It can be downloaded from https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
 
-Once rendered, `setenv2.sh` should be placed in *CATALINA_HOME/bin* and all other files should be placed in *CATALINA_HOME/conf*.
+. Set the *JAVA_HOME* environment variable to the path of your JDK installation (For example, if JDK is installed at `C:\Software\jdk1.8.0_102`, you need to set *JAVA_HOME* to `C:\Software\jdk1.8.0_102`)
 
-Using these default configuration files, Tomcat will start on port 8080, which should be the only port open for ingress traffic in production (egress traffic should not be restricted).
+. Start Tomcat using the script *TOMCAT_HOME/bin/startup.sh* or *TOMCAT_HOME/bin/startup.bat*
+(Depending on your operating system)
 
-==== Kill Bill
+. Open a browser and type http://localhost:8080/. If Tomcat is installed properly, it should display the following page:
 
-The Kill Bill configuration properties need to be added at the end of the file *CATALINA_HOME/conf/catalina.properties*. The minimal set of system properties required is the ones for the jdbc parameters (refer to our http://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details). For example (update the values as needed):
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/Tomcat-home.png[align=center]
 
-[source,java]
-----
-org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.dao.user=killbill
-org.killbill.dao.password=killbill
-org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
-org.killbill.billing.osgi.dao.user=killbill
-org.killbill.billing.osgi.dao.password=killbill
-logback.configurationFile=/var/lib/killbill/config/logback.xml
-----
 
-Place the logging configuration file https://github.com/killbill/killbill-cloud/blob/master/ansible/templates/killbill/logback.xml.j2[logback.xml] as `/var/lib/killbill/config/logback.xml` (refer to the Jinja templating language instructions above).
+==== Database Configuration
 
-Download the current stable version of the Kill Bill war from https://search.maven.org/search?q=a:killbill-profiles-killbill[Maven Central] (make sure to download the `killbill-profiles-killbill-X.Y.Z.war` file and not the `jetty-console.war`, `jar-with-dependencies.war` or `jar-with-dependencies-sources.war` one) and place it under *CATALINA_HOME/webapps/ROOT.war* (delete the directory *CATALINA_HOME/webapps/ROOT* if it exists).
+As mentioned above, you need to configure the database manually. For this, you need to follow the steps given below:
 
-Once this is setup, you can start the Tomcat container using the script *CATALINA_HOME/bin/startup.sh*. The server will be started in the background but logs can be followed at *CATALINA_HOME/logs/catalina.out*.
+. Install your database (The Kill Bill core team uses *MySQL*, but we also run regression tests against *MariaDB 10* and *PostgreSQL 12*. Users have also successfully deployed Kill Bill with *Oracle*, *Percona*, *Aurora*, etc)
+
+. If you are using PostgreSQL, run https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL first
+
+. Create a database. In MySQL, you can run the following commands to create a database called *killbill*: 
+
+    create database killbill;
+   
+
+. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].
+
+. You should have a database called *killbill* (Or whatever name you have specified in step 3) with the following tables:
+
+ account_email_history
+ account_emails
+ account_history
+ accounts
+ audit_log
+ blocking_state_history
+ blocking_states
+ bundle_history
+ bundles
+ bus_events
+ bus_events_history
+ bus_ext_events
+ bus_ext_events_history
+ catalog_override_block_definition
+ catalog_override_phase_definition
+ catalog_override_phase_usage
+ catalog_override_plan_definition
+ catalog_override_plan_phase
+ catalog_override_tier_block
+ catalog_override_tier_definition
+ catalog_override_usage_definition
+ catalog_override_usage_tier
+ custom_field_history
+ custom_fields
+ invoice_billing_events
+ invoice_history
+ invoice_item_history
+ invoice_items
+ invoice_parent_children
+ invoice_payment_control_plugin_auto_pay_off
+ invoice_payment_history
+ invoice_payments
+ invoice_tracking_id_history
+ invoice_tracking_ids
+ invoices
+ node_infos
+ notifications
+ notifications_history
+ payment_attempt_history
+ payment_attempts
+ payment_history
+ payment_method_history
+ payment_methods
+ payment_transaction_history
+ payment_transactions
+ payments
+ roles_permissions
+ rolled_up_usage
+ service_broadcasts
+ sessions
+ subscription_event_history
+ subscription_events
+ subscription_history
+ subscriptions
+ tag_definition_history
+ tag_definitions
+ tag_history
+ tags
+ tenant_broadcasts
+ tenant_kvs
+ tenants
+ user_roles
+ users
+
+
+
+==== Kill Bill Configuration
+
+The next step is to configure Kill Bill. For this, you need to follow the steps given below:
+
+. Download the current stable version of the Kill Bill war  from https://search.maven.org/search?q=a:killbill-profiles-killbill[Maven Central] (Ensure that you download the `killbill-profiles-killbill-X.Y.Z.war` file and not the `jetty-console.war`, `jar-with-dependencies.war` or `jar-with-dependencies-sources.war`) 
+
+. Rename the `killbill-profiles-killbill-X.Y.Z.war` to `ROOT.war` (Ensure that *ROOT* is in uppercase)
+
+. Ensure that Tomcat server is stopped
+
+. Delete everything under *TOMCAT_HOME/webapps*
+
+. Place `ROOT.war` at *TOMCAT_HOME/webapps* So, *webapps* folder should look like this:
+
+ $TOMCAT_HOME/webapps
+     --ROOT.war
+   
+   
+ . Open *TOMCAT_HOME/conf/catalina.properties file*. Add the following database properties at the end of this file (Use appropriate values as per your database):
+
+ org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.dao.user=killbill
+ org.killbill.dao.password=killbill
+ org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.billing.osgi.dao.user=killbill
+ org.killbill.billing.osgi.dao.password=killbill
+
+
+. Start Tomcat using the script *TOMCAT_HOME/bin/startup.sh* or *TOMCAT_HOME/bin/startup.bat*
+(Depending on your operating system)
+
+. Verify that there are no errors in the Tomcat logs at  *TOMCAT_HOME/logs/catalina.out*.
+
+. Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  *Kill Bill server has started*
+
+. Open a browser and type http://localhost:8080/index.html. If Kill Bill is configured properly, it should display the following page:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/killbill-home.png[align=center]
+
+
+
+==== Customizing Log File Path
+
+The steps above configure the application so that the Kill Bill logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
+
+. Create a file called `logback.xml` as follows:
+
+  <configuration scan="true" scanPeriod="30 seconds">
+  <jmxConfigurator />
+  <property name="LOGS_DIR" value="<log_file_path>" />
+  <conversionRule conversionWord="maskedMsg" converterClass="org.killbill.billing.server.log.obfuscators.ObfuscatorConverter" />
+  <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOGS_DIR:-./logs}/killbill.out</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+          <!-- rollover daily -->
+          <fileNamePattern>${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+          <maxHistory>3</maxHistory>
+          <cleanHistoryOnStart>true</cleanHistoryOnStart>
+          <timeBasedFileNamingAndTriggeringPolicy
+                  class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+              <!-- or whenever the file size reaches 100MB -->
+              <maxFileSize>100MB</maxFileSize>
+          </timeBasedFileNamingAndTriggeringPolicy>
+      </rollingPolicy>
+      <encoder>
+        <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
+      </encoder>
+  </appender>
+    <root level="INFO">
+    <appender-ref ref="MAIN" />
+  </root>
+  </configuration>
+
+
+. Replace `<log_file_path>` above with the path where you want the logs to be created. For example, if you'd like the logs to be in a directory called `c:/logs`, you need to replace `<log_file_path>` with `c:/logs`
+
+. Open *TOMCAT_HOME/conf/catalina.properties* file. Add the following property:
+
+  logback.configurationFile=<path_of_logback.xml>
+ 
+. Replace `<path_of_logback.xml>` above with the actual path of your `logback.xml`. For example, if `logback.xml` is placed at `c:/logbackpath`, you need to replace `<path_of_logback.xml>` with `c:/logbackpath`
+
+. Restart Tomcat. Now, the logs will be created at the path specified in the `logback.xml` file.
+
+
+==== Other Notes
+We recommend installing the *Apache Tomcat Native Library*. In order to do this, you need to follow the steps given below: 
+
+. Download the Tomcat Native Library from https://tomcat.apache.org/download-native.cgi[here].
+
+. Install the Tomcat Native Library as per the instructions given http://tomcat.apache.org/native-doc/[here].
+
+. If you are unable to install the Tomcat Native Library on Windows, you may skip this step.
 
 ==== Kaui
 
