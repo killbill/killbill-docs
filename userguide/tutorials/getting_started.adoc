@@ -349,12 +349,12 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui
 
 ==== Customizing Log File Path
 
-The steps above configure the application so that the Kill Bill logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
+The steps above configure the application so that the Kill Bill and Kaui logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
 
 . Create a file called `logback.xml` as follows:
 
  <?xml version="1.0" encoding="UTF-8"?>
-<configuration scan="true" scanPeriod="30 seconds">
+ <configuration scan="true" scanPeriod="30 seconds">
    <jmxConfigurator />
    <property name="LOGS_DIR" value="<log_file_path>" />
    <conversionRule conversionWord="maskedMsg" converterClass="org.killbill.billing.server.log.obfuscators.ObfuscatorConverter" />
@@ -374,10 +374,32 @@ The steps above configure the application so that the Kill Bill logs are display
          <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
       </encoder>
    </appender>
+   <appender name="KAUI" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOGS_DIR:-./logs}/kaui.out</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+         <!-- rollover daily -->
+         <fileNamePattern>${LOGS_DIR:-./logs}/kaui-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+         <maxHistory>3</maxHistory>
+         <cleanHistoryOnStart>true</cleanHistoryOnStart>
+         <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+            <!-- or whenever the file size reaches 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+         </timeBasedFileNamingAndTriggeringPolicy>
+      </rollingPolicy>
+      <encoder>
+         <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%X{rails.actionName}', th='%thread',
+                xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', aId='%X{kb.accountId}', tId='%X{kb.tenantId}',
+                %msg%n</pattern>
+      </encoder>
+   </appender>
+   <logger name="jdbc" level="OFF" />
    <root level="INFO">
       <appender-ref ref="MAIN" />
+      <appender-ref ref="KAUI" />
    </root>
 </configuration>
+
+ 
 
 . Replace `<log_file_path>` above with the path where you want the logs to be created. For example, if you'd like the logs to be in a directory called `c:/logs`, you need to replace `<log_file_path>` with `c:/logs`
 
@@ -387,7 +409,11 @@ The steps above configure the application so that the Kill Bill logs are display
  
 . Replace `<path_of_logback.xml>` above with the actual path of your `logback.xml`. For example, if `logback.xml` is placed at `c:/logbackpath`, you need to replace `<path_of_logback.xml>` with `c:/logbackpath/logback.xml`
 
-. Restart Tomcat. Now, the logs will be created at the path specified in the `logback.xml` file.
+. Restart Tomcat. Now, the logs will be created at the path specified in the `logback.xml` file. Separate log files will get created for Kill Bill and Kaui as follows:
+
+  <log_file_path>/killbill.out
+  <log_file_path>/kaui.out
+
 
 
 ==== Other Notes
