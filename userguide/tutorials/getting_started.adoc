@@ -137,7 +137,7 @@ You can also go to http://<IP>:8080/api.html to explore the KillBill APIs.
 
 === Tomcat
 
-Users familiar with Java technologies can also install Kill Bill directly in the Web container of their choice. We recommend using Tomcat version 8.5. This section covers the instructions for installing Kill Bill in Tomcat. If this approach is followed, you will also need to configure the database manually as explained below.
+Users familiar with Java technologies can also install Kill Bill and Kaui directly in the Web container of their choice. We recommend using Tomcat version 8.5. This section covers the instructions for installing Kill Bill and Kaui in Tomcat. If this approach is followed, you will also need to configure the database manually as explained below.
 
 ==== Tomcat Installation and configuration
 
@@ -171,9 +171,9 @@ The first step in installing Kill Bill in Tomcat is to download and install Tomc
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/Tomcat-home.png[align=center]
 
 
-==== Database Configuration
+==== Database Configuration (Kill Bill)
 
-As mentioned above, you need to configure the database manually. For this, you need to follow the steps given below:
+As mentioned above, you need to configure the Kill Bill database manually. For this, you need to follow the steps given below:
 
 . Install your database (The Kill Bill core team uses *MySQL*, but we also run regression tests against *MariaDB 10* and *PostgreSQL 12*. Users have also successfully deployed Kill Bill with *Oracle*, *Percona*, *Aurora*, etc)
 
@@ -266,7 +266,7 @@ The next step is to configure Kill Bill. For this, you need to follow the steps 
 
 . Delete everything under *TOMCAT_HOME/webapps*
 
-. Place `ROOT.war` at *TOMCAT_HOME/webapps* So, *webapps* folder should look like this:
+. Place `ROOT.war` at *TOMCAT_HOME/webapps*. So, *webapps* folder should look like this:
 
  $TOMCAT_HOME/webapps
      --ROOT.war
@@ -285,7 +285,7 @@ The next step is to configure Kill Bill. For this, you need to follow the steps 
 . Start Tomcat using the script *TOMCAT_HOME/bin/startup.sh* or *TOMCAT_HOME/bin/startup.bat*
 (Depending on your operating system)
 
-. Verify that there are no errors in the Tomcat logs at  *TOMCAT_HOME/logs/catalina.out*.
+. Verify that there are no errors in the Tomcat logs at  *TOMCAT_HOME/logs/catalina.log*
 
 . Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  *Kill Bill server has started*
 
@@ -293,40 +293,114 @@ The next step is to configure Kill Bill. For this, you need to follow the steps 
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/killbill-home.png[align=center]
 
+==== Database Configuration (Kaui)
 
+In addition to the Kill Bill database, you will also need to configure the Kaui database. For this, you need to follow the steps given below:
+
+. Create a database. In MySQL, you can run the following commands to create a database called *kaui*: 
+
+    create database kaui;
+   
+
+. Run the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[here].
+
+. You should have a database called *kaui* (Or whatever name you have specified in step 1) with the following tables:
+
+ kaui_users
+ kaui_tenants
+ kaui_allowed_users
+ kaui_allowed_user_tenants
+
+
+==== Kaui Configuration
+
+Finally, Kaui needs to be configured. For this, you need to follow the steps given below:
+
+. Download the current version of the Kaui war from https://search.maven.org/search?q=a:kaui-standalone[Maven Central].
+
+. Rename the war file downloaded above to `kaui.war` 
+
+. Ensure that Tomcat server is stopped.
+
+. Place the downloaded war file at *TOMCAT_HOME/webapps*. So, *webapps* folder should look like this:
+
+ $TOMCAT_HOME/webapps
+     --ROOT.war
+     --kaui.war
+
+. Open *TOMCAT_HOME/conf/catalina.properties file*. Add the following database properties  related to Kaui at the end of this file (Use appropriate values as per your database):
+
+ kaui.url=http://127.0.0.1:8080
+ kaui.db.url=jdbc:mysql://127.0.0.1:3306/kaui
+ kaui.db.username=killbill
+ kaui.db.password=killbill
+
+. Start Tomcat using the script *TOMCAT_HOME/bin/startup.sh* or *TOMCAT_HOME/bin/startup.bat*
+(Depending on your operating system)
+
+. Verify that there are no errors in the Tomcat logs at  *TOMCAT_HOME/logs/catalina.log*
+
+. Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  *Kill Bill server has started*
+
+. Open a browser and type http://localhost:8080/kaui This should display the following sign in page: image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui_sign_in.png[align=center]
+
+. Sign in with `admin/password`. This should display the following page:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui_after_sign_in.png[align=center]
 
 ==== Customizing Log File Path
 
-The steps above configure the application so that the Kill Bill logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
+The steps above configure the application so that the Kill Bill and Kaui logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
 
 . Create a file called `logback.xml` as follows:
 
-  <configuration scan="true" scanPeriod="30 seconds">
-  <jmxConfigurator />
-  <property name="LOGS_DIR" value="<log_file_path>" />
-  <conversionRule conversionWord="maskedMsg" converterClass="org.killbill.billing.server.log.obfuscators.ObfuscatorConverter" />
-  <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+ <?xml version="1.0" encoding="UTF-8"?>
+ <configuration scan="true" scanPeriod="30 seconds">
+   <jmxConfigurator />
+   <property name="LOGS_DIR" value="<log_file_path>" />
+   <conversionRule conversionWord="maskedMsg" converterClass="org.killbill.billing.server.log.obfuscators.ObfuscatorConverter" />
+   <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
       <file>${LOGS_DIR:-./logs}/killbill.out</file>
       <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-          <!-- rollover daily -->
-          <fileNamePattern>${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
-          <maxHistory>3</maxHistory>
-          <cleanHistoryOnStart>true</cleanHistoryOnStart>
-          <timeBasedFileNamingAndTriggeringPolicy
-                  class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-              <!-- or whenever the file size reaches 100MB -->
-              <maxFileSize>100MB</maxFileSize>
-          </timeBasedFileNamingAndTriggeringPolicy>
+         <!-- rollover daily -->
+         <fileNamePattern>${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+         <maxHistory>3</maxHistory>
+         <cleanHistoryOnStart>true</cleanHistoryOnStart>
+         <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+            <!-- or whenever the file size reaches 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+         </timeBasedFileNamingAndTriggeringPolicy>
       </rollingPolicy>
       <encoder>
-        <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
+         <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
       </encoder>
-  </appender>
-    <root level="INFO">
-    <appender-ref ref="MAIN" />
-  </root>
-  </configuration>
+   </appender>
+   <appender name="KAUI" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOGS_DIR:-./logs}/kaui.out</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+         <!-- rollover daily -->
+         <fileNamePattern>${LOGS_DIR:-./logs}/kaui-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+         <maxHistory>3</maxHistory>
+         <cleanHistoryOnStart>true</cleanHistoryOnStart>
+         <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+            <!-- or whenever the file size reaches 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+         </timeBasedFileNamingAndTriggeringPolicy>
+      </rollingPolicy>
+      <encoder>
+         <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%X{rails.actionName}', th='%thread',
+                xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', aId='%X{kb.accountId}', tId='%X{kb.tenantId}',
+                %msg%n</pattern>
+      </encoder>
+   </appender>
+   <logger name="jdbc" level="OFF" />
+   <root level="INFO">
+      <appender-ref ref="MAIN" />
+      <appender-ref ref="KAUI" />
+   </root>
+</configuration>
 
+ 
 
 . Replace `<log_file_path>` above with the path where you want the logs to be created. For example, if you'd like the logs to be in a directory called `c:/logs`, you need to replace `<log_file_path>` with `c:/logs`
 
@@ -334,9 +408,13 @@ The steps above configure the application so that the Kill Bill logs are display
 
   logback.configurationFile=<path_of_logback.xml>
  
-. Replace `<path_of_logback.xml>` above with the actual path of your `logback.xml`. For example, if `logback.xml` is placed at `c:/logbackpath`, you need to replace `<path_of_logback.xml>` with `c:/logbackpath`
+. Replace `<path_of_logback.xml>` above with the actual path of your `logback.xml`. For example, if `logback.xml` is placed at `c:/logbackpath`, you need to replace `<path_of_logback.xml>` with `c:/logbackpath/logback.xml`
 
-. Restart Tomcat. Now, the logs will be created at the path specified in the `logback.xml` file.
+. Restart Tomcat. Now, the logs will be created at the path specified in the `logback.xml` file. Separate log files will get created for Kill Bill and Kaui as follows:
+
+  <log_file_path>/killbill.out
+  <log_file_path>/kaui.out
+
 
 
 ==== Other Notes
@@ -346,23 +424,8 @@ We recommend installing the *Apache Tomcat Native Library*. In order to do this,
 
 . Install the Tomcat Native Library as per the instructions given http://tomcat.apache.org/native-doc/[here].
 
-. If you are unable to install the Tomcat Native Library on Windows, you may skip this step.
+If you are unable to install the Tomcat Native Library on Windows, you may skip this step.
 
-==== Kaui
-
-You can follow similar steps for the installation of Kaui.
-
-Setup the system properties as follows:
-
-[source,java]
-----
-kaui.url=http://127.0.0.1:8080
-kaui.db.url=jdbc:mysql://127.0.0.1:3306/kaui
-kaui.db.username=killbill
-kaui.db.password=killbill
-----
-
-And download the current version of the Kaui war from https://search.maven.org/search?q=a:kaui-standalone[Maven Central].
 
 == Quick Tutorial
 
