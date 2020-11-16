@@ -746,37 +746,39 @@ mysql&gt; create database kaui;
 &gt; rm /var/lib/tomcat/logs/*
 &gt; sudo service killbill start</code></pre></div></div>
 <div class="paragraph"><p>[5] Add the ELB in front of the EC2 instances</p></div></div></div>
-<div class="sect1"><h2 id="_configuration">Configuration</h2><div class="sectionbody"><div class="sect2"><h3 id="_ssl_certificates">SSL Certificates</h3><div class="paragraph"><p>We have configured <code>nginx</code> to listen to port <code>443</code> (and forward traffic to KAUI). By default, accessing the service from a web browser will show a <code>Not Secure</code> site. In order to make the site secure, you will need to add a valid certificate. The easiest option to add the certificate is to rely on <code>Let’s Encrypt</code>, a Certificate Authority (CA) that provides an easy way to obtain and install free TLS/SSL certificates.</p></div>
-<div class="paragraph"><p>The steps to add the certifcate are fairly simple and rely on a tool called <code>certbot</code>.</p></div>
-<div class="paragraph"><p>[1]. Verify <code>certbot</code> is installed or install it</p></div>
-<div class="paragraph"><p>Our latest image should include <code>certbot</code> by default, but if not this can be added using the following:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Install certbot if not already present
-sudo add-apt-repository -y ppa:certbot/certbot
-sudo apt install -y python-certbot-nginx</code></pre></div></div>
-<div class="paragraph"><p>[2]. Stop all services</p></div>
-<div class="paragraph"><p><code>certbot</code> will need to have access to port <code>80</code> and <code>443</code></p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Stop kaui
-&gt; sudo service kaui stop
-# Stop killbill
-&gt; sudo service killbill stop
-# Stop nginx
-&gt; sudo service nginx stop</code></pre></div></div>
-<div class="paragraph"><p>Make sure your AWS security groups allow incoming traffic on port <code>80</code> and port <code>443</code> for all IPs</p></div>
-<div class="paragraph"><p>[3]. Setup your domain’s CNAME Record to point to the public DNS of your EC2 instance.</p></div>
-<div class="dlist"><dl><dt class="hdlist1">Create a <code>CNAME</code> to map your public DNS&#8201;&#8212;&#8201;e.g <code><a class="bare" href="https://ec2-18-234-168-57.compute-1.amazonaws.com">https://ec2-18-234-168-57.compute-1.amazonaws.com</a></code>&#8201;&#8212;&#8201;to a legit <code>CNAME</code>, otherwise <code>certbot</code> will fail with the following error: `Error creating new order </dt><dd><p>Cannot issue for "ec2-18-234-168-57.compute-1.amazonaws.com": The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy`</p></dd></dl></div>
-<div class="paragraph"><p>The configuration of your CNAME needs to happen from the UI of your domain provider (<code>Namecheap</code>, <code>Cloudflare</code>, &#8230;&#8203;)</p></div>
-<div class="paragraph"><p>[4]. Modify the nginx <code>killbill.conf</code> server sections</p></div>
-<div class="paragraph"><p>The <code>server_name</code> by default specifies <code>_</code>. Instead you need to replace this with your <code>CNAME</code>:</p></div>
+<div class="sect1"><h2 id="_configuration">Configuration</h2><div class="sectionbody"><div class="sect2"><h3 id="_ssl_certificates">SSL Certificates</h3><div class="paragraph"><p><code>nginx</code> is configured to listen on port 443 for messages to be forwarded to KAUI. Port 443 is the standard port for HTTPS. By default, accessing the service from a web browser will show a <code>Not Secure</code> site. In order to make the site secure, you will need to add a valid certificate. The easiest option to add the certificate is to make use of the tool <code>certbot</code>, which relies on the free Certificate Authority (CA) <code>Let’s Encrypt</code>  This method provides an easy way to obtain and install free TLS/SSL certificates.</p></div>
+<div class="paragraph"><p><code>Certbot</code> is pre-installed in the latest Kill Bill AMI. However, we now recommend using a different version of <code>certbot</code> available through the new package manager <code>snap</code>. This package manager is also preinstalled in the Kill Bill AMI.</p></div>
+<div class="paragraph"><p>To validate your certificate, you must first setup a CNAME, or Canonical Name, based on a verified domain that you own. If you do not have a domain, you can obtain one for free, or very low cost, from an online source such as GoDaddy. The CNAME is part of your domain&#8217;s DNS profile, and your domain provider should have instructions for creating it.</p></div>
+<div class="paragraph"><p>The CNAME should link your domain to your AWS instance. If your domain is <code>domain.com</code> your CNAME might look like <code>killbill.domain.com</code>.</p></div>
+<div class="paragraph"><p>To setup your certificate, perform the following steps:</p></div>
+<div class="paragraph"><p>[1]. Create a CNAME linking your domain to your AWS instance.</p></div>
+<div class="paragraph"><p>[2]. Add your CNAME to the server block in the <code>nginx</code> configuration file.</p></div>
+<div class="paragraph"><p>Using a text editor of your choosing, edit the file <code>/etc/nginx/sites-enabled/killbill.conf</code>. You will need to use sudo to edit this file.</p></div>
+<div class="paragraph"><p>This file contains two server blocks. The second block contains the lines:</p></div>
 <div class="listingblock"><div class="content"><pre class="pygments highlight"><code>server {
     listen 443;
-    server_name &lt;CNAME&gt;;
-
-...</code></pre></div></div>
-<div class="paragraph"><p>[5]. Run <code>certbot</code></p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>&gt; sudo certbot --nginx -d &lt;CNAME&gt;</code></pre></div></div>
-<div class="paragraph"><p>If successful you will see a message like:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>...
-IMPORTANT NOTES:
+    server_name _;</code></pre></div></div>
+<div class="paragraph"><p>Replace the underscore after <code>server_name</code> with your CNAME:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>server {
+    listen 443;
+    server_name killbill.domain.com;</code></pre></div></div>
+<div class="paragraph"><p>Save the modified file.</p></div>
+<div class="paragraph"><p>[3]. Reload the configuration file with the command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>sudo nginx -s reload</code></pre></div></div>
+<div class="paragraph"><p>[4]. Enable HTTP traffic on port 80. This is just to allow <code>certbot</code> to create your certificate. To do this, go to your EC2 dashboard and add a new inbound rule as follows: Type: HTTP, Protocol: TCP, Port Range: 80, Source: 0.0.0.0/0. Your inbound rules should now look like this:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound-port-80.png" alt="single ami inbound port 80"></span></p></div>
+<div class="paragraph"><p>[5]. Remove the existing <code>certbot</code> package:</p></div>
+<div class="paragraph"><p>Type the command</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>sudo apt-get remove certbot</code></pre></div></div>
+<div class="paragraph"><p>When asked if you want to proceed, type <code>Y</code> for yes.</p></div>
+<div class="paragraph"><p>[6]. Install <code>certbot</code> using <code>snap</code>:</p></div>
+<div class="paragraph"><p>The following commands will install <code>certbot</code> and link it to the <code>/usr/bin</code> directory:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>sudo snap install --classic certbot
+sudo ln -s /snap/bin/certbot /usr/bin/certbot</code></pre></div></div>
+<div class="paragraph"><p>[7].  Run <code>certbot</code> to create and install the certificate:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>sudo certbot --nginx</code></pre></div></div>
+<div class="paragraph"><p>If you are asked, confirm the server name to be used. If all goes well, you will see a message like:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>IMPORTANT NOTES:
  - Congratulations! Your certificate and chain have been saved at:
    /etc/letsencrypt/live/deployment.killbill.io/fullchain.pem
    Your key file has been saved at:
@@ -789,45 +791,43 @@ IMPORTANT NOTES:
 
    Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
    Donating to EFF:                    https://eff.org/donate-le</code></pre></div></div>
-<div class="paragraph"><p>[6]. Restart all services</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Start nginx
-&gt; sudo service nginx start
-# Start killbill
-&gt; sudo service killbill start
-# Start kaui
-&gt; sudo service kaui start</code></pre></div></div>
-<div class="paragraph"><p>Note: You can edit your security groups and remove the <code>port</code> <code>80</code>, and also reduce the visibility for other ports by specifying a tighter range of incoming IPs.</p></div>
-<div class="paragraph"><p>The <code>Let&#8217;s Encrypt</code> certifcates are only valid 90 days and will therefore neeed to be renewed. <code>certbot</code> will create a cron entry under <code>/etc/cron.d/certbot</code> to make this process transparent.</p></div></div>
-<div class="sect2"><h3 id="_kill_bill">Kill Bill</h3><div class="paragraph"><p>Kill Bill global properties are defined in <code>/var/lib/killbill/config/killbill.properties</code>. For example, this is where you can change the MySQL credentials. Take a look at our <a href="https://docs.killbill.io/latest/userguide_configuration.html">configuration guide</a> for more details.</p></div>
+<div class="paragraph"><p>Of course, there are a few things that could go wrong:</p></div>
+<div class="paragraph"><p>[1]. <code>certbot</code> will attempt to validate your CNAME through your domain provider. If the CNAME does not link correctly to the public DNS name for your AWS instance, the certificate will not be created.</p></div>
+<div class="paragraph"><p>[2]. You could get a message like:</p></div>
+<div class="dlist"><dl><dt class="hdlist1">`Error creating new order </dt><dd><p>Cannot issue for "ec2-18-234-168-57.compute-1.amazonaws.com": The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy`</p></dd></dl></div>
+<div class="paragraph"><p>This could happen if you have tried to use your public DNS name directly as your CNAME, which is not allowed.</p></div>
+<div class="paragraph"><p>[3]. You could get a message like <code>certificate cannot be installed</code>.</p></div>
+<div class="paragraph"><p>For help with these and other problems, try the <code>certbot</code> <a href="https://certbot.eff.org/help/">help page</a>.</p></div>
+<div class="paragraph"><p>When your certificate is installed, you should be able to access KAUI from you browser using <code>https://</code> followed by your CNAME as the address. The browser should indicate that the site is secure.</p></div>
+<div class="paragraph"><p>When your certificate is successfully installed, you can edit your security groups again to remove the access through port 80.</p></div>
+<div class="paragraph"><p>The <code>Let&#8217;s Encrypt</code> certifcates are only valid 90 days and will therefore neeed to be renewed. <code>certbot</code> will create a cron entry under <code>/etc/cron.d/certbot</code> to make this process automatic.</p></div></div>
+<div class="sect2"><h3 id="_kill_bill_properties">Kill Bill Properties</h3><div class="paragraph"><p>Kill Bill global properties are defined in <code>/var/lib/killbill/config/killbill.properties</code>. For example, this is where you can change the MySQL credentials. Take a look at our <a href="https://docs.killbill.io/latest/userguide_configuration.html">configuration guide</a> for more details.</p></div>
 <div class="paragraph"><p>This is also where you can change the default Kill Bill admin credentials: specify <code>org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini</code> and create the <code>shiro.ini</code> file accordingly (see our <a href="https://docs.killbill.io/latest/user_management.html">RBAC guide</a> for more details).</p></div></div></div></div>
-<div class="sect1"><h2 id="_troubleshooting_section">TroubleShooting Section</h2><div class="sectionbody"><div class="paragraph"><p>After launching the EC2 instance, the full stack should come up, with all services enabled and running, that is:</p></div>
+<div class="sect1"><h2 id="_troubleshooting">TroubleShooting</h2><div class="sectionbody"><div class="paragraph"><p>After launching the EC2 instance, the full stack should come up, with all services enabled and running, that is:</p></div>
 <div class="ulist"><ul><li><p>An nginx instance receiving traffic on port <code>443</code> and <code>8443</code></p></li><li><p>A instance of Kill Bill server listening on <code>127.0.0.1:8080</code> (and receiving external traffic through nginx on port <code>8443</code>)</p></li><li><p>A instance of Kaui listening on <code>127.0.0.1:3000</code> (and receiving external traffic through nginx on port <code>443</code>)</p></li><li><p>A local <code>mysql</code> server running on port <code>3306</code></p></li></ul></div>
-<div class="paragraph"><p>In this section, we will provide some tips to verify the health of the system, and what to do when things are not working</p></div>
-<div class="paragraph"><p><strong>SSH to EC2 Instances</strong></p></div>
-<div class="paragraph"><p>From the EC2 dashboard, in the instance <code>Description</code> tab, you can copy the public DNS, called <code>Public DNS (IPv4)</code>.
-Then, using the private key you specified when creating the instance:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># SSH as ubuntu user
-&gt; ssh -i  &lt;LOCATION_KEY&gt;/&lt;KEY_NAME&gt;.pem ubuntu@&lt;PUBLIC_DNS&gt;
-# Move to tomcat user
-&gt; sudo su - tomcat</code></pre></div></div>
-<div class="paragraph"><p><strong>Service Health</strong></p></div>
-<div class="paragraph"><p>All services are started using System V init scripts, and so the status of the service can be retrieved:</p></div>
-<div class="ulist"><ul><li><p>Kill Bill server: <code>service killbill status</code></p></li><li><p>KAUI server: <code>service kaui status</code></p></li><li><p>Nginx server: <code>service nginx status</code></p></li></ul></div>
-<div class="paragraph"><p>Similarly one can <code>start</code>, <code>stop</code> the services using simalar command&#8201;&#8212;&#8201;e.g <code>service kaui stop</code> to stop KAUI.</p></div>
-<div class="paragraph"><p>In order to verify the health of the Kill Bill server instance, you can issue the following commands:</p></div>
-<div class="ulist"><ul><li><p>Healthcheck endpoint: <code>curl <a class="bare" href="http://127.0.0.1:8080/1.0/healthcheck">http://127.0.0.1:8080/1.0/healthcheck</a></code></p></li><li><p>System info: <code>curl -u admin:password <a class="bare" href="http://127.0.0.1:8080/1.0/kb/nodesInfo">http://127.0.0.1:8080/1.0/kb/nodesInfo</a></code></p></li></ul></div>
-<div class="paragraph"><p><strong>Log Files</strong></p></div>
+<div class="paragraph"><p>In this section, we will provide some tips to verify the operation of the system, and what to do when things are not working.</p></div>
+<div class="sect2"><h3 id="_system_health">System Health</h3><div class="paragraph"><p>To verify the overall health of the Kill Bill server instance, you can issue the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>curl http://127.0.0.1:8080/1.0/healthcheck</code></pre></div></div>
+<div class="paragraph"><p>This will return a series of messages giving the health of various system components.</p></div>
+<div class="paragraph"><p>A detailed system information report is available using the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>curl -u &lt;ADMIN&gt;:&lt;PASSWORD&gt; http://127.0.0.1:8080/1.0/kb/nodesInfo</code></pre></div></div>
+<div class="paragraph"><p>Here &lt;ADMIN&gt; and &lt;PASSWORD&gt; are your administrator access credentials.</p></div>
+<div class="paragraph"><p>The Kill Bill single-tier option is composed of four services. The status of each service can be checked by the following commands:</p></div>
+<div class="ulist"><ul><li><p>Kill Bill service: <code>sudo service killbill status</code></p></li><li><p>KAUI service: <code>sudo service kaui status</code></p></li><li><p>Nginx service: <code>sudo service nginx status</code></p></li><li><p>Mysql service: <code>sudo service mysql status</code></p></li></ul></div>
+<div class="paragraph"><p>For each report there should be a line near the top with the following form:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>Active: active (running) since Sat 2020-10-24 20:13:43 UTC; 1 day 1h ago</code></pre></div></div>
+<div class="paragraph"><p>Similarly you can <code>start</code> or <code>stop</code> the services using similar commands, such as <code>sudo service kaui stop</code> to stop KAUI.</p></div></div>
+<div class="sect2"><h3 id="_log_files">Log Files</h3><div class="paragraph"><p>The system maintains a series of logfiles that should be helpful when troubleshooting is needed.</p></div>
 <div class="paragraph"><p>Tomcat logs are under <code>/var/lib/tomcat/logs/</code>:</p></div>
 <div class="ulist"><ul><li><p>KAUI logs: <code>/var/lib/tomcat/logs/kaui.out</code></p></li><li><p>Kill Bill server logs: <code>/var/lib/tomcat/logs/catalina.out</code></p></li></ul></div>
 <div class="paragraph"><p>Nginx logs can be found under <code>/var/log/nginx/</code></p></div>
-<div class="ulist"><ul><li><p>Access logs: <code>/var/log/nginx/access.log</code></p></li><li><p>Error logs: <code>/var/log/nginx/error.log</code></p></li></ul></div>
-<div class="paragraph"><p><strong>System Diagnostics</strong></p></div>
-<div class="paragraph"><p>In order to get some support, the first thing we would require is some information about your deployment. We have created a <code>diagnostic</code> command for that effect:</p></div>
+<div class="ulist"><ul><li><p>Access logs: <code>/var/log/nginx/access.log</code></p></li><li><p>Error logs: <code>/var/log/nginx/error.log</code></p></li></ul></div></div>
+<div class="sect2"><h3 id="_system_diagnostics">System Diagnostics</h3><div class="paragraph"><p>If support is needed, we may require some additional detailed information about your deployment. We have created a <code>diagnostic</code> command for this purpose. to run this command:</p></div>
 <div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Login as 'tomcat'
 &gt; sudo su - tomcat
 #
-# Assume a 'bob/lazar' tenant
-# Assume some credentials 'admin/password'
+# Set your access credentials. This example
+#   assumes the default credentials are used:
 #
 &gt; kpm  diagnostic \
   --killbill-credentials=admin password \
@@ -840,14 +840,22 @@ Then, using the private key you specified when creating the instance:</p></div>
   --database-host=127.0.0.1:3306
 
 ...
-Diagnostic data exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip</code></pre></div></div>
-<div class="paragraph"><p><strong>Database</strong></p></div>
-<div class="paragraph"><p>In order to access the database, one can use the following command  <code>mysql -u root -proot</code>. There is one <code>killbill</code> and one <code>kaui</code> database created and used by the respective application</p></div>
-<div class="paragraph"><p><strong>Nginx</strong></p></div>
-<div class="paragraph"><p>The configuration files are located under <code>/etc/nginx/</code>&#8201;&#8212;&#8201;e.g <code>/etc/nginx/sites-enabled/killbill.conf</code></p></div></div></div>
-<div class="sect1"><h2 id="_upgrade_steps">Upgrade steps</h2><div class="sectionbody"><div class="paragraph"><p>Note: you must switch to the <code>tomcat</code> user first in order to upgrade Kill Bill or Kaui (<code>sudo su - tomcat</code>).</p></div>
-<div class="paragraph"><p>The configuration file <code>/var/lib/killbill/kpm.yml</code> specifies the Kill Bill version (and its plugins) running on the instance. After updating this file with the new version(s), simply execute <code>$KPM_INSTALL_KB_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps/ROOT</code> and restart the instance.</p></div>
-<div class="paragraph"><p>A similar process can be used for Kaui: update <code>/var/lib/kaui/kpm.yml</code>, run <code>$KPM_INSTALL_KAUI_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps2/ROOT</code> and restart the instance.</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-11-16 16:37:21 UTC</div><script>
+The diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip</code></pre></div></div></div>
+<div class="sect2"><h3 id="_databases">Databases</h3><div class="paragraph"><p>To access the mysql (MariaDB) databases, you can use the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>mysql -u root -proot</code></pre></div></div>
+<div class="paragraph"><p>This enables interactive access to the database manager. There is one <code>killbill</code> and one <code>kaui</code> database created and used by the respective applications. To verify the tables in each database, you can type:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>use killbill;
+show tables;</code></pre></div></div>
+<div class="paragraph"><p>or</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>use kaui;
+show tables;</code></pre></div></div>
+<div class="paragraph"><p>Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!</p></div>
+<div class="paragraph"><p>To exit the mysql interactive mode, type <code>exit</code>.</p></div></div>
+<div class="sect2"><h3 id="_nginx">Nginx</h3><div class="paragraph"><p>The load balancer <code>nginx</code> should normally require little attention. The configuration files are located under <code>/etc/nginx/. The configuration file for `nginx itself is `/etc/nginx/nginx.conf</code>. Additional configuration files are located under <code>/etc/nginx/sites-enabled/</code>. The only file normally present in this directory is <code>/etc/nginx/sites-enabled/killbill.conf</code>. This file may need to be edited to enable SSL, as explained above.</p></div></div></div></div>
+<div class="sect1"><h2 id="_upgrades">Upgrades</h2><div class="sectionbody"><div class="paragraph"><p>From time to time new versions of Kill Bill and KAUI may be released. This section explains how to install these new versions.</p></div>
+<div class="paragraph"><p>Note: you must switch to the <code>tomcat</code> user first in order to upgrade Kill Bill or Kaui (<code>sudo su - tomcat</code>).</p></div>
+<div class="paragraph"><p>The configuration file <code>/var/lib/killbill/kpm.yml</code> specifies the Kill Bill version (and its plugins) running on the instance. Once you edit this file to specify the new version number, it will be used automatically. After editing this file, simply run the command <code>$KPM_INSTALL_KB_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps/ROOT</code>, and restart the instance.</p></div>
+<div class="paragraph"><p>A similar process can be used for KAUI: update <code>/var/lib/kaui/kpm.yml</code>, run <code>$KPM_INSTALL_KAUI_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps2/ROOT</code> and restart the instance.</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2020-11-16 16:38:33 UTC</div><script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
