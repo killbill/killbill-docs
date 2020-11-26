@@ -8,7 +8,7 @@ In order to set up Kill Bill in your development environment, there are a couple
 
 === Setting up code in an IDE
 
-You first need to set up the Kill Bill code in an IDE. You can use any IDE of your choice. This section explains setting up the code in Eclipse IDE. You can download the latest version of the Eclipse IDE from  https://www.eclipse.org/downloads/[here])
+You first need to set up the Kill Bill code in an IDE. You can use any IDE of your choice. This section explains setting up the code in Eclipse IDE. You can download the latest version of the Eclipse IDE from  https://www.eclipse.org/downloads/[here]
 
 ==== Cloning the Repository
 
@@ -20,11 +20,16 @@ The first step is to clone the Kill Bill repository. For this, you need to follo
 
 . Click on *Clone a Git Repository and add the clone to this view*
 
-. In the Git Repository details, enter the Kill Bill Git URL https://github.com/killbill/killbill in the URI field. Enter your Git Credentials. Click *Next*
+. In the Git Repository details, enter the Kill Bill Git URL https://github.com/killbill/killbill in the *URI* field. 
+
+.. If you want read-write access to the Kill Bill repository, Select *https* in the *Protocol* dropdown and enter your Git credentials in the *User/Password* fields . 
+.. If you do not have Git credentials or want a read-only access, you can Select *Git* in the *Protocol* Dropdown. This disables the credentials fields. However, this will clone the repository anonymously and give you a read only access to the repository. 
+
+.. Click *Next*
 
 . In the branch selection view, select the branch named *master* (By default, all the branches appear selected, you need to uncheck all branches except for *master*). Click *Next*
 
-. Select the path on your computer where you would like to clone the code. This path will be referred to as *PROJECT_ROOT* from now on).For example, if you choose `C:/MyProjects/KillBill`, *PROJECT_ROOT* refers to this path. Click *Finish* (This starts the cloning process and may take a while depending on your internet speed)
+. Select the path on your computer where you would like to clone the code. This path will be referred to as *PROJECT_ROOT* from now on). For example, if you choose `C:/MyProjects/KillBill`, *PROJECT_ROOT* refers to this path. Click *Finish* (This starts the cloning process and may take a while depending on your internet speed)
 
 
 ====  Creating an Eclipse Project
@@ -42,7 +47,7 @@ Once the repository is cloned, you need to create an Eclipse project. For this, 
 . Create a file `lifecycle-mapping-metadata.xml` as follows:
 
  <?xml version="1.0" encoding="UTF-8"?>
-<lifecycleMappingMetadata>
+ <lifecycleMappingMetadata>
    <pluginExecutions>
       <pluginExecution>
          <pluginExecutionFilter>
@@ -107,10 +112,7 @@ Once the repository is cloned, you need to create an Eclipse project. For this, 
             </goals>
          </pluginExecutionFilter>
          <action>
-            <execute>
-               <runOnConfiguration>true</runOnConfiguration>
-               <runOnIncremental>true</runOnIncremental>
-            </execute>
+           <ignore />
          </action>
       </pluginExecution>
       <pluginExecution>
@@ -130,9 +132,9 @@ Once the repository is cloned, you need to create an Eclipse project. For this, 
    </pluginExecutions>
 </lifecycleMappingMetadata>
 
-. Go to `Eclipse Preferences > Maven > Lifecycle Mappings`.Click *Browse* and select the path of the `lifecycle-mapping-metadata.xml` file
+. Go to `Window > Preferences > Maven > Lifecycle Mappings`.Click *Browse* and select the path of the `lifecycle-mapping-metadata.xml` file. Click `Apply and Close`
 
-. Build the project again (`Right click on killbill > Maven > Update Project > OK`)
+. Build the project again (In Project Explorer, `Right click on killbill > Maven > Update Project > OK`)
 
 . This will get rid of all the build errors. Your Eclipse workspace should look like this:image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/development/eclipse_workspace.png[align=center]
 
@@ -141,17 +143,41 @@ Once the repository is cloned, you need to create an Eclipse project. For this, 
 
 Before you can execute the code, you need to configure the Kill Bill database manually. For this, you need to follow the steps given below:
 
-. Install your database (By default Kill Bill expects *MySQL*, but you can also use *PostgreSQL*
+. Install your database (By default Kill Bill expects *MySQL*, but you can also use *PostgreSQL*)
 
-. If you are using PostgreSQL, do the following:
+. If you are using PostgreSQL, do the following (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
 
-.. Create a killbill user and database (verify connectivity with `psql -h 127.0.0.1 -U killbill -p 5432`)
+.. Create a user corresponding to Kill Bill. You can run the following command :
 
-.. Run the following command to create the schema:
+ CREATE ROLE killbilluser WITH LOGIN INHERIT CREATEDB CREATEROLE NOREPLICATION PASSWORD 'killbill';
 
- ./bin/db-helper -a create  --driver postgres -u killbill -p killbill
+ .. Create a database corresponding to Kill Bill. You can run the following command:
+
+ CREATE DATABASE killbill WITH OWNER = killbilluser;
  
-.. Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL
+
+.. Connect to the Kill Bill database created above. In psql, you can run the following:
+
+  \connect killbill;
+  
+.. Create the Kill Bill schema. Run the following command:
+
+  CREATE SCHEMA killbillschema authorization killbilluser;
+  
+.. Connect to the schema created above using the following command:
+
+  set schema 'killbillschema';
+
+.. Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL. 
+
+.. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].In psql, you  can run the following command:
+
+  \i <ddl_file_path>
+
+
+.. Grant privileges to the schema using the following command:
+
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA killbillschema TO killbilluser;
 
 . If you are using MySQL, do the following:
 
@@ -159,8 +185,9 @@ Before you can execute the code, you need to configure the Kill Bill database ma
 
     create database killbill;
    
+.. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].
 
-. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].
+
 
 . You should have a database called *killbill*  with the following tables:
 
@@ -237,7 +264,7 @@ Once you set up the code and database, the next step is to build the application
 
 . Ensure that you have *Maven 3.5.2 or higher* (It can be downloaded from http://maven.apache.org/download.cgi[here])
 
-. Maven requires JDK. Ensure that you have *JDK 7 or higher* (It can be downloaded from
+. Maven requires JDK. Ensure that you have *JDK 8 or higher* (It can be downloaded from
 https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
 
 . Ensure that *JAVA_HOME* environment variable is set to the path of your JDK installation (For example, if JDK is installed at `C:\Software\jdk1.8.0_102`, you need to set *JAVA_HOME* to `C:\Software\jdk1.8.0_102`)
@@ -280,13 +307,14 @@ Once the build is successful, you can run the application to verify that everyth
 
 . Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. Update the following properties as per your database:
 
- org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill or jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
  org.killbill.dao.user=root
  org.killbill.dao.password=root
  org.killbill.dao.logLevel=DEBUG
- org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill or jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
  org.killbill.billing.osgi.dao.user=root
  org.killbill.billing.osgi.dao.password=root
+ 
  
 . Naviagate to the *PROJECT_ROOT* directory
 
@@ -306,12 +334,12 @@ Once the build is successful, you can run the application to verify that everyth
 
 The steps above configure the application so that the Kill Bill logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
 
-. Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/logback.xml` as follows:
+. Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/logback.xml` as follows (Ensure that the license section at the top is not deleted):
 
  <?xml version="1.0" encoding="UTF-8"?>
-<configuration>
+  <configuration>
    <jmxConfigurator />
-   <property name="LOGS_DIR" value="F:/killbill/logs" />
+   <property name="LOGS_DIR" value="<log_file_path>" />
    <conversionRule conversionWord="maskedMsg" converterClass="org.killbill.billing.server.log.obfuscators.ObfuscatorConverter" />
    <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
       <file>${LOGS_DIR:-./logs}/killbill.out</file>
@@ -335,167 +363,7 @@ The steps above configure the application so that the Kill Bill logs are display
          <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
       </encoder>
    </appender>
-   <!-- JDBC appenders -->
-   <appender name="SIFT-jdbc-sqlonly" class="ch.qos.logback.classic.sift.SiftingAppender">
-      <discriminator class="org.killbill.billing.server.log.ThreadNameBasedDiscriminator" />
-      <sift>
-         <appender name="jdbc-sqlonly-${threadName}" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>${LOGS_DIR:-./logs}/jdbc-sqlonly.${threadName}.out</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-               <!-- rollover daily -->
-               <fileNamePattern>${LOGS_DIR:-./logs}/jdbc-sqlonly-%d{yyyy-MM-dd}.%i.${threadName}.out.gz</fileNamePattern>
-               <maxHistory>3</maxHistory>
-               <cleanHistoryOnStart>true</cleanHistoryOnStart>
-               <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                  <!-- or whenever the file size reaches 100MB -->
-                  <maxFileSize>100MB</maxFileSize>
-               </timeBasedFileNamingAndTriggeringPolicy>
-            </rollingPolicy>
-            <encoder>
-               <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
-            </encoder>
-         </appender>
-      </sift>
-   </appender>
-   <appender name="SIFT-jdbc-sqltiming" class="ch.qos.logback.classic.sift.SiftingAppender">
-      <discriminator class="org.killbill.billing.server.log.ThreadNameBasedDiscriminator" />
-      <sift>
-         <appender name="jdbc-sqltiming-${threadName}" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>${LOGS_DIR:-./logs}/jdbc-sqltiming.${threadName}.out</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-               <!-- rollover daily -->
-               <fileNamePattern>${LOGS_DIR:-./logs}/jdbc-sqltiming-%d{yyyy-MM-dd}.%i.${threadName}.out.gz</fileNamePattern>
-               <maxHistory>3</maxHistory>
-               <cleanHistoryOnStart>true</cleanHistoryOnStart>
-               <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                  <!-- or whenever the file size reaches 100MB -->
-                  <maxFileSize>100MB</maxFileSize>
-               </timeBasedFileNamingAndTriggeringPolicy>
-            </rollingPolicy>
-            <encoder>
-               <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
-            </encoder>
-         </appender>
-      </sift>
-   </appender>
-   <appender name="SIFT-jdbc-audit" class="ch.qos.logback.classic.sift.SiftingAppender">
-      <discriminator class="org.killbill.billing.server.log.ThreadNameBasedDiscriminator" />
-      <sift>
-         <appender name="jdbc-audit-${threadName}" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>${LOGS_DIR:-./logs}/jdbc-audit.${threadName}.out</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-               <!-- rollover daily -->
-               <fileNamePattern>${LOGS_DIR:-./logs}/jdbc-audit-%d{yyyy-MM-dd}.%i.${threadName}.out.gz</fileNamePattern>
-               <maxHistory>3</maxHistory>
-               <cleanHistoryOnStart>true</cleanHistoryOnStart>
-               <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                  <!-- or whenever the file size reaches 100MB -->
-                  <maxFileSize>100MB</maxFileSize>
-               </timeBasedFileNamingAndTriggeringPolicy>
-            </rollingPolicy>
-            <encoder>
-               <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
-            </encoder>
-         </appender>
-      </sift>
-   </appender>
-   <appender name="SIFT-jdbc-resultset" class="ch.qos.logback.classic.sift.SiftingAppender">
-      <discriminator class="org.killbill.billing.server.log.ThreadNameBasedDiscriminator" />
-      <sift>
-         <appender name="jdbc-resultset-${threadName}" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>${LOGS_DIR:-./logs}/jdbc-resultset.${threadName}.out</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-               <!-- rollover daily -->
-               <fileNamePattern>${LOGS_DIR:-./logs}/jdbc-resultset-%d{yyyy-MM-dd}.%i.${threadName}.out.gz</fileNamePattern>
-               <maxHistory>3</maxHistory>
-               <cleanHistoryOnStart>true</cleanHistoryOnStart>
-               <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                  <!-- or whenever the file size reaches 100MB -->
-                  <maxFileSize>100MB</maxFileSize>
-               </timeBasedFileNamingAndTriggeringPolicy>
-            </rollingPolicy>
-            <encoder>
-               <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
-            </encoder>
-         </appender>
-      </sift>
-   </appender>
-   <appender name="SIFT-jdbc-resultsettable" class="ch.qos.logback.classic.sift.SiftingAppender">
-      <discriminator class="org.killbill.billing.server.log.ThreadNameBasedDiscriminator" />
-      <sift>
-         <appender name="jdbc-resultsettable-${threadName}" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>${LOGS_DIR:-./logs}/jdbc-resultsettable.${threadName}.out</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-               <!-- rollover daily -->
-               <fileNamePattern>${LOGS_DIR:-./logs}/jdbc-resultsettable-%d{yyyy-MM-dd}.%i.${threadName}.out.gz</fileNamePattern>
-               <maxHistory>3</maxHistory>
-               <cleanHistoryOnStart>true</cleanHistoryOnStart>
-               <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                  <!-- or whenever the file size reaches 100MB -->
-                  <maxFileSize>100MB</maxFileSize>
-               </timeBasedFileNamingAndTriggeringPolicy>
-            </rollingPolicy>
-            <encoder>
-               <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
-            </encoder>
-         </appender>
-      </sift>
-   </appender>
-   <appender name="SIFT-jdbc-connection" class="ch.qos.logback.classic.sift.SiftingAppender">
-      <discriminator class="org.killbill.billing.server.log.ThreadNameBasedDiscriminator" />
-      <sift>
-         <appender name="jdbc-connection-${threadName}" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>${LOGS_DIR:-./logs}/jdbc-connection.${threadName}.out</file>
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-               <!-- rollover daily -->
-               <fileNamePattern>${LOGS_DIR:-./logs}/jdbc-connection-%d{yyyy-MM-dd}.%i.${threadName}.out.gz</fileNamePattern>
-               <maxHistory>3</maxHistory>
-               <cleanHistoryOnStart>true</cleanHistoryOnStart>
-               <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                  <!-- or whenever the file size reaches 100MB -->
-                  <maxFileSize>100MB</maxFileSize>
-               </timeBasedFileNamingAndTriggeringPolicy>
-            </rollingPolicy>
-            <encoder>
-               <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
-            </encoder>
-         </appender>
-      </sift>
-   </appender>
-   <!-- Logs only SQL. SQL executed within a prepared statement is automatically shown with it's bind arguments replaced with the data bound at that position, for greatly increased readability. -->
-   <logger name="jdbc.sqlonly" level="OFF" additivity="false">
-      <appender-ref ref="SIFT-jdbc-sqlonly" />
-   </logger>
-   <!-- Logs the SQL, post-execution, including timing statistics on how long the SQL took to execute. -->
-   <logger name="jdbc.sqltiming" level="OFF" additivity="false">
-      <appender-ref ref="SIFT-jdbc-sqltiming" />
-   </logger>
-   <!-- Logs ALL JDBC calls except for ResultSets. This is a very voluminous output, and is not normally needed unless tracking down a specific JDBC problem. -->
-   <logger name="jdbc.audit" level="OFF" additivity="false">
-      <appender-ref ref="SIFT-jdbc-audit" />
-   </logger>
-   <!-- Even more voluminous, because all calls to ResultSet objects are logged. -->
-   <logger name="jdbc.resultset" level="OFF" additivity="false">
-      <appender-ref ref="SIFT-jdbc-resultset" />
-   </logger>
-   <!-- Log the jdbc results as a table. Level debug will fill in unread values in the result set. -->
-   <logger name="jdbc.resultsettable" level="OFF" additivity="false">
-      <appender-ref ref="SIFT-jdbc-resultsettable" />
-   </logger>
-   <!-- Logs connection open and close events as well as dumping all open connection numbers. This is very useful for hunting down connection leak problems. -->
-   <logger name="jdbc.connection" level="OFF" additivity="false">
-      <appender-ref ref="SIFT-jdbc-connection" />
-   </logger>
-   <!-- See https://github.com/jOOQ/jOOQ/issues/4019 -->
-   <logger name="org.jooq.Constants" level="OFF" />
-   <!-- Silence verbose loggers in DEBUG mode -->
-   <logger name="com.dmurph" level="OFF" />
-   <logger name="org.eclipse" level="INFO" />
-   <logger name="org.killbill.billing.server.updatechecker" level="INFO" />
-   <!-- Useful loggers for debugging -->
-   <logger name="org.killbill.billing.jaxrs.resources" level="INFO" />
-   <logger name="org.killbill.notificationq" level="INFO" />
-   <logger name="org.killbill.queue" level="INFO" />
+   <logger name="jdbc" level="OFF" />
    <root level="INFO">
       <appender-ref ref="MAIN" />
    </root>
@@ -507,21 +375,125 @@ The steps above configure the application so that the Kill Bill logs are display
 
   <log_file_path>/killbill.out
 
-=== Setting up a Breakpoint and Remote Debugging - TODO
+=== Setting up a Breakpoint and Remote Debugging
 
 Sometimes, you may face some issues in running the application. In such cases, it is useful to set up a breakpoint and debug the application. Here is how you can do this:
 
-. Set up a breakpoint in `DefaultKillbillConfigSource.java#L118` (Press Ctrl + T and type `DefaultKillbillConfigSource`)
+. Create a new environment variable *MAVEN_OPTS* and set it to `-Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n`
 
-. Create a new environment variable MAVEN_OPTS and set it to -Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n
 
-. In Eclipse, Click Run > Debug Configurations > New Remote Java Application
+. Do the following in Eclipse:
 
-. In the Connect tab, leave all default values
+.. Press Ctrl + Shift + T and locate `DefaultKillbillConfigSource`. 
 
-. In the Source tab, Click Add > Java Project > Select All 
+..  If this does not show the source code do the following:
 
-. 
+... Click *Attach Source*. 
+
+... Click on *External Location* and Navigate to your Maven local repository (`~/.m2/repository`). Select `/org/kill-bill/billing/killbill-platform-base/0.40.4/killbill-platform-base-0.40.4-sources.jar`
+
+.. Set up a breakpoint in `DefaultKillbillConfigSource.java#L118` 
+
+.. Click `Run > Debug Configurations`
+
+.. Double click  `New Remote Java Application`
+
+.. Enter the name that you would like to give to this debug configuration in the *Name* field
+
+.. Click *Apply*
+
+.. Click *Close*
+
+. Start the application as explained in *Running the Application* section above
+
+. Click `Run > Debug Configurations` and double click the  the Debug configuration that you created in Step 2f above
+
+. This runs the application in debug mode. so, you can set additional breakpoints and debug as required.
+
+=== Some common errors and their solutions
+
+==== Build Failure
+
+Sometimes, after building the application, the build may fail with the following errors:
+
+ [INFO] killbill-payment ................................... SUCCESS [01:42 min]
+ [INFO] killbill-beatrix ................................... SUCCESS [02:04 min]
+ [INFO] killbill-jaxrs ..................................... SUCCESS [01:45 min]
+ [INFO] killbill-profiles .................................. SUCCESS [  9.896 s]
+ [INFO] killbill-profiles-killbill ......................... FAILURE [02:48 min]
+ [INFO] killbill-profiles-killpay .......................... SKIPPED
+ [INFO] ------------------------------------------------------------------------
+ [INFO] BUILD FAILURE
+ [INFO] ------------------------------------------------------------------------
+ [INFO] Total time:  26:55 min
+ [INFO] Finished at: 2020-11-23T10:46:24+05:30
+ [INFO] ------------------------------------------------------------------------
+ [ERROR] Failed to execute goal org.apache.rat:apache-rat-plugin:0.13:check (default) on project killbill-profiles-killbill: Too many files with unapproved license: 1 See RAT report in: <PROJECT_ROOT>\profiles\killbill\target\rat.txt -> [Help 1]
+ [ERROR]
+ [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+ [ERROR] Re-run Maven using the -X switch to enable full debug logging.
+ [ERROR]
+ [ERROR] For more information about the errors and possible solutions, please read the following articles:
+ [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+ [ERROR]
+ [ERROR] After correcting the problems, you can resume the build with the command
+ [ERROR]   mvn <args> -rf :killbill-profiles-killbill
+ 
+This error is most probably because the `logback.xml` file is missing license information. This might have got deleted while customizing the log file path. So ensure that the `logback.xml` file has the following license information at the top:
+
+ <!--
+  ~ Copyright 2010-2013 Ning, Inc.
+  ~ Copyright 2014-2015 Groupon, Inc
+  ~ Copyright 2014-2015 The Billing Project, LLC
+  ~
+  ~ The Billing Project licenses this file to you under the Apache License, version 2.0
+  ~ (the "License"); you may not use this file except in compliance with the
+  ~ License.  You may obtain a copy of the License at:
+  ~
+  ~    http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  ~ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+  ~ License for the specific language governing permissions and limitations
+  ~ under the License.
+  -->
+
+
+==== Jetty does not start 
+ 
+Sometimes, when you run the application, Jetty may fail to start with the following error:
+
+  Failed startup of context o.e.j.m.p.JettyWebAppContext@1fafd0af 
+  
+In such a case, build the application again using the instructions in the Build section above and run the application again.
+
+==== Application points to default database
+
+Sometimes, the application may not use the database configured in the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. Instead, it may use the default H2 database and cause the following errors:
+
+ java.io.IOException: org.h2.jdbc.JdbcSQLNonTransientConnectionException: A file path that is implicitly relative to the current working directory is not allowed in the database URL "jdbc:h2:file:/var/tmp/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE". Use an absolute path, ~/name, ./name, or the baseDir setting instead. [90011-200]
+        at org.killbill.commons.embeddeddb.h2.H2EmbeddedDB.refreshTableNames(H2EmbeddedDB.java:114)
+        at org.killbill.commons.embeddeddb.h2.H2EmbeddedDB.start(H2EmbeddedDB.java:97)
+        at org.killbill.billing.server.modules.EmbeddedDBProvider.initializeEmbeddedDB(EmbeddedDBProvider.java:73)
+        at org.killbill.billing.server.modules.EmbeddedDBProvider.get(EmbeddedDBProvider.java:60)
+        at org.killbill.billing.server.modules.KillbillServerModule.configureEmbeddedDBs(KillbillServerModule.java:141)
+        at org.killbill.billing.server.modules.KillbillPlatformModule.configure(KillbillPlatformModule.java:84)
+        at org.killbill.billing.server.modules.KillbillServerModule.configure(KillbillServerModule.java:113)
+        at com.google.inject.AbstractModule.configure(AbstractModule.java:61)
+        at com.google.inject.spi.Elements$RecordingBinder.install(Elements.java:347)
+        at com.google.inject.spi.Elements.getElements(Elements.java:104)
+        at com.google.inject.internal.InjectorShell$Builder.build(InjectorShell.java:137)
+        at com.google.inject.internal.InternalInjectorCreator.build(InternalInjectorCreator.java:105)
+        at com.google.inject.Guice.createInjector(Guice.java:87)
+
+This error could be due to one of the following issues:
+
+. The path of the  `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` not correct. Ensure that the correct path is specified while starting the application
+
+. While starting the application, the `org.killbill.server.properties` is specified as `file://PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. The file protocol requires three slashes, so ensure that it is specified as `file:///`
+
+. The database URL is not specified properly, ensure that the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` has the correct database properties as specified above
 
 
 === Dependencies - TODO
