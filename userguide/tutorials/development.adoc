@@ -22,8 +22,8 @@ The first step is to clone the Kill Bill repository. For this, you need to follo
 
 . In the Git Repository details, enter the Kill Bill Git URL https://github.com/killbill/killbill in the *URI* field. 
 
-.. If you want read-write access to the Kill Bill repository, Select *https* in the *Protocol* dropdown and enter your Git credentials in the *User/Password* fields . 
-.. If you do not have Git credentials or want a read-only access, you can Select *Git* in the *Protocol* Dropdown. This disables the credentials fields. However, this will clone the repository anonymously and give you a read only access to the repository. 
+.. If you have Git credentials, you can select *https* in the *Protocol* dropdown and enter your Git credentials in the *User/Password* fields . 
+.. If you do not have Git credentials , you can Select *Git* in the *Protocol* Dropdown. This disables the credentials fields. 
 
 .. Click *Next*
 
@@ -31,6 +31,7 @@ The first step is to clone the Kill Bill repository. For this, you need to follo
 
 . Select the path on your computer where you would like to clone the code. This path will be referred to as *PROJECT_ROOT* from now on). For example, if you choose `C:/MyProjects/KillBill`, *PROJECT_ROOT* refers to this path. Click *Finish* (This starts the cloning process and may take a while depending on your internet speed)
 
+Note that cloning the repository as specified above gives a read-only access to the repository. If you'd like to make changes to the repository, you need to fork the repository, make changes to your fork and create a Pull Request in order to merge the changes.
 
 ====  Creating an Eclipse Project
 
@@ -132,7 +133,7 @@ Once the repository is cloned, you need to create an Eclipse project. For this, 
    </pluginExecutions>
 </lifecycleMappingMetadata>
 
-. Go to `Window > Preferences > Maven > Lifecycle Mappings`.Click *Browse* and select the path of the `lifecycle-mapping-metadata.xml` file. Click `Apply and Close`
+. Go to `Window > Preferences > Maven > Lifecycle Mappings`. Click *Browse* and select the path of the `lifecycle-mapping-metadata.xml` file. Click `Apply and Close`
 
 . Build the project again (In Project Explorer, `Right click on killbill > Maven > Update Project > OK`)
 
@@ -147,15 +148,28 @@ Before you can execute the code, you need to configure the Kill Bill database ma
 
 In order to configure MySQL, you need to follow the steps given below:
 
-. Create a database using the following command:
+. Create a user corresponding to Kill Bill. You can run the following command :
+
+ create user killbilluser identified by 'password';
+ 
+ . Create a database using the following command:
 
     create database killbill;
-   
+ 
+. Select the `killbill` database created above using the following command:
+
+ use killbill;
+ 
 . Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].
 
-==== PostGreSQL configuration
+. Grant  privileges to the user created above on the killbill database using the following command:
 
-In order to configure PostGreSQL, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
+ GRANT ALL ON killbill.* TO 'killbilluser' ;
+ 
+
+==== PostgreSQL configuration
+
+In order to configure PostgreSQL, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
 
 . Create a user corresponding to Kill Bill. You can run the following command :
 
@@ -180,7 +194,7 @@ In order to configure PostGreSQL, you need to follow the steps given below (Thes
 
 . Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL. 
 
-. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].In psql, you  can run the following command:
+. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here]. In psql, you  can run the following command:
 
   \i <ddl_file_path>
 
@@ -307,11 +321,13 @@ Once the build is successful, you can run the application to verify that everyth
 
 . Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. Update the following properties as per your database:
 
- org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill or jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
+ org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill 
+ # For PostgreSQL, use jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
  org.killbill.dao.user=root
  org.killbill.dao.password=root
  org.killbill.dao.logLevel=DEBUG
- org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill or jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
+ org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill 
+ # For PostgreSQL, use jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
  org.killbill.billing.osgi.dao.user=root
  org.killbill.billing.osgi.dao.password=root
  
@@ -384,15 +400,16 @@ Sometimes, you may face some issues in running the application. In such cases, i
 
 . Do the following in Eclipse:
 
-.. Press Ctrl + Shift + T and locate `DefaultKillbillConfigSource`. 
+.. Press *Ctrl + Shift + T* and locate the file that you would like to debug. For example, if the application fails to start, you would need to debug the `DefaultKillbillConfigSource`. 
 
 ..  If this does not show the source code do the following:
 
 ... Click *Attach Source*. 
 
-... Click on *External Location* and Navigate to your Maven local repository (`~/.m2/repository`). Select `/org/kill-bill/billing/killbill-platform-base/0.40.4/killbill-platform-base-0.40.4-sources.jar`
+... Click on *External Location* and Navigate to your Maven local repository (`~/.m2/repository`). Select the jar file corresponding to the file that you want to debug. For the  `DefaultKillbillConfigSource` you need to select 
+`/org/kill-bill/billing/killbill-platform-base/0.40.4/killbill-platform-base-0.40.4-sources.jar` (At the time of writing, `0.40.4` is the latest version of this jar, however this can change so the exact version might be different for you) 
 
-.. Set up a breakpoint in `DefaultKillbillConfigSource.java#L118` 
+.. Set up a breakpoint as required. For example, if it is an issue in starting the application, you would need to set up a breakpoint in  `DefaultKillbillConfigSource.java#L118` 
 
 .. Click `Run > Debug Configurations`
 
@@ -408,7 +425,8 @@ Sometimes, you may face some issues in running the application. In such cases, i
 
 . Click `Run > Debug Configurations` and double click the  the Debug configuration that you created above
 
-. This runs the application in debug mode. so, you can set additional breakpoints and debug as required.
+. This runs the application in debug mode. You can also set additional breakpoints as required.
+
 
 === Some common errors and their solutions
 
@@ -439,25 +457,9 @@ Sometimes, after building the application, the build may fail with the following
  [ERROR] After correcting the problems, you can resume the build with the command
  [ERROR]   mvn <args> -rf :killbill-profiles-killbill
  
-This error is most probably because the `logback.xml` file is missing license information. This might have got deleted while customizing the log file path. So ensure that the `logback.xml` file has the following license information at the top:
+This error is most probably because the `logback.xml` file is missing license information. You can build the application using the following command: 
 
- <!--
-  ~ Copyright 2010-2013 Ning, Inc.
-  ~ Copyright 2014-2015 Groupon, Inc
-  ~ Copyright 2014-2015 The Billing Project, LLC
-  ~
-  ~ The Billing Project licenses this file to you under the Apache License, version 2.0
-  ~ (the "License"); you may not use this file except in compliance with the
-  ~ License.  You may obtain a copy of the License at:
-  ~
-  ~    http://www.apache.org/licenses/LICENSE-2.0
-  ~
-  ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-  ~ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
-  ~ License for the specific language governing permissions and limitations
-  ~ under the License.
-  -->
+ mvn clean install -DskipTests -Dcheck.skip-rat=true
 
 
 ==== Jetty does not start 
