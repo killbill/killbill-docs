@@ -104,21 +104,21 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/mult
 
 [1] Setup the Database
 
-The first step is to setup the RDS instance. This process begins with the RDS dashboard, which is distinct from the EC2 dashboard. Open the dashboard, select `Databases` from the left menu, and click the red button at the top right that reads `Create Database`:
+The first step is to setup the RDS instance. This process begins with the RDS dashboard, which is distinct from the EC2 dashboard. If you are on the EC2 dashboard, select the `Services` menu at the upper left, then scroll down and choose `Databases/RDS`. When the dashboard appears, select `Databases` from the left menu, and click the red button at the top right that reads `Create Database`:
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-database.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-create-database.png[align=center]
 
 You will be taken to the `Create Database` page. The first choice you will have is between `Standard Create`, which allows you to set a full range of configuration parametera, or `Easy Create`, which sets most of these parameters to defaults. We recommend `Easy Create` in most cases.
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/standard-or-easy.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-standard-or-easy.png[align=center]
 
 The next section offers you a choice of several database types. Kill Bill can work with any database type that is `mysql` or `postgres` compatible. For robust production use, Amazon Aurora is probably a good choice. Here we will illustrate the simpler steps setting up a MariaDB database.
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/database-types.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-database-types.png[align=center]
 
 The next choice determines the instance size. We suggest the `Production` option as this will provide the most robust configuration.
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/instance-sizes.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-instance-sizes.png[align=center]
 
 The last section asks you to:
 
@@ -126,17 +126,19 @@ The last section asks you to:
 2. Give a username for the administrative account (we suggest that you do *not* use the default name
 3. Provide a password for the administrative acount (we suggest you let AWS generate one for you)
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/names-and-password.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-names-and-password.png[align=center]
 
 WHen the password is setup and confirmed, click `Create Database` in the lower right corner. You will return to the main Databases screen, which should now look like this:
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/database-starting.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-database-starting.png[align=center]
 
 This display shows that your database is starting. After a few minutes, the status will change to `Available` (You may need to reload the page to see this). At this time you can click on the database name to get more information, including the full name of the instance.
 
 On the page that appears you should see a panel named `Connectivity and Security`. THe left side of this panel shows the full name of the endpoint, which you will need shortly, and the port number, which is normally 3306.
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/connectivity-and-security.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-connectivity-and-security.png[align=center]
+
+Lastly, on the `Connectivity and Security` panel, locate and click on the link for the default VPC security group. You will need to add an inbound security rule, because the database by default does not allow external access. In the panel for this group, click on `Inbound Rules` and select `Edit Inbound Rules`. Next click on `Add rule`. In the `Type` column select `MYSQL/Aurora`. The port will be set to 3306 automatically. In the `Source` column, click on the search icon and select `0.0.0.0/0'. Finally, click on `Save Rules` in the bottom right. Your database is ready to go.
 
 [2] Edit the configuration script
 
@@ -153,9 +155,9 @@ cat <<_EOF > $DB_PROPS
 #
 # EDIT THE FOLLOWING DB PROPERTIES AS NEEDED:
 #
-DB_SERVER=db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com:3306
-DB_USER=admin
-DB_PASSWORD=5Xn21rhxr3Km4jC7N7ol
+DB_SERVER=DB-INSTANCE-NAME:3306
+DB_USER=ADMIN-NAME
+DB_PASSWORD=PASSWORD
 KILLBILL_DB_NAME=killbill
 KAUI_DB_NAME=kaui
 _EOF
@@ -169,7 +171,7 @@ _EOF
 
 su -l -c "cd /var/lib/tomcat/bin && /var/lib/tomcat/bin/updateProperties.sh $DB_PROPS $KB_PROPS" tomcat
 ```
-First, you need to edit the database properties. DB_SERVER should be set to the full name of the DB instance, as given in the `Connectivity and Security` panel (see above). DB_USER and DB_PASSWORD should be set to the administrator credentials you have chosen for the RDS instance.
+First, you need to edit the database properties. DB_SERVER should be set to the full name of the DB instance, as given in the `Connectivity and Security` panel (see above). THe port number 3306 is required. DB_USER and DB_PASSWORD should be set to the administrator credentials you have chosen for the RDS instance.
 
 Second, you may optionally edit any Kill Bill properties that you need to change from the standard defaults.
 
@@ -184,44 +186,71 @@ After setting the number of instances, scroll down to the bottom of the page. Th
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/userdata.png[align=center]
 
 
-Make sure that the security group for the EC2 instance also includes the security group for the RDS instance to ensure your EC2 instances can connect to RDS.
+[4] Create the databases
 
-[4] Install database schemas
+Kill Bill requires two databases, with the names killbill and kaui. We provide predefined schemas for these databases.
 
-To install the database schemas, you will need to `ssh` to one EC2 instance using your private key -- make sure you have alowed incoming SSH traffic on port `22` in your security group.
+First you will need to login to *one* of your instances and create the databases. To login, use the secure shell command:
+
+`ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP`
+
+Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.
+
+On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 `ssh` is available but may need to be activated through the Settings screen.
+
+The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
+
+
+Once you are logged in, you can use the `mysql` command to create the two databases `killbill` and `kaui`. The credentials for this command are the same ones you set up for the database and copied to the configuration file. The password will not be echoed when it is typed.
 
 ```
-# SSH as ubuntu user
-> ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<EC2_NAME>
-# Move to tomcat user
-> sudo su - tomcat
-```
-
-Once logged in, and reusing the credentials, DB url examples from our user data script, create the 2 databases `killbill` and `kaui`:
-
-```
-> mysql -h db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol
+> mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p
+Enter Password: 
 mysql> create database killbill;
 mysql> create database kaui;
-^D
+mysql> exit
 ```
-
-Then, you can install the schemas:
+The next step is to install the schemas. These can be found at:
 
 * killbill schema: `http://docs.killbill.io/latest/ddl.sql`
 * kaui schema: `https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql`
 
-
-The procedure to install the schemas is:
+One easy way to do this is to return to your local computer (type `exit`) and use the `sftp` command. Then upload them to your EC2 instance home directory with the commands:
 
 ```
-# install killbill schema -- assumes it was saved as killbill.ddl
-> mysql -h db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol killbill < killbill.ddl
-# install kaui schema -- assumes it was saved as kaui.ddl
-> mysql -h db-instance-1.cah16olm8gkg.us-east-1.rds.amazonaws.com -u admin -p5Xn21rhxr3Km4jC7N7ol kaui < kaui.ddl
+sftp -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP
+put killbill.ddl
+put kaui.ddl
+exit
 ```
+
+Once the files are successfully uploaded, login again to your instance using the `ssh' command. You can now install the schemas:
+
+```
+> mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p killbill < killbill.ddl
+Enter Password:
+> mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p kaui < kaui.ddl
+Enter Password:
+```
+To ensure that the databases are setup correctly, login to mysql again, then try the SHOW TABLES command:
+
+```
+> mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p
+Enter Password:
+use killbill
+show tables;
+use kaui
+show tables;
+exit
+```
+
+Each `show tables` command should display a list of table names for the database. 
+
+
 
 [5] Stop and Restart the KillBill Service
+
+IS THIS NECESSARY? IF SO SHOULD IT BE DONE ON ALL INSTANCES?
 
 ```
 > sudo service killbill stop
@@ -232,6 +261,7 @@ The procedure to install the schemas is:
 
 [6] Add the ELB in front of the EC2 instances
 
+TO DO
 
 == Configuration
 
