@@ -1,31 +1,142 @@
 = Developing a Notification Plugin
 
-== Overview
 
-Notification plugins implement the `OSGIKillbillEventDispatcher.OSGIKillbillEventHandler` interface. Each Kill Bill event from the external message bus is dispatched to the `public void handleKillbillEvent(final ExtBusEvent killbillEvent)` method. Such plugins can be a great alternative to http://docs.killbill.io/latest/push_notifications.html[Push Notifications] in performance demanding environments.
+== Notification Plugin Overview
+
+Sometimes, you may need to perform some action based on what happens in Kill Bill. For example, you may need to send an email when an invoice is generated, or update SalesForce when an account is created. Creating your own custom notification plugin is the answer to such scenarios. Kill Bill notifies the notification plugin about events so that the plugin can take the appropriate action.  This article explains how you can go about creating your custom notification plugin. Such plugins can also be a great alternative to http://docs.killbill.io/latest/push_notifications.html[Push Notifications] in performance demanding environments.
+
+
+== How to develop your custom notification plugin
+
+We provide an interface called `OSGIKillbillEventDispatcher.OSGIKillbillEventHandler`. In order to create your own notification plugin, you need to write code that implements this interface and implement the `public void handleKillbillEvent(final ExtBusEvent killbillEvent)` method. 
+
+We also provide a simple https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] that can be used as the starting point to develop your custom notification plugin. 
+You can refer to our https://docs.killbill.io/latest/plugin_development.html#_java_plugins[plugin development] document in order to understand how to set up the https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] plugin code.
+
+The https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] has a class called `HelloWorldListener.java`. This implements the `OSGIKillbillEventDispatcher.OSGIKillbillEventHandler` interface . You can create a class similar to this and write your plugin code within the `handleKillbillEvent` method.
+
+Kill Bill provides a class called https://github.com/killbill/killbill-platform/blob/master/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIKillbillAPI.java[OSGIKillBillAPI.java]. This class exposes all of Kill Bill's internal APIs. An object of this class will automatically be available in your plugin. For example, the `HelloWorldListener` declares a field corresponding to `osgiKillbillAPI` at Line 36 which is intialized via the constructor.
+
+The `osgiKillbillAPI` object can then be used to fetch the appropriate api object which can in turn be used to fetch additional information. For example, Line 57 in `HelloWorldListener` invokes `osgiKillbillAPI.getAccountUserApi`  using which it obtains Account information about the changed account. You can similarly use the `osgiKillbillAPI` to fetch necessary information.
+
+
+
+== Kill Bill Events Handled by Notification Plugin
+
+The following table lists all the events that the notification plugin is capabile of handling. These are actually just enum constants defined in `ExtBusEventType`
+
+|===
+|Event Name | Event Description
+
+|ACCOUNT_CREATION
+|Occurs when a new customer account is created
+|ACCOUNT_CHANGE
+|Occurs when a customer account is modified
+|BLOCKING_STATE
+|Occurs when there is a change in state of an entitlement (It becomes BLOCKED or UNBLOCKED)
+|BROADCAST_SERVICE
+|Used to broadcast an event to other Kill Bill nodes (Typically used for plugin related events like plugin installation,plugin uninstallation, plugin start, plugin stop, etc. )
+|SUBSCRIPTION_CREATION
+|Occurs when a new subscription is created
+|SUBSCRIPTION_PHASE
+|Occurs when a new subscription phase is created
+|SUBSCRIPTION_CHANGE
+|Occurs when a subscription is modified
+|SUBSCRIPTION_CANCEL
+|Occurs when a subscription is cancelled
+|SUBSCRIPTION_UNCANCEL
+|Occurs when a cancelled subscription is uncancelled (Note that subscription uncancellation  cannot be done once the cancellation becomes effective )
+|SUBSCRIPTION_BCD_CHANGE
+|Occurs when the subscription billing date is changed
+|ENTITLEMENT_CREATION
+|Occurs when a new entitlement is created
+|ENTITLEMENT_CANCEL
+|Occurs when an entitlement is cancelled
+|BUNDLE_PAUSE
+|Occurs when a subscription bundle is paused
+|BUNDLE_RESUME
+|Occurs when a subscription bundle is resumed
+|OVERDUE_CHANGE
+|Occurs when there is a change is an overdue stage
+|INVOICE_CREATION
+|Occurs when a new invoice is generated
+|INVOICE_ADJUSTMENT
+|Occurs when an invoise is adjusted
+|INVOICE_NOTIFICATION
+|Occurs when an invoice is going to be generated for an account in the future (Can be used to notify customers about upcoming bills)
+|INVOICE_PAYMENT_SUCCESS
+|Occurs when an invoice has been paid for successfully
+|INVOICE_PAYMENT_FAILED
+|Occurs when the payment for an invoice fails
+|PAYMENT_SUCCESS
+|Occurs when payment is successful
+|PAYMENT_FAILED
+|Occurs when payment fails
+|TAG_CREATION
+|Occurs when a new tag is associated with a Kill Bill resource (account, invoice, etc.)
+|TAG_DELETION
+|Occurs when a tag associated with a Kill Bill resource (account, invoice, etc.) is deleted
+|CUSTOM_FIELD_CREATION
+|Occurs when a custom field is created
+|CUSTOM_FIELD_DELETION
+|Occurs when a custom field is deleted
+|TENANT_CONFIG_CHANGE
+|Occurs when a Tenant configuration is modified (For example catalog is created/updated or an overdue configuration is created/updated, etc.)
+|TENANT_CONFIG_DELETION
+|Occurs when a Tenant configuration is deleted
+|===
+
+
+== Some common use cases for notification plugin
+
+This section lists some common use cases where you can use the notification plugin and also specifies how you can use the notification plugin in these scenarios.
+
+=== Doing something when an account in created/modified
+
+Sometimes, you may wish to perform some action like updating Salesforce when there is some account related activity. For this, you can write a custom notification plugin that handles the following events:
+
+. ACCOUNT_CREATION
+
+. ACCOUNT_CHANGE
+
+You can obtain the account information using the following:
+
+`Account account = osgiKillbillAPI.getAccountUserApi().getAccountById(killbillEvent.getAccountId(), context)`
+
+You can then use this account object to update the necessary information in Salesforce
+
+== Existing Notification Plugins
+
+We already provide some notification plugins for some common scenarios. The following are some of the existing notification plugins:
+
+. https://github.com/killbill/killbill-email-notifications-plugin[Email Notification plugin] - This plugin listens to certain events and notifies customers through emails. 
+. http://docs.killbill.io/latest/userguide_analytics.html[Analytics plugin] - Can be used to generate financial reports. 
+
+. https://github.com/killbill/killbill-cloud/tree/master/kpm[Kpm] - Kpm is a special notification plugin which is used for managing other plugins
 
 == Retries
 
-By default, if your plugin triggers a runtime exception, the event is redispatched right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property).
+Sometimes an exception might occur in your notification plugin due to which it might not be able to handle the event sent to it by Kill Bill. By default, if a plugin triggers a runtime exception, Kill Bill dispatches the event right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property). However, in some cases, you may want Kill Bill to retry sending the event again at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. The retry schedule should include a Period array, each element in the array should specify the duration after which the retry should be attempted. 
 
-In some cases, you may want to retry at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried. In terms or responsabilities:
-
-* Plugin is in charge of deciding whether an `NotificationPluginApiRetryException` should be thrown and attach the associated retry schedule to it.
-* Kill Bill manages the retry logic and also keeps count of # exiting retries versus retry schedule.
-
-It is expected that the plugin will simply pass the same retry schedule for each retry iteration, but this is not enforced -- and left for the plugin to decide. Kill Bill will look at the most recent retry schedule attached to the exception currently being handled and determine what to do based on that. If for instance a first schedule included 2 retries 10 days apart, and then upon retrying one time, the new schedule now includes only 1 retry, the cycle of retries would end there (as the latest schedule contains only one retry and Kill Bill already retried one time).
-
-For example:
-
+For example consider the following exception:
 [source,java]
-----
 // Retry in an hour and in 24hrs
 throw new NotificationPluginApiRetryException(Arrays.asList(new Period[]{Period.hours(1), Period.days(1)}));
-----
 
+This specifies that Kill Bill should retry sending the event two times. The first should be an hour from now, while the second should be 24 hours from now.
+
+
+When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried. 
+
+So, in terms or responsabilities:
+
+* Plugin is in charge of deciding whether an `NotificationPluginApiRetryException` should be thrown and attach the associated retry schedule to it.
+* Kill Bill manages the retry logic and also keeps count of # existing retries versus retry schedule.
+
+It is expected that the plugin will simply pass the same retry schedule for each retry iteration, but this is not enforced and left for the plugin to decide. Kill Bill will look at the most recent retry schedule attached to the exception currently being handled and determine what to do based on that. If for instance a first schedule included 2 retries 10 days apart, and then upon retrying one time, the new schedule now includes only 1 retry, the cycle of retries would end there (as the latest schedule contains only one retry and Kill Bill already retried one time).
 Because of such behavior, any plugin can trigger retries at any time: it is hence important that your listener is idempotent.
 
-=== Internals
+=== Internals - Is this Required?
 
 Retriable events are serialized as `RetryNotificationEvent` objects and placed in the `notifications-retries:extBusEvent-listener-service` notification queue. An example of such notification would look like:
 
