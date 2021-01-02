@@ -95,20 +95,27 @@ For more information about the organization of your instance, see the Configurat
 
 == Multi-Tier Deployments
 
+=== Overview
 
-For production deployments, we recommend a *multi-tier* configuration with two or more EC2 instances and a separate database instance using the `Amazon Relational Database Service (RDS)`. In place of `nginx`, this configuration would rely on an AWS `Elastic Load Balancer (ELB)` to correctly spread the traffic among the various nodes, and also to route traffic to either  Kill Server or KAUI based on the incoming port. This deployment option requires a bit more setup, so we also provide an (easier) way to deploy using https://docs.killbill.io/latest//aws-cf.html[CloudFormation templates]. However, the multi-tier option provides more control over the deployment.
+For production deployments, we recommend a *multi-tier* configuration with two or more EC2 instances and a separate database instance using the `Amazon Relational Database Service (RDS)`. In place of `nginx`, this configuration relies on an AWS `Elastic Load Balancer (ELB)` to correctly spread the traffic among the various nodes, and also to route traffic to either  Kill Server or KAUI based on the incoming port. This deployment option requires a bit more setup, so we also provide an (easier) way to deploy using https://docs.killbill.io/latest//aws-cf.html[CloudFormation templates]. However, the multi-tier option provides more control over the deployment.
 
 The diagram below illustrates the multitier configuration. This section will explain how to setup this option.
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multi-tier-ami_deployment.png[align=center]
 
-[1] Setup the Database
+=== Login to AWS
 
-The first step is to setup the RDS instance. This process begins with the RDS dashboard, which is distinct from the EC2 dashboard. If you are on the EC2 dashboard, select the `Services` menu at the upper left, then scroll down and choose `Databases/RDS`. When the dashboard appears, select `Databases` from the left menu, and click the red button at the top right that reads `Create Database`:
+To begin, log in to Amazon Web Services at https://aws.amazon.com. If you are new to AWS, you will be asked to create an account and provide billing information. You will need to sign in as a *Root User*. This should take you to the *AWS Management Console*, which provides links to all available services.
+
+Check the upper right corner of your screen to be sure you are in the appropriate *Region*. All resources you create will be placed in this region, and may not be accessible from other regions.
+
+=== Setup the Database
+
+Once you are logged in, the first step is to setup the RDS instance. This process begins with the RDS dashboard, which should be available from the Services menu. When the dashboard appears, select `Databases` from the left menu, and click the red button at the top right that reads `Create Database`:
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-create-database.png[align=center]
 
-You will be taken to the `Create Database` page. The first choice you will have is between `Standard Create`, which allows you to set a full range of configuration parametera, or `Easy Create`, which sets most of these parameters to defaults. We recommend `Easy Create` in most cases.
+You will be taken to the `Create Database` page. The first choice you will have is between `Standard Create`, which allows you to set a full range of configuration parameters, or `Easy Create`, which sets most of these parameters to defaults. We recommend `Easy Create` in most cases.
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-standard-or-easy.png[align=center]
 
@@ -140,7 +147,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/mult
 
 Lastly, on the `Connectivity and Security` panel, locate and click on the link for the default VPC security group. You will need to add an inbound security rule, because the database by default does not allow external access. In the panel for this group, click on `Inbound Rules` and select `Edit Inbound Rules`. Next click on `Add rule`. In the `Type` column select `MYSQL/Aurora`. The port will be set to 3306 automatically. In the `Source` column, click on the search icon and select `0.0.0.0/0`. Finally, click on `Save Rules` in the bottom right. Your database is ready to go.
 
-[2] Edit the configuration script
+=== Edit the Configuration Script
 
 To set up the EC2 instances you will need to provide them with information needed to connect to the databases. We provide a brief configuration script to simplify this process. The template for this script is as follows:
 
@@ -175,15 +182,66 @@ First, you need to edit the database properties. DB_SERVER should be set to the 
 
 Second, you may optionally edit any Kill Bill properties that you need to change from the standard defaults.
 
-[3] Launch the EC2 instances
+=== Launch the EC2 Instances
 
-The next step is to launch the number of EC2 instances you want, all based on the Kill Bill single AMI. To do this, follow the same steps given above for single-tier deployment, until you come to the page titled **Choose Instance Type**. At this point, instead of selecting `Review and Launch`, click on the option `Configure Instance Details`.
+The next step is to launch the number of EC2 instances you want, all based on the Kill Bill single AMI.
 
-This page will provide you with a long list of options. The first option is `Number of Instances`. Set the number of instances you wish to launch. Each instance will have essentially the same configuration, including the same image and the same security group.
+
+To start the installation process, point your browser to +++<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_'); return false;">AWS Marketplace</a>+++: 
+
+You should see the following image at the top of your screen:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-subscribe.png[align=center]
+
+Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-terms-ask.png[align=center]
+
+Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click **Continue to Configuration**.
+
+The next page will give several configuration options. 
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-configure.png[align=center]
+
+In most cases you should accept the defaults. Then click **Continue to Launch**.
+
+The next page will give you several options for the launch method. We recommend that you choose **Launch through EC2**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-launch.png[align=center]
+
+All other options will disappear. Click **Launch**.
+
+The next page is titled **Choose Instance Type**. Your instance type is already chosen, so click **Configure Instance Details** at the bottom of the page.
+
+The next page will provide you with a long list of options. The first option is **Number of Instances**. Set the number of instances you wish to launch. Each instance will have essentially the same configuration, including the same image and the same security group.
 
 After setting the number of instances, scroll down to the bottom of the page. The last section is titled **Advanced Settings**. In this section you should set the configuration file you produced above. The setting panel should look like this:
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/userdata.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-userdata.png[align=center]
+
+Now click *Review and Launch* at the bottom of the page. The following page is headed **Review Instance Launch**. This provides a chance to review the details of your chosen instances. Then click **Launch** at the bottom of the page.
+
+Next you will see a very important popup that asks you to choose or create a **key pair**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-keypair.png[align=center]
+
+The key pair provides the credentials you will need to login to your EC2 instances. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. All your instances can use the same one. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Then click **Download Key Pair**. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instances.
+
+When the key pair is generated, click **Launch Instances**. You should see the screen below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-launching.png[align=center]
+
+Your instances are finally launching! To follow what is happening on the EC2 Dashboard, scroll all the way down to the bottom, and click **View Instance** at the bottom right. This will take you to the `Instances` screen which is part of the EC2 Dashboard.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-instances.png[align=center]
+
+
+In a short time, the **Instance State** for your instance should indicate `Running`. You will need to scroll to the right to see all of the information available about your instances.
+
+
+Now proceed with the rest of the setup as described under single tier. However, there is one important difference. When you edit the security group for your instances (all should use the same one), you will need to identify the ports to be used by the load balancer in place of those expected by the external client. Thus, the inbound rules for your security group should now look like this:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound.png[align=center]
 
 
 [4] Create the databases
@@ -271,7 +329,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-
 Click on the *Create* button in the Application Load Balancer box. This will bring up the page titled *Step 1: Configure Load Balancer*:
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-basic-configuration.png[align=center]
-kk
+
 On this page you need to do three things:
 
 1. Assign a name to you load balancer
@@ -282,7 +340,12 @@ Then choose *Next: Configure Security Settings*. You will now see a page titled 
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-configure-security.png[align=center]
 
-If you have selected the HTTPS protocol, you will now be required to create or provide an X.509 SSL Certificate. There are many ways to do this. Some are discussed below.
+If you have selected the HTTPS protocol, you will now be required to create or provide an X.509 SSL Certificate. There are many ways to do this. Some are discussed below. If you are using HTTP, continue here.
+
+
+
+
+
 == Configuration
 
 === SSL Certificates
