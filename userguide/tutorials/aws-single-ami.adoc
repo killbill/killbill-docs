@@ -141,7 +141,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/mult
 
 This display shows that your database is starting. After a few minutes, the status will change to `Available` (You may need to reload the page to see this). At this time you can click on the database name to get more information, including the full name of the instance.
 
-On the page that appears you should see a panel named `Connectivity and Security`. THe left side of this panel shows the full name of the endpoint, which you will need shortly, and the port number, which is normally 3306.
+On the page that appears you should see a panel named `Connectivity and Security`. The left side of this panel shows the full name of the endpoint, which you will need shortly, and the port number, which is normally 3306.
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-connectivity-and-security.png[align=center]
 
@@ -238,21 +238,38 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/mult
 
 In a short time, the **Instance State** for your instance should indicate `Running`. You will need to scroll to the right to see all of the information available about your instances.
 
+=== Setup Security Rules
 
-Now proceed with the rest of the setup as described under single tier. However, there is one important difference. When you edit the security group for your instances (all should use the same one), you will need to identify the ports to be used by the load balancer in place of those expected by the external client. Thus, the inbound rules for your security group should now look like this:
+You are almost set, but there is one more thing you need to do, and that is to scroll down in the menu on the left side to select **Security Groups**. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for `Inbound Rules`. You should see:
 
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound-original.png[align=center]
+
+These rules enable the ports that must be open to access KAUI and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, you need to add one more port.
+
+Click on **Edit Inbound Rules**. then do the following:
+
+1. For the rule that specifies Type: HTTPS, Port Range: 443, change the type to CUStOM TCP and the Port Range to 3000.
+2. For the rule that specifies Type: CUStOM TCP, Port Range: 8443, change the Port Range to 8080.
+3. Finally, add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0.
+
+Your Inbound Rules should now look like this:  
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound-new.png[align=center]
+
+You should now be able to login to KAUI from your browser using the URL https://INSTANCE_IP:3000, where INSTANCE_IP is the IPV4 address for any one of your instances, given on your dashboard as **Public IPV4 Address**. This should display the KAUI login screen. The default credentials are: *admin/password*. The first few requests might be a bit slow as Kill Bill initializes itself. For an introduction to KAUI, see our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide.
+
+In addition, the URL https://INSTANCE_IP:8080 should display a page confirming that the Kill Bill server is accessible.
 
 
-[4] Create the databases
+=== Create the Databases
 
 Kill Bill requires two databases, with the names `killbill` and `kaui`. We provide predefined schemas for these databases.
 
-First you will need to login to *one* of your instances and create the databases. To login, use the secure shell command:
+To create the databases, you will need to login to *one* of your instances. To login, use the secure shell command:
 
 `ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP`
 
-Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.
+Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. *The private key will not work unless its access controls are set to readable by the owner only*.  The `ssh` command relies on the security rule providing access to Port 22, which you added in the previous step.
 
 On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 `ssh` is available but may need to be activated through the Settings screen.
 
@@ -292,7 +309,7 @@ Enter Password:
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p kaui < kaui.ddl
 Enter Password:
 ```
-To ensure that the databases are setup correctly, login to mysql again, then try the SHOW TABLES command:
+To ensure that the databases are setup correctly, login to `mysql` again, then try the SHOW TABLES command:
 
 ```
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p
@@ -308,19 +325,12 @@ Each `show tables` command should display a list of table names for the database
 
 
 
-[5] Stop and Restart the KillBill Service
 
+=== Add the ELB in front of the EC2 instances
 
-```
-> sudo service killbill stop
-# Optionally clean existing logs
-> rm /var/lib/tomcat/logs/*
-> sudo service killbill start
-```
+The last major task is to setup the Elastic Load Balancer in front of the EC2 instances. You will actually need to deploy two separate load balancers, one for access to KAUI, and one for the KB server.
 
-[6] Add the ELB in front of the EC2 instances
-
-The last major task is to setup the Elastic Load Balancer in front of the EC2 instances. To begin, from the EC2 dashboard scroll down the left-hand menu and select *Load Balancing / Load Balancers*. Then click the  *Create Load Balancer* button at the upper left.
+To begin, from the EC2 dashboard scroll down the left-hand menu and select *Load Balancing / Load Balancers*. Then click the  *Create Load Balancer* button at the upper left.
 
 You will be given a choice of several load balancer types. The type we will use is *Application Load Balancer*.
 
@@ -334,13 +344,21 @@ On this page you need to do three things:
 
 1. Assign a name to you load balancer
 2. Select a protocol for your listener. For our first example we will assume this will be HTTP. However to ensure a secure connection, we recommend using HTTPS as discussed below.
-3. Scroll to the bottom and select at least *two* availability zones. Normally it does not matter which ones.
+3. Scroll to the bottom and select at least *two* availability zones. *IMPORTANT: You must select all of the zones that your EC2 instances are contained in. Otherwise, the load balancer will be unable to connect to these instances.*
 
 Then choose *Next: Configure Security Settings*. You will now see a page titled *Step 2: Configure Security Settings*.
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-configure-security.png[align=center]
 
-If you have selected the HTTPS protocol, you will now be required to create or provide an X.509 SSL Certificate. There are many ways to do this. Some are discussed below. If you are using HTTP, continue here.
+If you have selected the HTTPS protocol, you will now be required to create or provide an X.509 SSL Certificate. There are many ways to do this. Some are discussed below. If you are using HTTP, you will see a warning message. Ignore the message and choosed *Next: Configure Security Groups*. This will take you to a page titled *Step 3: Configure Security Groups.* 
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-configure-security-groups.png[align=center]
+
+This page will show you the existing security groups and offer the choice to choose an existing group or create a new one. We advise you to create a new group at this time. The new security group should have inbound rules enabling inputs for KAUI and Kill Bill as follows: 
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-security-group.png[align=center]
+
+You will use the same security group for both load balancers.
 
 
 
