@@ -58,11 +58,16 @@ public class HelloWorldListener implements OSGIKillbillEventDispatcher.OSGIKillb
 
 * The API object that then be used to retrieve the appropriate information from Kill Bill. For example, the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/account/api/AccountUserApi.java[AccountUserApi] has several methods that can be used to retrieve account related information. The code above invokes `AccountUserApi#getAccountById`
 
+* Note that in order to invoke read/write API operations like `AccountUserApi#getAccountById` , the code must authenticate against Kill Bill first. Otherwise, it will result in an `org.apache.shiro.authz.UnauthenticatedException` as specified in our plugin development document https://docs.killbill.io/latest/plugin_development.html#_faq[here]. In order to authenticate against Kill Bill, the following code needs to be added before invoking any API operation:
+[source, java]
+killbillAPI.getSecurityApi().login(login, password);
+
 * The `AccountUserApi#getAccountById` method requires as parameter a `TenentContext`. So, the code above creates a `TenantContext` object with the account id and tenant id and passes it to the `AccountUserApi#getAccountById` method. 
 
 * In general, all the API operations require either a `TenantContext` or a `CallContext` object. A `TenantContext` is mandatory for read only operations (operations which retrieve some data from Kill Bill) like the `AccountApi#getAccountById` used above. A `CallContext` is mandatory for read/write operations and contains additional metadata (user doing the change, reason code, etc.). These values are used for auditing purposes.
 
 * A `TenantContext` should always have the *tenantId* populated. Whenever possible, the *accountId* should also be populated (the exception is when an operation isn’t really tied to any account, like https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/util/api/TagUserApi.java#L45[TagUserApi#getTagDefinitions] API: these tag definitions are defined at the tenant level, not at the account level).
+
 
 
 == Kill Bill Events Handled by Notification Plugin
