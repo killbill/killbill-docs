@@ -423,7 +423,51 @@ The steps above configure the application so that the Kill Bill and Kaui logs ar
   <log_file_path>/killbill.out
   <log_file_path>/kaui.out
 
+==== Setting up KPM in Kaui
 
+KPM stands for *Kill Bill Plugin Manager*. It can be used to manage https://docs.killbill.io/latest/plugin_development.html[plugins]. You can read https://github.com/killbill/killbill-cloud/tree/master/kpm[this] article to know more about kpm.
+
+KPM can be setup in Kaui. When you do this, you can easily perform actions like install, uninstall, restart plugins directly via Kaui without having to run the KPM commands on the command line.
+
+In order to set up KPM in Kaui, you need to do the following:
+
+. Ensure that you have kpm installed as per the instructions https://github.com/killbill/killbill-cloud/tree/master/kpm[here]
+
+. Open a command prompt/terminal window and run the following command (Replace `<kpm_bundles_path>` with the actual path where you would like to install the kpm bundles):
+[source,bash]
+kpm pull_defaultbundles --destination=<kpm_bundles_path>
+
+. Ensure that this downloads the jar files corresponding to the kpm bundles. So, your `kpm_bundles_path` should look like this:
+[source,bash]
+$kpm_bundles_path
+--platform
+--platform/killbill-platform-osgi-bundles-kpm-0.40.4.jar
+--platform/killbill-platform-osgi-bundles-logger-0.40.4.jar
+--sha1.yml
+
+
+. Add the following properties to the `TOMCAT_HOME/conf/catalina.properties` file:
+[source,properties]
+org.killbill.osgi.bundle.install.dir=<kpm_bundles_path>
+org.killbill.billing.plugin.kpm.kpmPath=<kpm_path>
+
+. Replace `<kpm_bundles_path>` with the actual path where the kpm bundles are installed in Step 2 above. Replace `<kpm_path>` with the path of the kpm script (either *.bat* or *.sh* file depending on your OS. For example, if you have installed kpm on Windows at `C:/kpm`, `kpm_path` should refer to `c:/kpm/bin/kpm.bat`)
+
+
+. Restart Tomcat
+
+. Verify that there are no errors in the Kill Bill logs
+
+. Open a browser and type `http://localhost:8080/kaui. Sign in using *admin/password*. This should now display a plug icon in Kaui as follows:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_with_kpm_plug.png[align=center]
+
+. On Clicking kpm, you should see the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kpm_screen_in_kaui.png[align=center]
+
+. On clicking `Install New Plugin` you should see the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kpm_kaui_install_plugins[align=center]
+
+In order to know more about how to use kpm in kaui, you can refer to our https://docs.killbill.io/latest/userguide_kaui.html#_kpm[Kaui tutorial]
 
 ==== Other Notes
 We recommend installing the *Apache Tomcat Native Library*. In order to do this, you need to follow the steps given below: 
@@ -434,6 +478,90 @@ We recommend installing the *Apache Tomcat Native Library*. In order to do this,
 
 If you are unable to install the Tomcat Native Library on Windows, you may skip this step.
 
+
+
+==== FAQ
+
+This section lists some errors that are commonly encountered while setting up Kill Bill and Kaui with Tomcat and how you can fix these errors.
+
+*Logs not created*
+
+Sometimes, even after configuring your `logback.xml` file as specified in the <<Customizing Log File Path>> section, logs might not be created. This is most probably because your `logback.xml` is not a valid XML file. Some reasons for an XML file to be invalid are leading spaces, unclosed XML tags. In general, if you are able to open the XML file in a web browser without any errors, your XML file is valid.
+
+*Application points to the default Database*
+
+Sometimes, when the application is started, it may use the default H2 database and cause the following errors:
+[source,bash]
+Caused by: org.h2.jdbc.JdbcSQLNonTransientConnectionException: A file path that is implicitly relative to the current working directory is not allowed in the database URL "jdbc:h2:file:/var/tmp/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE". Use an absolute path, ~/name, ./name, or the baseDir setting instead. [90011-200]
+        at org.h2.message.DbException.getJdbcSQLException(DbException.java:622)
+        at org.h2.message.DbException.getJdbcSQLException(DbException.java:429)
+        at org.h2.message.DbException.get(DbException.java:205)
+        at org.h2.message.DbException.get(DbException.java:181)
+        at org.h2.engine.ConnectionInfo.getName(ConnectionInfo.java:396)
+        at org.h2.engine.Engine.openSession(Engine.java:50)
+        at org.h2.engine.Engine.openSession(Engine.java:192)
+        at org.h2.engine.Engine.createSessionAndValidate(Engine.java:171)
+        at org.h2.engine.Engine.createSession(Engine.java:166)
+        at org.h2.engine.Engine.createSession(Engine.java:29)
+        at org.h2.engine.SessionRemote.connectEmbeddedOrServer(SessionRemote.java:340)
+        at org.h2.jdbc.JdbcConnection.<init>(JdbcConnection.java:173)
+        at org.h2.jdbc.JdbcConnection.<init>(JdbcConnection.java:152)
+        at org.h2.Driver.connect(Driver.java:69)
+        at org.h2.jdbcx.JdbcDataSource.getJdbcConnection(JdbcDataSource.java:189)
+        at org.h2.jdbcx.JdbcDataSource.getConnection(JdbcDataSource.java:178)
+        at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:358)
+        at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:206)
+        at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:477)
+        at com.zaxxer.hikari.pool.HikariPool.access$100(HikariPool.java:71)
+        at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:725)
+        at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:711)
+        at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+
+This error is mostly because the database properties are not correctly specified. Ensure that the database properties are specified correctly in the *TOMCAT_HOME/conf/catalina.properties* file
+as specified in the <<Kill Bill Configuration>> section above
+
+*Plug Icon not seen in Kaui*
+
+Sometimes, even after configuring kpm in kaui as specified in the <<Setting up KPM in Kaui>> section above, the plug icon is not visible in Kaui. The following error is displayed in the KillBill logs:
+[source,bash]
+org.osgi.framework.BundleException: Duplicate import: org.joda.time.format
+	at org.apache.felix.framework.util.manifestparser.ManifestParser.normalizeImportClauses(ManifestParser.java:366)
+	at org.apache.felix.framework.util.manifestparser.ManifestParser.<init>(ManifestParser.java:180)
+	at org.apache.felix.framework.BundleRevisionImpl.<init>(BundleRevisionImpl.java:121)
+	at org.apache.felix.framework.BundleImpl.createRevision(BundleImpl.java:1243)
+	at org.apache.felix.framework.BundleImpl.<init>(BundleImpl.java:112)
+	at org.apache.felix.framework.Felix.installBundle(Felix.java:2907)
+	at org.apache.felix.framework.BundleContextImpl.installBundle(BundleContextImpl.java:165)
+	at org.apache.felix.framework.BundleContextImpl.installBundle(BundleContextImpl.java:138)
+	at org.killbill.billing.osgi.FileInstall.installOSGIBundle(FileInstall.java:151)
+	at org.killbill.billing.osgi.FileInstall.installAllOSGIBundles(FileInstall.java:142)
+	at org.killbill.billing.osgi.FileInstall.installBundles(FileInstall.java:91)
+	at org.killbill.billing.osgi.BundleRegistry.installBundles(BundleRegistry.java:64)
+	at org.killbill.billing.osgi.DefaultOSGIService.initialize(DefaultOSGIService.java:92)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.killbill.billing.lifecycle.DefaultLifecycle.doFireStage(DefaultLifecycle.java:154)
+	at org.killbill.billing.lifecycle.DefaultLifecycle.fireSequence(DefaultLifecycle.java:141)
+	at org.killbill.billing.lifecycle.DefaultLifecycle.fireStartupSequencePriorEventRegistration(DefaultLifecycle.java:82)
+	at org.killbill.billing.server.listeners.KillbillPlatformGuiceListener.startLifecycle(KillbillPlatformGuiceListener.java:308)
+	at org.killbill.billing.server.listeners.KillbillPlatformGuiceListener.contextInitialized(KillbillPlatformGuiceListener.java:130)
+	at org.apache.catalina.core.StandardContext.listenerStart(StandardContext.java:4689)
+	at org.apache.catalina.core.StandardContext.startInternal(StandardContext.java:5155)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+	at org.apache.catalina.core.ContainerBase.addChildInternal(ContainerBase.java:743)
+	at org.apache.catalina.core.ContainerBase.addChild(ContainerBase.java:719)
+	at org.apache.catalina.core.StandardHost.addChild(StandardHost.java:705)
+	at org.apache.catalina.startup.HostConfig.deployWAR(HostConfig.java:970)
+	at org.apache.catalina.startup.HostConfig$DeployWar.run(HostConfig.java:1840)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+	
+This typically happens on Windows machines. In such a case, delete   `<kpm_bundles_path>/platform/killbill-platform-osgi-bundles-jruby-0.40.4.jar` if present. Restart Tomcat. This should fix the issue.
 
 == Quick Tutorial
 
