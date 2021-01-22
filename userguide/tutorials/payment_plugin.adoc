@@ -17,12 +17,12 @@ The *Hello World Plugin* already includes the plugin framework.
 
 In order to get started with your own payment plugin, you need to do the following:
 
-. Set up the *Hello World Plugin*  as per our https://docs.killbill.io/latest/plugin_development.html#_java_plugins[plugin development] document.
+. Set up the *Hello World Plugin* as per our https://docs.killbill.io/latest/plugin_development.html#_java_plugins[plugin development] document.
 
 . Create a class similar to https://github.com/killbill/killbill-hello-world-java-plugin/blob/719779b1ea25c14928e92996b6aa21cc9bf8d4fe/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldPaymentPluginApi.java[HelloWorldPaymentPluginApi.java]. This is a reference class that is included in the *Hello World Plugin*. It implements the `PaymentPluginApi` interface.
 
 . Alternatively, you can create a class that extends the https://github.com/killbill/killbill-plugin-framework-java/blob/6bc92fa3f7f091304499fb78df901ecb03fdaf47/src/main/java/org/killbill/billing/plugin/api/payment/PluginPaymentPluginApi.java[PluginPaymentPluginApi.java]. This is a class from the *Kill Bill Plugin framework*. It also implements the `PaymentPluginApi` interface.
-. Write code within your class for all the methods in the `PaymentPluginApi` interface. You can  refer to our https://github.com/killbill/killbill-stripe-plugin/blob/657482f82949f08d4d317be8eb159855e7aad6f7/src/main/java/org/killbill/billing/plugin/stripe/StripePaymentPluginApi.java[StripePluginApi] if required.
+. Write code within your class for all the methods in the `PaymentPluginApi` interface. You can refer to our https://github.com/killbill/killbill-stripe-plugin/blob/657482f82949f08d4d317be8eb159855e7aad6f7/src/main/java/org/killbill/billing/plugin/stripe/StripePaymentPluginApi.java[StripePluginApi] if required.
 
 . You can also copy an existing plugin and modify it for your gateway. The https://github.com/killbill/killbill-adyen-plugin[Adyen] plugin is a good starting point.
 
@@ -70,23 +70,28 @@ The following table lists the methods in https://github.com/killbill/killbill-pl
 
 A few pointers for implementing these methods:
 
-* Almost all the `PaymentPluginApi` methods accept parameters like  *Kill bill accountId*, *Kill Bill payment id*, *Kill Bill transaction id*, etc which are self-explanatory. These may or may not be used by your plugin code. But you may need some of these values to populate the `PaymentTransactionInfoPlugin` object which is returned by all the methods as explained below. 
+* Almost all the `PaymentPluginApi` methods accept parameters like *Kill bill accountId*, *Kill Bill payment id*, *Kill Bill transaction id*, etc which are self-explanatory. These may or may not be used by your plugin code. But you may need some of these values to populate the `PaymentTransactionInfoPlugin` object which is returned by all the methods as explained below. 
 
-* All the methods listed in the `PaymentPluginApi` also accept `Iterable<PluginProperty> properties` as a parameter. A https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PluginProperty.java[PluginProperty] consists of a *key-value* pair. It can be used to pass plugin specific properties to the plugin. For example, if your plugin requires properties like *city=San Francisco* and *billing_address=abc*, a client application  can create two `PluginProperty` objects  and pass a `List` of these objects.
+* All the methods listed in the `PaymentPluginApi` also accept `Iterable<PluginProperty> properties` as a parameter. A https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PluginProperty.java[PluginProperty] consists of a *key-value* pair. It can be used to pass plugin specific properties to the plugin. For example, if your plugin requires properties like *city=San Francisco* and *billing_address=abc*, a client application can create two `PluginProperty` objects and pass a `List` of these objects.
 
 * All the methods listed in the `PaymentPluginApi` also accept as parameter either a `TenantContext` or a `CallContext`.  Read only operations (operations which retrieve some data from Kill Bill) like the `getPaymentInfo` listed below accept a `TenantContext`. Read/write operations like `authorizePayment` listed below accept a `CallContext`. Both these values can be used for auditing purposes. 
 
-== Return Objects
+* It is quite possible that your plugin might support some of the operations listed above. In such a case, the plugin can do one of the following:
 
-=== PaymentTransactionInfoPlugin 
+** Return an *empty list* when the return type is a list 
+** Return a transaction with status *CANCELED* if the return type is a `PaymentTransactionInfoPlugin` 
+** Return empty objects otherwise
 
-All the payment related methods listed in the `PaymentPluginApi` return a https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentTransactionInfoPlugin.java[PaymentTransactionInfoPlugin] object. Again, the Kill Bill Plugin framework includes a class https://github.com/killbill/killbill-plugin-framework-java/blob/46d94fbeb1cf089aa04e62cfecf751ca47032023/src/main/java/org/killbill/billing/plugin/api/payment/PluginPaymentTransactionInfoPlugin.java[ PluginPaymentTransactionInfoPlugin] which implements the `PaymentTransactionInfoPlugin`. You can create a class that extends this class as done in our https://github.com/killbill/killbill-stripe-plugin/blob/657482f82949f08d4d317be8eb159855e7aad6f7/src/main/java/org/killbill/billing/plugin/stripe/StripePaymentTransactionInfoPlugin.java[Stripe plugin]
+== PaymentTransactionInfoPlugin 
 
-The `PaymentTransactionInfoPlugin` has methods that return information like *Kill bill accountId*, *Kill Bill payment id*, *Kill Bill transaction id*, etc. Kill Bill  retrieves and uses these values as required.
+
+All the payment related methods listed in the `PaymentPluginApi` return an https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentTransactionInfoPlugin.java[PaymentTransactionInfoPlugin] object. Again, the Kill Bill Plugin framework includes a class https://github.com/killbill/killbill-plugin-framework-java/blob/46d94fbeb1cf089aa04e62cfecf751ca47032023/src/main/java/org/killbill/billing/plugin/api/payment/PluginPaymentTransactionInfoPlugin.java[ PluginPaymentTransactionInfoPlugin] which implements the `PaymentTransactionInfoPlugin`. You can create a class that extends this class as done in our https://github.com/killbill/killbill-stripe-plugin/blob/657482f82949f08d4d317be8eb159855e7aad6f7/src/main/java/org/killbill/billing/plugin/stripe/StripePaymentTransactionInfoPlugin.java[Stripe plugin]
+
+The `PaymentTransactionInfoPlugin` has methods that return information like *Kill bill accountId*, *Kill Bill payment id*, *Kill Bill transaction id*, etc. Kill Bill retrieves and uses these values as required.
 
 The  `PaymentTransactionInfoPlugin` also has a `getProperties` method that returns a `PluginProperty` List. This can be used to return plugin specific properties to the client API 
 
-In addition, the `PaymentTransactionInfoPlugin` has a `getStatus` method that returns a  https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginStatus.java[PaymentPluginStatus].  It is very important to correctly populate the status type. The following table elaborates how the status should be populated:
+In addition, the `PaymentTransactionInfoPlugin` has a `getStatus` method that returns an  https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginStatus.java[PaymentPluginStatus].  It is very important to correctly populate the status type. The following table elaborates how the status should be populated:
 
 |===
 |Status | Status Description
@@ -104,16 +109,11 @@ In addition, the `PaymentTransactionInfoPlugin` has a `getStatus` method that re
 |===
 
 
-Kill Bill has a https://docs.killbill.io/latest/userguide_payment.html#_janitor[Janitor] system in place that attempts to fix *PENDING* and *UNKNOWN* states . It polls the plugin via `PaymentPluginApi#getPaymentInfo` method. If the plugin subsequently returns *PROCESSED* , the Janitor updates the internal payment state as well as invoice balance, etc.) accordingly
+Kill Bill has a https://docs.killbill.io/latest/userguide_payment.html#_janitor[Janitor] system in place that attempts to fix *PENDING* and *UNKNOWN* states . It polls the plugin via `PaymentPluginApi#getPaymentInfo` method. If the plugin subsequently returns *PROCESSED*, the Janitor updates the internal payment state as well as invoice balance, etc.) accordingly
 
 The Janitor matches the internal transactions against plugin transactions via the *transaction id*: make sure `PaymentTransactionInfoPlugin#getKbTransactionPaymentId` is correctly implemented.
 
 You should try to avoid *UNDEFINED* as much as possible, because it is the only case where Kill Bill cannot retry payments (since the payment may or may not have happened).
 
 
-
-
-== Plugin Activation
-
-When a payment operation occurs, Kil Bill will chose which payment plugin to go to based on the `paymentMethodId` specified. The `paymentMethodId` will map to an specific payment method, which in turns contains the name of the plugin to chose for the payment.
 
