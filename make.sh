@@ -7,7 +7,7 @@ USERGUIDE_INPUT_DIR=$DIR/userguide
 # Common options
 COMMON_OPTS="-a sourcedir=$USERGUIDE_INPUT_DIR -a imagesdir=$USERGUIDE_INPUT_DIR/assets"
 # Selfcontained options
-SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -T html5 -a stylesheet=style.css -a stylesdir=../stylesheets -a source-highlighter=pygments -a pygments-style=monokai"
+SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -T html5 -a stylesheet=kb.css -a stylesdir=../stylesheets -a source-highlighter=pygments -a pygments-style=monokai"
 
 # Google analytics
 GOOGLE_ANALYTICS="-r ./lib/google-analytics-docinfoprocessor.rb -a google-analytics-account=UA-32705710-3"
