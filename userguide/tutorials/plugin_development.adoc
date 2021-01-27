@@ -635,9 +635,9 @@ Note that when relying on the plugin frameworks, some amount of work is already 
 
 == FAQ
 
-=== org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous
+=== Authentication Error
 
-If you need to call back Kill Bill through an endpoint requiring authentication, you will need to use the `SecurityApi#login` API first.
+Sometimes, you may see the `org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous`. This occurs when your plugin code invokes any of the read/write Kill Bill operations without authenticating against Kill Bill. So, you first need to invoke `SecurityApi#login` API.
 
 Here is how it can be used in a Servlet for instance:
 
@@ -668,3 +668,21 @@ private void login(final HttpServletRequest req) {
     }
 }
 ----
+
+=== Maven Build Error
+
+Sometimes, when you run `mvn clean install` on the plugin code, you may see the following maven error:
+
+[source,bash]
+Failed to execute goal org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M3:enforce (default) on project killbill-plugin-momo: Some Enforcer rules have failed.
+
+This generally occurs when your `pom.xml` contains dependencies that are not recommended. The maven build has lots of checks in place to make sure the right dependencies are pulled in, there are no duplicate dependencies, there are no obvious bugs, etc.
+If you'd like to ignore all these checks and still proceed with the build, you can run the following command:
+
+[source,bash]
+mvn clean install -Dcheck.fail-enforcer=false -Dcheck.fail-dependency=false -Dcheck.fail-dependency-scope=false -Dcheck.fail-dependency-versions=false -Dcheck.fail-duplicate-finder=false -Dcheck.fail-enforcer=false -Dcheck.fail-spotbugs=false -Dcheck.ignore-rat=true
+
+
+However, this is *not recommended*, we recommend that you fix the POM file and run the build with all the checks in place.
+
+
