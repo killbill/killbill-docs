@@ -64,80 +64,113 @@ Also, for internal reference, you might want to take a look at https://github.co
 
 === Java Plugins
 
+The section explains how you can set up the https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] in Kill Bill. Once set up, this can be used as the basis for developing your own plugin.
+
 ==== Prerequisites
 
-Java versions 6+ are supported.
+. Ensure that you have *Maven 3.5.2* or higher (It can be downloaded from http://maven.apache.org/download.cgi[here])
+
+. Ensure that you have *JDK 8* or higher (It can be downloaded from https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
+
+. Ensure that *JAVA_HOME* environment variable is set to the path of your JDK installation (For example, if JDK is installed at *C:\Software\jdk1.8.0_102*, you need to set *JAVA_HOME* to *C:\Software\jdk1.8.0_102*)
+
+==== Setting up the Code in an IDE
+
+The first step is to set up the code for the  https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] in an IDE. For this, you need to do the following:
+
+. Clone the *hello world plugin* repository from https://github.com/killbill/killbill-hello-world-java-plugin[here]
+
+. Set up the code in the IDE of your choice. You can refer to our https://docs.killbill.io/latest/development.html#_setting_up_code_in_an_ide[development document]  for detailed instructions on how to clone a repository and set up the code in Eclipse
+
+. This path where the repository is cloned will be referred to as *PROJECT_ROOT* from now on. For example, if you choose `C:/MyProjects/killbill-hello-world-java-plugin`, *PROJECT_ROOT* refers to this path. 
+
+. Once the code is set up in Eclipse, your Eclipse workspace should look like this:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/plugin_development/eclipse_workspace_with_helloworldplugin.png[align=center]
 
 ==== Build
+
+The Hello World plugin is a standard Maven project. So you can build it as follows:
+
+. Open a command prompt/terminal window and navigate to the *PROJECT_ROOT*  directory
+
+. Run the following command: 
+[source,bash]
+ mvn clean install -DskipTests
+ 
+. Verify that a *BUILD SUCCESS* message is displayed on the console and that the plugin jar file 
+is created as `PROJECT_ROOT/target/<artifact_id>-<version>.jar`
+
+
+==== Deployment
+
+The Hello World plugin can be deployed in a Tomcat or Docker installation of the Kill Bill application. You can also install the Kill Bill application via kpm as specified https://github.com/killbill/killbill-cloud/tree/master/kpm#kill-bill-installation[here] and then install the plugin. However, if you are using the plugin as a basis to develop your own plugin, it would be useful to deploy the plugin in a standalone Jetty set up. This section explains how you can do this. 
+
+. Ensure that you have *kpm* installed as per the instructions given https://github.com/killbill/killbill-cloud/tree/master/kpm[here]
+
+. Open a command prompt/terminal window and run the following command to install the plugin (Replace `PROJECT_ROOT` with your actual project root, `<artifact_id>-<version>` with your JAR file name and  `path_to_install_plugin` with the actual path where you would like to install the plugin):
+[source,bash]
+kpm install_java_plugin 'dev:hello' --from-source-file=PROJECT_ROOT/target/<artifact_id>-<version>.jar --destination=<path_to_install_plugin>
+
+. Verify that the `<artifact_id>-<version>.jar` is copied at the `path_to_install_plugin` path 
+
+. Ensure that the Kill Bill application is configured as per the instructions https://docs.killbill.io/latest/development.html#_setting_up_kill_bill_in_your_development_environment[here]
+
+. Open `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` and specify the following property (Replace `plugin_path` with the actual path where the plugin is installed. Note that if this property is not specified, the application looks for the plugin at the `/var/tmp/bundles/` path):
+[source,properties]
+org.killbill.osgi.bundle.install.dir=<plugin_path>
+
+. Open a command prompt/terminal window and navigate to the *PROJECT_ROOT*  directory. Start Kill Bill by running the following command (Replace `PROJECT_ROOT` with your actual project root):
+[source,bash]
+ mvn -Dorg.killbill.server.properties=file:///PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties -Dlogback.configurationFile=./profiles/killbill/src/main/resources/logback.xml jetty:run
+
+. Verify that the following is displayed in the Kill Bill logs which confirms that the plugin is installed successfully:
+[source,bash]
+  GET /               [*/*]     [*/*]    (/HelloWorldServlet.hello)
+  GET /healthcheck    [*/*]     [*/*]    (/HelloWorldHealthcheckServlet.check)
+listening on:
+  http://localhost:8080/plugins/hello-world-plugin/
+
+. Open a browser and type \http://localhost:8080/plugins/hello-world-plugin/. If the plugin is installed properly, the following should be displayed in the Kill Bill logs:
+[source,bash]
+2020-12-09T04:58:15,750+0000 lvl='INFO', log='HelloWorldServlet', th='http-nio-8080-exec-1', xff='', rId='b79decfb-e809-4c01-9064-cff18722a67c', tok='', aRId='', tRId='', Hello world
+
+
+==== Setting up a breakpoint and debugging
+
+When you start developing your own plugin, it would be useful to be able to set up a break point and debug the plugin code. This section explains how you can achieve this. 
+
+. Create a new environment variable *MAVEN_OPTS* and set it to `-Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n`
+
+
+. Open Eclipse and do the following:
+
+.. Set up a break point in the HelloWorldServlet#L41
+
+.. Click `Run > Debug Configurations`
+
+.. Double click  `New Remote Java Application`
+
+.. Enter the name that you would like to give to this debug configuration in the *Name* field
+
+.. Click *Apply*
+
+.. Click *Close*
+
+. Restart the Kill Bill application as explained in <<Deployment>> section above
+
+. Click `Run > Debug Configurations` and double click the  the Debug configuration that you created above
+
+. This runs the application in debug mode. You can also set additional breakpoints as required.
+
+
+==== Additional Configuration
+
+This section is a work in progress and will be updated soon!
+
 
 `java` plugins rely on the http://felix.apache.org/documentation/subprojects/apache-felix-maven-bundle-plugin-bnd.html[`maven-bundle-plugin`] to produce the correct OSGI plugin (with the correct `MANIFEST.MF`). It is recommended to start from a plugin that already works, as the build configuration can be quite tricky. A good example is to look at the `pom.xml` from the https://github.com/killbill/killbill-hello-world-java-plugin/blob/master/pom.xml[hello world plugin]
 
 The build will produce a `jar` under the `target` directory which should contain all the classes and configuration files directly accessible for that plugin. OSGI also provides a way to import classes that are exported by other plugins and this is configured in the `Import-Package` section of the `maven-bundle-plugin`. The hello world plugin provides some default based on the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.36.2/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L49[classes exported by the system bundle in Kill Bill]. Kill Bill offers a system property, `org.killbill.osgi.system.bundle.export.packages.extra`, to specify additional packages to be exported by the system bundle and that could in turn be imported by the plugin. Desiging which packages are served by the plugin jar and which one are imported from another bundle (and mostly the system bundle inside Kill Bill) is one of the challenges of the OSGI mechanism.
-
-Once the pom is correctly written, building the plugin is straightforward:
-
-[source,bash]
-----
-mvn clean install
-# Look for entry under target <artifact_id>-<version>.jar
-----
-
-==== Deployment
-
-After the plugin was built, one can deploy the plugin using the `kpm` command. The steps provided below assume Kill Bill is running inside a docker container and specify the steps that occur outside and inside the container:
-
-[source,bash]
-----
-
-# Copy the Jar inside the container
-> docker cp target/hello-world-plugin-1.0.1-SNAPSHOT.jar kb_killbill_1:/tmp
-
-# SSH inside the conatainer
-> docker exec -ti kb_killbill_1 bash
-
-# Install the plugin : '/var/lib/killbill/bundles' is the default in our Kill Bill docker images
-tomcat@6e7d5ae5bfc4> kpm install_java_plugin 'dev:hello' --from-source-file=/tmp/hello-world-plugin-1.0.1-SNAPSHOT.jar  --destination=/var/lib/killbill/bundles
-
-# exit
-tomcat@6e7d5ae5bfc4> ^D
-
-# Restart Kill Bill core
-> docker restart kb_killbill_1
-----
-
-Note that the last step that restarts the container -- and therefore Kill Bill core -- is required to make the newly installed plugin visible. KPM only allows to install the plugin on the filesystem and until Kill Bill core gets restarted this plugin is unknown to the system. However, once the plugin has been installed once, iterating through development becomes easier because all is needed is to copy the jar at the right location and restart the plugin -- restarting Kill Bill core is not even necessary anymore -- as illustrated below:
-
-[source,bash]
-----
-# Override the existing jar
-> docker cp target/hello-world-plugin-1.0.1-SNAPSHOT.jar kb_killbill_1:/var/lib/killbill/bundles/plugins/java/1.0.1-SNAPSHOT/hello-world-plugin-1.0.1-SNAPSHOT.jar 
-
-# Restart the plugin
-> curl -v \
--u admin:password \
--H "Content-Type: application/json" \
--H 'X-Killbill-CreatedBy: admin' \
--X POST \
---data-binary '{
-    "nodeCommandProperties": [
-        {
-            "key": "pluginKey",
-            "value": "hdev:hello"
-        }
-    ],
-    "nodeCommandType": "RESTART_PLUGIN",
-    "isSystemCommandType": true
-}' \
-"http://127.0.0.1:8080/1.0/kb/nodesInfo"
-
-# Follow console traces and verify things are in good order
-> curl -v \
--u admin:password \
-http://127.0.0.1:8080/1.0/kb/nodesInfo | python -m json.tool
-
-----
-
-Note that when using OSS released plugins, the steps are simpler because the plugin can be installed directly using our http://docs.killbill.io/latest/plugin_management.html#_installation[plugin management apis] and don't require mucking around with copying jars and restarting Kill Bill core.
 
 
 ==== Examples of Java Plugins
@@ -194,7 +227,7 @@ The steps are very similar to the one provided in the java section above, except
 
 [source,bash]
 ----
-# Copy the tar.gz 
+# Copy the tar.gz
 > docker cp pkg/killbill-stripe-5.0.0-dev.tar.gz  kb_killbill_1:/tmp
 
 # SSH inside the conatainer
@@ -526,7 +559,7 @@ Also, in the case of `ruby` plugin (and as mentionned before), the correct versi
 ==== Deployment Through KPM
 
 The standard way to deploy plugins is to rely on https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM].
-The https://github.com/killbill/killbill-cloud/blob/master/kpm/README.md[KPM README] explains how to install KPM and also provides some guidance on how to deploy publicly released Kill Bill plugins.
+The https://github.com/killbill/killbill-cloud/blob/831e3c4ca536788ce64c83dfbd09b68668dddb6d/kpm/README.adoc[KPM README] explains how to install KPM and also provides some guidance on how to deploy publicly released Kill Bill plugins.
 
 
 == Plugin Configuration
@@ -602,9 +635,9 @@ Note that when relying on the plugin frameworks, some amount of work is already 
 
 == FAQ
 
-=== org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous
+=== Authentication Error
 
-If you need to call back Kill Bill through an endpoint requiring authentication, you will need to use the `SecurityApi#login` API first.
+Sometimes, you may see the `org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous`. This occurs when your plugin code invokes any of the read/write Kill Bill operations without authenticating against Kill Bill. So, you first need to invoke `SecurityApi#login` API.
 
 Here is how it can be used in a Servlet for instance:
 
@@ -635,3 +668,21 @@ private void login(final HttpServletRequest req) {
     }
 }
 ----
+
+=== Maven Build Error
+
+Sometimes, when you run `mvn clean install` on the plugin code, you may see the following maven error:
+
+[source,bash]
+Failed to execute goal org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M3:enforce (default) on project killbill-plugin-momo: Some Enforcer rules have failed.
+
+This generally occurs when your `pom.xml` contains dependencies that are not recommended. The maven build has lots of checks in place to make sure the right dependencies are pulled in, there are no duplicate dependencies, there are no obvious bugs, etc.
+If you'd like to ignore all these checks and still proceed with the build, you can run the following command:
+
+[source,bash]
+mvn clean install -Dcheck.fail-enforcer=false -Dcheck.fail-dependency=false -Dcheck.fail-dependency-scope=false -Dcheck.fail-dependency-versions=false -Dcheck.fail-duplicate-finder=false -Dcheck.fail-enforcer=false -Dcheck.fail-spotbugs=false -Dcheck.ignore-rat=true
+
+
+However, this is *not recommended*, we recommend that you fix the POM file and run the build with all the checks in place.
+
+
