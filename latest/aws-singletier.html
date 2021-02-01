@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]--><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Asciidoctor 1.5.7.1"><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.css"><title>Developing a Payment Plugin</title><style>/*Default CSS*/
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]--><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Asciidoctor 1.5.7.1"><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous"><link rel="stylesheet" href="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.css"><title>Single Tier Option</title><style>/*Default CSS*/
 
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
 /* Remove the comments around the @import statement below when using this as a custom stylesheet */
@@ -645,20 +645,166 @@ nav[data-toggle=toc] .nav .nav>li>.active, nav[data-toggle=toc] .nav .nav>li>.ac
 .listingblock .pygments .tok-vc { color: #f8f8f2 } /* Name.Variable.Class */
 .listingblock .pygments .tok-vg { color: #f8f8f2 } /* Name.Variable.Global */
 .listingblock .pygments .tok-vi { color: #f8f8f2 } /* Name.Variable.Instance */
-.listingblock .pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style></head><body data-spy="scroll" data-target="#toc" class="book"><div class="container"><div class="row"><div id="header" class="col-sm-2 border-columns"><a href="/0.22/"><img class="logo rounded mx-auto d-block sticky-top" src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/logo.png"></a><nav id="toc" data-toggle="toc" class="toc sticky-top col-sm-2"></nav></div><div class="col-sm-8"><div id="header"><h1>Developing a Payment Plugin</h1></div><div id="content"><div id="preamble"><div class="sectionbody"><div class="paragraph"><p>Payment plugins integrate Kill Bill with a specific gateway (i.e. payment processor), such as Stripe or Braintree. While we already have many open-source payment plugins available on GitHub, this guide will give you pointers in case you need to develop your own.</p></div>
-<div class="paragraph"><p>Before reading this guide, make sure to familiarize yourself with the main payment userguide.</p></div></div></div>
-<div class="sect1"><h2 id="_paymentpluginapi_overview">PaymentPluginApi overview</h2><div class="sectionbody"><div class="paragraph"><p>The <a href="https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java">PaymentPluginApi</a> is the interface between Kill Bill and payment plugins.</p></div>
-<div class="paragraph"><p>Here are the actions the plugin can expose:</p></div>
-<div class="ulist"><ul><li><p>authorizePayment and capturePayment should trigger an <a href="https://en.wikipedia.org/wiki/Authorization_hold">authorization</a> and capture respectfully (applies to credit cards only)</p></li><li><p>purchasePayment should trigger a generic payment (authorization with auto-capture for credit cards, ACH/SEPA, etc.)</p></li><li><p>voidPayment should void an authorization (credit cards only)</p></li><li><p>creditPayment should fund the payment method from your merchant account (similar to a refund, but no prior payment is required: this can be used to initiate an ACH for disbursement for instance)</p></li><li><p>refundPayment should reverse an existing (settled) charge</p></li><li><p>getPaymentInfo should return detailed information on the transactions for that payment (arbitrary properties can be populated in PaymentTransactionInfoPlugin#getProperties)</p></li><li><p>searchPayments should return payment transactions matching the specified searchKey (the implementation is up to the plugin)</p></li><li><p>addPaymentMethod should create the payment method in the gateway (e.g. store a token)</p></li><li><p>deletePaymentMethod should delete the payment method in the gateway (e.g. revoke a token)</p></li><li><p>getPaymentMethodDetail should return detailed information about the payment method (e.g. billing address)</p></li><li><p>setDefaultPaymentMethod should mark the payment method as the default one in the gateway (if the associated account in the gateway has several payment methods)</p></li><li><p>getPaymentMethods should list the payment methods in the gateway for that account (used by the refresh endpoint, when payment methods are added directly in the gateway, bypassing addPaymentMethod)</p></li><li><p>resetPaymentMethods, called at the end of a refresh call, should associate to that account the payment methods specified (this is useful if Kill Bill knows payment methods that are not yet in the gateway)</p></li><li><p>searchPaymentMethods should return payment methods matching the specified searchKey (the implementation is up to the plugin)</p></li><li><p>buildFormDescriptor should return enough metadata for the front-end to build a form or a redirect to a hosted payment page</p></li><li><p>processNotification should process payloads from the gateway to transition payments states</p></li></ul></div>
-<div class="paragraph"><p>If an operation is not supported, the plugin must:</p></div>
-<div class="ulist"><ul><li><p>return an empty list when the return type is a list</p></li><li><p>return a transaction with status CANCELED if the return type is a PaymentTransactionInfoPlugin (see below)</p></li><li><p>return empty objects otherwise</p></li></ul></div>
-<div class="sect2"><h3 id="_paymentpluginstatus_states_overview">PaymentPluginStatus states overview</h3><div class="paragraph"><p>When building PaymentTransactionInfoPlugin objects, it is very important to correctly populate the <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/plugin/api/PaymentTransactionInfoPlugin.java">status</a> type:</p></div>
-<div class="ulist"><ul><li><p>if the payment is successful, the plugin should return PROCESSED</p></li><li><p>if the payment is rejected by the gateway (insufficient funds, fails AVS check, fraud detected, etc.), the plugin should return ERROR</p></li><li><p>if the payment requires a completion step (3D-S verification, HPP, etc.), the plugin should return PENDING</p></li><li><p>if the gateway wasn&#8217;t contacted (DNS error, SSL handshake error, socket connect timeout, etc.), the plugin should return CANCELED</p></li><li><p>for all other cases (socket read timeout, 500 returned, etc.), the plugin should return UNDEFINED</p></li></ul></div>
-<div class="paragraph"><p>You should try to avoid UNDEFINED as much as possible, because it is the only case where Kill Bill cannot retry payments (since the payment may or may not have happened).</p></div>
-<div class="sect3"><h4 id="_janitor_integration">Janitor integration</h4><div class="paragraph"><p>Kill Bill will attempt to fix PENDING and UNKNOWN states by polling the plugin via <code>getPaymentInfo</code>: if the plugin subsequently returns PROCESSED for example (maybe by querying the gateway directly), the internal payment state (as well as invoice balance, etc.) will be reflected.</p></div>
-<div class="paragraph"><p>The Janitor will match internal transactions against plugin transactions via the transaction id: make sure <code>getKbTransactionPaymentId</code> is correctly implemented.</p></div></div></div>
-<div class="sect2"><h3 id="_plugin_activation">Plugin Activation</h3><div class="paragraph"><p>When a payment operation occurs, Kil Bill will chose which payment plugin to go to based on the <code>paymentMethodId</code> specified. The <code>paymentMethodId</code> will map to an specific payment method, which in turns contains the name of the plugin to chose for the payment.</p></div></div></div></div>
-<div class="sect1"><h2 id="_payment_plugins_framework">Payment plugins framework</h2><div class="sectionbody"><div class="paragraph"><p>To help with writing payment plugins, we developed a <a href="https://github.com/killbill/killbill-plugin-framework-java">Java</a> framework which ensures that the plugin will respect the previous mentioned conditions. If you are developing your own plugin, we strongly encourage you to use this library. The easiest is to copy an existing plugin and modify it for your gateway. The <a href="https://github.com/killbill/killbill-adyen-plugin">Adyen</a> plugin is a good starting point.</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2021-02-01 22:24:24 UTC</div><script>
+.listingblock .pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style></head><body data-spy="scroll" data-target="#toc" class="book"><div class="container"><div class="row"><div id="header" class="col-sm-2 border-columns"><a href="/0.22/"><img class="logo rounded mx-auto d-block sticky-top" src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/logo.png"></a><nav id="toc" data-toggle="toc" class="toc sticky-top col-sm-2"></nav></div><div class="col-sm-8"><div id="header"><h1>Single Tier Option</h1></div><div id="content"><div class="sect1"><h2 id="_overview">Overview</h2><div class="sectionbody"><div class="paragraph"><p>There are at least three different ways to setup a working Kill Bill system on AWS. Two options are based on a single <strong>Amazon Machine Image (AMI)</strong> containing the complete Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI). These options are <strong>single-tier</strong> and <strong>multi-tier</strong>. The single-tier option is designed to deploy a limited version of Kill Bill quickly for trial and experimentation. For production deployments, we recommend the <a href="https://docs.killbill.io/latest//aws-multitier.html">multi-tier option.</a> A third alternative we offer for deploying a production system is <a href="https://docs.killbill.io/latest//aws-cf.html">CloudFormation templates</a>. The multi-tier option requires more setup than CloudFormation, but provides more control over the deployment.</p></div>
+<div class="paragraph"><p>This document describes the single-tier option. Everything you need for this option: Kill Bill, KAUI, and the MariaDB (MySQL) database, is bundled in the AMI and can be launched on a single EC2 instance with just one click. The EC2 instance will be an instance of Ubuntu Linux. The AMI also comes with a running instance of the load balancer <code>nginx</code> that acts as a reverse proxy and spreads the incoming traffic to either Kill Bill or KAUI based on the incoming port.</p></div>
+<div class="paragraph"><p>The organization of the single-tier system looks like this:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-tier-ami_deployment.png" alt="single tier ami deployment"></span></p></div>
+<div class="paragraph"><p>In this configuration, the Kill Bill server and KAUI are deployed within the <code>tomcat</code> application server. Requests are handled by <code>nginx</code>. Requests received on port 443 are delivered to KAUI, and those received on port 8443 are delivered to Kill Bill. Both Kill Bill and KAUI communicate as needed with the <code>mysql</code> database.</p></div></div></div>
+<div class="sect1"><h2 id="_installation">Installation</h2><div class="sectionbody"><div class="sect2"><h3 id="_login_to_aws">Login to AWS</h3><div class="paragraph"><p>To begin, log in to Amazon Web Services at <a class="bare" href="https://aws.amazon.com">https://aws.amazon.com</a>. If you are new to AWS, you will be asked to create an account and provide billing information. You will need to sign in as a <strong>Root User</strong>. This should take you to the <strong>AWS Management Console</strong>, which provides links to all available services.</p></div>
+<div class="paragraph"><p>Check the upper right corner of your screen to be sure you are in the appropriate <strong>region</strong>. All resources you create will be placed in this region, and may not be accessible from other regions.</p></div>
+<div class="paragraph"><p>In addition, AWS places all resources within a <strong>Virtual Private Network (VPC)</strong>. A default VPC will be created and used automatically in the following steps. However, if you have access to other VPCs, you will need to ensure that all Kill Bill resources are deployed in the same one.</p></div></div>
+<div class="sect2"><h3 id="_setup_your_ec2_instance">Setup your EC2 Instance</h3><div class="paragraph"><p>To start the installation process, point your browser to the Kill Bill AMI at
+
+<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_"
+onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_');
+return false;">
+AWS Marketplace
+</a>
+.</p></div>
+<div class="paragraph"><p>You should see the following image at the top of your screen:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-subscribe.png" alt="single ami subscribe"></span></p></div>
+<div class="paragraph"><p>Click <strong>Continue to Subscribe</strong>. The next page will give the AWS Terms and Conditions. Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click <strong>Continue to Configuration</strong>.</p></div>
+<div class="paragraph"><p>The next page will give several configuration options.</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-configure.png" alt="single ami configure"></span></p></div>
+<div class="paragraph"><p>In most cases you should accept the defaults. Then click <strong>Continue to Launch</strong>.</p></div>
+<div class="paragraph"><p>The next page will give you several options for the launch method. We recommend that you choose <strong>Launch through EC2</strong>.</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-launch.png" alt="single ami launch"></span></p></div>
+<div class="paragraph"><p>All other options will disappear. Click <strong>Launch</strong>.</p></div>
+<div class="paragraph"><p>The next page is titled <strong>Choose Instance Type</strong>. Your instance type is already chosen, and all other options are set, so click <strong>Review and Launch</strong> at the bottom of the page.</p></div>
+<div class="paragraph"><p>The following page is headed <strong>Review Instance Launch</strong>. This provides a chance to review the details of your chosen instance. Then click <strong>Launch</strong> at the bottom of the page.</p></div>
+<div class="paragraph"><p>Next you will see a very important popup that asks you to choose or create a <strong>key pair</strong>.</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-keypair.png" alt="single ami keypair"></span></p></div>
+<div class="paragraph"><p>The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html">AWS documentation</a>. We recommend that you create a new key pair. Give the key pair a simple, easy to remember name such as <code>My-Key-Pair</code>. Then click <strong>Download Key Pair</strong>. Important: You <strong>must</strong> save the private key that will be generated in this step. If you lose this key, you will <strong>not</strong> be able to login to your instance.</p></div>
+<div class="paragraph"><p>When the key pair is generated, click <strong>Launch Instances</strong>. You should see the screen below:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-launching.png" alt="single ami launching"></span></p></div>
+<div class="paragraph"><p>Your instance is finally launching! To follow what is happening on the EC2 Dashboard, scroll all the way down to the bottom, and click <strong>View Instance</strong> at the bottom right. This will take you to the <strong>Instances</strong> screen which is part of the EC2 Dashboard.</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-instances.png" alt="single ami instances"></span></p></div>
+<div class="paragraph"><p>In a short time, the <strong>Instance State</strong> for your instance should indicate <strong>Running</strong>. You will need to scroll to the right to see all of the information available about your instance.</p></div>
+<div class="paragraph"><p>You are almost set, but there is one more thing you should do, and that is to scroll down in the menu on the left side to select <strong>Security Groups</strong>. You should see a list of two or more groups. Select the group whose name begins with <code>Kill Bill on AWS</code>, then scroll to the bottom and select the tab for <strong>Inbound Rules</strong>. You should see:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound.png" alt="single ami inbound"></span></p></div>
+<div class="paragraph"><p>These rules enable the ports that must be open to access KAUI and Kill Bill from a browser. To enable direct login to your instance using SSH, you need to add one more port. Click on <strong>Edit Inbound Rules</strong>. Then add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0. Your Inbound Rules should now look like this:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound-new.png" alt="single ami inbound new"></span></p></div>
+<div class="paragraph"><p>Your Kill Bill installation is ready to go!</p></div></div></div></div>
+<div class="sect1"><h2 id="_initial_testing">Initial Testing</h2><div class="sectionbody"><div class="paragraph"><p>You can now login to KAUI from your browser using the URL <a class="bare" href="https://INSTANCE_IP:443">https://INSTANCE_IP:443</a>, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as <strong>Public IPV4 Address</strong>. This should display the KAUI login screen. For an introduction to KAUI, see our <a href="http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui">Getting Started</a> guide. The default credentials are: <code>admin</code> / <code>password</code>. The first few requests might be a bit slow as Kill Bill initializes itself.</p></div>
+<div class="paragraph"><p>You can also login in directly to your instance from a terminal or command window. You may have no need to do this for a while, but you should try it and make sure it works. You may need to do this for system monitoring or troubleshooting later.</p></div>
+<div class="paragraph"><p>To login, use the secure shell command:</p></div>
+<div class="paragraph"><p><code>ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP</code></p></div>
+<div class="paragraph"><p>Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.</p></div>
+<div class="paragraph"><p>On Windows versions before Windows 10, you may need to download a program called PuTTY to enable <code>ssh</code>. On Windows 10 <code>ssh</code> is available but may need to be activated through the Settings screen.</p></div>
+<div class="paragraph"><p>The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer <code>yes</code>.</p></div>
+<div class="paragraph"><p>For more information about the organization of your instance, see the Configuration and Troubleshooting sections below. To exit from your login, type <code>exit</code>.</p></div></div></div>
+<div class="sect1"><h2 id="_creating_a_certificate">Creating a Certificate</h2><div class="sectionbody"><div class="paragraph"><p><code>nginx</code> is configured to listen on port 443 for messages to be forwarded to KAUI. Port 443 is the standard port for HTTPS. By default, accessing the service from a web browser will show a <code>Not Secure</code> site. In order to make the site secure, you will need to add a valid X.509 SSL/TLS certificate. The easiest option to add the certificate is to make use of the tool <code>certbot</code>, which relies on the free Certificate Authority (CA) <code>Let’s Encrypt</code>. This method provides an easy way to obtain and install free certificates.</p></div>
+<div class="paragraph"><p><code>Certbot</code> is pre-installed in the latest Kill Bill AMI, but if you need a different version of <code>certbot</code>, this is also available through the new package manager <code>snap</code>. This package manager is also preinstalled in the Kill Bill AMI.</p></div>
+<div class="paragraph"><p>To create your certificate, you must first setup a <strong>CNAME</strong>, or Canonical Name, based on a verified domain that you own (this is <strong>not</strong> an AWS domain). If you do not have a domain, you can obtain one for free, or very low cost, from an online source such as GoDaddy. The CNAME is part of your domain&#8217;s DNS profile, and your domain provider should have instructions for creating it.</p></div>
+<div class="paragraph"><p>The CNAME should link your domain to your AWS instance. If your domain is <code>mydomain.com</code> your CNAME might look like <code>kaui.mydomain.com</code>.</p></div>
+<div class="paragraph"><p>To setup your certificate, perform the following steps:</p></div>
+<div class="paragraph"><p>[1]. Create a CNAME linking your domain to your AWS instance.</p></div>
+<div class="paragraph"><p>[2]. Add your CNAME to the server block in the <code>nginx</code> configuration file.</p></div>
+<div class="paragraph"><p>Using a text editor of your choosing, edit the file <code>/etc/nginx/sites-enabled/killbill.conf</code>. You will need to use <code>sudo</code> to edit this file.</p></div>
+<div class="paragraph"><p>This file contains two server blocks. The second block contains the lines:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>server {
+    listen 443;
+    server_name _;</code></pre></div></div>
+<div class="paragraph"><p>Replace the underscore after <code>server_name</code> with your CNAME:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>server {
+    listen 443;
+    server_name killbill.domain.com;</code></pre></div></div>
+<div class="paragraph"><p>Save the modified file.</p></div>
+<div class="paragraph"><p>[3]. Reload the configuration file with the command:</p></div>
+<div class="paragraph"><p><code>sudo nginx -s reload</code></p></div>
+<div class="paragraph"><p>[4]. Enable HTTP traffic on port 80. This is just to allow <code>certbot</code> to create your certificate. To do this, go to your EC2 dashboard and add a new inbound rule as follows: Type: HTTP, Protocol: TCP, Port Range: 80, Source: 0.0.0.0/0. Your inbound rules should now look like this:</p></div>
+<div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound-port-80.png" alt="single ami inbound port 80"></span></p></div>
+<div class="paragraph"><p>[5]. Remove the existing <code>certbot</code> package:</p></div>
+<div class="paragraph"><p>Type the command</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>sudo apt-get remove certbot</code></pre></div></div>
+<div class="paragraph"><p>When asked if you want to proceed, type <code>Y</code> for yes.</p></div>
+<div class="paragraph"><p>[6]. Install <code>certbot</code> using <code>snap</code>:</p></div>
+<div class="paragraph"><p>The following commands will install <code>certbot</code> and link it to the <code>/usr/bin</code> directory:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>sudo snap install --classic certbot
+sudo ln -s /snap/bin/certbot /usr/bin/certbot</code></pre></div></div>
+<div class="paragraph"><p>[7].  Run <code>certbot</code> to create and install the certificate:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>sudo certbot --nginx</code></pre></div></div>
+<div class="paragraph"><p>If you are asked, confirm the server name to be used. If all goes well, you will see a message like:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>IMPORTANT NOTES:
+ - Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/deployment.killbill.io/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/deployment.killbill.io/privkey.pem
+   Your cert will expire on 2020-05-11. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot again
+   with the "certonly" option. To non-interactively renew *all* of
+   your certificates, run "certbot renew"
+ - If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le</code></pre></div></div>
+<div class="paragraph"><p>Of course, there are a few things that could go wrong:</p></div>
+<div class="paragraph"><p>[1]. <code>certbot</code> will attempt to validate your CNAME through your domain provider. If the CNAME does not link correctly to the public DNS name for your AWS instance, the certificate will not be created.</p></div>
+<div class="paragraph"><p>[2]. You could get a message like:</p></div>
+<div class="paragraph"><p><code>Error creating new order : Cannot issue for ec2-18-234-168-57.compute-1.amazonaws.com: The ACME server refuses to issue a certificate for this domain name, because it is forbidden by policy</code></p></div>
+<div class="paragraph"><p>This could happen if you have tried to use your public DNS name directly as your CNAME, which is not allowed.</p></div>
+<div class="paragraph"><p>[3]. You could get a message like <code>certificate cannot be installed</code>.</p></div>
+<div class="paragraph"><p>For help with these and other problems, try the <code>certbot</code> <a href="https://certbot.eff.org/help/">help page</a>.</p></div>
+<div class="paragraph"><p>When your certificate is installed, you should be able to access KAUI from you browser using <code>https://</code> followed by your CNAME as the address. The browser should indicate that the site is secure.</p></div>
+<div class="paragraph"><p>When your certificate is successfully installed, you can edit your security groups again to remove the access through port 80.</p></div>
+<div class="paragraph"><p>The <code>Let&#8217;s Encrypt</code> certifcates are only valid 90 days and will therefore neeed to be renewed. <code>certbot</code> will create a cron entry under <code>/etc/cron.d/certbot</code> to make this process automatic.</p></div></div></div>
+<div class="sect1"><h2 id="_configuration">Configuration</h2><div class="sectionbody"><div class="paragraph"><p>Kill Bill global properties are defined in <code>/var/lib/killbill/config/killbill.properties</code>. For example, this is where you can change the MySQL credentials. Take a look at our <a href="https://docs.killbill.io/latest/userguide_configuration.html">configuration guide</a> for more details.</p></div>
+<div class="paragraph"><p>This is also where you can change the default Kill Bill admin credentials: specify <code>org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini</code> and create the <code>shiro.ini</code> file accordingly (see our <a href="https://docs.killbill.io/latest/user_management.html">RBAC guide</a> for more details).</p></div></div></div>
+<div class="sect1"><h2 id="_troubleshooting">TroubleShooting</h2><div class="sectionbody"><div class="paragraph"><p>After launching the EC2 instance, the full stack should come up, with all services enabled and running, that is:</p></div>
+<div class="ulist"><ul><li><p>An nginx instance receiving traffic on port <code>443</code> and <code>8443</code></p></li><li><p>A instance of Kill Bill server listening on <code>127.0.0.1:8080</code> (and receiving external traffic through nginx on port <code>8443</code>)</p></li><li><p>A instance of Kaui listening on <code>127.0.0.1:3000</code> (and receiving external traffic through nginx on port <code>443</code>)</p></li><li><p>A local <code>mysql</code> server running on port <code>3306</code></p></li></ul></div>
+<div class="paragraph"><p>In this section, we will provide some tips to verify the operation of the system, and what to do when things are not working.</p></div>
+<div class="sect2"><h3 id="_system_health">System Health</h3><div class="paragraph"><p>To verify the overall health of the Kill Bill server instance, you can issue the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>curl http://127.0.0.1:8080/1.0/healthcheck</code></pre></div></div>
+<div class="paragraph"><p>This will return a series of messages giving the health of various system components.</p></div>
+<div class="paragraph"><p>A detailed system information report is available using the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>curl -u &lt;ADMIN&gt;:&lt;PASSWORD&gt; http://127.0.0.1:8080/1.0/kb/nodesInfo</code></pre></div></div>
+<div class="paragraph"><p>Here &lt;ADMIN&gt; and &lt;PASSWORD&gt; are your administrator access credentials.</p></div>
+<div class="paragraph"><p>The Kill Bill single-tier option is composed of four services. The status of each service can be checked by the following commands:</p></div>
+<div class="ulist"><ul><li><p>Kill Bill service: <code>sudo service killbill status</code></p></li><li><p>KAUI service: <code>sudo service kaui status</code></p></li><li><p>Nginx service: <code>sudo service nginx status</code></p></li><li><p>Mysql service: <code>sudo service mysql status</code></p></li></ul></div>
+<div class="paragraph"><p>For each report there should be a line near the top with the following form:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>Active: active (running) since Sat 2020-10-24 20:13:43 UTC; 1 day 1h ago</code></pre></div></div>
+<div class="paragraph"><p>Similarly you can <code>start</code> or <code>stop</code> the services using similar commands, such as <code>sudo service kaui stop</code> to stop KAUI.</p></div></div>
+<div class="sect2"><h3 id="_log_files">Log Files</h3><div class="paragraph"><p>The system maintains a series of logfiles that should be helpful when troubleshooting is needed.</p></div>
+<div class="paragraph"><p>Tomcat logs are under <code>/var/lib/tomcat/logs/</code>:</p></div>
+<div class="ulist"><ul><li><p>KAUI logs: <code>/var/lib/tomcat/logs/kaui.out</code></p></li><li><p>Kill Bill server logs: <code>/var/lib/tomcat/logs/catalina.out</code></p></li></ul></div>
+<div class="paragraph"><p>Nginx logs can be found under <code>/var/log/nginx/</code></p></div>
+<div class="ulist"><ul><li><p>Access logs: <code>/var/log/nginx/access.log</code></p></li><li><p>Error logs: <code>/var/log/nginx/error.log</code></p></li></ul></div></div>
+<div class="sect2"><h3 id="_system_diagnostics">System Diagnostics</h3><div class="paragraph"><p>If support is needed, we may require some additional detailed information about your deployment. We have created a <code>diagnostic</code> command for this purpose. to run this command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code># Login as 'tomcat'
+&gt; sudo su - tomcat
+#
+# Set your access credentials. This example
+#   assumes the default credentials are used:
+#
+&gt; kpm  diagnostic \
+  --killbill-credentials=admin password \
+  --bundles-dir=/var/lib/killbill/bundles \
+  --database-name=killbill \
+  --database-credentials=root root \
+  --killbill-api-credentials=bob lazar \
+  --kaui-web-path=/var/lib/tomcat/webapps2 \
+  --killbill-url=http://127.0.0.1:8080 \
+  --database-host=127.0.0.1:3306
+
+...
+The diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip</code></pre></div></div></div>
+<div class="sect2"><h3 id="_databases">Databases</h3><div class="paragraph"><p>To access the mysql (MariaDB) databases, you can use the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>mysql -u root -proot</code></pre></div></div>
+<div class="paragraph"><p>This enables interactive access to the database manager. There is one <code>killbill</code> and one <code>kaui</code> database created and used by the respective applications. To verify the tables in each database, you can type:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>use killbill;
+show tables;</code></pre></div></div>
+<div class="paragraph"><p>or</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code>use kaui;
+show tables;</code></pre></div></div>
+<div class="paragraph"><p>Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!</p></div>
+<div class="paragraph"><p>To exit the mysql interactive mode, type <code>exit</code>.</p></div></div>
+<div class="sect2"><h3 id="_load_balancer">Load Balancer</h3><div class="paragraph"><p>The load balancer <code>nginx</code> should normally require little attention. The configuration files are located under <code>/etc/nginx/. The configuration file for `nginx itself is `/etc/nginx/nginx.conf</code>. Additional configuration files are located under <code>/etc/nginx/sites-enabled/</code>. The only file normally present in this directory is <code>/etc/nginx/sites-enabled/killbill.conf</code>. This file may need to be edited to enable SSL, as explained above.</p></div></div></div></div>
+<div class="sect1"><h2 id="_upgrades">Upgrades</h2><div class="sectionbody"><div class="paragraph"><p>From time to time new versions of Kill Bill and KAUI may be released. This section explains how to install these new versions.</p></div>
+<div class="paragraph"><p>First, login to your instance using <code>ssh</code>, then switch to the <code>tomcat</code> user:</p></div>
+<div class="paragraph"><p><code>sudo su - tomcat</code></p></div>
+<div class="paragraph"><p>The configuration file <code>/var/lib/killbill/kpm.yml</code> specifies the Kill Bill version (and its plugins) running on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>Edit the configuration file to update the version number</p></li><li><p>Run the command <code>$KPM_INSTALL_KB_CMD</code></p></li><li><p>Delete the cached directory <code>/var/lib/tomcat/webapps/ROOT</code></p></li><li><p>Restart the instance.</p></li></ol></div>
+<div class="paragraph"><p>A similar process can be used for KAUI: update <code>/var/lib/kaui/kpm.yml</code>, run <code>$KPM_INSTALL_KAUI_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps2/ROOT</code> and restart the instance.</p></div></div></div></div></div><div class="col-sm-2 border-columns"></div><div id="footer"><div id="footer-text"><br>Last updated 2021-02-01 22:24:24 UTC</div><script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
