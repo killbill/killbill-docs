@@ -15,41 +15,45 @@ The https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plu
 Let us take a closer look at the `HelloWorldListener` class:
 
 [source,java,linenums]
-public class HelloWorldListener implements OSGIKillbillEventDispatcher.OSGIKillbillEventHandler{
-    private static final Logger logger = LoggerFactory.getLogger(HelloWorldListener.class);
-    private final OSGIKillbillAPI osgiKillbillAPI;
-    public HelloWorldListener(final OSGIKillbillAPI killbillAPI) {
-        this.osgiKillbillAPI = killbillAPI;
-    }
-    @Override
-    public void handleKillbillEvent(final ExtBusEvent killbillEvent) {
-        logger.info("Received event {} for object id {} of type {}",
-                    killbillEvent.getEventType(),
-                    killbillEvent.getObjectId(),
-                    killbillEvent.getObjectType());
-        final TenantContext context =
-            new PluginTenantContext(killbillEvent.getAccountId(), 
-                killbillEvent.getTenantId());
-        switch (killbillEvent.getEventType()) {
-            //
-            // Handle ACCOUNT_CREATION and ACCOUNT_CHANGE only for demo purpose and just print the account
-            //
-            case ACCOUNT_CREATION:
-            case ACCOUNT_CHANGE:
-                try {
-                    final Account account =
-                        osgiKillbillAPI.getAccountUserApi()
-                            .getAccountById(killbillEvent.getAccountId(), context);
-                    logger.info("Account information: " + account);
-                } catch (final AccountApiException e) {
-                    logger.warn("Unable to find account", e);
-                }
-                break;
-            // Nothing
-            default:
-                break;
+public class HelloWorldListener implements OSGIKillbillEventDispatcher
+    .OSGIKillbillEventHandler{
+        private static final Logger logger = LoggerFactory
+            .getLogger(HelloWorldListener.class);
+        private final OSGIKillbillAPI osgiKillbillAPI;
+        public HelloWorldListener(final OSGIKillbillAPI killbillAPI) {
+            this.osgiKillbillAPI = killbillAPI;
         }
-    }
+        @Override
+        public void handleKillbillEvent(final ExtBusEvent killbillEvent) {
+            logger.info("Received event {} for object id {} of type {}",
+                        killbillEvent.getEventType(),
+                        killbillEvent.getObjectId(),
+                        killbillEvent.getObjectType());
+            final TenantContext context =
+                new PluginTenantContext(killbillEvent.getAccountId(), 
+                    killbillEvent.getTenantId());
+            switch (killbillEvent.getEventType()) {
+                //
+                // Handle ACCOUNT_CREATION and ACCOUNT_CHANGE only for
+                // demo purpose and just print the account
+                //
+                case ACCOUNT_CREATION:
+                case ACCOUNT_CHANGE:
+                    try {
+                        final Account account =
+                            osgiKillbillAPI.getAccountUserApi()
+                                .getAccountById(killbillEvent
+                                    .getAccountId(), context);
+                        logger.info("Account information: " + account);
+                    } catch (final AccountApiException e) {
+                        logger.warn("Unable to find account", e);
+                    }
+                    break;
+                // Nothing
+                default:
+                    break;
+            }
+        }
 }
 
 * We provide an interface called https://github.com/killbill/killbill-platform/blob/617d4b626ddd7c081d2927355c6f8cfe2cbd4bd5/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIKillbillEventDispatcher.java[OSGIKillbillEventDispatcher.OSGIKillbillEventHandler]. In order to create your own notification plugin, you need to create a class that implements this interface and implement the `public void handleKillbillEvent(final ExtBusEvent killbillEvent)` method as done in the code above
