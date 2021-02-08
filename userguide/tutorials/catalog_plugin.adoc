@@ -1,0 +1,45 @@
+= Developing a Catalog Plugin
+
+== CatalogPluginApi
+
+The https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[CatalogPluginApi] exists to develop `catalog plugins`. Those plugins are used when one desires to use Kill Bill for the subscription engine (along with the invoicing and payment logic) but where the catalog implementation exists entirely outside of Kill Bill. In this scenario, one can develop a catalog plugin that entirely bypasses the Kill Bill catalog subsystem.
+
+This plugin api works quite differently than other plugin apis (payment plugin api, invoice plugin api, ...) because it is not there to extend the system or to provide a way for plugins to hook into the system to add specific logic, but instead it is used to replace almost the entire catalog subsystem.
+
+Before we explore the api in more detail, let's revisit how the catalog subsystem has been implemented inside Kill Bill: Every time the system needs to retrieve the catalog (associated to a given tenant), it invokes the `getCatalog` api defined in the  `CatalogUserApi` interface. This api will return a `Catalog` object, that itself provides apis to access catalog information. The
+`Catalog` object will contain both the data associated to a given catalog (e.g list of existing `Product`) and also a little bit of catalog logic (independent of the data) which is for instance used for validation purpose or for extracting the correct catalog version given a date,... The data associated to a given per-tenant catalog is normally specified using a set of xml files (one for each version), and the generic logic (code) is hard coded inside the Kill Bill catalog module.
+
+The goal of the `CatalogPluginApi` is to allow feeding catalog data through the plugin without forcing the plugin to have to reimplement any type of catalog logic (and therefore reuse the existing catalog logic existing inside Kill Bill). Therefore the `CatalogPluginApi` will very much look like the `CatalogApi`, to allow plugins to return different versions of catalogs, each of them containing the definition of the basic `Product`s, `Plan`s, ..., but the api will be limited to whatever data needs to be returned.
+
+The `CatalogPluginApi` contains one api `getVersionedPluginCatalog` to return a `VersionedPluginCatalog`. The `VersionedPluginCatalog` itself will contain apis to return the list of `StandalonePluginCatalog` (for each version), ...
+
+In summary, a catalog plugin will serve two functions:
+
+1. It will allow interaction with an existing catalog service to access the catalog information
+2. It will create a mapping function between the third party/legacy catalog service abstractions and the Kill Bill catalog abstractions.
+
+
+The Kill Bill catalog module will invoke any catalog plugin that has been registered with no particular order and it will stop if any of those plugins return a result for the associated tenant. If no plugins were registered or if none of these plugins returned anything for the given tenant, the per-tenant catalog config will first be retrived and then finally the default system wide catalog will be retrieved (if it exists).
+
+== Plugin Activation
+
+Each time Kill Bill is asked to return the catalog (either global or per-tenant catalog entry), it will scan the list of registered catalog plugins and if any are found it will invoke them in no specific order to try to get a catalog for that specific tenant. The iteration will **stop when the first plugin in the list returns a catalog for that tenant** or when none of the plugins have been configured to own the catalog for that specific tenant, in which case this will default to returning the per-tenant catalog configured inside Kill Bill or the default cross tenant catalog.
+
+
+
+== Performance
+
+Every time Kill Bill core -- or invoice/payment/... plugins -- needs to access the catalog, the catalog plugin will be invoked. Having a cached version on your side is obviously critical, if not this will not scale very well.
+
+Additionally, Kill Bill will cache the catalog internally if `getLatestCatalogVersion` returns a non-null value: the date returned must match the latest `effectiveDate` of the `VersionedCatalog`. If the date has changed, the internal cache gets invalidated on the Kill Bill side and `getVersionedPluginCatalog` is called. Otherwise, the cached version is used.
+
+Finally, if you have very large catalogs (100k+ entries) and/or need to customize entries on a per-account level, you can use the `TenantContext#getAccountId` value to return the catalog for a given account when `getVersionedPluginCatalog` is called. In this case, `getLatestCatalogVersion` must return a `null` value.
+
+
+== Use Cases
+
+The main use case, is the one where there is already a catalog service used outside of Kill Bill. The goal of the plugin is to interract with that existing service and map the results into a format compatible with the Kill Bill abstraction by implementing the `CatalogPluginApi`. Of course, if the models are very different this can be a challenging (or impossible) task to achieve.
+
+We have implemented a https://github.com/killbill/killbill-catalog-plugin-test[catalog plugin example] which relies on an existing catalog xml and returns it through the `CatalogPluginApi` to illustrate what needs to happen in the plugin. This would provide a good starting point to develop your own catalog plugin.
+
+

@@ -1,0 +1,214 @@
+= Users, Roles and Permissions Management
+
+== Overview
+
+**Terminology**: In this documentation, a user means a 'user or the api', which maps to the user credential passed through api. For example, when using the `-u admin:password` in most of our cURL examples, the user is `admin` and its password is `password`.
+
+**Assumptions**: We assume the reader went through the http://docs.killbill.io/latest/getting_started.html[Getting started] documentation and has a running system (both killbill and kaui) running on IP=`127.0.0.1`.
+
+=== Shiro
+
+Each api request to Kill Bill requires authentication. The authentication phase verifies that the user exists in the system and that its credentials are correct. Once the credentials have been validated, the roles associated to the user are then extracted, and then the set of permissions associated to each role are also retrieved. The full list of available permissions can be found https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/security/Permission.java[here].
+
+The credentials are passed in the request using http basic authentication mechanism and Kill Bill relies on http://shiro.apache.org/[shiro] for the backend implementation. Shiro supports multiple backend implementations, and we integrated a few of them including:
+
+* Simple configuration file (`shiro.ini` file)
+* Database configuration
+* LDAP integration
+* Okta integration
+
+For simple deployments where only few static users/roles need to be assigned, the `shiro.ini` file is the simplest and the best option. By default both Kill Bill (`shiro.ini`) and Kaui ship with an `admin` user (and its password `password`) that has all the permissions. One can immediatly log-in to Kaui using such user, and start configuring tenants as needed.
+
+Changing such user (e.g to use `superadmin`) or its password to something else than `password` would require editing `shiro.ini` configuration file on the Kill Bill side to make sure this initial user can log-in to Kaui (see below).
+
+For production deployments, we recommend not using the default `admin` (and its default password `password`).
+
+=== Tenant Access
+
+Note that the authentication/authorization is orthogonal to the tenant access: The set of permissions associated to a given user is the same for all tenants (for which he has the keys). So, a potential superuser with all the permissions and with access to the `api_key`/`api_secret` for all tenants would have full control of the entire system. It is common practice to create a cross-tenant admin with the ability to only manage tenants and nothing else, and then have one superadmin per tenant.
+
+This documentation is only specific to `users`, `roles` and associated `permissions`, which are cross tenants configurations.
+
+== User Management APIs 
+
+For a large entreprise solution, an LDAP or Okta integration is probably the most flexible, but it is also the most complex, and so for those that require the flexibility of an RBAC systems without the associated complexity, Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database.
+
+This solution relies on a mixed solution between the `shiro.ini` file and the database backend: An initial user must be configured in the `shiro.ini` with at least enough permissions to use the User Management APIs:
+
+* The `shiro.ini` file is used to configure the initial user (could be a superadmin with all permissions or an admin with just enough permissions to manage the user/roles). For simplicity, we will call it `superadmin` and will assign one role containing all permissions.
+* Once deployed, the 'superadmin' is now able to make api calls to configure new users/roles.
+
+=== Kill Bill setup
+
+The `shiro.ini` file will look like the following:
+
+[source,bash]
+----
+[users]
+superadmin = superadmin13, root
+
+[roles]
+root = *:*
+----
+
+You can use the property `org.killbill.security.shiroResourcePath` to specify the location of this file. When using Docker, you can bind mount the file, e.g. specify `-v /path/to/shiro.ini:/var/lib/killbill/shiro.ini -e KILLBILL_SECURITY_SHIRO_RESOURCE_PATH=file:/var/lib/killbill/shiro.ini`.
+
+=== Role and User Setup
+
+Let's create a new role `customer_support`:
+
+[source,bash]
+----
+curl -v \
+     -u "superadmin:superadmin123"  \
+     -H "X-Killbill-CreatedBy: stephane" \
+     -H "Content-Type: application/json" \
+     -X POST \
+     --data-binary '{ "role": "customer_support", "permissions": ["account:create", "account:update", "entitlement:change_plan", "entitlement:pause_resume", "entitlement:cancel", "entitlement:transfer", "invoice:credit", "invoice:item_adjust", "tag:create_tag_definition", "tag:delete_tag_definition", "tag:add", "tag:delete"] }' \
+     'http://127.0.0.1:8080/1.0/kb/security/roles'
+----
+
+Let's create a `cs` username that will have only one role `customer_support`:
+
+[source,bash]
+----
+curl -v \
+     -u 'superadmin:superadmin123' \
+     -H "X-Killbill-CreatedBy: stephane" \
+     -H "Content-Type: application/json" \
+     -X POST \
+     --data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support"] }' \
+     'http://127.0.0.1:8080/1.0/kb/security/users'
+----
+
+
+Let's assume we want to add more permissions to that user. We could create another role `customer_support_manager` (same step as before with the desired set of permissions), and then update our user to now have this new role:
+
+[source,bash]
+----
+curl -v \
+     -u 'superadmin:superadmin123' \
+     -H "X-Killbill-CreatedBy: stephane" \
+     -H "Content-Type: application/json" \
+     -X PUT \
+     --data-binary '{ "username": "cs", "password": "cs123", "roles": ["customer_support_manager"] }' \
+     'http://127.0.0.1:8080/1.0/kb/security/users/cs/roles'
+----
+
+
+=== Tenant Setup
+
+Since we did not give access for all the tenant management to our new `CS` account, let's have our superadmin create a first tenant:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u superadmin:superadmin123 \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"apiKey": "bob", "apiSecret": "lazar"}' \
+     "http://127.0.0.1:8080/1.0/kb/tenants"
+----
+
+=== Validation
+
+Assuming our `cs` user knows about the `api_key` and `api_secret` of the tenant, he should now be able to make any api calls against that tenant (with the limitation of his permission set).
+
+So for instance, creating a new account in that tenant would work because his role `customer_support` includes the permission `account:create`:
+
+[source,bash]
+----
+curl -v \
+     -u cs:cs123 \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"name":"John Doe","email":"john@example.com","externalKey":"john-doe-1234","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts"
+----
+
+But the following curl to refund a payment would fail because his role `customer_support` does not include the permission `payment:refund`:
+
+
+[source,bash]
+----
+curl -v \
+     -u cs:cs123 \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"amount":"12.4"}' \
+     "http://127.0.0.1:8080/1.0/kb/invoicePayments/288983f2-5143-47e4-b967-b8962fc699d1/refunds"
+----
+
+== LDAP configuration
+
+To enable LDAP, Kill Bill needs to be launched with the following System Properties (note that the values here are just examples and might need to be updated depending on your LDAP configuration):
+
+[source,properties]
+----
+killbill.server.ldap=true
+org.killbill.security.ldap.dnSearchTemplate=uid={0},ou=users,dc=mycompany,dc=com
+org.killbill.security.ldap.searchBase=ou=groups,dc=mycompany,dc=com
+org.killbill.security.ldap.groupSearchFilter=memberOf=uid={0},ou=users,dc=mycompany,dc=com
+org.killbill.security.ldap.groupNameId=cn
+org.killbill.security.ldap.url=ldap://ldap:389
+org.killbill.security.ldap.disableSSLCheck=true
+org.killbill.security.ldap.systemUsername=cn=root
+org.killbill.security.ldap.systemPassword=password
+org.killbill.security.ldap.authenticationMechanism=simple
+org.killbill.security.ldap.permissionsByGroup=support-group: entitlement:*\nfinance-group: invoice:*, payment:*\nops-group: *:*
+----
+
+Notes:
+
+* If no groups are defined in LDAP, all users will only have read-only permissions
+* Before an LDAP user can use Kaui, an admin needs to associate his login to the right tenants (see below)
+* If you have trouble connecting to your LDAP system, enable DEBUG logging off the package `org.apache.shiro` in your `logback.xml` and check the logs
+
+== KAUI
+
+KAUI has been extended to understand all the user/role/permission management and will manage the corresponding sessions. Some of those implementation details were covered in http://killbill.io/blog/multi-tenancy-authorization[our previous blog post].
+
+=== Users
+
+To configure users allowed to use Kaui, go to `/admin_allowed_users`:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_NewAllowedUser.png[align=center]
+
+Fields to populate will depend on which back-end realm is configured.
+
+==== Database
+
+If you are storing roles, usernames and passwords in the Kill Bill database, leave the "Managed externally" checkbox unchecked and fill-in all details. Kaui will create these users locally and in Kill Bill (if they don't exist on the server already).
+
+Roles can be created by going to `/role_definitions/new`.
+
+==== LDAP and Okta
+
+If you are delegating roles and users management to a third-party system, Kaui only needs to know the login of the users. Password and roles being managed outside of Kill Bill, you need to access your third-party system to set and update these.
+
+Note that there is no auto-discovery of logins: you need to enter all logins from your system manually in Kaui before such users can access the UI (check the box "Managed externally" when adding these users).
+
+=== Users and tenants
+
+Kaui needs to be told about the relationship between user and tenants (this mapping is specific to the UI). The idea, is that a super admin would first configure the allowed users for each specific tenant on the KAUI side, in such a way that later on, when a specific user logs in, he only sees the tenants he has access to.
+
+This mapping can be configured by going to each user page (e.g. `/admin_allowed_users/1`).
+
+As far as tenant configuration goes, it is possible to create tenants directly from Kaui. If you already have created a tenant in Kill Bill using APIs, you can safely re-create it from Kaui, which will discover it on the server side and simply sync it locally.
+
+=== Super user
+
+Kaui has the concept of a super user (*root*) for critical, cross-tenants, operations. By default, it assumes that the `admin` user is the super user, but you can change this by setting the system property `kaui.root_username` (`KAUI_ROOT_USERNAME` Docker environment variable). The password doesn't need to be specified as it is stored on the server side (`shiro.ini`, etc.).
+
+== Summary
+
+1. User, roles, permissions need to be configured on the server side (`shiro.ini`, database, LDAP, Okta, ...)
+2. Tenants can then be created (using a user whole role's permissions allow such operation)
+3. Mapping between tenant and allowed users need to be defined in Kaui

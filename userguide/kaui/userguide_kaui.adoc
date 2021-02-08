@@ -1,0 +1,144 @@
+= Kill Bill Administrative UI
+
+== Overview
+
+Kill Bill itself doesn't provide a UI to manage your accounts and subscriptions. All interactions with the core platform is expected to be done via the REST API and/or the Java APIs (if you decide to embed Kill Bill).
+
+We do provide however http://github.com/killbill/killbill-admin-ui-standalone[Kaui] (the Kill Bill Administrative UI): it is a self contained web application, interacting with Kill Bill over HTTP. Its primary purpose is for your support team to handle refunds, credits, cancellations, and adjustments. Additionally, it is also often used by the finance teams to record chargebacks.
+
+Under the covers, Kaui is a series of Rails mountable engines. You can extend its functionality by mounting your own engine(s) (such as to provide a custom UI for your plugin(s)).
+
+== Features
+
+Kaui has been designed to be fully multi-tenant, which means you can deploy one UI to access all of your tenants. This http://killbill.io/blog/multi-tenancy-authorization/[blog post] explains in a bit more details on how that works.
+
+Along with the multi-tenancy support, Kaui also leverages the authentication and authorization layer built into Kill Bill to restrict users from accessing some screens and actions depending on their permissions (such as refunding a payment, crediting an account, ...).
+
+Additionally, Kaui is integrated with most of Kill Bill APIs and provide the following functionality:
+
+* Account management
+** Show contact info
+** Show account balance, available credits, overdue status
+** Manage existing payment methods
+* Subscriptions (per account)
+** List existing subscriptions
+** Allow to create new subscriptions, change plans and cancel subscriptions
+* Invoices (per account)
+** List all invoices
+** Show invoice details (all items)
+** Provide link to payments
+** Allow invoice operations (e.g invoice item adjustment)
+* Payments (per account)
+** List all payments
+** Allow payment operations (e.g refund)
+* Tag management
+* Account Timeline: visualize all the events through time associated with the account and allow specific filtering (subscription, event type, ...)
+* List all the accounts, bundles, invoices, payments, and allow to search based on various fields (account name, external key, email, ...)
+* Tenant Operations
+** Tenant configuration (catalog, overdue, internationalization, ...)
+** Create new tenant
+** Add allowed users
+
+
+In addition to this doc, we have also created some https://www.youtube.com/watch?v=gnt7jkkxP2A&list=PLymeRbOZ_G8nt0F4wYn-qLFYqoc8MVB3l[youtube tutorials].
+
+== Extensions
+
+We provide extensions for some of the official plugins:
+
+* https://github.com/killbill/killbill-analytics-ui[Analytics engine], which displays analytics graphs when the https://github.com/killbill/killbill-analytics-plugin[analytics plugin] has been deployed.
+* https://github.com/killbill/killbill-avatax-ui[AvaTax engine], which lets you configure AvaTax when the https://github.com/killbill/killbill-avatax-plugin[AvaTax plugin] has been deployed.
+* https://github.com/killbill/killbill-kpm-ui[KPM engine], which lets you install plugins dynamically when the KPM OSGI bundle has been deployed.
+
+When you deploy the https://github.com/killbill/killbill-admin-ui-standalone[self contained war], these mountable engines are mounted by default.
+
+== Screenshots
+
+In this section we want to show a few screenshots to give a sense of what Kaui provides (and looks like). The data that we show is synthetic data that we generated using tests. It is certainly not an extensive list of all the screens, but instead we are providing an overview of the main screens.
+
+== User and Tenant Setup
+
+In this section, we will show a few screenshots on how to add KAUI users (by user, we mean user of the apis and not customer accounts) and add tenants that these users can manage. Let's review a bit where the different pieces belong and what needs to be configured in KAUI versus the server side (Kill Bill + whatever shiro backend is used to manage users, roles and permissions):
+
+=== KAUI Users
+
+The management of the users that can access the api along with their roles and associated permissions is managed by Kill Bill server through the http://shiro.apache.org/[shiro] layer. Such users must be configured on the server side in order to be available from KAUI and the assumption here is that those already exists on the server side. Please refer to our http://docs.killbill.io/latest/user_management.html[user management guide].
+
+KAUI contains a default `admin` user (and by default Kill Bill also contains such an `admin` user  with its associated password `password`, which has the `root` role containing all permissions). This allows to login to KAUI and bootstrap the KAUI configuration (without having to run manual SQL by hand for instance).
+
+The first stage is to login using the default `admin` user:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_Login.png[align=center]
+
+When login-in, KAUI will check whether some tenants have been configured for this user:
+
+* If no tenant current exist for this user, you will be prompted to add a new tenant (next section)
+* If only one tenant exists for this user, KAUI will automatically select that tenant as the default tenant
+*  If only more than one tenant exists for this user, KAUI will prompt for a tenant to chose (note that cross tenant operations such as adding new users or tenants can still happen as long as the user has the priviledges to do so).
+
+Upon login success one will see the following screen:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_LoginLanding.png[align=center]
+
+
+Assuming now, we have another user `demo` already configured on the server side, and we want to make it available in KAUI. The previous screenshot shows the menu `USERS` that allows to add new users known to KAUI. By clicking on that link, one will see the existing users known to KAUI and by clicking on the `+` button, will have the option to add a new user. Let's make the `demo` user known to KAUI:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_NewAllowedUser.png[align=center]
+
+Upon success, one will see the following screen, and will be able to select the existing tenant(s) that this user can manage:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_NewAllowedUserLanding.png[align=center]
+
+=== KAUI Tenants
+
+The creation of tenants can either be done from KAUI directly or through Kill Bill (using api calls). There is a screen that allows to add known tenants to KAUI and from that screen the tenant will either be created in Kill Bill if it does not already exists or simply made visible to KAUI (if it already exists):
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_AddNewTenant.png[align=center]
+
+Upon success, one will see the following screen (we will come back to that screen later when doing all the per-tenant configuration). Also note that by default KAUI always adds the `admin` user as a default user for each tenant.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/KAUI_AddNewTenantLanding.png[align=center]
+
+
+In order to add users (other than default `admin`) that can access this new tenant, one must go back to the user screen and add that newly added tenant (as shown before).
+
+
+== Accounts Pagination
+
+After the user has logged in and after choosing the tenant, the user can search for a specific account (if no search query is entered, a list of all accounts is displayed):
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account_search.png[align=center]
+
+== Account
+
+This shows the known information about a given user account:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account1.png[align=center]
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/account2.png[align=center]
+
+
+== Billing Timeline
+
+The billing timeline shows all the events that occurred for a specific user account:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/timeline.png[align=center]
+
+== Analytics
+
+The Analytics screen will only be available when the analytics plugin has been deployed.
+
+It lets you display custom metrics with filtering capabilities. We provide a few by default, but the analytics framework
+lets you add any desired metric.
+
+Here we show the MRR by plan over time:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/mrr.png[align=center]
+
+== KPM
+
+The KPM screen will only be available when the KPM plugin has been deployed.
+
+It lets you install and uninstall plugins, as well as start/stop/restart them at runtime:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/kaui/kpm_install.png[align=center]

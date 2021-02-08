@@ -1,0 +1,105 @@
+= Developing a Payment Control Plugin
+
+[[overview]]
+== Overview
+
+The payment flows can be modified at runtime using a control plugin.
+
+Control plugins implement the https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[PaymentControlPluginApi] and are invoked before as well as after the payment (either on success or on failure). These plugins can be used to abort a payment (e.g. fraud detection), schedule retries in case of failures, etc.
+
+To invoke a control plugin, simply pass the property *controlPluginName* when triggering the payment (multiple control plugins can be invoked in a pipeline). Kill Bill will create a payment attempt associated with that transaction (there is a 1-1 mapping between an attempt and a payment transaction), and store the plugin name(s) and properties which are used for retries (any plugin that sets a retry date is responsible to correctly remove sensitive information such as CVV, to avoid storing them on disk).
+
+For retries specifically, a payment will be associated to multiple transactions (all sharing the same transaction external key and typically in a `PAYMENT_FAILURE` status). Each of these transactions will be associated to an attempt in a `RETRIED` state.
+
+=== PaymentControlPluginApi
+
+The https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[PaymentControlPluginApi] exists to develop payment control plugins. Those plugins are called from the core payment system before payments get executed and after the payment operation has completed or failed.
+
+Each of the APIs take the following parameters:
+
+* `context`: Provides the full `PaymentControlContext` associated with that payment (account, transaction type, amount, currency, ...)
+* `properties`: A list of `PluginProperty` that are passed all the way from the client making the API call to the plugin. Each plugin can therefore be controlled through properties to achieve the desired result and provide additional state (in addition to the basic payment state) to the plugin that way.
+
+Implementers of such plugins need to implement the following apis:
+
+* `priorCall`: This is the method that will be invoked prior doing any payment operation. This method will return a `PriorPaymentControlResult` that will allow to:
+** abort the call if desired 
+** adjust the amount and/or the currency attached to this payment
+** override the current `paymentMethodId` associated with that payment
+** override the list of plugin properties
+* `onSuccessCall`: This is invoked after the payment operation was executed successfully. This method will return a `OnSuccessPaymentControlResult` to override the list of plugin properties
+* `onFailureCall`: This is invoked after the payment operation failed to execute successfully. This method will return a `OnFailurePaymentControlResult` to:
+** potentially set a date at which this payment should be retried
+** override the list of plugin properties
+
+Multiple of such plugins can be registered in the system. Each plugin will be invoked in order and if a plugin decides to modify the list of `PluginProperty`, subsequent plugins then see that modifed list of properties. Obviously, this is a very powerful mechanism which should not be abused (to avoid having to debug a *too* complicated system).
+
+=== Plugin Activation
+
+There are a few options to activate specific payment control plugins:
+
+*  Global Configuration: Kill Bill uses a system property `org.killbill.payment.invoice.plugin` to configure the default control plugins that should be called when a payment operation occurs (note that the naming of the property includes `invoice` for historical reasons, but this has nothing to do with invoice). This mechanism is for instance used for the subscription billing use case to invoke the  https://github.com/killbill/killbill/blob/killbill-0.18.1/payment/src/main/java/org/killbill/billing/payment/invoice/InvoicePaymentControlPluginApi.java[embedded invoice plugin], that is required to make the link between successful payments and matching invoice balance. The value associated with that property contains a comma separated list of plugins that will be called in the order written.
+* Per Request Level Configuration: Payment requests allow to pass a list of payment control plugins that should be invoked in the order written. This is specified using the `controlPluginName` query parameter. Note that such property would overwrite the value specified in the global configuration.
+
+
+== Use Cases
+
+There are many use cases associated with that plugin API. Let's describe a few below:
+
+=== Fraud Detection System
+
+A fraud detection system typically needs to run some real-time checks right before a payment is executed; often a score associated with the payment is computed, and based on the result different things can happen. Let's assume the following for the sake of an example. A score between 1-100 is returned from the plugin (or third-party system with which the plugin integrates):
+
+* If score < 25, payment should go through
+* If 25 < score < 75, enable 3DSecure (use case of a credit card payment where the issuer supports such verification mechanism)
+* If score score > 75, reject
+
+Implementing such a plugin becomes quite easy: One needs to implement the `priorCall` API, extract the score based on the `PaymentControlContext` (and potentially additional properties that could be used to tweak the behavior on a per call basis). Based on the score, the plugin would either:
+
+* Let the payment go through (case < 25)
+* Add specific plugin properties that are required to activate the 3-DS (e.g client ip, browser info, ...) (25 < score < 75)
+* Abort the payment by setting the `isAborted` from `PriorPaymentControlResult` otherwise
+
+Take a look at the https://github.com/killbill/killbill-accertify-plugin[Accertify] plugin for a concrete example.
+
+=== Payment Retries
+
+In some cases, we want to have the ability to control when a payment should be retried. The plugin needs to be able to control the following:
+
+* Rules on when to retry and when not to retry (e.g retry for `InsufficientFund` error and payment amount > $100)
+* Date when the payment should be retried
+
+Implementing such a basic plugin is also quite easy. The developer needs to implement the business logic in the `onFailureCall` API to decide what to do upon failure, and provide the `nextRetryDate` from the `OnFailurePaymentControlResult if necessary.
+
+=== Payment Routing
+
+Payment routing is itself a vast topic and we could envision different types of payment routing:
+
+* Routing across different payment gateways/processors. The idea here is to address the following concerns:
+** Resilience: If one gateway is down or if its latency becomes too high, re-route traffic to another one
+** Cost optimization: Based on the contract negociated with the third party gateway start to move some traffic when some quota (e.g volume) was reached
+** Acceptance Rate: A payment may be denied when going through a certain gateway and yet succeed when going through a different gateway (because of complicated set of rules that are implemented and which take into account all kinds of variables including the processor through which the payment flows)
+* Routing across different payment methods. Assuming a given user has entered several payment methods (for example a CC and a PayPal account), the system could prompt the user to chose PayPal if the payment failed after using the CC. This obvioulsy requires some intricate integration from the plugin to the UI presented to the user, but this is certainly not impossible to achieve.
+
+The current `PaymentControlPluginApi` provides all the info and control to implement such logic because one can override the `paymentMethodId` in the `adjustedPaymentMethodId` of the `PriorPaymentControlResult` to modify at real time where to route the payment.
+
+
+=== Disbursement
+
+Some merchants (organization) may accept some consumer payments for a service that is (partially) provided by an other entity (or entities). In such a scenario, it may become imperative to pass through the payment to that other entity. As an example we could envision a use case when the merchant accepting the payment would keep a fee that would be specified at the payment level.
+
+A possible implementation is to rely on the `PaymentControlPluginApi`. Any additional metadata associated with each payment (fee, details about the entity providing the service, ...) can easily be passed as a set of `PluginProperty`, that the plugin would extract to compute in real time what needs to be disbursed and which fees need to be kept. The logic associated with the disbursement could become quite complicated (rules on what to disburse to whom and when, batching, ...). There is a choice of implementing a full fledge plugin that takes cares of all of this business logic (this is certainly possible since plugins can manage their own state, export new endpoints, ...) or having the plugin interact with a standalone service in charge of such operations.
+
+=== Currency Conversion
+
+In some cases, it may be necessary to offer a price in a currency and actually execute the payment using a different currency (this is based on a real use case where some brazilian customers would first pay in BRL for a service offered by a US based company, and then from one day to the next, the brazilian monetary policy changed and forbid payments in BRL outside of the country). In such scenario (among others) the choice is to lose those customers, or message them about changing the currency based on the current exchange rate, and implement the change.
+
+Fortunately implementing such a change is quite easy with the `PaymentControlPluginApi` because the the payment `amount` and `currency` can be overriden in the `PriorPaymentControlResult`. So, in such a scenario the plugin would implement the `priorCall` API to:
+
+* Ignore non `BRL` payments
+* Perform the currency conversion for such `BRL` payments (by possibly integrating with a third party service for currency conversion), and return new `amount` and `currency`
+
+
+=== Others
+
+There are many uses cases one could come up with, including some or a combination of the use cases presented above. Another dimension we have seen in the past is related to the Kill Bill integration with the rest of the stack. As an example, it could very well be that some pieces of the payment infrastrcuture already exist outside of Kill Bill (e.g access to the detail of a payment method), and in such case one could leverage this API in a clever way to make that integration possible.

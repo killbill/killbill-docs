@@ -1,0 +1,47 @@
+=== Overview
+
+The Kill Bill entitlement system offers an API for users to manage their subscriptions.
+The API allows a user to subscribe to a new product, change to a different product, pause, resume or cancel a subscription.
+Upon each of those API calls, there are two distinct sets of operations that occur in the system:
+
+* When an *entitlement change* occurs, for instance upon creation, the user *gains access* to what she subscribed for.
+The primary goal of that API is to give great flexibility through the use of dates or entitlement policies as to when things should start or stop.
+* As a consequence of the entitlement operation, the system will also compute the changes that should occur on the *billing side*.
+It is important to understand that the entitlement operation has an impact on billing, so the two are connected, but they are not necessarily aligned.
+
+The philosophy behind that API is that the user (of the API) should be able to configure the entitlement so that it matches their needs exactly, and let the system compute the billing aspect based on the policies that were configured in the catalog.
+
+Example:
+
+* First an administrator sets up Kill Bill to always perform the cancellation END_OF_TERM, which will result in never generating a credit for a particular product 'P'.
+* A customer comes in, subscribes to that product 'P', and gets invoiced.
+* At a later date the customer decides that he no longer wants to use the product 'P', and decides to cancel that subscription immediately. From an entitlement point of view, the end date is now. So as soon as the call returns, the customer loses access to the product.
+* From a billing point of view, however, because the administrator decided to configure the system that way, the end date will be computed by the system to match the end date of the last period invoiced, also referred to as charged through date (CTD). Thus there is no generated credit for that cancellation.
+
+As a general rule, then, the administrator deals with the billing policies, and the user of the API controls the details of its entitlement(s).
+The entitlement system exposes abstractions that reflect that model:
+
+* Entitlement: An entitlement is an abstraction which provides the answer to the following question: Is the user allowed (entitled) to use this service or product at a given time? It provides information about the dates when that service started, ended, or was paused and resumed, along with the specifics about the type of service or product.
+* Subscription: A Subscription is an abstraction that encapsulates the information contained in the entitlement but also adds additional billing information, such as the dates at which the billing started and ended. When the system is configured to bill in advance, it also provides the date up to which the customer was invoiced (ChargeThroughDate).
+* SubscriptionBundle: Subscriptions are always part of a SubscriptionBundle. This allows Subscriptions to be grouped together so that specific operations -- cancellation, change of plan-- on one Subscription may have an impact on the other Subscriptions in the same SubscriptionBundle. There can be at most one Subscription attached to a BASE Category in a SubscriptionBundle but there can be multiple ADD_ON Subscriptions in that same SubscriptionBundle. Typically, a BASE Category is used to make sure that any operation on the BASE Subscription will be reflected on the ADD_ON Susbcriptions in the same SubscriptionBundle.
+
+Previously we laid out the general case where the user of the API controls the entitlement and Kill Bill manages the billing aspect based on configuration policies. Some specific entitlement APIs also allow you to override the billing policies on a per call basis.
+
+
+=== Alignments
+
+The table below shows the possible combinations that the API supports. The columns represent the various entitlement (ENT) policies: Immediate, End of Term, or specific date. The rows represent the possible billing policies, which have the same three choices.
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHR3h5VXpnQXI1YXM&w=960&amp;h=480[Entitlement Matrix Policy, align="center"]
+// https://drive.google.com/file/d/0Bw8rymjWckBHR3h5VXpnQXI1YXM/view?usp=sharing
+
+The diagrams below illustrate each entry in the table, for the case when a cancellation occurs on a subscription that was billed *in advance*:
+
+* The green line shows the entitlement, and the red cross on that line shows the cancellation as seen by the customer; that is, once we hit the red cross the customer loses access to its entitlement.
+* The red portion below shows the current invoice; by default the customer was invoiced from the start of the period to the end of the period, also referred to as the charged through date (CTD).
+
+We can see that in all cases, cancelling a subscription has both an impact on the entitlement and the billing side, but we also see that those two are not necessarily aligned:
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHX2V1N3gzeWxOdkU&w=960&amp;h=480["Entitlement policy scenarii", align="center"]
+// https://drive.google.com/file/d/0Bw8rymjWckBHX2V1N3gzeWxOdkU/view?usp=sharing
+

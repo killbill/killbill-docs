@@ -1,0 +1,153 @@
+==== Fixed Item
+
+An invoice for a subscription on a fixed phase of $0 (trial phase for example) would look like:
+
+[cols=6, options="header"]
+|===
+|Invoice #
+|Type
+|Description
+|Amount
+|Start date
+|End date
+
+|1028
+|FIXED
+|Silver trial
+|$0
+|2013-03-10
+|
+|===
+
+==== Recurring Item
+
+An invoice for a subscription on a recurring phase of $20 would look like:
+
+[cols=6, options="header"]
+|===
+|Invoice #
+|Type
+|Description
+|Amount
+|Start date
+|End date
+
+|1029
+|RECURRING
+|Silver monthly
+|$20
+|2013-04-11
+|2013-05-11
+|===
+
+==== Plan Changes
+
+In a case where invoicing occurs in advance, a user gets charged for the upcoming period.
+For instance a user that subscribed to a monthly plan on 2013-04-11, would get a first invoice, charging for that month.
+Assuming he paid his invoice, his balance is now 0. Let's assume he decides to upgrade on 2013-04-26:
+
+Previous invoice:
+
+[cols=6, options="header"]
+|===
+|Invoice #
+|Type
+|Description
+|Amount
+|Start date
+|End date
+
+|1029
+|RECURRING
+|Silver monthly
+|$20
+|2013-04-11
+|2013-05-11
+|===
+
+On the new invoice, the system will generate a REPAIR_ADJ item for the part of the subscription on the old plan that was not used, and a new
+RECURRING item for the new plan on the remaining period.
+
+[cols=6, options="header"]
+|===
+|Invoice #
+|Type
+|Description
+|Amount
+|Start date
+|End date
+
+|1030
+|RECURRING
+|Gold monthly
+|$15
+|2013-04-26
+|2013-05-11
+
+|1029
+|REPAIR_ADJ
+|Silver monthly
+|$-10
+|2013-04-26
+|2013-05-11
+
+|===
+
+
+Note that if the absolute value of the amount of the REPAIR_ADJ had been greater than the amount of the new RECURRING item, the system would have generated a CBA_ADJ item
+whose purpose would have been to bring the balance to 0, and provide the customer some credit that would have been used on subsequent invoices.
+
+==== Invoice Item Adjustment
+
+An invoice item adjustment would look like (assuming the invoice wasn't paid, otherwise a CBA_ADJ item would be added):
+
+[cols=6, options="header"]
+|===
+|Invoice #
+|Type
+|Description
+|Amount
+|Start date
+|End date
+
+|1029
+|RECURRING
+|Silver monthly
+|$20
+|2013-04-11
+|2013-05-11
+
+|1029
+|ITEM_ADJ
+|
+|$-20
+|2013-04-20
+|2013-04-20
+|===
+
+==== Credit
+
+Note that CREDIT_ADJ items are also used to represent credits created by the user (via APIs). In this case, a dummy invoice is created with a negative amount for the CREDIT_ADJ item. This makes the system generate a CBA_ADJ automatically, which in turn can be used as account credits. For example, here is how a $20 credit would be represented:
+
+[cols=6, options="header"]
+|===
+|Invoice #
+|Type
+|Description
+|Amount
+|Start date
+|End date
+
+|1029
+|CREDIT_ADJ
+|
+|$-20
+|2013-04-20
+|2013-04-20
+
+|1029
+|CBA_ADJ
+|
+|2013-04-20
+|2013-04-20
+|===

@@ -1,0 +1,201 @@
+= FAQ
+
+== General Information
+
+=== Who is behind Kill Bill?
+
+Kill Bill is an open-source project which started at http://www.ning.com/[Ning] in 2010 by http://www.linkedin.com/pub/martin-westhead/1/75a/248[Martin Westhead], http://www.linkedin.com/in/pierrealexandremeyer[Pierre-Alexandre Meyer] and http://www.linkedin.com/in/stephanebrossier[Stéphane Brossier].
+
+You can follow our http://killbill.io/blog/[blog], to get insights on what the team is working on.
+
+=== Where is the code?
+
+All of our code is hosted on Github, in the https://github.com/killbill/[killbill] organization. The core of the Kill Bill platform can be found https://github.com/killbill/killbill[here].
+
+=== How is Kill Bill different?
+
+Contrary to any SaaS solution:
+
+* Kill Bill is open-source
+* Kill Bill has a pluggable architecture, allowing you to write plugins (i.e. custom code) to extend or change default behaviors
+* Kill Bill is not a batch system by default, but instead uses an event oriented architecture. http://killbill.io/blog/kill-bill-billing-system-architecture[Modules] share and react to events: for example, the invoice module sends an invoice creation event on the message bus whenever a new invoice is generated, to which the payment module reacts and triggers the actual payment. These events are available to plugins, so you can write custom logic the same way.
+
+Because you host your own instances, you are in full control of your data. Note though that the Kill Bill platform reports anonymous data on startup to Google Analytics for development purposes.
+
+The core development team is primarily interested in:
+
+* Java vendor and version (we've caught some https://github.com/killbill/killbill/commit/e0487737ad2f7bb0fc79997e9c10cf2b2d361ec1[jdk] bugs in the past)
+* Deployment environment, such as the OS and Servlet container used
+* Kill Bill version (helps us decide our EOL policy)
+
+Data is anonymous and not shared with any third-party. No financial data is collected (the code can be found https://github.com/killbill/killbill-platform/blob/master/server/src/main/java/org/killbill/billing/server/updatechecker/Tracker.java[here]).
+
+To disable tracking, specify `org.killbill.server.updateCheck.skip=true` in your `killbill.properties`.
+
+We are relying on this data to help us focus our development efforts. If your environment prevents you from sharing this automatically, but would like to help, please reach out to the https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] instead and describe your deployment. Thanks in advance!
+
+=== Licensing
+
+All contributed code must be license under the http://www.apache.org/licenses/LICENSE-2.0.html[Apache License, Version 2.0].
+
+=== How mature is the project?
+
+Kill Bill is currently running in production in private and public companies, and has been invoicing billions of dollars and charging millions of credit cards over the past years. We perform thousands of tests before each release, and introduce regression tests whenever bugs are discovered.
+
+Note though that Kill Bill is a platform to build billing systems. There are lots of combinations of configurations possible and we cannot test them all. We provide a test framework to help you verify your system before going to production.
+Take also extra care when installing third-party plugins (only the plugins hosted on our https://github.com/killbill/[GitHub organization] are officially supported).
+
+=== How stable are your APIs?
+
+There are two release trains:
+
+* The latest release with an even minor number (e.g. 0.22.x) is stable (APIs are backward compatible).
+* The development team uses odd minor numbers for developing new features (0.17.x, 0.19.x, 0.21.x, etc.). API and DDL changes are frequent.
+
+=== What kind of tests do you perform?
+
+There are thousands of tests that we perform before each release:
+
+* Unit tests
+* Functional tests
+* Java library integration tests
+* Server integration tests, to check the REST APIs
+* Client APIs integration tests
+
+=== We are not a Java shop. Can we still use Kill Bill?
+
+Yes! We try to hide most of the complexity so you can use simply Kill Bill as a service, using our client libraries. Currently, plugins can only be written in Java or Ruby though.
+
+=== Where to start?
+
+Try our http://docs.killbill.io/latest/getting_started.html[Getting Started] tutorial.
+
+== Features
+
+=== Is it only for recurring billing? Is usage billing supported?
+
+The core of the platform is agnostic to the type of billing you use: Kill Bill supports recurring billing, usage billing and one-time transactions. Kill Bill is designed to be modular and most features can be turned on or off as you need.
+See http://docs.killbill.io/latest/userguide_subscription.html#components-catalog-usage[our Usage documentation] to understand the various types of usage Kill Bill supports.
+
+=== How do I insert my custom billing logic?
+
+There are various ways of customizing Kill Bill. Besides System Properties, which let you configure the core platform, most internal modules have a second, more advanced, layer of configuration, usually through XML files. These let you configure the dunning (overdue) policy, the various plans and billing policies, etc.
+
+If you need more advanced (billing or non-billing) logic, Kill Bill has a plugin capability. You can write custom code (in Java or Ruby) to extend or even override Kill Bill default behaviors.
+
+Finally, Kill Bill is open-source! We are happy to accept contributions.
+
+=== My customers are global, what is your internationalization support?
+
+The core of the billing platform was designed to be internationalized. The catalog module has support for all currencies, including crypto-currencies (e.g. Bitcoin). The invoice module will understand these various currencies and respect localization rules. For example, it will correctly round US dollars to two decimal places but Japanese Yen amounts will have no decimal portion.
+
+Accounts can have a designated locale (for example, $1,234.99 will be displayed as 1.234,99 $ for accounts with the French Canada locale) and timezone (to generate invoices in their timezone, instead of the merchant’s).
+
+From a payment perspective, Kill Bill supports payment gateways via plugins. If your international gateway isn’t supported yet, you can simply write a plugin for it. All of http://activemerchant.org/[Active Merchant] processors for instance can be handled.
+
+=== What is a (subscription) bundle?
+
+A bundle is a collection of subscriptions. A typical bundle has exactly one BASE subscription and a collection of ADD_ONs. Grouping logically these subscriptions together makes it easier to automatically cancel all ADD_ONs when the BASE subscription is cancelled for example.
+
+=== Can I create subscriptions without billing information?
+
+Yes! If you are not ready to charge your customers (for example, during an activation phase), you can configure your plan with an initial free phase. Alternatively, you can set the `AUTO_PAY_OFF` tag to their account and Kill Bill will generate invoices but won’t attempt to charge them. When you decide to remove this tag, payments will automatically occur.
+
+=== Can I create an account without a subscription?
+
+Absolutely! This can be useful during onboarding flows, if you need your customer in your CRM engine, databases, etc. but before she has actually signed-up.
+
+=== What are the types of payment methods supported?
+
+Kill Bill supports all credit and debit cards your payment gateway supports. Additionally, tracking of external payments (ACH, checks, cash, ...) is also a feature: when you receive the money, simply let Kill Bill know about it (either via our administrative UI or our APIs).
+
+=== Are you PCI compliant?
+
+Even if Kill Bill is used in PCI compliant companies today, it is your responsibility to get certified. Depending on how you plan to use Kill Bill, you can outsource most of the PCI complexity to your payment gateway by not storing credit card information. Check the https://www.pcisecuritystandards.org/merchants/self_assessment_form.php[PCI DSS] website for more information.
+
+=== Are you GDPR compliant?
+
+While it is your responsability to ensure you remain compliant, Kill Bill avoids storing any PII information by default.
+
+=== How can I secure my Kill Bill installation?
+
+Here are some general tips on securing your Kill Bill installation:
+
+* Install Kill Bill behind a firewall (it should not be exposed on the public internet)
+* Change the default username/password (admin/password) in your live environment
+* Don’t store sensitive data in Kill Bill. While most plugins have support for directly saving card or bank account numbers for instance, this should only be used for testing purposes or if you use a https://engineering.groupon.com/2014/misc/pci-at-groupon-the-tokenizer/[proxy tokenizer]: if you don’t, use a third-party vault
+* Encrypt username and passwords in configuration files
+* Use SSL for all communication with your eCommerce application as well as with the payment providers
+* Subscribe to our mailing-list to receive security advisories
+* Never store security codes (CCV, CVV, etc.) in your live environment
+
+It is eventually your responsibility to make sure your Kill Bill installation is secure and compliant.
+
+=== Do you support Tax?
+
+At a high level, collecting sales tax seems easy. In the US, one may think that each state has its own rate (e.g. 9.25% in NY) and adding rates to an invoice total boils down to adding a single line item. Same story with VAT in Europe (e.g. simply add 20%).
+
+In practice, taxation is not that simple unfortunately. Here are a few examples to highlight this complexity in the US:
+
+* SaaS products are only taxed in 17 states, partially or fully exempt in others (in some cases, it also depends where your servers are located)
+* Digital movies are taxed differently than digital photography
+* Software design, training, consulting and installation are all taxed differently
+
+Rules also change constantly. In 2015, software products were taxed 450 different ways across 45 different categories. If you are selling in more than 2 states, it is impossible to keep-up with tax laws without an in-house research team.
+
+For these reasons alone, we've decided to partner with Avalara to outsource tax compliance. Our AvaTax connector provides real-time and on-demand calculations to prevent overcharging or undercharging tax.
+
+For those of you with an European presence, while VAT calculation might be simpler, integrating Avalara lets you leverage their filing service across the EU (they do also offer fiscal representation wherever needed).
+
+Finally, their pricing model seeks to bill whenever value has been provided: you are only billed when tax decisions are needed, which makes it a very affordable service.
+
+A free sandbox is available at https://www.avalara.com/integrations/killbill/ or contact us for an introduction. The plugin can be downloaded https://github.com/killbill/killbill-avatax-plugin[here].
+
+=== Large catalog
+
+If you have a very large catalog (e.g. thousands of products) and/or if it is highly dynamic, maintaining the catalog as an XML file may not be practical. Instead, you can use the https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[CatalogPluginApi] to write a plugin that would provide an alternative catalog implementation (such as integrating with your existing catalog system). See the http://docs.killbill.io/latest/catalog_plugin.html[documentation].
+
+Here are https://github.com/killbill/killbill-catalog-plugin-test[Java] and https://github.com/killbill/killbill-catalog-ruby-plugin[Ruby] examples.
+
+=== Coupons and discounts
+
+There are several ways to handle coupons and discounts:
+
+* The simplest option is for your catalog to include discount plans (plans can additionally include discount phases)
+* An alternative is to use the PhasePriceOverride element when creating a subscription
+* Finally, to implement a fully fledged coupon functionality, use the https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[EntitlementPluginApi] to write your custom plugin (https://github.com/killbill/killbill-coupon-plugin-demo[here] is an example)
+
+For more details, check this https://killbill.io/blog/moving-towards-a-flexible-catalog/[blog] post.
+
+=== Email notifications
+
+The https://github.com/killbill/killbill-email-notifications-plugin[email notifications] plugin lets you send emails to your customers regarding upcoming invoices, payment successes and failures, subscription cancellations, etc.
+
+== Development
+
+=== Does Kill Bill run in the cloud?
+
+Kill Bill has successfully been deployed in private datacenters as well as in AWS, Heroku, OpenShift, Azure, etc.
+We also provide scripts to ease the deployment story. Check out the http://github.com/killbill/killbill-cloud[killbill-cloud] repo on Github.
+
+=== What are the environment requirements?
+
+This is a tough one to answer as it depends on the plugins you want to be running, your expected traffic, etc. If in doubt, send us your details on the https://groups.google.com/forum/#!forum/killbilling-users[mailing-list].
+
+=== How can I listen to Kill Bill events?
+
+You can either write a custom plugin (all Kill Bill events are visible to plugins) or register an endpoint that Kill Bill will send events to via HTTP POST (check our http://docs.killbill.io/latest/push_notifications.html[push notifications] documentation).
+
+=== How to contribute?
+
+Find the project you want to contribute to on GitHub and follow the https://help.github.com/articles/about-pull-requests/[Fork & Pull Collaborative Development Model]. If you are not sure where to start, drop us a note on the https://groups.google.com/forum/#!forum/killbilling-users[mailing-list].
+
+=== Building from source
+
+See http://docs.killbill.io/latest/development.html[our developer documentation].
+
+=== Troubleshooting
+
+See http://docs.killbill.io/latest/debugging.html[our debugging documentation].
+
+When asking for help on the mailing-list, provide us your catalog XML, server side logs and curl commands to reproduce the problem. Additional information, such as your JVM, container and OS versions, are very helpful too.

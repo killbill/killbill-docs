@@ -1,0 +1,341 @@
+==== Dry Run Modes
+
+In some situations, it is necessary to preview what a given customer will be invoiced for at a given date or after making a subscription change.
+Kill Bill provides dry-run invoice apis to accomplish such a goal, and there are a few flavours for different use cases:
+
+* Next upcoming invoice: When is the next upcoming invoice for a given customer, and what will this invoice contain (items, amount, date, ...)?
+* Next upcoming invoice associated with a given subscription or bundle: When is the next upcoming invoice for a given subscription/bundle, and what will this invoice contain (items, amount, date, ...)?
+* Given a targetDate, what invoice will the system generate ?
+* Subscription modification: Given a change in a subscription (new subscription, change of plan, cancellation, ...), what invoice will the system generate ?
+
+
+
+Let's assume a scenario where we created 2 annual subscriptions, the first one `261fe7b1-ff09-49c8-bbef-61d6e3ab876b` aligned 
+on July 25 and the second one `06b826ad-73e6-4bdd-92fe-c9770a1ba30a` aligned on July 27.
+If we look at the existing invoice items we see the following:
+
+
+[source,bash]
+----
+*************************** 1. row ***************************
+             id: 079e572e-a26c-42e4-8676-7213ad542af3
+     account_id: 704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3
+     invoice_id: 5725c77f-44af-409c-a32a-e36ed3c57283
+subscription_id: 261fe7b1-ff09-49c8-bbef-61d6e3ab876b
+           type: RECURRING
+         amount: 10000.000000000
+     start_date: 2017-07-25
+       end_date: 2018-07-25
+*************************** 2. row ***************************
+             id: 1674c034-fcbe-46bb-9c04-f8825671f93f
+     account_id: 704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3
+     invoice_id: 65c5b4b8-67e6-4066-8699-70b0f49ee6df
+subscription_id: 06b826ad-73e6-4bdd-92fe-c9770a1ba30a
+           type: RECURRING
+         amount: 10000.000000000
+     start_date: 2017-07-27
+       end_date: 2018-07-27
+----
+
+From this scenario, let's now look at various use cases for dry-run options:
+
+
+==== Next Upcoming Invoice
+
+
+Let's start with a dry-run invoice with `UPCOMING_INVOICE`, to see the next invoice that the system will generate for this account:
+
+[source,bash]
+----
+curl  \
+-X POST \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "X-Killbill-CreatedBy: demo" \
+-H "Content-Type: application/json" \
+--data-binary '{"dryRunType":"UPCOMING_INVOICE"}' \
+'http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3'
+----
+
+This will result in the following dry-run invoice. As expected, we only see the item for the first subscription aligned on the 25th:
+
+[source,bash]
+----
+{
+  "amount": 10000,
+  "currency": "USD",
+  "status": "COMMITTED",
+  "creditAdj": 0,
+  "refundAdj": 0,
+  "invoiceId": "3bbd33da-39c7-4748-a5a8-94d53e40cadc",
+  "invoiceDate": "2017-12-14",
+  "targetDate": "2018-07-25",
+  "invoiceNumber": null,
+  "balance": 10000,
+  "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+  "bundleKeys": null,
+  "credits": null,
+  "items": [
+    {
+      "invoiceItemId": "937ac911-b51c-48a8-a004-4789bd3e0726",
+      "invoiceId": "3bbd33da-39c7-4748-a5a8-94d53e40cadc",
+      "linkedInvoiceItemId": null,
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": "54c2d76e-e84d-412d-8eac-afb6d0ea1a35",
+      "subscriptionId": "261fe7b1-ff09-49c8-bbef-61d6e3ab876b",
+      "planName": "basic-annual",
+      "phaseName": "basic-annual-evergreen",
+      "usageName": null,
+      "itemType": "RECURRING",
+      "description": "basic-annual-evergreen",
+      "startDate": "2018-07-25",
+      "endDate": "2019-07-25",
+      "amount": 10000,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    }
+  ],
+  "isParentInvoice": false,
+  "auditLogs": null
+}
+----
+
+==== Next Upcoming Invoice for a Given Subscription
+
+Let's now do a dry-run invoice with `UPCOMING_INVOICE` but with a filter on the subscription `06b826ad-73e6-4bdd-92fe-c9770a1ba30a`:
+
+[source,bash]
+----
+curl  \
+-X POST \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "X-Killbill-CreatedBy: demo" \
+-H "Content-Type: application/json" \
+--data-binary '{"dryRunType":"UPCOMING_INVOICE", "subscriptionId":"06b826ad-73e6-4bdd-92fe-c9770a1ba30a"}' \
+'http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3'
+----
+
+
+This will result in the following dry-run invoice. This time, as expected, we only see the item for the second subscription `06b826ad-73e6-4bdd-92fe-c9770a1ba30a`:
+
+
+[source,bash]
+----
+{
+  "amount": 10000,
+  "currency": "USD",
+  "status": "COMMITTED",
+  "creditAdj": 0,
+  "refundAdj": 0,
+  "invoiceId": "25fbf3f9-2b5b-4389-a940-84864fe5cd88",
+  "invoiceDate": "2017-12-14",
+  "targetDate": "2018-07-27",
+  "invoiceNumber": null,
+  "balance": 10000,
+  "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+  "bundleKeys": null,
+  "credits": null,
+  "items": [
+    {
+      "invoiceItemId": "a4f525c4-014b-474b-85a9-6ccf4742fe5e",
+      "invoiceId": "25fbf3f9-2b5b-4389-a940-84864fe5cd88",
+      "linkedInvoiceItemId": null,
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": "c056fac0-1564-46cd-9e2a-d97e49e30177",
+      "subscriptionId": "06b826ad-73e6-4bdd-92fe-c9770a1ba30a",
+      "planName": "basic-annual",
+      "phaseName": "basic-annual-evergreen",
+      "usageName": null,
+      "itemType": "RECURRING",
+      "description": "basic-annual-evergreen",
+      "startDate": "2018-07-27",
+      "endDate": "2019-07-27",
+      "amount": 10000,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    }
+  ],
+  "isParentInvoice": false,
+  "auditLogs": null
+}
+----
+
+
+==== Next Invoice for a Given Target Date
+
+Next, let's run a dry-run invoice with `TARGET_DATE` set to `2018-07-27`:
+
+[source,bash]
+----
+curl  \
+-X POST \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H "X-Killbill-CreatedBy: demo" \
+-H "Content-Type: application/json" \
+--data-binary '{"dryRunType":"TARGET_DATE"}' \
+'http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3&targetDate=2018-07-27'
+----
+
+
+
+This will produce the following dry-run invoice, and we will see the same result as in the previous example. However, while the previous use case answered the question about the next upcoming invoice for subscription `06b826ad-73e6-4bdd-92fe-c9770a1ba30a`, in this scenario we answer a different question: Given a targetDate what will the system generate? 
+
+[source,bash]
+----
+{
+  "amount": 10000,
+  "currency": "USD",
+  "status": "COMMITTED",
+  "creditAdj": 0,
+  "refundAdj": 0,
+  "invoiceId": "d89d776a-b13e-4c53-baad-519bdd9ba6d0",
+  "invoiceDate": "2017-12-14",
+  "targetDate": "2018-07-27",
+  "invoiceNumber": null,
+  "balance": 10000,
+  "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+  "bundleKeys": null,
+  "credits": null,
+  "items": [
+    {
+      "invoiceItemId": "9a872df2-1ab9-4250-8f34-8b2cf49ebbb9",
+      "invoiceId": "d89d776a-b13e-4c53-baad-519bdd9ba6d0",
+      "linkedInvoiceItemId": null,
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": "c056fac0-1564-46cd-9e2a-d97e49e30177",
+      "subscriptionId": "06b826ad-73e6-4bdd-92fe-c9770a1ba30a",
+      "planName": "basic-annual",
+      "phaseName": "basic-annual-evergreen",
+      "usageName": null,
+      "itemType": "RECURRING",
+      "description": "basic-annual-evergreen",
+      "startDate": "2018-07-27",
+      "endDate": "2019-07-27",
+      "amount": 10000,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    }
+  ],
+  "isParentInvoice": false,
+  "auditLogs": null
+}
+----
+
+
+==== Subscription Modification
+
+Finally, we'll generate a dry-run invoice associated with a change in the subscription. We want to see what kind of invoice would be generated if we were to change the billing period from `ANNUAL` to `MONTHLY`. Note that this change was made on 2018-01-24:
+
+[source,bash]
+----
+curl -X POST \
+ -u admin:password \
+ -H 'Content-Type: application/json' \
+ -H 'X-Killbill-ApiKey: bob' \
+ -H 'X-Killbill-ApiSecret: lazar' \
+ -H 'X-Killbill-CreatedBy: demo' \
+ -d '{"bundleId":"c056fac0-1564-46cd-9e2a-d97e49e30177", "dryRunType":"SUBSCRIPTION_ACTION",  "phaseType":"EVERGREEN", "productName":"Basic", "productCategory":"BASE", "billingPeriod":"MONTHLY", "priceListName":"DEFAULT", "subscriptionId":"06b826ad-73e6-4bdd-92fe-c9770a1ba30a", "billingPolicy":"IMMEDIATE", "dryRunAction":"CHANGE"}' \
+ "http://127.0.0.1:8080/1.0/kb/invoices/dryRun?accountId=704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3"
+----
+
+The result is an invoice with 3 items:
+ 
+* A `RECURRING` item to invoice the next MONTHLY period
+* A `REPAIR_ADJ` item to generate a credit for the remaining part of the year
+* A`CBA_ADJ` item to bring the balance to 0 and generate the resulting account credit.
+ 
+This invoice is shown below:
+ 
+[source,bash]
+----
+{
+  "amount": -5008.84,
+  "currency": "USD",
+  "status": "COMMITTED",
+  "creditAdj": 5008.84,
+  "refundAdj": 0,
+  "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+  "invoiceDate": "2018-01-24",
+  "targetDate": "2018-01-24",
+  "invoiceNumber": null,
+  "balance": 0,
+  "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+  "bundleKeys": null,
+  "credits": null,
+  "items": [
+    {
+      "invoiceItemId": "f2156511-0273-4ef0-9c11-410a3f6f3872",
+      "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+      "linkedInvoiceItemId": null,
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": "c056fac0-1564-46cd-9e2a-d97e49e30177",
+      "subscriptionId": "06b826ad-73e6-4bdd-92fe-c9770a1ba30a",
+      "planName": "basic-monthly",
+      "phaseName": "basic-monthly-evergreen",
+      "usageName": null,
+      "itemType": "RECURRING",
+      "description": "basic-monthly-evergreen",
+      "startDate": "2018-01-24",
+      "endDate": "2018-01-25",
+      "amount": 32.26,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    },
+    {
+      "invoiceItemId": "f78a8843-3155-4f89-ae2a-ca4219936a2c",
+      "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+      "linkedInvoiceItemId": "1674c034-fcbe-46bb-9c04-f8825671f93f",
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": null,
+      "subscriptionId": null,
+      "planName": null,
+      "phaseName": null,
+      "usageName": null,
+      "itemType": "REPAIR_ADJ",
+      "description": "Adjustment (subscription change)",
+      "startDate": "2018-01-24",
+      "endDate": "2018-07-27",
+      "amount": -5041.1,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    },
+    {
+      "invoiceItemId": "4b13e745-eaa7-4fcd-bfc8-56a3ff3d5190",
+      "invoiceId": "e85306e2-2753-4888-b7df-543c308c367c",
+      "linkedInvoiceItemId": null,
+      "accountId": "704b1a30-e5b9-4d01-b2b8-e9403a0ed0e3",
+      "childAccountId": null,
+      "bundleId": null,
+      "subscriptionId": null,
+      "planName": null,
+      "phaseName": null,
+      "usageName": null,
+      "itemType": "CBA_ADJ",
+      "description": "Adjustment (account credit)",
+      "startDate": "2018-01-24",
+      "endDate": "2018-01-24",
+      "amount": 5008.84,
+      "currency": "USD",
+      "childItems": null,
+      "auditLogs": null
+    }
+  ],
+  "isParentInvoice": false,
+  "auditLogs": null
+}
+----

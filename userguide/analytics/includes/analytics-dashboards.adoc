@@ -1,0 +1,246 @@
+The Analytics plugin provides two types of APIs: one to retrieve and manipulate the data and one to create dashboards.
+
+=== Data API
+
+To retrieve all data for a given account:
+
+[source,bash]
+----
+curl -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/f6da101f-b43c-4bb7-920d-188eaa5ae5f8"
+----
+
+
+To force a refresh:
+
+[source,bash]
+----
+curl -v \
+     -X PUT \
+     -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/f6da101f-b43c-4bb7-920d-188eaa5ae5f8"
+----
+
+
+=== Dashboards
+
+The Analytics plugin provides simple, yet powerful, dashboarding capabilities.
+
+A dashboard is constituted of a number of reports, each of them being numbered, starting from 1. All reports are displayed in a single column, the report number 1 being the top most one. All reports share the same X axis.
+
+Currently, we support displaying data as pie charts or time series. For the former, a *label* and *count* columns are required to describe sectors. For the latter, the only required column is *day* (reference time, used for the X axis), you can specify any number of dimensions and metrics. If multiple dimensions are specified, one line graph will be displayed for each dimension value. For example, if your dimensions are *currency* and *country*, one line per combination (and metric) will be drawn: one for USD/USA, USD/Mexico, MEX/USA, MEX/Mexico, etc. If multiple metrics are specified, each one of them (times the cardinality of dimensions) will be on its own line graph.
+
+==== Reports configuration
+
+Let's say you want to look at the number of accounts created per day, the query may look like:
+
+[source,sql]
+----
+select
+  tenant_record_id
+, date_format(created_date, '%Y-%m-%d') as day
+, count(*) as count
+from analytics_accounts
+where report_group = 'default'
+group by 1,2
+order by 1,2 asc
+;
+----
+
+The first step is to create a view for the query:
+
+[source,sql]
+----
+create or replace view v_new_accounts_per_day as
+select
+  tenant_record_id
+, date_format(created_date, '%Y-%m-%d') as day
+, count(*) as count
+from analytics_accounts
+where report_group = 'default'
+group by 1,2
+order by 1,2 asc
+;
+----
+
+
+You can now create the report:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     -H 'Content-Type: application/json' \
+     -d '{"reportName": "new_accounts_per_day",
+          "reportPrettyName": "New accounts created (per day)",
+          "sourceTableName": "v_new_accounts_per_day"}' \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/reports"
+----
+
+Where:
+
+* *reportName* is a unique identifier for your report
+* *reportPrettyName* is a description, which will be used on the dashboards
+* *sourceTableName* is the name of the source table (view in our case)
+
+
+If the query is expensive, you should think of materializing it on a regular basis. Assuming you have a stored procedure *refresh_new_accounts_per_day* which materializes *v_new_accounts_per_day* into *new_accounts_per_day*, you can tell the Analytics plugin to run it on a daily basis at 4am GMT:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     -H 'Content-Type: application/json' \
+     -d '{"reportName": "new_accounts_per_day",
+          "reportPrettyName": "New accounts created (per day)",
+          "sourceTableName": "new_accounts_per_day",
+          "refreshProcedureName": "refresh_new_accounts_per_day",
+          "refreshFrequency": "DAILY",
+          "refreshHourOfDayGmt": 4}' \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/reports"
+----
+
+
+Or alternatively, you can run it on an hourly basis (it will run at 5' past the hour):
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     -H 'Content-Type: application/json' \
+     -d '{"reportName": "new_accounts_per_day",
+          "reportPrettyName": "New accounts created (per day)",
+          "sourceTableName": "new_accounts_per_day",
+          "refreshProcedureName": "refresh_new_accounts_per_day",
+          "refreshFrequency": "HOURLY"}' \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/reports"
+----
+
+Here is how you can create such a stored procedure:
+
+[source,sql]
+----
+create table new_accounts_per_day as select * from v_new_accounts_per_day limit 0;
+
+drop procedure if exists refresh_new_accounts_per_day;
+DELIMITER //
+CREATE PROCEDURE refresh_new_accounts_per_day()
+BEGIN
+delete from new_accounts_per_day;
+insert into new_accounts_per_day select * from v_new_accounts_per_day;
+END;
+//
+DELIMITER ;
+----
+
+To retrieve your report configuration, use the report name:
+
+[source,bash]
+----
+curl -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/reports/new_accounts_per_day"
+----
+
+
+To update it (you can edit all fields but the reportName one):
+
+[source,bash]
+----
+curl -v \
+     -X PUT \
+     -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     -H 'Content-Type: application/json' \
+     -d '{"reportPrettyName": "New accounts created (refreshed at 2am GMT)",
+          "refreshFrequency": "DAILY",
+          "refreshHourOfDayGmt": 2}' \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/reports/new_accounts_per_day"
+----
+
+
+Finally, to delete it:
+
+[source,bash]
+----
+curl -v \
+     -X DELETE \
+     -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/reports/new_accounts_per_day"
+----
+
+
+You can download the data behind your report as csv or json:
+
+[source,bash]
+----
+curl -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     'http://127.0.0.1:8080/plugins/killbill-analytics/reports?name=new_accounts_per_day&format=csv'
+----
+
+
+We provide a set of canned reports that can be useful as a starting point. See https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/[https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/].
+
+===== Dashboard API
+
+To create a dashboard, go to http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html[http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html].
+
+The dashboard system is controlled by query parameters:
+
+* **report1**, **report2**, etc.: report name (from the configuration). The number determines in which slot the data should be displayed, starting from the top of the page. For example, report1=trials&report1=conversions&report1=cancellations&report2=accounts will graph the trials, conversions and cancellations reports in the first slot (on the same graph), and the accounts report below (in slot 2)
+* **startDate** and **endDate**: dates to filter the data on the server side. For example: startDate=2012-08-01&endDate=2013-10-01
+* **smooth1**, **smooth2**, etc.: smoothing function to apply for data in a given slot. Currently support smoothing functions are:
+** AVERAGE_WEEKLY: average the values on a weekly basis
+** AVERAGE_MONTHLY: average the values on a monthly basis
+** SUM_WEEKLY: sum all values on a weekly basis
+** SUM_MONTHLY: sum all values on a monthly basis
+* **title1**, **title2**, etc.: titles for each graph. If not specified, the default title (configured in the database) is used
+
+You can narrow down the dimensions and metrics you want to plot for each report, and even specify filters. This is useful if the underlying view is a cube, for example, and you want to extract part of the data.
+
+The URL format for each report looks like: report1=payments_per_day\^dimension:currency^dimension:state\^metric:amount^metric:fee or if you want to override the legend: report1=payments_per_day(Payments per day)\^dimension:currency^dimension:state\^metric:amount^metric:fee
+
+You can specify as many dimensions and metrics as you want (each one of them should correspond to a column name in your table or view, and metrics are expected to be representable by floats).
+
+Aggregate functions are supported for metrics: report1=payments_per_day\^dimension:currency^dimension:state\^metric:sum(amount)^metric:count(distinct fee)^metric:100*sum(fee)/amount
+
+You can also use the *filter* keywork to narrow down your dataset, for example: report1=payments_per_day\^dimension:currency^dimension:state\^metric:amount^metric:fee^filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)
+
+Note that *&* is represented as *%26*, to avoid making the server interpret it as a standalone query parameter.
+
+You can have as many filters as you want, they will be ORed as a single filter in the query.
+
+Finally, you can group certain rows together using the following syntax on dimensions (in this example, 3 groups and an *Other* will be created): report1=payments_per_day\^dimension:currency(USD|EUR|BRL,GBP,MXN,AUD)^dimension:state\^metric:amount^metric:fee
+
+You can also setup aliases and/or skip *Other* as such: report1=payments_per_day\^dimension:currency(USD=Main currency|EUR=Second currency|BRL,GBP,MXN,AUD=Third currency|-)^dimension:state\^metric:amount^metric:fee
+
+For debugging purposes, you can check the SQL generated by appending the *sqlOnly* parameter to the following endpoint:
+
+[source,bash]
+----
+curl -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+    'http://127.0.0.1:8080/plugins/killbill-analytics/reports?name=payments_per_day^dimension:currency^dimension:state^metric:amount^metric:fee^filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)&sqlOnly=true'
+----
+
+To continue with our example above, you can see the report by going to http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day[http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day].

@@ -1,0 +1,32 @@
+The overdue configuration contains a list of the various states that a customer's account may go through if the customer does not pay. Each state has a `name` and a `condition` which is evaluated by the `Overdue` module. Currently the condition to transition to a given state is based on the properties below, and the system will evaluate to true if all the parts of the conditions are true:
+
+* `numberOfUnpaidInvoicesEqualsOrExceeds`
+* `totalUnpaidInvoiceBalanceEqualsOrExceeds`
+* `timeSinceEarliestUnpaidInvoiceEqualsOrExceeds`
+* `responseForLastFailedPaymentIn`: (Not implemented)
+* `controlTagInclusion` 
+* `controlTagExclusion` 
+
+Additionally, the definition of an overdue state will also specify some ways to alter the behavior of the system:
+
+* `subscriptionCancellationPolicy`: Specifies whether or not to cancel the subscriptions associated with the account (and the cancellation policy that should be used). The choices are (`NONE`, `IMMEDIATE`, `END_OF_TERM`). 
+* `blockChanges`: Specifies whether the customer is allowed to make any plan change on his subscriptions.
+* `disableEntitlementAndChangesBlocked` :  The name is a bit misleading; it specifies whether the subscriptions are being paused, which means service (entitlement) will be disabled and billing will also be disabled. If the overdue state clears, both entitlement and billing would resume at the time of the clearance.
+
+One can add an `externalMessage` which can be retrieved by plugins listening to Overdue events, and displayed to the user.
+
+
+Finally there is an additional property `autoReevaluationInterval` that tells the system when to re-evaluate the state when nothing happens in the system. When an account transitions to one of the overdue states specified by the xml file `overdue.xml`, two things can happen:
+
+1. The user makes a payment OR the system retries previously failed payments
+2. No payment attempt is being made
+
+In the first case, the Overdue system will detect that a payment occurred and it will recompute the state, transitioning to a new state if required. In the second case, however, since there was no trigger, we need a way to tell the overdue system to re-evaluate the state every so often so it can advance into the next state if required. That is what the autoReevaluationInterval property is about.
+
+If you need an xsd file, you can find one http://docs.killbill.io/latest/overdue.xsd[here] or generate one using the overdue xsd-tool:
+
+[source,bash]
+----
+curl -O 'http://search.maven.org/remotecontent?filepath=org/kill-bill/billing/killbill-overdue/x.y.z/killbill-overdue-x.y.z-xsd-tool.jar'
+java -jar killbill-overdue-*-xsd-tool.jar schema.xsd
+----

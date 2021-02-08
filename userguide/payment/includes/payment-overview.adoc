@@ -1,0 +1,108 @@
+=== Payment Abstractions
+
+Kill Bill has a payment subsystem which offers several APIs:
+
+* payment and refund APIs for recurring billing
+* *direct* payment APIs for one-off charges
+
+The former set of APIs is used by the core billing engine to charge for subscriptions, and by Kaui (the Kill Bill Admin UI) to handle refunds, chargebacks, adjustments, etc. for invoices and payments associated with such subscriptions.
+
+The latter set can be used to trigger payments (auth, capture, credit, refund, etc.) by your e-commerce application (e.g. shopping cart). It also offers helpers to create payment forms and redirect URLs in case of hosted payment pages. It is independent of any subscriptions or invoices and is used solely to make payments.
+
+Kill Bill is a generic platform to build billing and payment infrastructures and as such, it is agnostic of payment gateways. However, it provides a framework to register payment plugins, which in turn implement gateway specific APIs. Those payment plugins must be OSGI compliant plugins. They can be written either in:
+
+* java; in which case they are just a standard OSGI java jar which must register a service implementing the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi]
+* ruby; in which case they must use the https://github.com/killbill/killbill-plugin-framework-ruby[killbill gem] which provides a jruby bridge between java and ruby. Those plugins must inherit the https://github.com/killbill/killbill-plugin-framework-ruby/blob/master/lib/killbill/payment.rb[Payment class] to provide the specific plugin code functionality
+
+The main reason to provide a way to write ruby payment plugins is to be able to reuse the http://activemerchant.org/[Active Merchant] gem. We even have a https://github.com/killbill/killbill-plugin-framework-ruby/[generator] to help you generate a payment plugin from an Active Merchant implementation.
+
+Check the wiki page https://github.com/killbill/killbill/wiki/Payment-plugins[Payment Plugins] for a community-supported list of already written payment plugins.
+
+The Kill Bill payment code will detect all the payment plugins registered in the system and decide which plugin to use when a charge, refund, ... operation needs to happen. The dispatching is based on the payment methods associated with each account. By default, the model is to attach a default payment method to each account: that payment method will have a link that points to a specific plugin to use. For instance, one account could have a Paypal payment method that would point to the Paypal plugin. Additionally, you can also override the payment method to use on a per payment call. The figure below shows the relashionship between a Kill Bill `Account`, its various `PaymentMethods`, each of which points to a given Kill Bill plugin, which itself is in charge to interact with a third party payment gateway.
+
+image:https://docs.google.com/drawings/d/1ERbfXS0LKSyANT08wnp3zDyoROkhKWSdX2EK0LpwLQ4/pub?w=960&amp;h=480[align=center]
+
+By default Kill Bill does not come configured with any payment plugins except for the built-in __EXTERNAL_PAYMENT__, which is used to track payments which occurred outside of Kill Bill. A typical example would be for when a customer pays by check and we want to make sure the invoice balance is set to 0 after receiving the check. A user, represented in Kill Bill as an account can add as many payment methods as required, and each of those will identify a specific plugin that Kill Bill will use when making payments.
+
+
+=== Payment States
+
+Initially a client of the api can make either an *authorization*, a *purchase*, or a *credit* call (all other operations such as refund would require an initial payment to have already existed).
+That initial operation will create a https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/Payment.java[Payment] and an initial https://github.com/killbill/killbill-api/blob/c243233be112165bf04a89a715b79112c6c5d1f7/src/main/java/org/killbill/billing/payment/api/PaymentTransaction.java[PaymentTransaction].
+The user can then submit additional requests for the same payment (capture, refund, ...) and each of those calls will result in additional `PaymentTransaction` attached to the same payment.
+The payments have a state which will drive the set of possible subsequent operations available. For instance, it is possible to make a capture call against a payment in a state `AUTH_SUCCESS` but it is not possible to make such an operation against a payment in an `AUTH_ERRORED` state.
+The set of payment state transitions are configured in an https://github.com/killbill/killbill/blob/master/payment/src/main/resources/org/killbill/billing/payment/PaymentStates.xml[xml file] and the Kill Bill payment subsystem is in charge to enforce the transitions. The following diagram below shows all the possible transitions:
+
+graphviz::assets/payment_states.dot[format=svg,align=center]
+
+In addition to the payment state transitions, each `PaymentTransaction` has a status to reflect the result of the operation. The `PaymentTransaction` status depends on the plugin result and it can be summarized below:
+
+|===
+|plugin result | payment transaction status | payment state | http response | description
+
+|PROCESSED
+|SUCCESS
+|{AUTH,CAPTURE,..}_SUCCESS
+| 201 - Created
+|The payment transaction went through and was successful
+
+|PENDING
+|PENDING
+|{AUTH,CAPTURE,..}_PENDING
+| 201 - Created
+|Successful asynchronous operation (e.g. ACH transfer) or multi-step call (e.g. 3D-Secure authorization)
+
+|ERROR
+|PAYMENT_FAILURE
+|{AUTH,CAPTURE,..}_FAILED
+| 402 - Payment Required
+|The payment transaction went through but failed (e.g insufficient funds)
+
+|CANCELED
+|PLUGIN_FAILURE
+|{AUTH,CAPTURE,..}_ERRORED
+| 502 - Bad Gateway
+|The payment transaction did not happen (e.g unable to connect to the provider, error in plugin, etc)
+
+|UNDEFINED, timeout or any exception
+|UNKNOWN
+|{AUTH,CAPTURE,..}_ERRORED
+| 503 - Service Unavailable
+504 - Gateway Timeout
+|The payment transaction may or not have succeeded, manual review needed
+
+|===
+
+Note that the first 3 cases are normal cases but the last 2 are errors that are unrelated to the user being able to make the payment operation:
+
+* in the case of a hard plugin failure (CANCELED result code), the gateway was probably down and the payment wasn't attempted: there is no attempt to fix those.
+* in the case of a plugin timeout (or UNDEFINED result code), the operation might actually have completed; Kill Bill will run a background task to detect those cases and will query the plugin to verify if the state is actually known and when it is, it will update the *transaction status* and move the payment to its appropriate state. If the plugin cannot tell if the payment went through, the transaction will stay in an UNKNOWN state. It is advisable to check that those are rare instances and fix the data appropriately (by checking manually the status in the gateway for example). See the section Janitor below for more details.
+
+If a payment is aborted by a control plugin, a payment attempt row is recorded with a state of ABORTED (no payment nor payment transaction is created). Kill Bill will return a 422 HTTP code.
+
+=== Janitor
+
+PENDING and UNKNOWN transaction states should be temporary: the payment plugin needs to eventually tell Kill Bill what the final state of these transactions should be. This can be done explicitly by the plugin by calling the `notifyPendingTransactionOfStateChanged` PaymentApi (for instance, when receiving a webhook event from the gateway) or implicitly by the Janitor.
+
+The Janitor refers to a set of internal Kill Bill features to help ensure transactions end up in a terminal state: these are the Janitor notification queue and the on-the-fly Janitor. They both work by calling the plugin (via `getPaymentInfo` PaymentPluginApi) and updating the state owned by Kill Bill if it has changed. It is imperative payment plugin developers take great care when implementing this API for this mechanism to work (see our Payment Plugin developer documentation for more details).
+
+==== Janitor notification queue
+
+A Janitor notification entry is inserted whenever a payment results in a non terminal state (whether the payment was initiated internally by Kill Bill or externally via our payment APIs). Kill Bill will then periodically poll the plugin to attempt to fix the state.
+
+The polling delay is configured by `org.killbill.payment.janitor.unknown.retries` for UNKNOWN transactions (default `5m,1h,1d,1d,1d,1d,1d`) and `org.killbill.payment.janitor.pending.retries` for PENDING transactions (default `1h, 1d`). Companies relying on PENDING for offline payment methods (ACH, Boleto, etc.) should increase the number of attempts, as such payments can be slow (they can take multiple days to execute).
+
+==== On-the-fly Janitor
+
+The on-the-fly Janitor is invoked:
+
+* Whenever a payment (or set of payments) is retrieved via API and the flag `withPluginInfo` is set. In this case, a GET operation might result in data being written to disk (but it's not really new state, it's just existing state being updated that was incomplete).
+* Whenever an operation is performed on an existing payment (either initiated internally by Kill Bill or externally via our payment APIs): the Janitor is invoked first to get the latest state to ensure the internal state machine prevents disallowed transitions in case the state couldn't be fixed (or if it's already in a final state). For example, if an authorization state is currently UNKNOWN and you attempt to capture it, the Janitor will ask the plugin first to fix the state and either let the capture go through (if the authorization is fixed as SUCCESS) or disallow it (if the authorization couldn't be fixed or was unsuccessful).
+
+Note however that the `notifyPendingPaymentOfStateChanged` operation will not invoke the Janitor (as this API is often called from payment plugins, we don't want the state to be fixed twice).
+
+==== Janitor and Control Plugins
+
+When the Janitor fixes a payment, it will re-run the Payment Control state machine (i.e. go through Payment Control plugins) if needed. So for instance, invoice payments that were created as part of a RECURRING invoicing may end up being fixed automatically by the Janitor, and the balance associated with the invoice would then be correctly reflected.
+
+Any invoice payment triggered by API and fixed by the Janitor would not be retried, in order to leave full control to the caller to decide what to do and whether to retry. Invoice payments triggered automatically by the system and fixed by the Janitor would however be retried as configured.

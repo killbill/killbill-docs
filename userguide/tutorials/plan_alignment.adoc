@@ -1,0 +1,99 @@
+= Plan Alignments
+
+== Overview
+
+In the Kill Bill model, `Subscriptions` are associated with a `Plan` (defined in the catalog), and `Plans` are made of several `PlanPhases`.
+The idea behind the model is to accurately represent the transitions from different phases (e.g `TRIAL` -> `EVERGREEN`) without requiring the system or user to take any actions.
+Subscriptions automatically transition from one `PlanPhase` to the next, as defined by the shape of the `Plan` and the clock moving forward.
+
+When changing the `Plan` associated with a `Subscription` (e.g upgrading), the system needs to understand how to align phases from the original `Plan` to the new `Plan` to make sure the user ends up in the right phase. Let's consider the following example with two similar `Plans` (`silver-monthly` and `gold-monthly`) both containing two phases: a 7 day `TRIAL` phase, followed by a monthly `EVERGREEN` (recurring forever until cancelled) phase.
+
+* On January 1st, a subscription is initially created with a `silver-monthly` `Plan`, and starts with the 7 day `TRIAL` period.
+* On January 4th, while the subscription is still in `TRIAL`, the user upgrades to a `gold-monthly` plan.
+
+As a company offering those plans, you have the choice to define the behavior in this situation:
+
+1. You may want to restart a full new 7 day `TRIAL` period to allow the user to experiment, since the `Plan` is different.
+2. You may want to offer the user the remainder of the `TRIAL` period (4 days left).
+3. You may want to skip the `TRIAL` altogether, since the user already made up his mind. He liked the product and upgraded to `gold-monthly`, so he is already committed.
+
+In order to provide this level of flexibility, the catalog contains alignment rules to specify the appropriate behaviors.
+These alignement rules apply both to operations that create `Subscriptions` (to decide on how to align an Add-On `Plan` with respect to the `Base` `Plan`) and also, as mentioned in the previous example, for change `Plan` operations.
+The http://docs.killbill.io/latest/userguide_subscription.html#_subscription_alignment_rules[Kill Bill Subscription Guide] provides an overview of these alignments.
+
+
+In addition to specifying alignment policies, our apis also allow you to specify a target `PlanPhase`. The specification of such a target `PlanPhase` can be used when creating a new `Subscription` or when changing a `Plan`. With the previously defined `gold-monthly` plan, we could create a subscription with a target `PlanPhase` set to `EVERGREEN` to make sure the user skips the `TRIAL` phase and directly starts on the `EVERGREEN` phase. Note that this is also achievable by creating more `Plan` entries in the catalog (e.g. a `gold-monthly-notrial` `Plan`), but this would force administrators to duplicate the plans, and may also be an issue from an analytics point of view, depending on how metrics are being computed.
+
+In this section we look at several scenarios that illustrate possible behaviors of the system when a change `Plan` operation happens on a Subscription for which initial phase(s) were skipped at creation (by specifying a target `PlanPhase`).
+
+==== Scenario 1a
+
+In this scenario, the `Plan` for the original `Subscription` contains 2 `PlanPhases`, a `TRIAL` phase and an `EVERGREEN` phase, and the user skipped the `TRIAL` phase by **specifying the `EVERGREEN` `PlanPhase` as the target**. Later, a change of `Plan` happens, switching to another `Plan` containing one or more phases. The last `PlanPhase` in the new `Plan` is `EVERGREEN`, and **the catalog is configured to use a `START_OF_SUBSCRIPTION` (or `START_OF_BUNDLE`) plan change alignment**.
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/alignments/PlanAlignmentScenario1a.png[align=center]
+
+We can see that when the change occurs, the `Subscription` is realigned based on its start date and **matched** to the same target `PlanPhase` that was originally specified when creating the `Subscription`.
+
+
+==== Scenario 1b
+
+This scenario is similar to the previous one except that **the catalog is configured to use a `CHANGE_OF_PLAN` plan change alignment**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/alignments/PlanAlignmentScenario1b.png[align=center]
+
+In this case the `Subscription` is realigned based on the date of the change, and we ignore the target `PlanPhase` that was originally specified. We will see in a subsequent scenario that if the intent is to stay on `EVERGREEN` we can also specify a target `PlanPhase` when making the change operation.
+
+
+==== Scenario 2a
+
+
+In this scenario, the `Plan` for the original `Subscription` again consisted of 2 `PlanPhases`, a `TRIAL` phase and an `EVERGREEN` phase. Also as in Scenario 1a, the user skipped the `TRIAL` phase by specifying the `EVERGREEN` `PlanPhase` as the target. Later, a change of `Plan` happens, switching to another `Plan` containing one or more phases. However, this `Plan` **does not include an `EVERGREEN` `PlanPhase`**. The catalog is configured in this scenario to use a `START_OF_SUBSCRIPTION` (or `START_OF_BUNDLE`) plan change alignment.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/alignments/PlanAlignmentScenario2a.png[align=center]
+
+Once again, when the change occurs, the `Subscription` is realigned based on its start date. However, because the original target `PlanPhase` **does not exist** in the `Plan`, we realign using the **first** `PlanPhase` of the new `Plan`.
+
+==== Scenario 2b
+
+This scenario is similar to the previous one except that **the catalog is configured to use a `CHANGE_OF_PLAN` plan change alignment**.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/alignments/PlanAlignmentScenario2b.png[align=center]
+
+Here we realigned based on the date of the change, but we **start from the first `PlanPhase` of the new `Plan`**.
+
+
+=== Plan Change with Target PlanPhase
+
+
+In this section we look at the behavior of the system when the user specifies a target `PlanPhase` on  a change `Plan` operation.
+
+==== Scenario 1a
+
+In this scenario we assume as usual that a `Subscription` was created using a `Plan` made of 2 `PlanPhases`, a `TRIAL` phase and an `EVERGREEN` phase, but the user **did not skip any `PlanPhase`**. Subsequently, the user decides to change to a a new `Plan` that has 3 `PlanPhases`, namely  a `TRIAL`, a `DISCOUNT` and an `EVERGREEN` phase. **The user specifies a `DISCOUNT` target `PlanPhase` when changing the `Plan`**. The catalog is configured to use a `START_OF_SUBSCRIPTION` (or `START_OF_BUNDLE`) plan change alignment.
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/alignments/PlanAlignmentScenarioChange1a.png[align=center]
+
+The `Subscription` is realigned based on its start date. Since the change `Plan` operation specified a `DISCOUNT` target `PlanPhase`, we realign based on that `PlanPhase`.
+
+==== Scenario 1b
+
+This scenario is similar to the previous one except that **the catalog is configured to use a `CHANGE_OF_PLAN` plan change alignment**.
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/alignments/PlanAlignmentScenarioChange1b.png[align=center]
+
+In this case, the `Subscription` is realigned based on the date of the change `Plan` operation, but now **it will start with the specified `DISCOUNT` target `PlanPhase`.**
+
+
+== Summary
+
+The use of aligment rules (as configured in the catalog) along with the ability to specify a target `PlanPhase` when creating a `Subscription`, or changing the `Plan` of an existing `Subscription`, provides users with a lot of flexibility.
+
+This documentation has shown some basic scenarios that should guide developers to achieve the desired result. However, the number of possible use cases is quite large, and depends on the business logic required for each catalog. We strongly advise you to experiment, and to write tests specifc to each use case.
+
+
+
+
+

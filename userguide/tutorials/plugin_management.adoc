@@ -1,0 +1,300 @@
+= Plugin Management APIs
+
+[[overview]]
+== Overview
+
+Starting with Kill Bill 0.16.0, it is now possible to go through all the lifecycle (`install`, `start`, `stop`, `uninstall` and `list status`) of a plugin using APIs. These APIs have been designed to work on a Kill Bill deployment that consists of several instances.
+
+The feature relies on the following pieces:
+
+* A running version of a (or several) killbill server(s)
+* A running KPM OSGI bundle on each Kill Bill instance
+
+== APIs
+
+Each of the API refers to a plugin using a `pluginKey`. A `pluginKey` can be one of the following:
+
+* An entry in the official Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[plugin repository],
+* A user provided key that will be used to identify this plugin when using the APIs. The user provided key must be unique and must contain a namespace (e.g MY_NAMESPACE:myKey). During the installation phase, and when using a user provided key, one must also specify additonal properties to specify the location of that plugin.
+  
+The following APIs are supported:
+
+* INSTALL_PLUGIN: Install a plugin. The following properties are supported:
+** `pluginKey`: required
+** `pluginType`: required for user provided key  (can be `ruby` or `java`)
+** `pluginVersion`: optional (for plugins hosted on the Kill Bill GitHub organization, there is a https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[definition file] to map Kill Bill versions with plugin versions)
+** `pluginArtifactId`: required for user provided key (the Maven `artifactId`)
+** `pluginGroupId`: required for user provided key (the Maven `groupId`)
+** `pluginPackaging`: optional (the Maven `packaging`, which will default to `jar` for `java` plugin and `tar.gz` for `ruby` plugins)
+** `pluginClassifier`: optional (the Maven `classifier`, which will default to null)
+* START_PLUGIN: Start a plugin. The following properties are supported:
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to latest installed version of that plugin)
+* RESTART_PLUGIN:  Restart a plugin. All classes will be unloaded and new classes/ruby files will be loaded and started. The following properties are supported:
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to latest version)
+* STOP_PLUGIN: Stop a plugin. All classes will be unloaded. The following properties are supported:
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to latest version)
+* UNINSTALL_PLUGIN: The command will disable the plugin so it will not be listed as an installed plugin, but the code will be kept on the filesystem (to optimize cases where one would want to re-install the same version of the plugin):
+** `pluginKey`: required
+** `pluginVersion`: optional (will default to latest version)
+
+
+=== Installation
+
+The installation of a plugin occurs through the KPM plugin (which itself relies on KPM) and consists of the following sequence:
+
+* Download the binaries and install them on the filesystem at the right place
+* Set that latest downloaded version as being the default one to start (`isSelectedForStart`)
+* Notify Kill Bill core to update its view of the existing plugins
+
+Example of installing the `paypal` plugin with a specified version of `4.0.0`:
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "paypal"
+             },
+             {
+                 "key": "pluginVersion",
+                 "value": "4.0.0"
+             }
+         ],
+         "nodeCommandType": "INSTALL_PLUGIN",
+         "isSystemCommandType": "true"
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+Example of installing the `payment test plugin` (one must include all the Maven coordinates to specify where this plugin should be installed from):
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "killbill:payment-test"
+             },
+             {
+                 "key": "pluginArtifactId",
+                 "value": "payment-test-plugin"
+             },
+             {
+                 "key": "pluginGroupId",
+                 "value": "org.kill-bill.billing.plugin.ruby"
+             },
+             {
+                 "key": "pluginType",
+                 "value": "ruby"
+             }
+         ],
+         "nodeCommandType": "INSTALL_PLUGIN",
+         "isSystemCommandType": "true"
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Starting a plugin
+
+Starting a plugin occurs purely through Kill Bill (independent of the KPM plugin) and consists of the following sequence:
+
+* Load the classes through the OSGI mechanism
+* Start the plugin
+* Update its view of the existing plugins
+
+Example of starting the default installed version for the `paypal` plugin:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "paypal"
+             }
+         ],
+         "nodeCommandType": "START_PLUGIN",
+         "isSystemCommandType": true
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Stopping a plugin
+
+Stopping a plugin occurs purely through Kill Bill (independent of the KPM plugin) and consists of the following sequence:
+
+* Stop the plugin
+* Unload the classes through the OSGI mechanism
+* Update its view of the existing plugins
+
+Example of stopping the running version of the  `paypal` plugin:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "paypal"
+             }
+         ],
+         "nodeCommandType": "STOP_PLUGIN",
+         "isSystemCommandType": true
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Restarting a plugin
+
+Restarting a plugin consists of first stopping the plugin and then restarting the plugin (therefore unloading previous classes and reloading new ones with a potentially different version).
+
+Example of restarting the running version of the  `paypal` plugin:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "paypal"
+             }
+         ],
+         "nodeCommandType": "RESTART_PLUGIN",
+         "isSystemCommandType": true
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Uninstallation
+
+Uninstalling a plugin consists of marking that plugin as being `disabled`. The code remains on the filesystem but Kill Bill will ignore it.
+
+Example of uninstalling the `paypal` plugin:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "paypal"
+             }
+         ],
+         "nodeCommandType": "UNINSTALL_PLUGIN",
+         "isSystemCommandType": "true"
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Listing all the plugins
+
+There is an API to retrieve the current view for each Kill Bill node. That API provides details about the running versions of a Kill Bill node along with all the plugins detail information (the json can be quite longm so for better readibility one can pipe the output to `python -m json.tool` to format it nicely):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     http://127.0.0.1:8080/1.0/kb/nodesInfo | python -m json.tool
+----
+
+The output provides an array of entries, one for each running Kill Bill instance. Each of these entries will contain the following:
+
+* nodeName: By default, the `hostname` of the node running, but this can be configured
+* bootTime: Time at which that node started
+* kbVersion: Version for https://github.com/killbill/killbill[killbill]
+* apiVersion: Version for https://github.com/killbill/killbill-api[killbill-api]
+* pluginApiVersion: Version https://github.com/killbill/killbill-plugin-api[for killbill-plugin-api]
+* platformVersion: Version for https://github.com/killbill/killbill-platform[killbill-platform]
+* commonVersion: Version for https://github.com/killbill/killbill-commons[killbill-commons]
+* pluginsInfo: One entry for each plugin:
+** pluginKey: The plugin key
+** pluginName: The name of the plugin as seen on the filesystem. It is used internally by Kill Bill to identify a plugin, but that name is only available after the plugin has been installed and could be changed from one installation to the next
+** bundleSymbolicName: The OSGI symbolic name (from the `MANIFEST.mf`)
+** isSelectedForStart: If this is the default version to be started for that plugin
+** services: The plugin APIs that this plugin exports
+
+Example of an output:
+
+[source,bash]
+----
+[
+    {
+        "apiVersion": "0.51.27",
+        "bootTime": "2018-07-13T23:00:40.000Z",
+        "commonVersion": "0.21.15",
+        "kbVersion": "0.20.0",
+        "lastUpdatedDate": "2018-07-13T23:00:40.000Z",
+        "nodeName": "localhost",
+        "platformVersion": "0.37.19",
+        "pluginApiVersion": "0.24.8",
+        "pluginsInfo": [
+            {
+                "bundleSymbolicName": "org.kill-bill.billing.plugin.java.analytics-plugin",
+                "isSelectedForStart": true,
+                "pluginKey": "analytics",
+                "pluginName": "analytics-plugin",
+                "services": [
+                    {
+                        "registrationName": "killbill-analytics",
+                        "serviceTypeName": "javax.servlet.Servlet"
+                    }
+                ],
+                "state": "RUNNING",
+                "version": "6.0.0"
+            },
+.....
+----
+
+== Internals
+
+=== Multi-node Implementation
+
+Each Kill Bill node writes to the database the details about its versions and plugins right after it has started. When there is any change in the system, each node is notified through a broadcast mechanism: each node then updates its entry guaranting that at any time the info matches the current state.
+
+The broadcast mechanism is based on a simple mechanism where each node polls periodically a database table shwoing the command to execute. When the system (each node) picks up a new entry, it then sends a special bus event, so that different Kill Bill components and plugins can react to the event and carry out the action.
+
+=== Installation/Uninstallation 
+
+Installing/uninstalling a plugin using the API is slightly different than installing/uninstalling the plugin using KPM directly. The main reason has to do with the `pluginKey`:
+
+* When installing/uninstalling a plugin using the API, one must provide a `pluginKey`. KPM will update a configuration file under `ROOT/plugins/plugin_identifiers.json` to keep the mapping between that `pluginKey` and the `pluginName` which is the location on the filesystem where this plugin is being deployed (`ROOT/plugins/{java|ruby}/pluginName/pluginVersion`)
+* When installing/uninstalling a plugin directly through KPM, one does not need to provide a `pluginKey` and the mapping is not created.
+
+=== KPM Plugin
+
+Plugin installation and uninstallation is handled by the KPM plugin, whose role is to simply listen for bus events to then delegate the installation/uninstallation the the KPM gem and then notify Kill Bill about the result.
+
+For all other operations (start/stop/restart), the KPM plugin is not involved.

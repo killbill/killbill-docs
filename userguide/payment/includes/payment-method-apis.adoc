@@ -1,0 +1,181 @@
+The first step when registering payment methods is to create an account in Kill Bill. This needs to be done once:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"name":"john","email":"john@foo.com","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts"
+----
+
+This call will return a 201 Location header containing the id associated with the newly created account. The rest of this document will assume this id is `268983f2-5443-47e4-a967-b8962fc699c5`, make sure to update your commands accordingly.
+
+To add a payment method, POST the following information:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+----
+
+This will create a default payment method associated with our account and the __EXTERNAL_PAYMENT__ plugin. *The `pluginInfo` fields are specific to the plugin* and can be seen as a contract between the client of the API and the plugin itself (opaque to Kill Bill). For example, to add a payment method stored in PayPal, the https://github.com/killbill/killbill-paypal-express-plugin[PayPal Express plugin] expects a field named `token`, with the value of the Paypal BAID.
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{
+       "pluginName": "killbill-paypal-express",
+       "pluginInfo": {
+         "properties": [{
+           "key": "token",
+           "value": "20G53990M6953444J"
+         }]
+       }
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+----
+
+Check our https://github.com/killbill/killbill-paypal-demo[PayPal demo] for an implementation example.
+
+The https://github.com/killbill/killbill-litle-plugin[Litle&Co. plugin] on the other hand expects some fields like the `paypageRegistrationId` (using Litle's tokenization service):
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{
+       "pluginName": "killbill-litle",
+       "pluginInfo": {
+         "properties": [
+           {
+             "key": "paypageRegistrationId",
+             "value": "t3GER3BP3JHLASZe"
+           },
+           {
+             "key": "ccFirstName",
+             "value": "John"
+           },
+           {
+             "key": "ccLastName",
+             "value": "Doe"
+           },
+           {
+             "key": "ccType",
+             "value": "VISA"
+           },
+           {
+             "key": "ccExpirationMonth",
+             "value": "12"
+           },
+           {
+             "key": "ccExpirationYear",
+             "value": "2015"
+           },
+           {
+             "key": "ccLast4",
+             "value": "1234"
+           },
+           {
+             "key": "address1",
+             "value": "5, oakriu road"
+           },
+           {
+             "key": "address2",
+             "value": "apt. 298"
+           },
+           {
+             "key": "city",
+             "value": "Gdio Foia"
+           },
+           {
+             "key": "state",
+             "value": "FL"
+           },
+           {
+             "key": "zip",
+             "value": "49302"
+           },
+           {
+             "key": "country",
+             "value": "IFP"
+           }
+         ]
+       }
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+----
+
+Check our https://github.com/killbill/killbill-litle-demo[Litle demo] for an implementation example.
+
+You can add as many payment methods as needed to a given account (across one or multiple plugins). You can specify for each payment call the payment method to use, or leave it blank to use the default.
+
+Each payment method in Kill Bill has a unique uuid associated to it. Use this uuid to change the default payment method on the account (in this example, the payment method id `a91161b0-d159-11e3-9c1a-0800200c9a66` becomes the default one):
+
+
+[source,bash]
+----
+curl -v \
+     -X PUT \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods/a91161b0-d159-11e3-9c1a-0800200c9a66/setDefault"
+----
+
+
+To get information on a payment method, use the following endpoint:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     "http://127.0.0.1:8080/1.0/kb/paymentMethods/a91161b0-d159-11e3-9c1a-0800200c9a66?withPluginInfo=true"
+----
+
+The `withPluginInfo` query parameter tells Kill Bill to fetch plugin specific properties. These properties are custom key/value pairs the plugin knows about the payment method, that are specific to that payment method.
+
+
+To delete a payment method:
+
+[source,bash]
+----
+curl -v \
+     -X DELETE \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     "http://127.0.0.1:8080/1.0/kb/paymentMethods/a91161b0-d159-11e3-9c1a-0800200c9a66"
+----
+
+The payment method will be marked as inactive in Kill Bill. The actual deletion of the information is plugin specific (delete the information in the gateway, etc.).
+
+Note that by default you cannot delete the default payment method on an account (because it is assumed to be used for recurring payments). If you really want to delete it though, you can pass the query parameter deleteDefaultPmWithAutoPayOff=true to the previous call. This will delete it and set the account in AUTO_PAY_OFF (invoices won't be paid automatically anymore).

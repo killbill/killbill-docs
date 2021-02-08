@@ -1,0 +1,258 @@
+= Kill Bill Migration Guide
+
+== Overview
+
+This guide is intended to provide some guidelines for running migrations from an **existing billing system** to **Kill Bill**.
+It is by no means an exact recipe book to follow, but it provides some recommendations on how to do things (based on previous experiences) and highlights some specific areas of concern. The assumption is that there is already an internal or third party billing system in place, and so the goal of the migration is to preserve the current state of the system and yet reach a point where this old system can be fully unplugged. The old billing system currently:
+
+* receives some live traffic, and migration should not cause any downtime
+* contains existing state (subscriptions, invoices, ...) that needs to be migrated without impacting customers
+* offers apis that are used by one or several systems within the company
+* provides a UI for customer service (CS) to handle customer tickets and that functionality still needs to exist in some form
+* provides state/data that is used by accounting/financial departments and this data will need to remain available for these departments
+
+The end goal of the migration is to make sure that we can **unplug completely the old billing system** and yet provide the same level of service (or better) for the customers and the various departments in the organization.
+
+This is a fairly ambitious goal, which may require some tradeoffs and a gradual shutdown of the old system.
+
+== Strategy
+
+Like most complicated projects, it makes sense to divide the project in stages and to look for opportunities to simplify the requirements.  Also, it makes sense to first make a migration while preserving existing functionality to keep the number of changing parts to a minimum. Additional functional modifications can come at a later phase when things are stable.
+
+=== What (Really) Needs to be Migrated?
+
+One must first decide on the data that must be migrated, so let's start by the minimum amount of data that needs to be migrated:
+
+* **Account data**: All of the customer information such as name, email, phone, address, ... pretty much everything that would fit in the Kill Bill `accounts` table. If additional data needs to be kept, one could use custom fields to add key-value parameters attached to the account data.
+* **Active Subscriptions**: In order for users to still be billed and receive service, those need to be migrated and in a way to allow to switch from one system to the next with no (minimum) impact/visibility. Also note that since we are looking at the minimal amount of data to migrate, we can ignore the historical data associated with a given subscription (for example, we won't migrate downgrades or upgrades that happened in the past, only the current state).
+
+=== Simplifications
+
+==== Historical Data, Invoices and Payments
+
+Other state such as non-active subscriptions, past invoices, and payments *don't need* to be migrated into Kill Bill to have the system function correctly, but **that data may still need to be available in some fashion**. By not migrating that data into Kill Bill, this simplifies the problem:
+
+* **Non active subscriptions**: Migrating those means migrating more data; also it is often the case that the older the data, the less 'clean' it is and the harder it is to migrate (associated `Plans` may not be active anymore, previous bugs from existing billing systems may create data that is difficult to migrate, ...). Also, while this is feasible, this does not add much value unless one wants to also migrate past invoices.
+* **Past Invoices**: Those are difficult to migrate as such, because they can't simply be replayed by Kill Bill (if we were to migrate all subscriptions with their historical state and let Kill Bill catch up with invoices, the result would be a set of invoices not exactly identical to the original system (pro-ration logic would be different, catalog may have been configured slightly differently in the old system and in Kill Bill, ...) and so those would not be useful as they could not provide a real replacement for past invoices. Another strategy would be to insert them manually in the Kill Bill invoice table to make sure they exactly match, but then invoices and subscriptions would not correspond exactly and the system would try to correct the state. Also, such a route would require inserting data directly or providing custom endpoints to touch these tables, both of which are risky and error prone initiatives.
+* **Past Payments**: The same set of issues described for invoices apply to payments. They need to match exactly past invoices and the same set of challenges exists here.
+
+We identified the minimal state that needs to be migrated and also explored why migrating more is a difficult endeavor. The next question is whether this is a realistic strategy. One way to answer is to look at the use cases for this data (that we don't plan to migrate directly into Kill Bill), and the way we can make that info available in some fashion:
+
+* **Customer Use Case**: Customers may still need to access their old invoices and payments. Assuming this data is static, one could keep those (past invoices and payments) outside of the pure Kill Bill tables (that could still be in the same database with additional tables, or using an entirely different database) and **provide new apis that would fetch existing invoices and payments by merging old data with the new one from Kill Bill**.
+However, keeping that data completely static is a challenge because customers may still require some invoice adjustments, payment refunds associated with this old data, etc.  A good strategy is to keep the old billing system alive for a while after the migration has been completed and serve those invoices/payments from the old system, allowing customer service to still make the changes through the old system. After a while (maybe a few months), there will be very few such adjustments to make on those old invoices/payments and that data can be fetched and served from a static source. Isolated cases where customers still require some changes associated with these old invoices/payments cannot be made anymore but customer could still be satisfied by generating invoice or payment credit. At this point Accounting/Finance departments would be impacted minimally because the number of such requests becomes very small. So finally the old system can be fully unplugged.
+
+* **Finance/Accounting department**: These teams will still require old invoice and payment data to run reports but it does not necessarily need to be part of Kill Bill. A good alternative is to provide some kind of view that will merge both the old data (from the old billing system) and the new data coming from Kill Bill. The old data could be ETL'ed from the old billing system as long as it is alive and then that data could be frozen after it has been turned off.
+
+==== Clean Accounts
+
+A corollary of what we described earlier is that we should only migrate clean accounts, i.e accounts that have a $0 balance. Any other account would have unpaid invoices, and since we don't plan on migrating invoices, that balance is hard to carry over in a clean form.
+
+A good and easy strategy here is to do the migration in several batches, making sure we reach a point of convergence:
+
+1. A first migration batch with all clean accounts (preferably, the bulk of them)
+2. The current dunning strategy should be in place to first email customers, and moving through a gradual degrade of the service up to the point where subscriptions either become paid (and then accounts can be migrated) or subscriptions become cancelled (invoices are written off), and there is nothing to migrate for that account. This means unplugging the system will not happen overnight, this will be a gradual process (typically most accounts are migrated within a week, and then the system stays up for a few more months).
+3. The point of convergence is eventually reached because:
+  ** existing customers who have unpaid invoices either pay and get migrated or don't pay and become inactive in the old system
+  ** new customers are already on the new system and so they will not impact the final date at which the old system could be unplugged (more on that later)
+
+
+=== How Does The Migration Work?
+
+==== Migration Cutover Dates
+
+The first thing to discuss is the **cutOverDate**, that is the date at which Kill Bill starts handling requests. In fact, we made the assumption that the migration would happen on a live system (with no downtime), and that has two consequences:
+
+* The first consequence is that there needs to be a point in time where **new accounts** will be created in Kill Bill. While this is not a migration data issue (because those new accounts would never see the old system, so there is no data to migrate per say), we still need to define when is that **newAccountCutOverDate**
+* The second consequence is that because we will make that migration work with no downtime, it does not need to happen all at once. In fact, we propose to migrate the existing accounts on a per account basis. That way, each account is migrated independently (and occasional failures can be investigated and retried). So, we will have one **cutOverDate** per account.
+
+Assuming we have N existing accounts to migrate, we end up with one **newAccountCutOverDate** and N **cutOverDate**. We first need to move new accounts to Kill Bill before migrating any of the existing accounts (i.e. `newAccountCutOverDate` < `cutOverDate{i, i E [1, N]}` because:
+
+* Only when the old billing system stops accepting new accounts can we compute how many existing accounts there are (N becomes fixed at this point),
+* This also allows us to verify that Kill Bill works as expected before we start migrating existing data.
+
+==== Migration Framework
+
+The migration code consists of several pieces:
+
+* Ability to make api calls to the old billing system (may already exist in some form)
+* Ability to make api calls to Kill Bill (mandatory to handle new accounts, regardless of migration data)
+* Ability to route traffic to one (or both systems)
+* Provide migration apis:
+** Ability to set/get **newAccountCutOverDate**
+** Ability to migrate specific accounts (would set things like **cutOverDate** for that account)
+
+The choice of where those pieces are implemented really depends on the current architecture of the system. For instance, if the code interacting with the existing billing system is well isolated, those new functions could take place at this level (client side). Conversely, if there are many components already interacting with the existing billing system, it might make sense to provide a new proxy server that encapsulates all of that logic and have those components go through that proxy (and from an implementation point of view, that proxy server could live in the same webapp as Kill Bill and access some new tables in the same database).
+
+The figure below shows that the migration logic owns its own migration state. It is also able to make api calls to both the old billing system and Kill Bill and provide an interface to the existing Billing&Payment Components (systems that currently interact with the old billing system). From a logical point of view, the migration logic has been shown in a separate box, but again, this could be implemented in various ways.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/migration/migration_logic.png[align=center]
+
+==== Migration State
+
+As discussed previously, each existing account would be migrated independently from the others providing a small granularity (and avoiding a risky 'success or fail all' type of migration). It is also important to allow for a process that provides clarity on what failed and what succeeded and the ability to restart things from where they failed. In essence, migrating an account should be an idempotent process, so if it fails part way through, things can be resumed. In order to achieve that result, the Migration Framework should own a `migration` table with the following fields (obviously one could add/remove fields as needed):
+
+* `account_key`: The unique identifier for the account to be migrated. Based on that key account data can be pulled from the old billing system.
+* `migration_state`: We will see later that migrating an account is not an atomic operation so this will hold where we are in the migration process for that account
+* `last_error_msg`: Some indication of what fails to ease debugging and resuming operation
+* `created_date`: Date when we first attempted to start the migration
+* `update_date`: Date when we last attempted to run the migration
+* `cut_over_date`: Date the migration completed (equals to `update_date` when migration has completed). Any subsequent requests after that date would be redirected to Kill Bill.
+
+== Pre-Requisites
+
+Before we can dig into more details on how the migration works, it is important to be ready to migrate these accounts. The readiness is something to be defined on a case by case basis, but there are some things that are pretty much mandatory in all situations:
+
+=== Setting up Kill Bill
+
+Migrating accounts to Kill Bill first implies that Kill Bill has been deployed and configured correctly. The goal of that doc is not to describe those steps (we have other http://docs.killbill.io/[docs] to explain that), but let's go through a few items that require special care:
+
+* **Catalog Creation**: The catalog should include all the `Plans` that were configured in the old billing system, so that subscription migration works. Special care should be made for billing alignments to ensure that customer ends up being billed at the same dates as they used to. Most probably the abstractions between the two worlds are slightly different (e.g in Kill Bill world we have the concept of a `PlanPhase` while in the old billing system each `PlanPhase` may correspond to a different `Plan` or even implemented differently).
+
+* **Templates and Translations**: Kill Bill allows to configure the system using templates (e.g. invoice html visible to customer) and for http://docs.killbill.io/latest/internationalization.html[internationalization] (e.g translating plan names in different languages).
+
+* **Payment plugins**: Kill Bill typically interacts with a payment gateway or processor through a http://docs.killbill.io/latest/payment_plugin.html[playment plugin]. We already have quite a few tested integrations out there so the work is either to test one of our payment plugins or to write a new one to integrate with the desired gateway/processor.
+
+* **Overdue Configuration**: Often called dunning in billing systems, this http://docs.killbill.io/latest/overdue.html[feature] lets you control what is happening when customers don't pay. Note that there is no obligation to try reproducing existing logic from the old billing system if this one was not satisfactory as this will not directly impact migration. Instead it is advised to configure it to provide the desired results. This step could also be omitted and postponed until the end of the migration.
+
+* **Analytics**: This is also a good time to think about how financial reports will be computed and what kind of reports will be available for the financial team. At this stage, one can become familiar with the data model and investigate how existing reports will be generated. Kill Bill also has an https://github.com/killbill/killbill-analytics-plugin[analytics plugin], which provides the following benefits:
+** Denormalized tables (on which queries become easier to run)
+** Ability to generate custom reports
+** UI side for visualization inside KAUI if needed
+
+After the system has been configured, it is imperative to try out creating subscriptions with all the plans defined in the catalog, moving through phases by moving the Kill Bill `Clock`, performing upgrades/downgradse and at each step verifying the behavior of the system (invoice generation, payments, ...).
+
+=== Behavioral Analysis
+
+At this stage, the system has been setup (proper validated catalog, ...) and there was enough manual testing to provide confidence with the setup of the system. We are now moving in the behavioral analysis stage, which can be achieved by forking the stream of requests for new accounts to go both in the old billing system (because `t < newAccountCutOverDate`) and to a Kill Bill test deployment.
+
+This provides the following benefits:
+
+1. It creates production-like data (actually, data is exactly like production except for fields such as CC number, names, ... that should be obfuscated). It can be used to start computing reports and bringing confidence to the financial team that the new system will provide similar type of data/results. We suggest to configure the system with a default payment plugin inside Kill Bill (to avoid any interaction with payment gateway). The reporting only happens on the subscriptions and invoices but this is enough to guarantee that the system behaves correctly.
+2. It paves the way for the first stage of the migration where new accounts are directed towards Kill Bill.
+
+Regarding implementation, the forking of the stream can happen in the migration logic proxy. A good way to achieve this result is to write a servlet filter that forwards existing requests to the old billing system but also calls the matching Kill Bill endpoints.
+
+Regarding numbers, one should not expect the same numbers because both systems will behave differently: most existing billing systems are batch oriented while Kill Bill is event-based, so timing will be very different. Invoicing will also likely vary due to pro-ration logic and potentially different billing alignments. However, this is the right time to investigate differences so those are well understood and potentilaly corrected (e.g catalog issue, system configuration issue, ...).
+
+=== Redirecting New Accounts to Kill Bill
+
+At this point, we have a working Kill Bill system that was correctly configured. There is a clear path forward to provide business reports, so everything is in place to start accepting new accounts. This is `t = newAccountCutOverDate`. The migration framework is then modified in such a way that it will **not** fork the stream between the old billing system and the Kill Bill instance but instead will split the stream between both systems:
+
+* New accounts are created in Kill Bill and subsequent requests for this account are also directed to Kill Bill.
+* Requests pertaining to old accounts are still directed towards the old billing system.
+
+From an implementation point of view, the servlet filter is again a good place for this logic to happen: given an incoming request, extract `ID` of the request (depending on the request, could be the `accountId`, a `subscriptionId`, ... ) and first fetch the matching object inside Kill Bill. If it exists, the request is made to Kill Bill, and if not, the request is forwarded to the old billing system.
+
+== Running the Migration
+
+=== Summary
+
+The main idea it to provide a migration endpoint, implemented in the migration logic proxy, that knows how to migrate each account individually. Each account migration is composed of several steps:
+
+1. **`migration_state` = `INIT`**: Create an entry in the migration table.
+2. **`migration_state` = `ACCOUNT_MIGRATED`**: Migrate account data. This is relatively easy and low risk. The work consists of pulling account data from the old billing system and mapping that to the Kill Bill data model. As mentioned before, additional info could be added as custom fields on the Kill Bill created `Account` (e.g ID of the account in the old system).
+3. **`migration_state` = `AUTO_INVOICING_OFF`**: Setup `AUTO_INVOICING_OFF` for the `Account` to prevent the system to trigger invoices when we start migrating the subscriptions.
+4. **`migration_state` = `SUBSCRIPTIONS_MIGRATED`**: Migrate active subscriptions. We will provide more detail in the next section on how that works, but the overall idea is to fetch all active subscriptions from the old billing system and to recreate them in Kill Bill using the right date and using the right `Plan`. The goal is to get a clean cutover and avoid any misbilling (double billing, loss of revenue) or service disruption. Also note that in a system where there are dependencies among subscriptions (e.g. ADD_ON subscriptions), special care should be made to migrate them in the right order.
+5. **`migration_state` = `OLD_SUBSCRIPTIONS_CANCELLED`**: Cancel all subscriptions in the old billing system at the right time (more detail in the next section). This is a fairly risky step because this changes the state in the old billing system. This is *not* a point of 'no-return' but a point when rollback becomes difficult. Needless to say that cancellation code for the old billing system should have been tested carefully.
+6. **`migration_state` = `MIGRATED`**: Remove `AUTO_INVOICING_OFF` for the `Account`.
+
+After `t >= newAccountCutOverDate`, the set of account is fixed in the old billing system. It becomes easy to get a reliable list of all accounts that should be migrated and use that as an input for the migration endpoint.
+
+=== Subscriptions Migration
+
+==== Catalog Mapping
+
+We discussed in the Pre-Requisites section, the importance to build a Kill Bill catalog that will provide the same kind of products/plans than the one configured in the old billing system. In addition to the Kill Bill catalog, we also need a **mapping layer** between the name of the plans defined in the old system and the name of the `Plan` in the Kill Bill catalog. At the time of the migration, the plan associated with the subscription in the old catalog becomes a key in that mapping table to choose the correct Kill Bill `Plan` to use for the creation of the subscription.
+
+
+==== Billing Dates
+
+Migrating the active subscriptions correctly is definitely one of the challenges of the migration process. Whether the billing happens in arrear or in advance, for each subscription, there is a date up to which it was billed for. This date is referred to as the `chargedThroughDate`:
+
+* When billing in advance, the `chargedThroughDate` is the date in the future where the next invoice will occur (charging for the next period). So `nextBillingDate` = `chargedThroughDate`
+* When billing in arrear, the `chargedThroughDate` is the date in the past (or present) when it was last billed. So `nextBillingDate` = `chargedThroughDate` + 1 period (e.g 1 month)
+
+A clean subscription migration implies that we stop the billing in the old system at the `currentBillingDate` (where `currentBillingDate` + 1 Period = `nextBillingDate`) and starts the billing in Kill Bill at the `nextBillingDate`. So how to achieve that result?
+
+The first mandatory piece is to be able to extract those dates from the old billing system for each individual subscription attached to the account. In some billing systems, there is only some support to have a `billCycleDate` (`BCD`) at the account level (day of the month at which account is billed) and so that simplifies the problem. In some other cases, different subscriptions can have their own individual schedules. Kill Bill supports all models through the use of billing alignments (and for reference, even a `BUNDLE` alignment) defined in the catalog. So, the starting point is to verify those alignments match the old system (this was part of the Pre-Requisites section).
+
+From a billing point of view, we want to cancel the old subscription at `currentBillingDate` and start (the billing of) the subscription at `nextBillingDate`.
+
+==== Entitlement Dates
+
+A naive migration strategy would be to start the subscription in Kill Bill at `nextBillingDate`. While this works from a billing point of view, this causes some issues when the customer makes some changes (upgrade, downgrade, cancellation,...) during the interval of time such that `cutOverDate` \<= t < `nextBillingDate`: In that interval of time, the subscription would have a future startDate (= `nextBillingDate`) so immediate changes could not be applied. Also, from an entitlement point of view, starting the subscription in the future means there is no service until we reach that date.
+
+So, we need to separate the date at which the subscription starts (`subscriptionStartDate`) and the date at which the invoicing starts: from an entitlement point of view, we could use the `cutOverDate` as the `subscriptionStartDate`, and this would work, but a better choice is to use the `originalSubscriptionStartDate` (date at which the subscription started in the old billing system). As far as entitlement goes, starting a subscription in the past is equivalent to starting it in the present, so using the Kill Bill `subscriptionStartDate` = `originalSubscriptionStartDate` solves the entitlement issue we mentioned above and it also preserves the `originalSubscriptionStartDate` of the subscription (which can be really useful for customer support when they interact with the customer).
+
+==== Summary for Migration Dates
+
+Let's summarize, the discussion about dates using the diagram below:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/migration/migration_dates.png[align=center]
+
+At t = `cutOverDate`, the account is being migrated and for each existing active subscription in the old billing system, we create a subscription by specifying both the `entitlementDate` = `originalSubscriptionStartDate` and the `billingDate` = `nextBillingDate`.
+
+**Note:** The subscription apis allow you to specify both the `entitlementDate` and `billingDate`. Some examples on how to use those apis to achieve the migration goal can be found https://github.com/killbill/killbill/blob/killbill-0.18.0/beatrix/src/test/java/org/killbill/billing/beatrix/integration/TestMigrationSubscriptions.java[here].
+
+For information, it is still interesting to show how things were done prior the introduction of those new apis. The sequence was a bit more complex, but this shows that in very complex scenario there is a lot of flexibility through the use of the http://killbill.io/blog/blockingstate-abstractions[`BlockingState`] events. Below is a description of how things could work using `BlockingState`:
+
+1. We create a subscription with a starting date of `originalSubscriptionStartDate` (we will discuss the choice of the `Plan` in the next section)
+2. We stop the billing by inserting `BlockingState` events (one event at t = `originalSubscriptionStartDate` with `isBlockBilling=true` and one event at t = `nextBillingDate` with `isBlockBilling=false`)
+
+Note that subscription apis to create subscription don't allow you to specify different dates for billing and entitlement, so additional apis calls to insert the `BlockingState` are required. While less practical, this is not really an issue because at that stage we have set `AUTO_INVOICING_OFF` at the account level so nothing will happen and atomicity is not required.
+
+
+Finally, we should explore a bit more the choice of the per-account `cutOverDate`: is it better to choose that date close to `currentBillingDate` or `nextBillingDate`? A choice of `cutOverDate` close to `currentBillingDate` (right after), means that the customer just got invoiced and so the chances for adjustments right after are bigger than if we were to wait. Since we want to minimize actions on the old system after the customer got migrated, it seems a better choice would be to pick `cutOverDate` right before `nextBillingDate`. Of course, in situations where customers have multiple subscriptions on different schedules (`SUBSCRIPTION` billing alignment), there is a choice to be made (probably favor the annual versus monthly and subscriptions on higher `Plans`).
+
+
+
+
+==== Multi-Phase Plans
+
+
+There is another concern we did not discuss yet when migrating subscriptions for multi-phase `Plans`. Kill Bill supports `Plans` with multiple `PlanPhases` (such as `TRIAL`, `DISCOUNT`, `EVERGREEN`). The old billing system may support that concept as well, or it could be that such concepts are implemented in an entirely different fashion:
+
+* Use multiple subscriptions for each separate phase (hopefully those are linked by some mechanism otherwise this is quite difficult to understand)
+* Treat each phase as an upgrade/downgrade scenario (i.e move it to a different kind of plan)
+* ...
+
+There is obviously some amount of work to understand the old system's model, and how those will translate into the Kill Bill catalog (again part of the Pre-Requisites stage). Assuming we are migrating a subscription into Kill Bill using a multi-phase `Plan`, we have to be cautious with the entitlement alignments and make sure we end up on the right phase.
+
+One strategy is to define more `Plans` in the Kill Bill catalog to include mono-phase versions of the multi-phase `Plans`. For example, assuming a subscription with a 2 phases `Plan` (`TRIAL`=15 days, followed by `EVERGREEN`), we could also create another `Plan` with only the last phase so as to migrate subscriptions that are already on the `EVERGREEN` phase.
+
+Alternatively, we could decide to only use the original `Plan`, and play with subscription alignments in the following way:
+
+
+1. At t=`cutOverDate`, the subscription is already in the `EVERGREEN` phase; in this case we need to make sure we start directly into that phase. Fortunately, this is possible because the Kill Bill api to create a subscription allows you to specify on which phase to start (skipping previous phases).
+2. At t=`cutOverDate`, the subscription is still in TRIAL, but by chosing the `originalSubscriptionStartDate` as the start date of that subscription in Kill Bill we should end up exactly with the correct state. Let's take an example to illustrate that point:
+* The subscription started on February 14th 2016 in the old system
+* We decide on a `cutOverDate` of February 24th 2016, which means we are 10 days into the trial, so there should still be 5 days of trial when migrating to Kill Bill
+* The `nextBillingDate` is February 28th 2016 (date at which the trial ends, and billing would have started in old system)
+* We create the subscription in Kill Bill on `originalSubscriptionStartDate` (February 14th 2016), and because this is a 2 phases `Plan`, the system will generate a `PHASE` event on `nextBillingDate` (February 28th 2016), which is exactly what we need.
+
+
+==== Pending Subscription Changes
+
+Some billing systems also allow you to schedule future changes associated to a subscription (such as upgrading a subscription in the future or cancelling a subscription in the future, ...). During the migration, it is important to keep track of those future changes. Fortunately this is fairly straight-forward using the Kill Bill apis to change `Plan` or cancel in the future.
+
+
+== Conclusion
+
+Migrations are typically a difficult, lengthy and risky endeavor. We have highlighed some of issues that need to be thought of and suggested a possible design (based on a set of simplification and work-arounds). Obviously each use case is different (migration happens from different systems with different characteristics, data set may be very different, and business requirements may also be different, ...).
+
+However, migrating to Kill Bill simplifies greatly the process for the following reasons:
+
+* **Testing**:
+** One can run the migration many times on a test system (except for the cancellation of the active subscriptions on the old system in production, which can only happen once for obvious reasons)
+** One can look closely at the data that was migrated and run some tests by moving the clock forward to ensure things will happen as expected in the future
+* **Altering System Behavior**:
+** One can extend functionality through plugins (could intercept subscription calls, entirely replace catalog using catalog plugin api, modify invoice generation, ...)
+** One can maintain a fork of Kill Bill (just during the time of the migration) where migration logic could be inserted as needed
+* **Owning The Data**:
+** Migrated data is easily available to run reports that will highlight potential issues
+** In the very worst case, data can be modified directly (this is certainly not part of the recommendation) but this is a last resort option.
+
+Good Luck!
+
+
+

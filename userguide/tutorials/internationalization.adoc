@@ -1,0 +1,253 @@
+= Internationalization Overview
+
+Kill Bill was designed to support merchants and their customers (user account, or also referred to as 'user' or 'account' in this documentation) across different countries. In order to support that, there are a lot of different aspects that need to be covered ranging from character sets, timezones, multiple currencies, locales, and the ability to support multiple languages for all customer-visible data (e.g. invoices).
+
+In addition, these features must work independently for the various tenants: a given merchant assigned to a given Kill Bill tenant must be able to configure the system differently than another merchant in a separate tenant.
+
+== Timezones
+
+Supporting multiple timezones comes into play when a user needs to interact with the system and then later when the system computes state for this user:
+
+* A user cancelling a subscription needs to provide a date (requested cancellation date). That date must be interpreted by the system in the user account timezone
+* Subsequently, when the system computes the next invoice for instance, it must include all the items for the period of time reflected by the invoice and as seen by the user.
+
+An example would be a user creating a monthly subscription on january 1st 2015 but from a timezone in PST (UTC-8). The action will actually happen at a specific point in time such as 2015-01-02T04:00:00.000Z. The system must correctly understand that the provided date needs to be interpreted in the user timezone so that when the user receives its first invoice, he sees a billing period ranging from 2015-01-01 to 2015-02-01. If the user then decides to cancel his subscription on '2015-02-01', the system also needs to make sure this date is interpreted in the user timezone to avoid charging for an extra day; in that case the user only provides a date with no time (the API works that way because it is much simpler from the user point of view), and so the precise point in time when that cancellation happens needs to be in the 24 hours period of that specified day in the user timezone.
+
+More information on the internals of date, you can refer to this http://killbill.io/blog/lets-talk-about-date-and-time[blog post].
+
+== Multiple Currencies
+
+The Kill Bill catalog allows you to specify amounts in different currencies. Each Kill Bill account needs to specify a currency that is used by the system when generating invoices (by looking up the amount of the specified plan for that currency), and that is also used at the time of making a payment. All the credits later generated for the account will also be in that currency.
+
+The system also allows you to use a different currency at the time of making a payment by using a currency converter.
+
+== Locale
+
+An account is associated with a `locale` (e.g. `fr_FR`) that is used for extracting localized resources. The system allows you to configure the following resource bundles:
+
+* Catalog Resource Bundle: ability to translate specific catalog strings in different languages (e.g. American English `Gold plan` translated as `Plan Or` in French)
+* Text Translation: arbitrary text strings in different languages that can then be used later when creating documents out of templates to ensure they are translated in the language matching the account
+
+Along with the locale, the system allows you to configure different types of templates:
+
+* Invoice templates
+* Email templates 
+
+== Invoice Templates
+
+Kill Bill provides an API to retrieve an html invoice (formatted and translated using the account locale). The templating mechanism is based on https://github.com/spullara/mustache.java[mustache]. In order to configure the system, the following steps need to happen:
+
+* Upload the invoice template
+* Upload the translation for all the supported locales
+* Upload the catalog translation for all the locales (if required)
+
+[start=1]
+1. Upload the invoice template:
+
+The file `$SOME_PATH_PREFIX/HtmlInvoiceTemplate.mustache` would contain for instance:
+
+[source,bash]
+----
+<html>
+    <head>
+        <style type="text/css">
+            th {align=left; width=225px; border-bottom: solid 2px black;}
+        </style>
+    </head>
+    <body>
+        <h1>{{text.invoiceTitle}}</h1>
+        <table>
+            <tr>
+                <td rowspan=3 width=350px>Insert image here</td>
+                <td width=100px/>
+                <td width=225px/>
+                <td width=225px/>
+            </tr>
+            <tr>
+                <td />
+                <td align=right>{{text.invoiceDate}}</td>
+                <td>{{invoice.formattedInvoiceDate}}</td>
+            </tr>
+            <tr>
+                <td />
+                <td align=right>{{text.invoiceNumber}}</td>
+                <td>{{invoice.invoiceNumber}}</td>
+            </tr>
+            <tr>
+                <td>{{text.companyName}}</td>
+                <td></td>
+                <td align=right>{{text.accountOwnerName}}</td>
+                <td>{{account.name}}</td>
+            </tr>
+            <tr>
+                <td>{{text.companyAddress}}</td>
+                <td />
+                <td />
+                <td>{{account.email}}</td>
+            </tr>
+            <tr>
+                <td>{{text.companyCityProvincePostalCode}}</td>
+                <td />
+                <td />
+                <td>{{account.phone}}</td>
+            </tr>
+            <tr>
+                <td>{{text.companyCountry}}</td>
+                <td />
+                <td />
+                <td />
+            </tr>
+            <tr>
+                <td><{{text.companyUrl}}</td>
+                <td />
+                <td />
+                <td />
+            </tr>
+        </table>
+        <br />
+        <br />
+        <br />
+        <table>
+            <tr>
+                <th>{{text.invoiceItemBundleName}}</td>
+                <th>{{text.invoiceItemDescription}}</td>
+                <th>{{text.invoiceItemServicePeriod}}</td>
+                <th>{{text.invoiceItemAmount}}</td>
+            </tr>
+            {{#invoice.invoiceItems}}
+            <tr>
+                <td>{{description}}</td>
+                <td>{{planName}}</td>
+                <td>{{formattedStartDate}}{{#formattedEndDate}} - {{formattedEndDate}}{{/formattedEndDate}}</td>
+                <td>{{invoice.currency}} {{amount}}</td>
+            </tr>
+            {{/invoice.invoiceItems}}
+            <tr>
+                <td colspan=4 />
+            </tr>
+            <tr>
+                <td colspan=2 />
+                <td align=right><strong>{{text.invoiceAmount}}</strong></td>
+                <td align=right><strong>{{invoice.chargedAmount}}</strong></td>
+            </tr>
+            <tr>
+                <td colspan=2 />
+                <td align=right><strong>{{text.invoiceAmountPaid}}</strong></td>
+                <td align=right><strong>{{invoice.paidAmount}}</strong></td>
+            </tr>
+            <tr>
+                <td colspan=2 />
+                <td align=right><strong>{{text.invoiceBalance}}</strong></td>
+                <td align=right><strong>{{invoice.balance}}</strong></td>
+            </tr>
+        </table>
+    </body>
+</html>
+----
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H "Content-Type: text/html" \
+     -X POST \
+     --data-binary @$SOME_PATH_PREFIX/HtmlInvoiceTemplate.mustache \
+     http://127.0.0.1:8080/1.0/kb/invoices/template
+----
+
+
+
+[start=2]
+2. Upload the invoice translation for locale `fr_FR`:
+
+The file `$SOME_PATH_PREFIX/InvoiceTranslation_fr_FR.properties` would contain for instance:
+  
+[source,bash]
+----
+invoiceEmailSubject=Nouvelle Facture
+invoiceTitle=FACTURE
+invoiceDate=Date:
+invoiceNumber=Facture #
+invoiceAmount=Montant à payer
+invoiceAmountPaid=Montant payé
+invoiceBalance=Nouveau montant
+
+accountOwnerName=Chauffeur
+
+companyName=Killbill, Inc.
+companyAddress=P.O. Box 1234
+companyCityProvincePostalCode=Springfield
+companyCountry=USA
+companyUrl=http://kill-bill.org
+
+invoiceItemBundleName=Armes
+invoiceItemDescription=Description
+invoiceItemServicePeriod=Période de facturation
+invoiceItemAmount=Montant
+
+processedPaymentCurrency=(*) Le payment à été payé en
+processedPaymentRate=Le taux de conversion est
+----
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H "Content-Type: text/plain" \
+     -X POST \
+     --data-binary @$SOME_PATH_PREFIX/InvoiceTranslation_fr_FR.properties \
+     http://127.0.0.1:8080/1.0/kb/invoices/translation/fr_FR
+----
+
+[start=3]
+3. Upload the catalog translation for locale `fr_FR`:
+
+
+The file `$SOME_PATH_PREFIX/CatalogTranslation_fr_FR.properties` would contain for instance:
+
+[source,bash]
+----
+gold-monthly = plan Or mensuel
+----
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H "Content-Type: text/plain" \
+     -X POST \
+     --data-binary @$SOME_PATH_PREFIX/CatalogTranslation_fr_FR.properties \
+     http://127.0.0.1:8080/1.0/kb/invoices/catalogTranslation/fr_FR
+----
+
+[start=4]
+4. Retrieve a specfic invoice html:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     "http://127.0.0.1:8080/1.0/kb/invoices/1785b3d5-24b3-4d17-94ce-310aeb74bc63/html"
+----
+
+
+== Email Templates
+
+It is often desirable to send emails to customers to inform them about the next coming invoice, a change that they made in the system (e.g. cancellation of a subscription), a successful or failed payment, ... That functionality lives in a https://github.com/killbill/killbill-email-notifications-plugin[Kill Bill plugin]. The plugin listens to bus events, and takes action to notify user.
+
+The plugin also allows to be configured on a per-tenant level with a set of templates and translation bundles for various locales.
+
+For more information please refer to the https://github.com/killbill/killbill-email-notifications-plugin/blob/master/README.md[README]

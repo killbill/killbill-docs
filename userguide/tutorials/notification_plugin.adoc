@@ -1,0 +1,190 @@
+= Developing a Notification Plugin
+
+
+== Notification Plugin Overview
+
+Sometimes, you may need to perform some action based on what happens in Kill Bill. For example, you may need to send an email when an invoice is generated, or update SalesForce when an account is created. Creating your own custom notification plugin is the answer to such scenarios. Notification plugins listen to Kill Bill events and can take appropriate action.  This article explains how you can go about creating your custom notification plugin. Such plugins can also be a great alternative to http://docs.killbill.io/latest/push_notifications.html[Push Notifications] in performance demanding environments.
+
+
+== How to develop your custom notification plugin
+
+We provide a simple https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] that can be used as the starting point to develop your custom notification plugin. 
+You can refer to our https://docs.killbill.io/latest/plugin_development.html#_java_plugins[plugin development] document in order to understand how to set it up.
+
+The https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] has a class `HelloWorldListener.java`.  You can create a class similar to this to write your plugin code. 
+Let us take a closer look at the `HelloWorldListener` class:
+
+[source,java,linenums]
+public class HelloWorldListener implements OSGIKillbillEventDispatcher.OSGIKillbillEventHandler{
+    private static final Logger logger = LoggerFactory.getLogger(HelloWorldListener.class);
+    private final OSGIKillbillAPI osgiKillbillAPI;
+    public HelloWorldListener(final OSGIKillbillAPI killbillAPI) {
+        this.osgiKillbillAPI = killbillAPI;
+    }
+    @Override
+    public void handleKillbillEvent(final ExtBusEvent killbillEvent) {
+        logger.info("Received event {} for object id {} of type {}",
+                    killbillEvent.getEventType(),
+                    killbillEvent.getObjectId(),
+                    killbillEvent.getObjectType());
+        final TenantContext context = new PluginTenantContext(killbillEvent.getAccountId(), killbillEvent.getTenantId());
+        switch (killbillEvent.getEventType()) {
+            //
+            // Handle ACCOUNT_CREATION and ACCOUNT_CHANGE only for demo purpose and just print the account
+            //
+            case ACCOUNT_CREATION:
+            case ACCOUNT_CHANGE:
+                try {
+                    final Account account = osgiKillbillAPI.getAccountUserApi().getAccountById(killbillEvent.getAccountId(), context);
+                    logger.info("Account information: " + account);
+                } catch (final AccountApiException e) {
+                    logger.warn("Unable to find account", e);
+                }
+                break;
+            // Nothing
+            default:
+                break;
+        }
+    }
+}
+
+* We provide an interface called https://github.com/killbill/killbill-platform/blob/617d4b626ddd7c081d2927355c6f8cfe2cbd4bd5/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIKillbillEventDispatcher.java[OSGIKillbillEventDispatcher.OSGIKillbillEventHandler]. In order to create your own notification plugin, you need to create a class that implements this interface and implement the `public void handleKillbillEvent(final ExtBusEvent killbillEvent)` method as done in the code above
+
+* The `killbillEvent` parameter passed to the `handleKillbillEvent` method can be used to obtain the *event type*. The event type is just an enum constant defined in https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[ExtBusEventType] and defines all the events that can be handled by the notification plugin. These events are explained in detail in the <<Kill Bill Events Handled by Notification Plugin>> table. Line 15 specifies a switch statement that checks the event type and takes different actions for different events. You can write similar code to handle the desired event.
+
+* Kill Bill provides a class called https://github.com/killbill/killbill-platform/blob/617d4b626ddd7c081d2927355c6f8cfe2cbd4bd5/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIKillbillAPI.java[OSGIKillBillAPI.java]. This class exposes all of Kill Bill's internal APIs. An object of this class will automatically be available in your plugin. Line 3 declares a field corresponding to `osgiKillbillAPI` which is intialized via the constructor at Line 5
+
+* The `osgiKillbillAPI` object can then be used to fetch the appropriate api object. Line 24 uses `osgiKillbillAPI.getAccountUserApi()` to obtain an `AccountUserApi` object
+
+* The API object that then be used to retrieve the appropriate information from Kill Bill. For example, the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/account/api/AccountUserApi.java[AccountUserApi] has several methods that can be used to retrieve account related information. Line 24 invokes `AccountUserApi#getAccountById`
+
+* Note that in order to invoke read/write API operations like `AccountUserApi#getAccountById` , the code must authenticate against Kill Bill first. Otherwise, it will result in an `org.apache.shiro.authz.UnauthenticatedException` as specified in our plugin development document https://docs.killbill.io/latest/plugin_development.html#_faq[here]. In order to authenticate against Kill Bill, the following code needs to be added before invoking any API operation:
+[source, java]
+killbillAPI.getSecurityApi().login(login, password);
+
+* The `AccountUserApi#getAccountById` method requires as parameter a `TenantContext`. So, Line 13 creates a `TenantContext` object with the account id and tenant id. This `TenantContext` object is passed to the `AccountUserApi#getAccountById` method at Line 24
+
+* In general, all the API operations require either a `TenantContext` or a `CallContext` object. A `TenantContext` is mandatory for read only operations (operations which retrieve some data from Kill Bill) like the `AccountApi#getAccountById` used above. A `CallContext` is mandatory for read/write operations and contains additional metadata (user doing the change, reason code, etc.). These values are used for auditing purposes.
+
+* A `TenantContext` should always have the *tenantId* populated. Whenever possible, the *accountId* should also be populated (the exception is when an operation isn’t really tied to any account, like https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/util/api/TagUserApi.java#L45[TagUserApi#getTagDefinitions] API: these tag definitions are defined at the tenant level, not at the account level).
+
+
+
+== Kill Bill Events Handled by Notification Plugin
+
+The following table lists all the events that the notification plugin is capable of handling. These are actually just enum constants defined in https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[ExtBusEventType]
+
+|===
+|Event Name | Event Description
+
+|ACCOUNT_CREATION
+|Occurs when a new customer account is created
+|ACCOUNT_CHANGE
+|Occurs when a customer account is modified
+|BLOCKING_STATE
+|Occurs when there is a change in the state of an entitlement or billing. See https://killbill.github.io/slate/#account-blocking-state[Blocking States] to know more
+|BROADCAST_SERVICE
+|Used to broadcast an event to other Kill Bill nodes (Typically used for plugin related events like plugin installation, plugin uninstallation, plugin start, plugin stop, etc.)
+|SUBSCRIPTION_CREATION
+|Occurs when a new subscription is created
+|SUBSCRIPTION_PHASE
+|Occurs when a new subscription phase is created
+|SUBSCRIPTION_CHANGE
+|Occurs when a subscription is modified
+|SUBSCRIPTION_CANCEL
+|Occurs when a subscription is cancelled
+|SUBSCRIPTION_UNCANCEL
+|Occurs when a subscription cancellation is undone (Note that subscription cancellation cannot be undone once the cancellation becomes effective)
+|SUBSCRIPTION_BCD_CHANGE
+|Occurs when the subscription billing date is changed
+|ENTITLEMENT_CREATION
+|Occurs when a new entitlement is created
+|ENTITLEMENT_CANCEL
+|Occurs when an entitlement is cancelled
+|BUNDLE_PAUSE
+|Occurs when a subscription bundle is paused
+|BUNDLE_RESUME
+|Occurs when a subscription bundle is resumed
+|OVERDUE_CHANGE
+|Occurs when there is a change is an overdue stage
+|INVOICE_CREATION
+|Occurs when a new invoice is generated
+|INVOICE_ADJUSTMENT
+|Occurs when an invoice is adjusted
+|INVOICE_NOTIFICATION
+|Occurs when an invoice is going to be generated for an account in the future (Can be used to notify customers about upcoming bills)
+|INVOICE_PAYMENT_SUCCESS
+|Occurs when an invoice payment is successful
+|INVOICE_PAYMENT_FAILED
+|Occurs when an invoice payment fails
+|PAYMENT_SUCCESS
+|Occurs when payment is successful
+|PAYMENT_FAILED
+|Occurs when payment fails
+|TAG_CREATION
+|Occurs when a new tag is associated with a Kill Bill resource (account, invoice, etc.)
+|TAG_DELETION
+|Occurs when a tag associated with a Kill Bill resource (account, invoice, etc.) is deleted
+|CUSTOM_FIELD_CREATION
+|Occurs when a custom field is created
+|CUSTOM_FIELD_DELETION
+|Occurs when a custom field is deleted
+|TENANT_CONFIG_CHANGE
+|Occurs when a Tenant configuration is modified (So, any changes to a catalog, overdue config, etc. within a tenant triggers this event)
+|TENANT_CONFIG_DELETION
+|Occurs when a Tenant configuration is deleted
+|===
+
+
+== Some common use cases for notification plugin
+
+This section lists some common use cases where you can use the notification plugin and also specifies how you can use the notification plugin in these scenarios.
+
+=== Doing something when an account is created/modified
+
+Sometimes, you may wish to perform some action like updating Salesforce when there is some account related activity. For this, you can write a custom notification plugin that handles the following events:
+
+. ACCOUNT_CREATION
+
+. ACCOUNT_CHANGE
+
+You can obtain the account information from Kill Bill as follows:
+
+[source,java]
+Account account = osgiKillbillAPI.getAccountUserApi().getAccountById(killbillEvent.getAccountId(), context)
+
+You can then use this `account` object to update the necessary information in Salesforce.
+
+== Existing Notification Plugins
+
+We already provide some notification plugins for some common scenarios. The following are some of the existing notification plugins:
+
+. https://github.com/killbill/killbill-email-notifications-plugin/[Email Notification plugin] - This plugin listens to certain events and notifies customers through emails. 
+. http://docs.killbill.io/latest/userguide_analytics.html[Analytics plugin] - Can be used to generate financial reports. 
+
+. https://github.com/killbill/killbill-cloud/tree/9e9450b94b130d4a97a264155019c83e69d78251/kpm[Kpm] - Kpm is a special notification plugin which is used for managing other plugins
+
+== Retries
+
+Sometimes an exception might occur in your notification plugin due to which it might not be able to handle the event sent to it by Kill Bill. By default, if a plugin triggers a runtime exception, Kill Bill dispatches the event right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property). However, in some cases, you may want Kill Bill to retry sending the event again at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. The retry schedule should include a Period array, each element in the array should specify the duration after which the retry should be attempted. 
+
+For example, consider the following exception:
+[source,java]
+// Retry in an hour and in 24hrs
+throw new NotificationPluginApiRetryException(Arrays.asList(new Period[]{Period.hours(1), Period.days(1)}));
+
+This specifies that Kill Bill should retry sending the event two times. The first should be an hour from now, while the second should be 24 hours from now.
+
+
+When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried. 
+
+So, in terms of responsibilities:
+
+* Plugin is in charge of deciding whether a `NotificationPluginApiRetryException` should be thrown and attach the associated retry schedule to it.
+* Kill Bill manages the retry logic and also keeps count of # existing retries versus retry schedule.
+
+It is expected that the plugin will simply pass the same retry schedule for each retry iteration, but this is not enforced and left for the plugin to decide. Kill Bill will look at the most recent retry schedule attached to the exception currently being handled and determine what to do based on that. If for instance a first schedule included 2 retries 10 days apart, and then upon retrying one time, the new schedule now includes only 1 retry, the cycle of retries would end there (as the latest schedule contains only one retry and Kill Bill already retried one time).
+Because of such behavior, any plugin can trigger retries at any time: it is hence important that your listener is idempotent.
+
+
+

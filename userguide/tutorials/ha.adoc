@@ -1,0 +1,263 @@
+= Hierarchical Accounts Tutorial
+
+== Overview
+
+Starting with Kill Bill 0.18.x, we have introduced support for Hierarchical Accounts (HA). In this tutorial, we will review what the feature is about, and then explore how it works and which APIs to use.
+
+Let's first review what we have prior to introducing the HA feature: In the Kill Bill terminology, a customer will be represented as a Kill Bill `Account`, and such `Account` will then be invoiced based on its current subscriptions and one-off charges. Payments will also be made by using the default payment method associated with the `Account`.
+
+The idea of the HA feature is to delegate some of the payment operations associated with an `Account` to a `parent Account`. Some typical use cases are:
+
+* Affiliate model: In this scenario, payments associated with some customers are made through the `parent Account` but each individual `Account` will manage its own subscriptions and will have access to its associated invoices.
+* Sub-Organization: In large organizations, it is common to see sub-organizations working independently, and yet the parent organization is responsible for the payments.
+
+The new HA feature allows for the following:
+
+* Ability to set an `Account` as the child of another `Account`
+* Ability to specify on an `Account` that it will be responsible for paying its own invoices (default behaviour)
+* Ability to specify on an `Account` that the parent will be responsible for the payments
+* Ability to transfer credit from child `Account` to parent `Account`
+* Ability to list all children `Account`
+
+== How does it work?
+
+The Kill Bill `Account` abstraction has been enhanced to allow specifying a parent `Account` and whether or not that parent `Account` is responsible to pay its children's invoices. A parent `Account` is an `Account` that contains one or more children `Account`. When such a parent `Account` exists and when its children have been configured to delegate their payments, the following happens:
+
+1. Every time the system computes a new invoice (or adjusts an existing one) for a given child `Account`, the parent gets notified and also computes a special summary invoice that will include all of the items for all the children on a given day.
+2. The payment system will ignore the child invoice as it knows this should be paid by the parent.
+3. At the end of each day (UTC time, or as configued by the per-tenant `org.killbill.invoice.parent.commit.local.utc.time` property), the summary invoice will transition from `DRAFT` to `COMMITTED`.
+4. As a result, the payment system will attempt to make a payment for the parent summary invoice using the default payment method associated with the parent `Account`.
+
+As we can see, each child `Account` can still have its own subscriptions and matching invoices, but associated payments are delegated to the parent through the daily computation of a summary invoice.
+
+The balance associated with both the child invoice and parent summary invoice will be zero until the end of the day when the transition from `DRAFT` to `COMMITTED` occurs. At this point, if the payment succeeds, then such invoice balances remain at zero. If not, then each invoice balance (child and parent) becomes equal to its invoice amount.
+
+In terms of dunning (overdue), since the parent `Account` is the one making the payments, then overdue system will compute dunning state based on the per-tenant overdue configuration and parent `Account`'s payment state. The children `Account` will inherit the same dunning state as their parent. As a result, one unpaid parent invoice that did not contain any invoice item for a given child would still put this child in an overdue state.
+
+=== Un- and Re-parenting
+
+Children can be un-parented or re-parented to a different parent `Account`.
+
+Common use-cases:
+
+* Affiliate parent goes out of business but the child would like to continue using the service without interruption
+* Ownership transfer: a service provider company (parent `Account`) created a child account for a specific customer or project. During the Proof Of Concept (POC) phase, the service provider pays the bills. Past the POC stage, the company transfers ownership to the customer so it starts paying its own bills
+
+When this occurs, any unpaid invoice is still owed by the previous parent. For instance, if the child had an unpaid invoice of $10, both parent and child still have an account balance of $10 after un-parenting. Payment retries will continue, i.e. if a retry (by the parent) is scheduled after un-parenting occurs, and if the payment retry is successful, the parent will pay the child invoice (and bring back both account balances to $0), even though the relationship doesn't exist anymore. Any new invoice generated after un-parenting would only be owed by the child though.
+
+To put it differently, un- and re-parenting don't affect past invoices: children can return to do their own billing, in which case the parent is responsible for things billed up to un-parenting and children are responsible for things billed after that. Similarly, children will continue to be responsible for payments against anything that has already been billed before (re-)parenting but the parent will be responsible for bills moving forward.
+
+To avoid this behavior, child invoices should be adjusted (or written off) prior to un- or re-parenting, to start from a clean state.
+
+=== Invoices in DRAFT mode
+
+If a child `Account` is tagged with `AUTO_INVOICING_DRAFT`, the parent does not receive any notification until that child invoice gets committed.
+
+== Tutorial
+
+We will generate a child `Account` associated with one parent `Account` to see what happens (we assume the defauly demo bob/lazar tenant already exists).
+
+
+Let's first create the parent `Account` (we can see its ID in the `Location` header that is being returned) and also add a default payment method:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"name":"Parent","email":"parent@example.com","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts"
+
+< Location: http://127.0.0.1:8080/1.0/kb/accounts/09d5dfdf-eff2-4b45-96d8-535ea269178e
+
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/09d5dfdf-eff2-4b45-96d8-535ea269178e/paymentMethods?isDefault=true"
+----
+
+Let's now create the child `Account` (notice the new fields `parentAccountId` and `isPaymentDelegatedToParent` in the json):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"name":"C1","email":"c1@example.com","currency":"USD","parentAccountId":"09d5dfdf-eff2-4b45-96d8-535ea269178e", "isPaymentDelegatedToParent":true}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts"
+
+< Location: http://127.0.0.1:8080/1.0/kb/accounts/ea58b7dd-eb23-4065-a3e5-980291d45ab8
+----
+
+
+Let's now create a subscription for the child `Account` (we'll use a simple monthly plan with no trial called `zoo-monthly`):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"accountId":"ea58b7dd-eb23-4065-a3e5-980291d45ab8","externalKey":"s1","planName":"zoo-monthly"}' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions"
+----
+
+
+If we inspect our database entries, we see that there is a COMMITTED invoice for the child and a DRAFT invoice for the parent:
+
+
+[source,bash]
+----
+mysql> select * from invoices where account_id = 'ea58b7dd-eb23-4065-a3e5-980291d45ab8'\G
+*************************** 1. row ***************************
+        record_id: 45545
+               id: 742c700d-e957-4948-a0bb-b16c0e4a4ecb
+       account_id: ea58b7dd-eb23-4065-a3e5-980291d45ab8
+     invoice_date: 2016-12-09
+      target_date: 2016-12-09
+         currency: USD
+           status: COMMITTED
+         migrated: 0
+   parent_invoice: 0
+       created_by: SubscriptionBaseTransition
+     created_date: 2016-12-09 21:11:12
+account_record_id: 6750
+ tenant_record_id: 338
+1 row in set (0.00 sec)
+
+mysql> select * from invoices where account_id = '09d5dfdf-eff2-4b45-96d8-535ea269178e'\G
+*************************** 1. row ***************************
+        record_id: 45546
+               id: 5a056e57-1089-4d15-a2b2-27df996dfbb1
+       account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
+     invoice_date: 2016-12-09
+      target_date: NULL
+         currency: USD
+           status: DRAFT
+         migrated: 0
+   parent_invoice: 1
+       created_by: CreateParentInvoice
+     created_date: 2016-12-09 21:11:13
+account_record_id: 6749
+ tenant_record_id: 338
+1 row in set (0.00 sec)
+----
+
+Let's now move the clock to the end of the day to trigger the transition from `DRAFT` to `COMMITTED`:
+
+[source,bash]
+----
+curl -v \
+    -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+    'http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2016-12-10'
+----
+
+Let's look again at the parent invoice (and also the item it contains):
+
+[source,bash]
+----
+mysql>  select * from invoices where account_id = '09d5dfdf-eff2-4b45-96d8-535ea269178e'\G
+*************************** 1. row ***************************
+        record_id: 45546
+               id: 5a056e57-1089-4d15-a2b2-27df996dfbb1
+       account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
+     invoice_date: 2016-12-09
+      target_date: NULL
+         currency: USD
+           status: COMMITTED
+         migrated: 0
+   parent_invoice: 1
+       created_by: CreateParentInvoice
+     created_date: 2016-12-09 21:11:13
+account_record_id: 6749
+ tenant_record_id: 338
+1 row in set (0.00 sec)
+
+> select * from invoice_items  where invoice_id = '5a056e57-1089-4d15-a2b2-27df996dfbb1'\G
+*************************** 1. row ***************************
+        record_id: 59901
+               id: bed7bd0d-4557-435c-9208-f09ef08d36c3
+             type: PARENT_SUMMARY
+       invoice_id: 5a056e57-1089-4d15-a2b2-27df996dfbb1
+       account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
+ child_account_id: ea58b7dd-eb23-4065-a3e5-980291d45ab8
+        bundle_id: NULL
+  subscription_id: NULL
+      description: ea58b7dd-eb23-4065-a3e5-980291d45ab8 summary
+        plan_name: NULL
+       phase_name: NULL
+       usage_name: NULL
+       start_date: NULL
+         end_date: NULL
+           amount: 34.000000000
+             rate: NULL
+         currency: USD
+   linked_item_id: NULL
+       created_by: CreateParentInvoice
+     created_date: 2016-12-09 21:11:13
+account_record_id: 6749
+ tenant_record_id: 338
+----
+
+
+We can see that the parent invoice contains only one `PARENT_SUMMARY` item and that its state is now `COMMITTED` as expected.
+
+Let's now verify what happens on the payment side:
+
+[source,bash]
+----
+ mysql> select * from payments where account_id = '09d5dfdf-eff2-4b45-96d8-535ea269178e'\G
+ *************************** 1. row ***************************
+               record_id: 17634
+                      id: b75a7646-091d-471c-824c-4cef375de714
+              account_id: 09d5dfdf-eff2-4b45-96d8-535ea269178e
+       payment_method_id: 857aea5d-9c55-475b-8094-7746e96448de
+            external_key: e9f07f58-4332-44ee-8c4a-05c89395a308
+              state_name: PURCHASE_SUCCESS
+ last_success_state_name: PURCHASE_SUCCESS
+              created_by: PaymentRequestProcessor
+            created_date: 2016-12-10 00:00:00
+              updated_by: PaymentRequestProcessor
+            updated_date: 2016-12-10 00:00:00
+       account_record_id: 6749
+        tenant_record_id: 338
+ 1 row in set (0.00 sec)
+
+ mysql>
+ mysql> select * from payments where account_id = 'ea58b7dd-eb23-4065-a3e5-980291d45ab8'\G
+ Empty set (0.01 sec)
+
+----
+
+As expected we see one payment for the parent invoice and no payment for the child.
+
+== Advanced use-cases
+
+=== Committing parent invoices early
+
+Parent `DRAFT` invoices can be committed early if needed, through the `PUT /1.0/kb/invoices/<parentInvoiceId>/commitInvoice` API. If a new child invoice is generated prior the end of that day, the system will recreate a new `SUMMARY` invoice for that day.
+
+== Conclusion
+
+There is a lot more to demo (regarding dunning, invoice adjustment, ...), but this should provide a highlight of what the feature is about. Note that this is a new feature in 0.18 and as such it should be seen as Beta (you are responsible to verify it works accordingly to your use case, load, ...).

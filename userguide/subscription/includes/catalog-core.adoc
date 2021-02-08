@@ -1,0 +1,617 @@
+We have now described the heading information for the catalog. The following discussions explain in depth the catalog sections that correspond to the concepts described above.
+
+=== Products
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHT3dKd0U3a1RfcUE&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHT3dKd0U3a1RfcUE/view?usp=sharing
+
+The Product is a representation of the thing the customer is actually buying. Specifying a Product is very straightforward. The product is described by the following parameters:
+
+* Name - a string that is used to refer to the Product elsewhere in the catalog. For example “Super”.
+* Category - a descriptor that determines how Kill Bill allows the combining of this product with others within a bundle. The options are BASE, ADD_ON and STANDALONE. These options are explained below.
+* Inclusion/Exclusion lists (optional) - Lists that determine which addons can be purchased with a given base plan.
+
+
+=== Plans
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHcl9mb2ZDMG12LXc&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHcl9mb2ZDMG12LXc/view?usp=sharing
+
+Plans specify the terms of a subscription contract. Each Plan has a name and refers to the purchase of a single product. The details of a Plan are arranged by phase.
+In the illustration above we are showing a Plan with a 30 day Trial followed by an unlimited recurring or "evergreen" phase.
+For each phase of the Plan we need to specify:
+
+* Phase Type - can be one of TRIAL, DISCOUNT, FIXEDTERM, EVERGREEN
+* Duration - the length of the phase in days, months, years or UNLIMITED
+* Billing Period - how frequently do we want to invoice for this phase. Can be DAILY, WEEKLY, BIWEEKLY, THIRTY_DAYS, MONTHLY, QUARTERLY, BIANNUAL, ANNUAL, BIENNIAL or NO_BILLING_PERIOD
+* Recurring Price - the recurring price that needs to be paid every billing period (unless no billing period was specified). The price needs to specify numeric values for every currency that the catalog supports.
+* Fixed Price - a fixed price charged at the beginning of the period in addition to the recurring price. This is also a multi currency price and must be specified for all currencies.
+* Usage Sections - these are optional and outside the scope of this tutorial.
+
+Plan, Phase and Usage sections can have a `prettyName` element which would correspond to the display name (such information is subsequently available on invoice items). This is useful for instance if a product is rebranded to a new name in a subsequent version. Plan names don't need to be updated.
+
+Note that unlike `prettyName`, the `name` elements need to be globally unique in the catalog and must conform to the XML `NCName` definition. This means that they cannot contain symbol characters like `:, @, $, %, &, /, +, ,, ;,`, whitespace characters or parentheses, and they cannot begin with a number, dot or minus character.
+
+For our Spy Car catalog example we specify three plans with two phases:
+
+. The first phase is of type TRIAL and it has a duration of 30 days and a Billing Period set to “NO_BILLING_PERIOD”. There is no recurring price specified, and the fixed price is given as £0/$0.
+. The second phase is of type EVERGREEN. It has a Duration of UNLIMITED, a Billing Period of MONTHLY, and a recurring price of £75/$100 (or whatever is appropriate for the Product).
+
+[source,xml]
+----
+<plans>
+     <plan name="standard-monthly">
+         <product>Standard</product>
+         <initialPhases>
+             <phase type="TRIAL">
+                 <duration>
+                     <unit>DAYS</unit>
+                     <number>30</number>
+                 </duration>
+                 <billingPeriod>NO_BILLING_PERIOD</billingPeriod>
+                 <fixedPrice> <!-- empty price implies $0 -->
+                 </fixedPrice>
+             </phase>
+         </initialPhases>
+         <finalPhase type="EVERGREEN">
+             <duration>
+                 <unit>UNLIMITED</unit>
+             </duration>
+             <billingPeriod>MONTHLY</billingPeriod>
+             <recurringPrice>
+                 <price>
+                      <currency>GBP</currency>
+                      <value>75.00</value>
+                 </price>
+                 <price>
+                      <currency>USD</currency>
+                      <value>100.00</value>
+                  </price>
+             </recurringPrice>
+         </finalPhase>
+     </plan>
+     ...
+</plans>
+----
+
+=== Product Categories
+
+As noted above, Kill Bill supports three categories of products:
+
+* Base Products
+* Add-On Products
+* Standalone Products
+
+The terms BASE, ADD_ON, and STANDALONE represent plans that are associated with these three types of product respectively. Having an explicit representation of Add-On products allows Kill Bill to be configured to only allow purchases of add-ons with particular base plans, and to trigger appropriate cancellations automatically when the base plan changes or is cancelled.
+
+A Subscription Bundle is a collection of subscriptions that correspond to an individual product instance, such as all the subscriptions associated with a single cell phone, or, in our example catalog, all the subscriptions associated with the rental of a Spy Car. Subscription Bundles can either consist of a collection of subscriptions to stand-alone plans or a single Base Plan subscription with zero or more Add-On Plan subscriptions.
+
+The Kill Bill catalog allows you to specify the inclusion and availability of Add-On Products with associated Base Products. For example, suppose that we create some add-on products for our example catalog. Let's add an `OilSlick` Product and a `RemoteControl` Product. Now, let's discuss the availability and inclusion of these:
+
+* Neither product is available in the `Standard` Plan, meaning that you can’t purchase either of these add-ons if you are on `Standard`.
+* Both products are available on the `Sport` Plan.
+* RemoteControl is available on the `Super` Plan, but as we can see from the original Plan definition, `OilSlick` is already included in the `Super` Plan.
+
+If we have this specified in the catalog then Kill Bill knows to disallow certain purchases, e.g. it will not allow the purchase of an `OilSlick` add-on in a Bundle with a `Standard` Base Plan.
+Similarly if the Base Plan in a Bundle containing `Super` and `RemoteControl` is downgraded to `Standard`, Kill Bill knows to automatically cancel the `RemoteControl` Add-On since it is no longer available.
+Finally, if the Base Plan of a Bundle containing `Sports` and `OilSlick` is upgraded to `Super`, Kill Bill knows to cancel the `OilSlick` Plan because its features are already included, by default, in the new Base Plan.
+
+[source,xml]
+----
+<products>
+    <product name="Standard">
+        <category>BASE</category>
+    </product>
+    <product name="Sports">
+        <category>BASE</category>
+        <available>
+            <addonProduct>OilSlick</addonProduct>
+            <addonProduct>RemoteControl</addonProduct>
+        </available>
+    </product>
+    <product name="Super">
+        <category>BASE</category>
+        <included>
+            <addonProduct>OilSlick</addonProduct>
+        </included>
+        <available>
+            <addonProduct>RemoteControl</addonProduct>
+        </available>
+    </product>
+    <product name="OilSlick">
+        <category>ADD_ON</category>
+    </product>
+    <product name="RemoteControl">
+        <category>ADD_ON</category>
+    </product>
+</products>
+----
+
+=== Price lists
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHTXcwbHNjTXBnYkE&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHTXcwbHNjTXBnYkE/view?usp=sharing
+
+Price Lists are collections of Plans, usually associated with a promotion or discount package.
+
+For example, we might offer special rates on our Spy Car rental package for CIA Agents, which offers 33% off for the first 3 months of hire.
+To do this, we create plans similar to the ones we have already. They should have the same trial phase and the same evergreen phase, but we insert a new discount phase which, for 3 months, charges the appropriate discount.
+
+In this example we consider only the first of the three additional plans.
+
+[source,xml]
+----
+<plan name="discount-standard-monthly">
+    <product>Standard</product>
+    <initialPhases>
+        <phase type="TRIAL">
+            <duration>
+                <unit>DAYS</unit>
+                <number>30</number>
+            </duration>
+        <billingPeriod>NO_BILLING_PERIOD</billingPeriod>
+            <fixedPrice> <!-- empty price implies $0 -->
+            </fixedPrice>
+        </phase>
+        <phase type="DISCOUNT">
+            <duration>
+                <unit>MONTHS</unit>
+                <number>3</number>
+            </duration>
+            <billingPeriod>MONTHLY</billingPeriod>
+            <recurringPrice>
+                <price>
+                    <currency>GBP</currency>
+                    <value>50.00</value>
+                </price>
+                <price>
+                    <currency>USD</currency>
+                    <value>66.00</value>
+                </price>
+            </recurringPrice>
+        </phase>
+    </initialPhases>
+    <finalPhase type="EVERGREEN">
+        <duration>
+            <unit>UNLIMITED</unit>
+        </duration>
+        <billingPeriod>MONTHLY</billingPeriod>
+        <recurringPrice>
+            <price>
+                <currency>GBP</currency>
+                <value>75.00</value>
+            </price>
+            <price>
+                <currency>USD</currency>
+                <value>100.00</value>
+            </price>
+        </recurringPrice>
+    </finalPhase>
+</plan>
+----
+
+Once our additional plans have been created, we can add the new pricelist, after the default price list:
+
+[source,xml]
+----
+<priceLists>
+    <defaultPriceList name="DEFAULT">
+        <plans>
+            <plan>standard-monthly</plan>
+            <plan>sports-monthly</plan>
+            <plan>super-monthly</plan>
+        </plans>
+    </defaultPriceList>
+    <childPriceList name="CIA">
+        <plans>
+            <plan>discount-standard-monthly</plan>
+            <plan>discount-sports-monthly</plan>
+            <plan>discount-super-monthly</plan>
+        </plans>
+    </childPriceList>
+</priceLists>
+----
+
+The alignment and price list change rules can be used to specify the behaviour to use when changing pricelists.
+In the example above, we would expect customers to be able to upgrade and downgrade within the discount phase of the subscription and stay in the discounted price list.
+We refer to this as a “sticky” price list. Kill Bill can also support “non-sticky” price lists, in which plan changes cause the customer to drop out of the pricelist that they are in and move to a different one (usually the Default).
+In the section on rules we explain how to configure these properties.
+
+
+=== Rules
+
+
+There are several different *Rules* that can be configured in the Kill Bill Catalog. Each Rule answers a specific question.
+For example, one of the Rules answers the question "When should this plan change be applied?".
+Suppose Kill Bill receives a request for a subscription to have its plan upgraded, Kill Bill will check the rules, and based on the current plan, the phase it is in, the new plan etc. Kill Bill can determine whether the transition should happen immediately, or be deferred until later.
+
+Rules consist of a series of Cases. Each Case is represented by a Predicate and a Result.
+Rules are evaluated against a Context. Each Case is examined in order, and the Predicate for that Case is compared to the Context.
+If the Predicate is satisfied by the Context, then the Result of that Case is applied.
+
+For example, consider the following rule for the timing of applying a plan change:
+
+. Predicate: phaseType=TRIAL ; Result: IMMEDIATE
+. Predicate: phaseType=Evergreen AND fromProduct=Sports AND toProduct=Standard ; Result: END_OF_TERM
+. Predicate: ; Result: END_OF_TERM
+
+In this example there are three cases. The cases are evaluated from first to last and the first case for which the predicate matches the context is the one that is successful.
+
+Consider the following Context:
+
+[cols=2]
+|===
+|phaseType
+|EVERGREEN
+
+|fromProduct
+|Sports
+
+|fromProductCategory
+|BASE
+
+|fromBillingPeriod
+|MONTHLY
+
+|fromPriceList
+|DEFAULT
+
+|toProduct
+|Standard
+
+|toProductCategory
+|BASE
+
+|toBillingPeriod
+|MONTHLY
+
+|toPriceList
+|DEFAULT
+|===
+
+To evaluate the Rule against this Context, we start by considering Case 1.
+The predicate in Case 1 requires that PhaseType=TRIAL, but the first line of our context has phaseType set to EVERGREEN, so Case 1 fails.
+However, when we consider Case 2, all the predicate clauses are satisfied by the above context: phaseType=Evergreen, fromProduct=Sports and toProduct=Standard.
+So, Case 2 succeeds and the Rule evaluates to "END_OF_TERM".
+
+Notice that the predicates only need to specify the values of some of the fields in the context. Fields that are omitted in a predicate can take any value. For this reason Case 3 is a catch-all Case.
+It always succeeds because the predicate has no clauses so it will succeed with any Context.
+
+The XML for the above rules is given below:
+
+[source,xml]
+----
+<rules>
+...
+    <changePolicy>
+        <changePolicyCase>
+            <phaseType>TRIAL</phaseType>
+            <policy>IMMEDIATE</policy>
+        </changePolicyCase>
+        <changePolicyCase>
+            <phaseType>EVERGREEN</phaseType>
+            <fromProduct>Sports</fromProduct>
+            <toProduct>Standard</toProduct>
+            <policy>END_OF_TERM</policy>
+        </changePolicyCase>
+        <changePolicyCase>
+            <policy>END_OF_TERM</policy>
+        </changePolicyCase>
+    </changePolicy>
+...
+</rules>
+----
+
+There are three types of Context:
+
+* Creation Context - provides the context for a new subscription
+* Subscription Context - provides the context of an existing subscription, including details of the plan, phase, pricelist, product etc.
+* Change Context - provides the context not only about the phase of the current subscription but also details of the new target plan. This is used in the event of a plan change. 
+
+[cols=3,options="header"]
+|===
+|Creation Context
+|Subscription Context
+|Change Context
+
+|product
+|product
+|phaseType
+
+|productCategory
+|productCategory
+|fromProduct
+
+|billingPeriod
+|billingPeriod
+|fromProductCategory
+
+|priceList
+|priceList
+|fromBillingPeriod
+
+|
+|phaseType
+|fromPriceList
+
+|
+|
+|toProduct
+
+|
+|
+|toProductCategory
+
+|
+|
+|toBillingPeriod
+
+|
+|
+|toPriceList
+|===
+
+In the remainder of this section we illustrate each type of rule supported by the system.
+
+=== Billing Alignment Rules
+
+Billing alignment is concerned with specifying the day on which a particular subscription is to be billed. If an account has multiple subscriptions it is often desirable that they be billed on the same day.
+
+If the billing period for a subscription is MONTHLY or a multiple of MONTHLY (such as QUARTERLY, ANNUAL, etc.) then we define the Bill Cycle Day (BCD). This is the date on which the billing occurs for that subscription each month. If multiple subscriptions have the same BCD, they may be billed on the same invoice. However, if the BCD for a new subscription differs from its start date, then the initial bill will have to be prorated. This will also occur anytime the BCD for a subscription is changed.
+
+If a BCD falls on a date past the end of a given month, such as April 31, it will be set to the last day of that month.
+
+The Billing Alignment Rules specify the policy for billing alignment for the current subscription. There are three kinds of alignment available:
+
+* ACCOUNT - this alignment means that the billing cycle of the subscription will be lined up with the BCD of the account. If a day value is not specified, the system will generate one using the first recurring bill date of all subscriptions with an `ACCOUNT` billing alignment. In some cases this is undesirable, because it means that the bill amount will need to be prorated on the first billing to line up the cycles.
+* SUBSCRIPTION - this alignment will cause the subscription's bill cycle to line up with the first bill day of the subscription plan. For example, if the subscription starts on January 3rd and has a 15 day free trial, the first billed day will be January 18th, and the BCD for the subscription will be set to 18.
+* BUNDLE - this alignment sets the BCD to the same day the base plan is using. This may be useful for add-ons.
+
+For example, suppose we have a MONTHLY subscription, billed on the 15th of the month, and we add an ANNUAL subscription.
+If we start the ANNUAL on the 8th, we have 2 choices:
+
+1. We can use an ACCOUNT alignement, so everything gets invoiced on the 15th. This would require an initial proration for the ANNUAL subscription from the 8th to the 15th, to align it with the MONTHLY subscription.
+2. We can use a SUBSCRIPTION alignment and keep the ANNUAL on its own invoice, once a year on the 8th. This avoids any leading proration, but requires separate invoices.
+
+
+The next example will align addons with the base plan, monthlies to the Account bill cycle day and annuals to their first billed day. Anything else is aligned with the Account.
+
+[source,xml]
+----
+<billingAlignment>
+    <billingAlignmentCase>
+        <productCategory>ADD_ON</productCategory>
+        <alignment>BUNDLE</alignment>
+    </billingAlignmentCase>
+    <billingAlignmentCase>
+        <billingPeriod>MONTHLY</billingPeriod>
+        <alignment>ACCOUNT</alignment>
+    </billingAlignmentCase>
+    <billingAlignmentCase>
+        <billingPeriod>ANNUAL</billingPeriod>
+        <alignment>SUBSCRIPTION</alignment>
+    </billingAlignmentCase>
+    <billingAlignmentCase>
+        <alignment>ACCOUNT</alignment>
+    </billingAlignmentCase>
+</billingAlignment>
+----
+
+=== Subscription Alignment Rules
+
+==== Plan Creation Add-On Phase Alignment
+
+This rule also uses the Creation Context and determines how the phases of an Add-On plan align with an existing subscription.
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHaDN0Y0NIbTFCaU0&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHaDN0Y0NIbTFCaU0/view?usp=sharing
+
+There are two choices (illustrated above):
+
+* START_OF_BUNDLE - causes the phases of the add-on to start on the date when the base plan was first created. This is useful, for instance, if you want to allow add-on trials during the trial phase of the base plan only. The add-on plans must have a trial of the same length as the base plan, so the trials will expire at the same time whenever the add-on is created.
+* START_OF_SUBSCRIPTION - this causes the phases of the add-on to start when the add-on subscription is created. This is useful, for instance, if you want to allow add-ons to have trials that occur independently of the base plan.
+
+Example:
+
+. Predicate: product=OilSlick ; Result: START_OF_BUNDLE
+. Predicate: product=RemoteControl ; Result: START_OF_SUBSCRIPTION
+. Predicate: ; Result: START_OF_BUNDLE
+
+In this example the product `OilSlick` is aligned to the START_OF_BUNDLE and the product `RemoteControl` is aligned to START_OF_SUBSCRIPTION. The default for anything else is START_OF_BUNDLE.
+
+[source,xml]
+----
+<createAlignment>
+    <createAlignmentCase>
+        <product>OilSlick</product>
+        <alignment>START_OF_BUNDLE</alignment>
+    </createAlignmentCase>
+    <createAlignmentCase>
+        <product>RemoteControl</product>
+        <alignment>START_OF_SUBSCRIPTION</alignment>
+    </createAlignmentCase>
+    <createAlignmentCase>
+        <alignment>START_OF_BUNDLE</alignment>
+    </createAlignmentCase>
+</createAlignment>
+----
+
+For more information on `Plan Creation Phase Alignment`, and in particular to understand how that works with apis (Subscription Create or Subscription Change Plan) that specify a target `PhaseType`, you can also refer to this http://docs.killbill.io/latest/plan_alignment.html[documentation].
+
+
+==== Plan Cancellation Timing
+
+This rule uses the Phase Context and is used to specify when a cancellation should occur.
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHTjRMVkZjbUZ3OFE&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHTjRMVkZjbUZ3OFE/view?usp=sharing
+
+There are two options (illustrated above):
+
+* END_OF_TERM - means that the cancellation will be applied at the end of the billed period. This is typical in a situation where we want to avoid generating credits.
+* IMMEDIATE - means that the cancellation will be applied immediately and the customer credited with the balance of the subscription that they have paid for but not yet used.
+
+Example:
+
+. Predicate: productCategory=BASE ; Result: END_OF_TERM
+. Predicate: productCategory=ADD_ON ; Result: IMMEDIATE
+. Predicate: ; Result: END_OF_TERM
+
+In this example base plans are cancelled at the end of their term, while add-on plans are cancelled immediately.
+
+[source,xml]
+----
+<cancelPolicy>
+    <cancelPolicyCase>
+        <productCategory>BASE</productCategory>
+        <policy>END_OF_TERM</policy>
+    </cancelPolicyCase>
+    <cancelPolicyCase>
+        <productCategory>ADD_ON</productCategory>
+        <policy>IMMEDIATE</policy>
+    </cancelPolicyCase>
+    <cancelPolicyCase>
+        <policy>END_OF_TERM</policy>
+    </cancelPolicyCase>
+</cancelPolicy>
+----
+
+==== Plan Change Timing
+
+This rule uses the Change Context and, like the cancellation rule above, specifies when a plan change should occur.
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHV2huVmFqSlkwQ1E&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHV2huVmFqSlkwQ1E/view?usp=sharing
+
+There are three options (two of which are illustrated above):
+
+* END_OF_TERM - specifies that the change should happen at the end of the current billed period.
+* IMMEDIATE - specifies that the change should happen when requested.
+* ILLEGAL - plan change is not allowed (not illustrated).
+
+Example:
+
+. Predicate: phaseType=TRIAL ; Result: IMMEDIATE
+. Predicate: fromProduct=Standard AND toProduct=Sports ; Result: IMMEDIATE
+. Predicate: toProduct=Super ; Result: IMMEDIATE
+. Predicate: ; Result: END_OF_TERM
+
+In this example we specify that trials and upgrades occur immediately, anything else is to occur at end of term.
+
+[source,xml]
+----
+<changePolicy>
+    <changePolicyCase>
+        <phaseType>TRIAL</phaseType>
+        <policy>IMMEDIATE</policy>
+    </changePolicyCase>
+    <changePolicyCase>
+        <fromProduct>Standard</fromProduct>
+        <toProduct>Sports</toProduct>
+        <policy>IMMEDIATE</policy>
+    </changePolicyCase>
+    <changePolicyCase>
+        <toProduct>Super</toProduct>
+        <policy>IMMEDIATE</policy>
+    </changePolicyCase>
+    <changePolicyCase>
+        <policy>END_OF_TERM</policy>
+    </changePolicyCase>
+</changePolicy>
+----
+
+==== Plan Change Phase Alignment
+
+In the section "Plan Creation Add-on Phase Alignment" above, we specified how to align the phases of an add-on with a base plan. This rule, which uses the Change Context, specifies how the phases of a new plan should align with the phases of the existing plan when a plan is changed.
+
+There are four options:
+
+* START_OF_SUBSCRIPTION - The plan phases start with the start of the subscription. This is the most common alignment and applies in most situations.
+* START_OF_BUNDLE - The plan phases align with the start of the base subscription. This is only meaningful for addons.
+* CHANGE_OF_PLAN - The plan phases start at the time of the change
+* CHANGE_OF_PRICELIST - The plan phases start at the time of the last change of price list
+
+Example:
+
+. Predicate: toProductCategory=ADD_ON ; Result: START_OF_BUNDLE
+. Predicate: toPriceList=SpecialDiscount ; Result: CHANGE_OF_PRICELIST
+. Predicate: ; Result: START_OF_SUBSCRIPTION
+
+[source,xml]
+----
+<changeAlignment>
+    <changeAlignmentCase>
+        <toProductCategory>ADD_ON</toProductCategory>
+        <alignment>START_OF_BUNDLE</alignment>
+    </changeAlignmentCase>
+    <changeAlignmentCase>
+        <fromPriceList>SpecialDiscount</fromPriceList>
+        <toPriceList>SpecialDiscount</toPriceList>
+        <alignment>CHANGE_OF_PRICELIST</alignment>
+    </changeAlignmentCase>
+    <changeAlignmentCase>
+        <alignment>START_OF_SUBSCRIPTION</alignment>
+    </changeAlignmentCase>
+</changeAlignment>
+----
+
+In this example, add-on changes are aligned to the start of the bundle, changes to the `SpecialDiscount` price list are aligned to that change, and everything else aligns to the start of the subscription.
+
+For more information on `Plan Change Phase Alignment`, and in particular to understand how that works with apis (Subscription create or Subscription Change Plan) that specify a target `PhaseType`, you can also refer to this http://docs.killbill.io/latest/plan_alignment.html[documentation].
+
+
+==== Plan Change Price List Choice
+
+This rule uses the Change Context and specifies which pricelist should be chosen for specific changes. The rule allows us to configure whether a price list is "sticky" or not.
+
+For example, suppose we have an affiliate pricelist with special prices for members of the CIA for Spy Car rental. Let's say that this price list offers a 30% discount for the first 3 months of rental.
+
+Now, Special Agent Mills from the CIA subscribes to a `Sports` product on that price list. However, 1 month after renting the car his daughter is kidnapped and he needs additional capabilities and decides to upgrade to a `Super`.
+Since he bought the original subscription on a special offer that still has two months to run we would expect the upgrade to put him into the corresponding 30% off `Super` plan and give him a further 2 months at that price. This is a “sticky” price list.
+
+Alternatively, consider long term customer 003 who has been renting the `Super` for the last 4 years but decides that she wants to save money and calls to downgrade her plan. Our representative offers her a special Rescue Pricing plan that gives her 40% off for the next year and she decides to take it.
+However, a month later she changes her mind and decides to downgrade anyway. In this situation we want her to downgrade to the default price plan. This is a "non-sticky" price list.
+
+Example:
+
+. Predicate: fromPriceList=CIA ; Result: CIA
+. Predicate: fromPriceList=SpecialDiscount ; Result: DEFAULT
+. Predicate: ; Result: DEFAULT
+
+[source,xml]
+----
+<priceList>
+   <priceListCase>
+        <fromPriceList>SpecialDiscount</fromPriceList>
+        <toPriceList>DEFAULT</toPriceList>
+    </priceListCase>
+   <priceListCase>
+        <fromPriceList>CIA</fromPriceList>
+        <toPriceList>CIA</toPriceList>
+    </priceListCase>
+   <priceListCase>
+        <toPriceList>DEFAULT</toPriceList>
+    </priceListCase>
+</priceList>
+----
+
+
+
+=== Catalog Versions
+
+This far in the discussion we have been considering single stand-alone catalogs, but Kill Bill allows the catalog to be modified over time. This is done by creating a set of catalogs, one XML file for each version; the system will rank such files based on their `effectiveDate` to create the various versions. There is no version number proper; the `effectiveDate` associated with each catalog XML constitutes the version and each catalog is superseded by the next. In this way we can change prices, add new Plans, Products, Price Lists etc, retire Plans, Products, Price Lists, etc.
+
+Note that it is possible to remove entries in subsequent catalog versions. For example, removing a `Plan` in a new catalog version would prevent future customers from subscribing to that `Plan`. However existing subscriptions may still refer to it.
+
+==== Deferred Price Change
+
+Kill Bill supports the ability to make a price change to a plan that applies based on the catalog effective date for new purchases, but which is deferred for existing subscriptions.
+It is often the case that existing customers will need a notice period before prices are changed but you need to deliver the new prices to new purchases as soon as the change is announced.
+
+This feature uses the field `effectiveDateForExistingSubscriptions` that is included on Plans.
+The semantics is simply that the changes to that plan will only take effect for existing subscriptions, after that date, but new subscription would use the new price immediately.
+
+The drawing below summarizes how the system would apply the change for an existing subscription:
+
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHZGlqWGpGRnVDeVE&w=960&amp;h=480[align=center]
+// https://drive.google.com/file/d/0Bw8rymjWckBHZGlqWGpGRnVDeVE/view?usp=sharing

@@ -1,0 +1,242 @@
+=== Direct Payments APIs
+
+A payment object is associated with a set of transactions (authorization, multiple captures, etc.). You can retrieve that object via:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66"
+----
+
+The calls below describe how to create payments. For each call, you can specify in the body a *transactionExternalKey* string to tag your payments (it represents a unique identifier in an external system).
+
+==== Authorization
+
+To create an authorization on the default payment method of the account:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"transactionType":"AUTHORIZE","amount":"10","currency":"USD","transactionExternalKey":"INV-001-AUTH"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"
+----
+
+This will return a direct payment object. We will assume its uuid is `078a4500-d15e-11e3-9c1a-0800200c9a66` in the examples below.
+
+Notes:
+
+* For multi-steps authorization (e.g. 3DS), you can specify a `paymentId` field in the body for subsequent calls
+* You can specify another payment method (other than the default one) via the `paymentMethodId` query parameter
+
+==== Capture
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"amount":"5","currency":"USD","transactionExternalKey":"INV-001-CAPTURE"}' \
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66"
+----
+
+Notes:
+
+* You can call this endpoint multiple times for partial captures (all of these captures will share the same direct payment id)
+
+==== Purchase
+
+This call is similar to the authorization one:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"transactionType":"PURCHASE","amount":"10","currency":"USD","transactionExternalKey":"INV-001-PURCHASE"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"
+----
+
+Notes:
+
+* You can specify another payment method (other than the default one) via the `paymentMethodId` query parameter
+
+==== Void
+
+[source,bash]
+----
+curl -v \
+     -X DELETE \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"transactionExternalKey":"INV-001-VOID"}' \
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66"
+----
+
+==== Refund
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"amount":"5","currency":"USD","transactionExternalKey":"INV-001-REFUND"}' \
+     "http://127.0.0.1:8080/1.0/kb/payments/078a4500-d15e-11e3-9c1a-0800200c9a66/refunds"
+----
+
+==== Credit
+
+This call is similar to the authorization one:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey:bob' \
+     -H 'X-Killbill-ApiSecret:lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"transactionType":"CREDIT","amount":"10","currency":"USD","transactionExternalKey":"INV-001-CREDIT"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/payments"
+----
+
+Notes:
+
+* You can specify another payment method (other than the default one) via the `paymentMethodId` query parameter
+
+=== Hosted pages helpers
+
+[[build-form-descriptor]]
+==== Build form descriptor
+
+The `buildFormDescriptor` API is used to prepare a Hosted Payment Page (HPP) payment. In the body of the request, you need to pass custom fields that are plugin specific.
+
+For example, given an order of $10, here is how you can get the redirect URL using the Adyen plugin:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-CreatedBy: demo' \
+     -X POST \
+     --data-binary '{
+       "formFields": [
+         {
+           "key": "country",
+           "value": "DE"
+         },
+         {
+           "key": "paymentProviderType",
+           "value": "CREDITCARD"
+         },
+         {
+           "key": "serverUrl",
+           "value": "http://killbill.io"
+         },
+         {
+           "key": "resultUrl",
+           "value": "?q=test+adyen+redirect+success"
+         },
+         {
+           "key": "amount",
+           "value": 10
+         },
+         {
+           "key": "currency",
+           "value": "USD"
+         }
+       ]
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/paymentGateways/hosted/form/268983f2-5443-47e4-a967-b8962fc699c5"
+----
+
+Notes:
+
+* Replace _268983f2-5443-47e4-a967-b8962fc699c5_ with the account id
+* You can specify another payment method (other than the default one) via the `paymentMethodId` query parameter
+
+[[gateway-notification]]
+==== Process gateway notifications
+
+Gateway notifications (Adyen notifications, Recurly push notifications, PayPal or BitPay IPN, etc.) can be processed through the `processNotification` API.
+
+For example, here is the payload that Adyen would send:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-CreatedBy: demo' \
+     -X POST \
+     --data-binary '<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <ns1:sendNotification xmlns:ns1="http://notification.services.adyen.com">
+      <ns1:notification>
+        <live xmlns="http://notification.services.adyen.com">true</live>
+        <notificationItems xmlns="http://notification.services.adyen.com">
+          <NotificationRequestItem>
+            <additionalData xsi:nil="true"/>
+            <amount>
+              <currency xmlns="http://common.services.adyen.com">EUR</currency>
+              <value xmlns="http://common.services.adyen.com">2995</value>
+            </amount>
+            <eventCode>AUTHORISATION</eventCode>
+            <eventDate>2013-04-15T06:59:22.278+02:00</eventDate>
+            <merchantAccountCode>TestMerchant</merchantAccountCode>
+            <merchantReference>325147059</merchantReference>
+            <operations>
+              <string>CANCEL</string>
+              <string>CAPTURE</string>
+              <string>REFUND</string>
+            </operations>
+            <originalReference xsi:nil="true"/>
+            <paymentMethod>visa</paymentMethod>
+            <pspReference>4823660019473428</pspReference>
+            <reason>111647:7629:5/2014</reason>
+            <success>true</success>
+          </NotificationRequestItem>
+        </notificationItems>
+      </ns1:notification>
+    </ns1:sendNotification>
+  </soap:Body>
+</soap:Envelope>' \
+    "http://127.0.0.1:8080/1.0/kb/paymentGateways/notification/killbill-adyen"
+----
+
+Make sure to replace `killbill-adyen` with your plugin name.
+
+The plugin will deserialize either the request body and/or the url query parameters to process the notification and return a properly formatted HTTP response object for the gateway (some gateways require specific response codes or headers to consider the notification processed and prevent retries).
+
+Because this endpoint needs to be on a public IP (to be accessible from the gateway), we recommend using the https://github.com/killbill/killbill-notifications-proxy[Kill Bill Notifications Proxy] to avoid exposing the entire Kill Bill server.

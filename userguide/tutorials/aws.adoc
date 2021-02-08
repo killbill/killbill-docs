@@ -1,0 +1,198 @@
+= Kill Bill on AWS
+
+++++
+<div class="col-sm-8" style="max-width: 100%">
+  <div id="cards" class="card text-center">
+    <div class="card-group">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Single-Tier single AMI with MariaDB</h5>
+          <p class="card-text">Perfect for prototyping and test environments</p>
+          <a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doclanding_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doclanding_'); return false;" class="btn btn-primary">Launch</a>
+          <p class="card-text"><a href="https://docs.killbill.io/latest/aws-singletier.html">Docs</a></p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Multi-Tier CloudFormation with Amazon Aurora</h5>
+          <p class="card-text">Production ready setup in minutes <strong>(most popular)</strong></p>
+          <a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doclanding_'); return false;" class="btn btn-primary">Launch</a>
+          <p class="card-text"><a href="https://docs.killbill.io/latest/aws-cf.html">Docs</a></p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Multi-Tier single AMI with external database</h5>
+          <p class="card-text">Fully customizable production environment (advanced users)</p>
+          <a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doclanding_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doclanding_'); return false;" class="btn btn-primary">Launch</a>
+          <p class="card-text"><a href="https://docs.killbill.io/latest/aws-multitier.html">Docs</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+++++
+
+++++
+<p>
+  <span class="badge badge-primary">New!</span> AWS deployments now come with free initial Slack support, register <a href="https://killbill.io/kill-bill-on-aws/#awssignup" onclick="getOutboundLink('https://killbill.io/kill-bill-on-aws/#awssignup'); return false;">here</a>.
+</p>
+++++
+
+== Overview
+
+The core development team publishes official Amazon Machine Images (AMIs) on the AWS Marketplace, which allow you to quickly get started with Kill Bill in the cloud. There are several strategies and AMIs to target different use cases:
+
+1. Single AMI Deployments: Both Kill Bill server and KAUI, the administrative UI, run in the same EC2 instance (or node) or a very small number of instances.
+2. Cloud Formation Deployments: The Cloud Formation Template will deploy auto-scaling groups of instances for Kill Bill server and KAUI, and create an RDS database instance. 
+
+So, which one should you choose? Here is a little more information to help you decide:
+
+
+**Single AMI Deployments** come in 2 flavors:
+
+* `Single-Tier`: To help you to quickly get started, the single-tier deployment offers an AMI that provides everything you need and can be launched with a **one-click** button. In this option the Kill Bill server, KAUI and a MariaDB (MySQL) database run on one single node. This is very convenient and inexpensive to get started, but is not recommended for production deployments.
+* `Multi-Tier`: In this mode, there is also a single AMI for both Kill Bill server and KAUI, but the deployment will use more than one node (typically two). This option requires a bit more setup and depends on an external database. The use of multiple nodes is intended to provide redundancy and to eliminate downtime during upgrades.
+
+The Single AMI Deployments are a great way to easily get started, but they are often not the best choices for production deployments. Please refer to https://docs.killbill.io/latest/aws-singletier.html[Installation: Single Tier] or https://docs.killbill.io/latest/aws-multitier.html[Installation: Multi-Tier] for further information.
+
+**Cloud Formation Deployments** use AWS CloudFormation to provide a better integration with the rest of the AWS ecosystem. These deployments include separate AMIs for the Kill Bill Server and for Kaui, and rely on auto-scaling groups to scale both Kill Bill and KAUI instances independently. They make use of the Amazon Aurora RDS database, a version of MySQL that is also PostgreSQL compatible. They also make use of CloudWatch for metrics.
+Cloud Formation Deployments also offer a **one-click** button deployment for the whole stack, including the required database. They are a good option to set up a production-ready deployment with minimum efforts. Please refer to https://docs.killbill.io/latest/aws-cf.html[Installation via Cloud Formation] for further information.
+
+The rest of this document focuses on configurations that apply to both types of deployments.
+
+== Default configuration
+
+Either installation method comes with a default configuration to get you started.
+
+A few plugins are also pre-configured, but not installed. These include `email-notifications` and `analytics`, to be discussed below. To install them, just head to the Kaui KPM page and select the plugin(s) of your choice.
+
+=== Invoice templates
+
+Kill Bill invoices can be rendered as HTML using our https://killbill.github.io/slate/#invoice-render-an-invoice-as-html[render HTML invoice API]. This can be useful, for instance, to show the invoices directly to your customer on the billing section of your website.
+
+The default template looks like this:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/invoice_html.png[align=center]
+
+The text can be customized and translated. To do so, create a file named `InvoiceTranslation_en_US.properties` with the following content (edit the strings on the right side of the `=` sign as needed):
+
+[source,properties]
+----
+companyName=Acme Corporation
+companyAddress=57 Academy Drive
+companyCityProvincePostalCode=Oak Creek, WI 53154
+companyCountry=US
+invoiceTitle=Invoice
+invoiceDate=Invoice Date: 
+invoiceAmount=Total: 
+invoiceAmountPaid=Amount Paid: 
+invoiceBalance=Balance: 
+invoiceItemServicePeriod=Service Period
+invoiceItemDescription=Plan
+invoiceItemAmount=Amount
+----
+
+Upload this file to Kaui by going to your admin tenant page (`InvoiceTranslation`) tab:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/invoice_html_config.png[align=center]
+
+Additional languages can be uploaded for each locale (e.g. specify `fr_FR` for French).
+
+More details are available in our https://docs.killbill.io/latest/internationalization.html[Internationalization] userguide, including how to fully customize the template.
+
+=== Email notifications plugin
+
+This section explains how to configure your system to send email notifications to your customers using the `email-notifications` plugin. This plugin is provided preconfigured and may be installed as described above.
+
+==== SMTP configuration
+
+The `email-notifications` plugin needs to be configured with an SMTP server to be able to send emails. The easiest way to set this up on AWS is with  Amazon's https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-smtp.html[Simple Email Service (SES)].
+
+Follow the instructions on the link above. Once you have obtained your credentials, update the plugin configuration:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/email-notifications_config.png[align=center]
+
+==== Templates
+
+The email plugin comes with a preconfigured set of email templates.
+
+For instance, this is the email which will be sent when an invoice is generated:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/invoice_email.png[align=center]
+
+This is what the user will receive when a subscription is cancelled:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/cancellation_email.png[align=center]
+
+The default set of translation strings is shown here:
+
+[source,properties]
+----
+upcomingInvoiceAdditionalMessage=Here's a preview of your upcoming invoice
+upcomingInvoiceSubject=Your upcoming invoice
+invoiceCreationAdditionalMessage=Thank you for your prompt payment!
+invoiceCreationSubject=Your recent invoice
+successfulPaymentAdditionalMessage=Thank you for your recent payment!
+successfulPaymentSubject=Your recent payment
+failedPaymentAdditionalMessage=We were not able to process your payment!
+failedPaymentSubject=Your recent payment
+paymentRefundAdditionalMessage=Your refund has been processed!
+paymentRefundSubject=Your recent payment
+companyName=Acme Corporation
+companyAddress=57 Academy Drive
+companyCityProvincePostalCode=Oak Creek, WI 53154
+companyCountry=US
+invoicePrefix=INV# 
+invoiceTitle=Invoice
+invoiceDate=Invoice Date: 
+invoiceAmount=Total: 
+invoiceAmountPaid=Amount Paid: 
+invoiceBalance=Balance: 
+invoiceItemServicePeriod=Service Period
+invoiceItemDescription=Plan
+invoiceItemAmount=Amount
+paymentTitle=Payment
+paymentDate=Payment Date: 
+paymentAmount=Total: 
+subscriptionCancellationRequestedAdditionalMessage=The following subscription will be cancelled
+subscriptionCancellationRequestedSubject=Your subscription will be cancelled
+subscriptionCancellationEffectiveAdditionalMessage=The following subscription has been cancelled
+subscriptionCancellationEffectiveSubject=Your subscription has been cancelled
+subscriptionTitle=Subscription
+subscriptionEndDate=End Date: 
+susbscriptionPlan=Plan: 
+----
+
+More details on how to update these strings and the HTML templates are available in the https://github.com/killbill/killbill-email-notifications-plugin[plugin] documentation.
+
+=== Analytics plugin
+
+This section explains how to configure your system to perform analytics using the `analytics` plugin. This plugin is provided preconfigured and may be installed as described above.
+
+
+The plugin comes with a few pre-configured reports:
+
+* `Subscriptions creation`: counts the number of subscriptions being created per day (effective on that day, i.e. pending subscriptions are ignored). Refreshed every hour. The name of the report is `report_new_subscriptions_daily`.
+* `Effective cancellations`: counts the number of subscriptions being canceled per day (only effective cancellations are taken into account: end of term cancellations are ignored). Refreshed every hour. The name of the report is `report_cancellations_daily`.
+* `Overdue accounts`: counts the number of overdue accounts per day (defined as having a negative balance, i.e. owing money). Refreshed once a day at 6am UTC. The name of the report is `report_overdue_accounts_daily`.
+
+In order to make these reports active, they must be enabled on a per tenant level. Assuming a `bob/lazar` tenant, we can activate the reports using the following command -- e.g. report=`report_cancellations_daily`:
+
+```
+#
+# Activate report report_cancellations_daily for tenant bob/lazar:
+#
+curl -v \
+-X PUT \
+-u admin:password \
+-H "X-Killbill-ApiKey:bob" \
+-H "X-Killbill-ApiSecret:lazar" \
+-H 'Content-Type: application/json' \
+-d '{}' \
+'http://127.0.0.1:8080/plugins/killbill-analytics/reports/report_cancellations_daily?shouldRefresh=true'
+```
+
+Custom reports can be added by following our https://docs.killbill.io/latest/userguide_analytics.html[Analytics guide].
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/analytics_reports.png[align=center]

@@ -1,0 +1,61 @@
+
+=== Overview
+
+Kill Bill provides a core payment system that is used in subscription billing to issue payment requests against the generated invoices.
+
+To accomodate that use case, the payment logic has been split into two pieces:
+
+First, there is a core payment system whose role is to manage the payment states and route the operation to the correct payment plugin, which in turn interracts with the third party payment gateway. 
+This core payment system is not specific to the subscription billing use case. It can be used also as a standalone system to provide a layer in front of various payment gateways.
+For an overview of the payment system in Kill Bill, please check http://docs.killbill.io/latest/userguide_payment.html[the payment guide].
+
+In order to support the subscription billing use case, and issue payments against existing invoices, there is a payment control plugin embedded into the Kill Bill core (see http://docs.killbill.io/latest/payment_control_plugin.html[payment control plugin guide]). The role of this plugin is to provide the necessary logic to coordinate the payments associated with an invoice:
+
+* The plugin is called before the payment system attempts to make the payment call to provide the necessary sanity, such as verifying the invoice balance, checking whether the `Account` was tagged as `AUTO_PAY_OFF`, and interracting with the invoicing system to record the payment attempts.
+* The plugin is then called after the payment attempt to update the invoicing system about success or failure:
+** In the case of success, this makes the invoice balance drops to zero.
+** In the the case of failure, this provides the plugin with the opportunity to schedule a payment retry.
+
+
+Note: The plugin linking the payment view to the invoice view is not a standalone plugin; instead it is part of the core Kill Bill source code. However, it acts as a plugin since it implements the _PaymentControlPluginApi_. It is possible to provide a standalone plugin that would override the behavior of the default plugin, but this should only be done for advanced use cases. Extra caution would be required to not break the contract between the invoicing and payment system.
+
+=== Payment Methods
+
+A `PaymentMethod` represents an abstraction to identify a way of making payments for a specific `Account`. Each consumer `Account` can have several payment methods to allow making payments using different schemes, such as credit cards, debit cards, or PayPal. In order to allow the system to automatically make payments against unpaid invoices, a **default** payment method must be specified.
+
+The payment method really has two functions:
+
+* In the default use case, it allows the system to properly route the payment to the right Kill Bill plugin and to its associated third party payment gateway. Note however that the static configuration between the payment instrument -- e.g the customer credit card -- and the plugin can be overriden in a payment control plugin to provide http://docs.killbill.io/latest/payment_control_plugin.html#_payment_routing[payment routing capabilities].
+* It allows enough details to be tracked to make the payment. For instance if the payment method is a credit card, the system would keep track of a credit card token that can be used to issue the payment. Often, some of this information is stored inside the payment plugin.
+
+Kill Bill also allows the user to configure a special payment method, called **external payment method**, to allow recording payments that occured outside of the system. For example, a customer may be invoiced through Kill Bill, and later make payment by check. The payment needs to be recorded into the system to mark the invoice as being paid and to bring its balance to zero. 
+
+
+A user would typically create a default external payment as shown below. Later, the returned `paymentMethodId` could be used to issue external payments against invoices (see http://docs.killbill.io/latest/userguide_subscription.html#components-invoice-payments[Invoice Payment section]).
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -X POST \
+     --data-binary '{"pluginName":"__EXTERNAL_PAYMENT__","pluginInfo":{}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/268983f2-5443-47e4-a967-b8962fc699c5/paymentMethods?isDefault=true"
+----
+
+
+=== Payment Retries
+
+If a payment fails, the plugin may attempt a payment retry. There are two system properties that control the payment retry mechanism:
+
+* Upon _PAYMENT_FAILURE_ -- when the payment plugin returns an _ERROR_ status --, the payment system will look at the property _org.killbill.payment.retry.days_, and possibly schedule some retries based on that value. By default, this property is set with a default value of _8,8,8_, which means that a first retry would happen 8 days after the intial failure, and then if the first retry attempt failed, another attempt would be scheduled 8 days later and then finally a last one 8 days after that. If the last attempt fails, the payment remains in the _PAYMENT_FAILURE_ state.
+* Upon _PLUGIN_FAILURE_ -- when the payment plugin returns a _CANCELED_ status --,  the payment system will look at the property _org.killbill.payment.failure.retry.start.sec_, and possibly schedule some retries based on that value. By default, this property is set with a default value of _300_, which means that the payment would be scheduled to be retried one time 300 seconds -- or 5 minutes -- after the failure. _PLUGIN_FAILURE_ is often linked to transient errors from third party gateways, so it makes sense to retry those fairly soon after the initial failure was seen. But of course, this all depends on the use case.
+
+
+Payment retries in Kill Bill are implemented as payment transaction retries: For each retry attempt, the system will create a new `PaymentTransaction` associated with the same `Payment` object. Since the `paymentMethodId` is defined at the `Payment` level, it means that the same `paymentMethodId` will be used for each retry. If the goal is to retry with a new payment method, then one needs to create a new `Payment` associated with the different payment method. If there are ongoing retries scheduled, it is possible to cancel those but this is more for cleanliness, because once a payment has been successful, any other retry would be aborted; the system ensures that there cannot be any double payment.
+
+
+

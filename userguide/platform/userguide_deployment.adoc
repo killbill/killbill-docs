@@ -1,0 +1,371 @@
+= Kill Bill deployment guide
+
+This deployment guide lists the best practices to consider once you are ready to move to production.
+
+== Overview
+
+=== Best practices
+
+Kill Bill is fundamentally a backend system, so the following considerations should apply:
+
+* Don't make the system visible to the outside world, instead you should have a front end system, or a reverse proxy in front of it (e.g. if you need to handle gateway notifications like PayPal IPN/Internal Payment Notification).
+* Always deploy at least 2 instances (for reliability purposes) in front of a load balancer.
+* Setup your database with a master and a slave instances, and configure it to take regular snapshots.
+* Aggregate your logs across instances (for example using http://logstash.net/[LogStash] or https://www.graylog.org/[GrayLog2]).
+* Look at the all the existing Kill Bill JMX metrics (using VisualVM, jconsole, ...) and set some alerts (for instance by using the following https://github.com/killbill/nagios-jmx-plugin[script]).
+* Configure your system properly, especially when it comes to the settings of the bus and notification queue.
+
+=== Pre- and Post-deployment checklist
+
+* Test, test, test: we work hard to make the core of the platform solid. But your deployment, with your own combination of plugins and configuration (catalog, overdue, etc.) is unique. Write business-level regression tests that you can run before each upgrade.
+* Timezone of your servers and databases has to be UTC and ensure NTP is properly configured to avoid any drift between instances.
+* Consider encrypting sensitive configuration properties, like database passwords, with Jasypt. See http://www.jasypt.org/cli.html for details on how to generate encrypted values. Example configuration:
+[source,properties]
+----
+-Dorg.killbill.server.enableJasypt=true
+-Djasypt.encryptor.password=myTopSecretPassword
+-Djasypt.encryptor.algorithm=PBeWithshA1andDeSede
+-Dorg.killbill.billing.osgi.dao.password=ENC(+PeDGcp3DTonUpB3lPuoegack9kb0hJi)
+----
+* Make sure the servers have enough entropy: `/proc/sys/kernel/random/entropy_avail` should be > 3k (otherwise install `haveged` / `rng-tools`). Kill Bill should also be started with `-Djava.security.egd=file:/dev/./urandom`.
+* Adjust `org.killbill.security.shiroNbHashIterations` as needed. This setting configures the number of iterations run to hash API secrets and user passwords. The default value is high for security reasons, but can be adjusted down if required (e.g. for Docker `-e KILLBILL_SECURITY_SHIRO_NB_HASH_ITERATIONS=1`) as this can have a significant performance impact. Note that changing the value requires re-hashing manually all tenants secrets and user passwords.
+* Make sure your database and queues configuration are adequate: the `bus_events` table should almost always be empty and the `notifications` table should never have any `AVAILABLE` entry with an effective date in the past. Otherwise, in both cases, the system will be late (invoices not generated, etc.). These two metrics should always be monitored in production (potentially a paging event).
+* Verify the integration with your payment gateway(s): very few payment transactions (if any) should be in an `UNKNOWN` state. Make sure to fix these manually via the Payment Admin API, if the plugin is unable to do it automatically.
+* Have a monitoring system in place (we recommend https://github.com/killbill/killbill-cloud/tree/master/docker/compose[Elasticseach, Logstash, Kibana, InfluxDB and Grafana], which can be easily setup for Kill Bill) and watch your logs constantly: any `WARN` or `ERROR` entry should be reviewed, as well as stacktraces.
+* Monitor metrics at `/1.0/metrics` and integrate the healthcheck at `/1.0/healthcheck` with your load balancer.
+* Join our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] to get notified of new releases or ask questions. Due to the high traffic, we're not always available for help right away: if you need peace of mind for your production deployment, consider becoming a https://github.com/sponsors/pierre[GitHub Sponsor] to get priority support via alternative channels.
+
+== Deployment options
+
+When deploying Kill Bill, the following pieces will need to be deployed in addition to your OS, VM or container (Docker, ...):
+
+* A https://en.wikipedia.org/wiki/Web_container[Web container] (Jetty, Tomcat, ...)
+* The killbill https://en.wikipedia.org/wiki/WAR_(file_format)[web application]
+* The plugins
+* The configuration files and system properties
+* The database along with the various schemas (see our http://docs.killbill.io/latest/database_migrations.html[database migrations guide])
+
+Because a lot of pieces need to be in place, and because a lot can go wrong, users are *strongly* encouraged to use either our pre-built https://docs.killbill.io/latest/aws.html[AMIs] on AWS or our pre-built https://registry.hub.docker.com/u/killbill/killbill[Docker images].
+
+If these options aren't possible in your environment, default to a manual Tomcat installation.
+
+Our https://docs.killbill.io/latest/getting_started.html[Getting Started] guide has step by step instructions for all of these options.
+
+Finally, experienced users can also opt for our https://github.com/killbill/killbill-cloud/tree/master[Ansible playbooks] (Ansible is an open-source IT Automation tool), to install and configure https://tomcat.apache.org/[Apache Tomcat], https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM] and Kill Bill individually.
+
+Note that all these deployment options rely on https://github.com/killbill/killbill-cloud/tree/master/kpm[KPM], the Kill Bill Package Manager. KPM can fetch existing (signed) artifacts for the main killbill war and for each of the plugins, and deploy them at the right place. Using KPM directly gives you the most flexibility without having to re-invent the wheel, but significantly increases the deployment complexity. To be used by our most advanced users only.
+
+=== Docker
+
+Documentation to configure our images is available https://github.com/killbill/killbill-cloud/blob/master/docker/README.adoc[here].
+
+Container configuration can be done by bind mounting a custom `killbill.properties` (for configuration) and/or a custom `kpm.yml` (to specify plugins to install) file: `-v /path/to/killbill.properties:/var/lib/killbill/killbill.properties -v /path/to/kpm.yml:/var/lib/killbill/kpm.yml`. Note that on MacOS, `/path/to` must be under `/Users`.
+
+== Database engine
+
+The Kill Bill core team is typically using `mysql` for most of the production deployments and for its testing, but we also run regression tests against both MariaDB 10 and PostgreSQL 12, and users have successfully deployed Kill Bill with Oracle MySQL, Percona, Aurora, etc.
+
+We have kept our DDL schema (and the queries we run) as simple as possible so it is easy to adapt it for other RDBMS.
+
+==== Kill Bill
+
+You can find the Kill Bill DDL http://docs.killbill.io/latest/ddl.sql[here]. For PostgreSQL users, you will need to also add the following https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[schema extension], **before installing the main DDL**.
+
+==== Kaui
+
+You can find the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[here] -- based on the version you are running, you can adjust the corresponding URL.
+
+=== Failover
+
+We've tested various failover scenarii (Aurora RDS, master/slave MariaDB Docker setup and master/slave Percona Server on real hardware) and could confirm that Kill Bill is behaving as expected, i.e. queries in-flight will fail during a failover, but reconnection is automatic.
+
+Specifically for Aurora though, we did notice that:
+
+* Reconnection is r/o by default after the failover. `jdbc:mysql:aurora:` must be specified in the JDBC url for the reconnection to be r/w.
+* Triggering a failover in the RDS UI leads to a pretty short Kill Bill downtime (few secs). Terminating the master though ("delete instance") takes a bit longer (few minutes) -- this could be mitigated with more aggressive timeouts in the JDBC pool.
+
+
+== Bus and Notification queues
+
+=== Bus events
+
+The notifications across Kill Bill core services rely on a proprietary http://killbill.io/blog/persistent-bus-in-kill-bill/[bus event]. There are actually 2 buses, the *main* bus which is used by core services and an *external* bus which is used by plugins. The main reason for having 2 buses is that the main bus is critical for internal operations to work, and so we want to prevent plugin code that could interact with 3rd party systems to block on long operations and impact the rest of the system.
+
+There are 2 sets of two tables to manage those bus events:
+
+* For the *main* bus, a `bus_events` and a `bus_events_history` table.
+* For the *external* bus, a `bus_ext_events` and a `bus_ext_events_history` table.
+
+Events are moved from the `bus_events` to the `bus_events_history` as they are processed. That allows to keep a history of what happened in the system and avoid having the `bus_events` table grow too much. The `bus_events_history` is only there for debugging and is never used by the system.
+
+==== Bus Event Modes
+
+The bus event can be run in multiple modes (`instanceName` below is either `main` or `external`):
+
+* *POLLING*: the bus will poll the database for new available entries and dispatch them across the nodes.
+* *STICKY_POLLING*: the bus will poll the database for new available entries and dispatch them to the same node that created the entry.
+* *STICKY_EVENTS* (default mode): in that mode, the bus now behaves as a blocking queue where entries are dispatched as soon as they have been committed to disk. This is a much more efficient mechanism both in terms of latency (because entries are picked up right away) and throughput (because there is no time for entries to accumulate).
+
+In a cloud environment, where nodes are more prone to appear and disappear, the following choices are available:
+
+* Use the *POLLING mode*
+* Use the *STICKY_EVENTS* (or *STICKY_POLLING*) mode. In that scenario, you need to be cautious of Kill Bill instances restarting on a different node:
+
+* Each instance can be started with a specific system property `org.killbill.queue.creator.name=<MY_VIRTUAL_INSTANCE_NAME>`, which overrides the `creating_owner` value string associated with each entry which defaults to the hostname of the machine. When using that property, an instance that restarts on a different node but with the same property will continue processing the same entries.
+
+* Or, alternatively if failovers don't occur too often, run a query to update rows associated with the instance that failed over so they get picked by an other node. Note that events are never lost because they are persistent, but in that case, they may linger until updated. The query to update the rows is the following (only showed for bus_events table, but similar query needs to happen for bus_events_history):
+
+[source,sql]
+----
+update bus_events set creating_owner='MY_NEW_NODE_HOSTNAME', processing_available_date=NULL, processing_state = 'AVAILABLE', processing_owner=NULL where creating_owner='MY_INSTANCE_NAME_THAT_FAILED';
+----
+
+=== Future Notifications
+
+==== Overview
+
+In addition to the bus events, which are dispatched immediately, Kill Bill also manages future notifications. The mechanism is very similar to the **POLLING** we described earlier, but the main difference is that those notifications are dispatched when the `effective_date` of the notification has been reached. There is no **STICKY_EVENTS** mode for the future notifications.
+
+The future notifications also rely on two tables: the `notifications` and `notifications_history`, and the mechanism to move processed entries is similar to what we described for the bus event.
+
+== Logging and Data Governance
+
+If you are using Tomcat, `CATALINA_BASE/logs/catalina.out` does not rotate. Make sure to make your main appender `ch.qos.logback.core.rolling.RollingFileAppender` instead of the default `ch.qos.logback.core.ConsoleAppender` (`STDOUT`/`STDERR` is redirected to `CATALINA_BASE/logs/catalina.out`).
+
+Make sure also to install the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/bundles/logger[Kill Bill Log bundle] in your `platform` directory (`/var/tmp/bundles/platform` by default), otherwise OSGI logs (including from JRuby plugins) will end up in `STDOUT`/`STDERR` (hence in `CATALINA_BASE/logs/catalina.out`). It is included in the https://github.com/killbill/killbill-platform/tree/master/osgi-bundles/defaultbundles[defaultbundles package].
+
+=== PII and GDPR
+
+We recommend not storing any Personally Identifiable Information (PII) in Kill bill, such as names, email addresses, etc. to limit your compliance burden. Kill Bill accounts have an external key property, which can be set to an id in an external system (e.g. CRM). Have your custom code and plugins fetch this information on-demand instead of storing it inside Kill Bill.
+
+=== Mask PANs
+
+Use the converter class `org.killbill.billing.server.log.obfuscators.ObfuscatorConverter`.
+
+If you are passing PANs via plugin properties, make sure to disable query parameters logging in Tomcat. Use the following `org.apache.catalina.valves.AccessLogValve` pattern: `%h %l %u %t &quot;%m %U&quot; %s %b %D`.
+
+=== Redirect plugin logs to a different file
+
+[source,xml]
+----
+<configuration debug="true">
+    <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator name="loggingTaskEval">
+                <expression>
+                <![CDATA[
+                    message!=null &&
+                    message.contains("[cybersource-plugin]")
+                ]]>
+                </expression>
+            </evaluator>
+            <OnMatch>DENY</OnMatch>
+        </filter>
+        <file>${LOGS_DIR:-./logs}/killbill.out</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+            <maxHistory>3</maxHistory>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%date [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="CYBERSOURCE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator name="loggingTaskEval">
+                <expression>
+                <![CDATA[
+                    message!=null &&
+                    message.contains("[cybersource-plugin]")
+                ]]>
+                </expression>
+            </evaluator>
+            <OnMismatch>DENY</OnMismatch>
+        </filter>
+        <file>${LOGS_DIR:-./logs}/cybersource.out</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_DIR:-./logs}/cybersource-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+            <maxHistory>3</maxHistory>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%date [%thread] %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+       <appender-ref ref="MAIN" />
+       <appender-ref ref="CYBERSOURCE" />
+    </root>
+</configuration>
+----
+
+=== Handling plugin logs
+
+In order for plugin logs to be handled by the main logger, make sure to:
+
+* Install `killbill-platform-osgi-bundles-logger` under `/var/tmp/bundles/platform` (also provided in the default plugins package)
+* Add `org.osgi.service.log` to `Import-Package` in your `MANIFEST.MF`
+* Add the following dependencies in compile scope in your plugin:
+
+[source,xml]
+----
+<dependency>
+    <groupId>org.kill-bill.billing</groupId>
+    <artifactId>killbill-platform-osgi-bundles-lib-killbill</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.kill-bill.billing</groupId>
+    <artifactId>killbill-platform-osgi-bundles-lib-slf4j-osgi</artifactId>
+</dependency>
+----
+
+== Reverse Proxy
+
+We recommend setting up NGINX to forward external notifications to Kill Bill.
+
+Here's a working example for Adyen:
+
+[source,nginx]
+----
+server {
+  listen       443;
+  server_name  killbill-public.acme.com;
+
+  location /notifications/killbill-adyen {
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+
+      proxy_set_header Authorization "Basic YWRtaW46cGFzc3dvcmQ=";
+      proxy_set_header X-Killbill-ApiKey bob;
+      proxy_set_header X-Killbill-ApiSecret lazar;
+      proxy_set_header X-Killbill-CreatedBy Adyen;
+      proxy_pass http://killbill-internal.acme.com:8080/1.0/kb/paymentGateways/notification/killbill-adyen;
+
+      proxy_hide_header Set-Cookie;
+      proxy_hide_header Access-Control-Allow-Origin;
+      proxy_hide_header Access-Control-Allow-Methods;
+      proxy_hide_header Access-Control-Allow-Headers;
+      proxy_hide_header Access-Control-Expose-Headers;
+      proxy_hide_header Access-Control-Allow-Credentials;
+  }
+}
+----
+
+== Service Discovery with Eureka
+
+For easier integration into a microservice architecture, Kill Bill supports client-side service discovery via a https://github.com/Netflix/eureka/wiki/Eureka-at-a-glance[Eureka registry]. A module (disabled by default) is provided that allows Kill Bill to register with a Eureka server.
+
+To register as a Eureka client, first add the following dependency to your profile:
+[source,xml]
+----
+<dependency>
+    <groupId>org.kill-bill.billing</groupId>
+    <artifactId>killbill-platform-service-registry</artifactId>
+</dependency>
+----
+
+Next, add the Eureka Guice module to the module list in your server module (i.e. KillbillServerModule.java)
+[source,java]
+----
+ install(new EurekaModule(configSource));
+----
+
+Finally, add the Eureka client config properties to `killbill.properties`. For example, assuming a Eureka server is running on port 8761 and Kill Bill is on port 8080:
+
+[source,properties]
+----
+eureka.serviceUrl.default=http://localhost:8761/eureka
+
+eureka.registration.enabled=true
+eureka.name=killbill
+eureka.port=8080
+eureka.port.enabled=true
+eureka.securePort.enabled=false
+
+eureka.statusPageUrlPath=/1.0/metrics
+eureka.healthCheckUrlPath=/1.0/healthCheck
+
+eureka.decoderName=JacksonJson
+eureka.preferSameZone=true
+eureka.shouldUseDns=false
+----
+
+== Enabling HTTPS
+
+You first need to import your SSL certificate (see https://tomcat.apache.org/tomcat-8.5-doc/ssl-howto.html[docs]). For testing, you can just create a self-signed certificate. For example, on Ubuntu or our Docker images:
+
+[source,bash]
+----
+sudo apt-get update
+sudo apt-get install ssl-cert
+sudo usermod -a -G ssl-cert tomcat
+----
+
+Then, update Tomcat’s configuration (`/var/lib/tomcat/conf/server.xml` in our Docker images):
+
+[source,xml]
+----
+<Connector executor="tomcatThreadPool"
+           port="8443"
+           connectionTimeout="20000"
+           acceptorThreadCount="2"
+           SSLEnabled="true"
+           SSLCertificateFile="/etc/ssl/certs/ssl-cert-snakeoil.pem"
+           SSLCertificateKeyFile="/etc/ssl/private/ssl-cert-snakeoil.key"
+           scheme="https"
+           secure="true" />
+----
+
+Finally, make sure port 8443 is open (and exported from the Docker containers).
+
+== SSL termination and X-Forwarded headers support
+
+When `org.killbill.jaxrs.location.full.url=true` (default), Kill Bill will build location headers using a full URL. In a typical load balancer scneario, which receives traffic on port 8443 and forwards it to port 8080 on the Kill Bill instances (i.e. SSL terminated at the load balancer), you probably want the headers to return something like https://killbill-vip.mycompany.net:8443 instead of http://10.1.2.3:8080.
+
+To do so, `RemoteIpValve` should be enabled in your Tomcat configuration (done by default in our Docker images, see `/var/lib/tomcat/conf/server.xml`). This will make Kill Bill build the right location headers using `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Port` sent by your load balancer or reverse proxy.
+
+Notes:
+
+* You might also need to configure Tomcat's `internalProxies` and `trustedProxies` attributes (see the https://tomcat.apache.org/tomcat-7.0-doc/config/valve.html#Proxies_Support[docs]).
+* You might also need to set `org.killbill.jaxrs.location.host` in your `killbill.properties` file (e.g. `org.killbill.jaxrs.location.host=killbill-vip.mycompany.net`).
+* You might also want to set `requestAttributesEnabled="true"` to `org.apache.catalina.valves.AccessLogValve`, to log the IP address from the `X-Forwarded-For` header in the access logs.
+
+== Nagios integration
+
+To integrate JMX beans with Nagios, download the plugin from https://github.com/killbill/nagios-jmx-plugin:
+
+[source,bash]
+----
+# Whether the persistent bus is turned on (warns if off)
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O org.killbill.bus.api:name=PersistentBus -A NotificationProcessingSuspended -w false
+# Whether the notification queue is turned on (warns if off)
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O org.killbill.notificationq.api:name=NotificationQueueService -A NotificationProcessingSuspended -w false
+# Generic Kill Bill healthcheck, checks the overall state of the application (warns if unhealthy)
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O org.killbill.billing.server.healthchecks:name=KillbillHealthcheck -A Healthy -w true
+# Monitors the size of the notification queue. Warning and Critical alerts often mean an overload of the system
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -O metrics:name=org.killbill.notificationq.NotificationQueueDispatcher.pending-notifications -A Value -w 50 -c 100
+----
+
+Other interesting metrics (use of the `-P` flag to get Nagios performance data):
+
+[source,bash]
+----
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=ClassLoading' -A LoadedClassCount
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=Compilation' -A TotalCompilationTime
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=OperatingSystem' -A SystemCpuLoad
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=Runtime' -A Uptime
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.lang:type=Threading' -A ThreadCount
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.nio:type=BufferPool,name=direct' -A MemoryUsed
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'java.nio:type=BufferPool,name=mapped' -A MemoryUsed
+./check_jmx_ng -v -U service:jmx:rmi:///jndi/rmi://127.0.0.1:8989/jmxrmi -P -O 'metrics:name=org.killbill.bus.dao.PersistentBusSqlDao.getReadyEntries' -A 95thPercentile
+----

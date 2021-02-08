@@ -1,0 +1,549 @@
+= Debugging tips
+
+== Healthchecks and metrics
+
+Kill Bill exposes both healthchecks and metrics. These can be accessed via:
+
+[source,bash]
+----
+curl -v http://<IP_ADDRESS>:8080/1.0/healthcheck?pretty=true
+curl -v http://<IP_ADDRESS>:8080/1.0/metrics?pretty=true
+----
+
+== Remote debugging
+
+Specify `-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=12345` on startup in your JVM settings to enable remote debugging (this is set by default in our Docker images). You can then connect to Kill Bill on port 12345 from your debugger (e.g. Eclipse or IntelliJ).
+
+If Kill Bill is running locally, you can just specify `localhost` or `127.0.0.1` as the remote host in your debugger. To debug instances remotely (e.g. in the cloud), you need to specify the publicly accessible IP address of your instance. For Docker, this should be the public IP address of the container. If you are using docker-machine and your machine is named `default`, you can retrieve the IP address via `docker-machine inspect default -f '{{.Driver.IPAddress}}'`. Passing this IP address to our Docker images as `ENV_HOST_IP` enables remote debugging automatically.
+
+Make sure also that the port `12345` is open (e.g. check your security groups in AWS). For Docker, expose the port via `-p12345:12345`.
+
+== Turning on DEBUG logging
+
+Specify:
+
+[source,properties]
+----
+-Dcom.sun.management.jmxremote=true
+-Dcom.sun.management.jmxremote.authenticate=false
+-Dcom.sun.management.jmxremote.port=8000
+-Dcom.sun.management.jmxremote.rmi.port=8000
+-Dcom.sun.management.jmxremote.ssl=false
+-Djava.rmi.server.hostname=localhost
+----
+
+on startup in your JVM settings to enable access via `jconsole`.
+
+You can set at runtime the log level of specific classes and packages (look for  the `ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator` MBean).
+
+Similar considerations as the remote debugging section apply regarding the IP address and expose ports (see above). For Docker, `java.rmi.server.hostname` should point to the host IP address (e.g. `192.168.99.100`). Passing this IP address to our Docker images as `ENV_HOST_IP` enables jConsole automatically.
+
+Note that setting `ENV_HOST_IP` can affect Ruby plugins.
+
+== Following tokens
+
+To understand why a specific action was taken, it is often useful to follow tokens.
+
+When invoking a JAX-RS (HTTP) API, a `userToken` is automatically generated. You can also specify your own token via the `X-Request-Id` HTTP header (it *must* be a UUID).
+
+Once set, this token is:
+
+* attached to the processing thread
+* attached to SLF4J MDC context as `kb.userToken` and displayed by default in logs (`tok=`)
+* passed to all APIs as `CallContext#getUserToken()`
+* passed to internal bus events as `BusEvent#getUserToken()`
+* passed to external bus events as `ExtBusEvent#getUserToken()`
+* passed to future notifications as `userToken`
+
+Note that when a notification is created, a `futureUserToken` is auto-generated. That `futureUserToken` becomes the `userToken` when the notification is dispatched.
+
+You can search for these tokens in Kaui, on the _Queues_ screen, accessible from the tenant page or via the per-account sub-menu (you need to be logged-in as the Kaui root user).
+
+=== Testing changes over time
+
+We have a clock abstraction in Kill Bill that can be manipulated through an API, as long as you start Kill Bill with `org.killbill.server.test.mode=true` (`-e KILLBILL_SERVER_TEST_MODE=true` in Docker):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     "http://127.0.0.1:8080/1.0/kb/test/clock"
+
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H "Accept: application/json" \
+     -X POST \
+     "http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2015-12-14T23:02:15.000Z"
+
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H "Accept: application/json" \
+     -X PUT \
+     "http://127.0.0.1:8080/1.0/kb/test/clock?days=10"
+----
+
+Here is an https://github.com/killbill/killbill-integration-tests/blob/165b76b5864fb40f1a5774f64c145d56123a5e62/killbill-integration-tests/mixin-utils/helper.rb#L131-L145[example] how it could be used in tests.
+
+== Docker and Ansible
+
+Our Docker images use Ansible behind the scenes to install and configure Kill Bill in the container. The actual Ansible commands run are available in the images via the environment variables `$KPM_INSTALL_CMD` and `$START_TOMCAT_CMD`.
+
+If you need to debug this setup process, you can start a container via `docker run -ti killbill/killbill:0.22.0 bash` and execute these commands manually.
+
+The Ansible command to start Tomcat can also be modified via the `$START_TOMCAT_OPTS` variable. One useful setting is to create the container using `START_TOMCAT_OPTS='--skip-tags tomcat_cleanup'` (e.g. `docker run -e START_TOMCAT_OPTS='--skip-tags tomcat_cleanup' -ti killbill/killbill:0.22.0`). While by default Ansible will cleanup the Tomcat directories (such as `webapps/ROOT`), this option will skip this task. This is especially useful when developping on Kill Bill: you can replace specific jars in the `webapps/ROOT` directory and simply restart the container to test your changes.
+
+== Performance and profiling
+
+Kill Bill has some built-in support to profile incoming calls. The mechanism is based on HTTP headers that need to be set to specify what needs to be profiled, and as a result, a new HTTP header is returned.
+
+=== Types of profiling
+
+In order to return profiling information, one needs to add the HTTP header `X-Killbill-Profiling-Req` and specify which calls should be instrumented. Today, we support:
+
+* JAXRS: The HTTP call will be returned with the time spent in the call.
+* API: Any Kill Bill API call will be returned with the time spent in the call
+* DAO: Any Kill Bill DAO (request to database) call will be returned with the time spent in the call
+* DAO_DETAILS: Any Kill Bill DAO (request to database) call along with specifics about time time spent for audit/history and caching will be returned with the time spent in the call
+* DAO_CONNECTION: The time spent trying to acquire a database connection
+* GLOCK: The time spent trying to acquire the global (`Account`) lock
+* PLUGIN: Any Kill Bill call spent when calling a plugin will be returned with the time spent in the call
+
+==== JAXRS Profiling
+
+The time is extracted from a https://github.com/killbill/killbill/blob/killbill-0.20.0/profiles/killbill/src/main/java/org/killbill/billing/server/filters/ProfilingContainerResponseFilter.java#L53[Jersey filter], so it should be very close to the time spent into the JAX-RS application handler, not taking into account the time spent in the container itself (i.e. Jetty, Tomcat, ...).
+
+==== API Profiling
+
+We are relying on AOP to profile each of our API calls. We are injecting a https://github.com/killbill/killbill/blob/killbill-0.20.0/util/src/main/java/org/killbill/billing/util/glue/KillbillApiAopModule.java#L72[Guice AOP module] to profile each of our API calls. The time returned does not include the extra time spent to dispatch the request using the AOP handler.
+
+In addition, there is another https://github.com/killbill/killbill/blob/killbill-0.20.0/util/src/main/java/org/killbill/billing/util/glue/KillBillShiroAopModule.java#L45[AOP module] that is used to validate the user has the right set of permissions to execute this call. Since this occurs prior we do the profiling this time is currently not included in the profiling of the API call.
+
+Finally when making API calls from plugins, there may be also a small overhead to go through OSGI layer and this time is also not included.
+
+==== DOA Profiling
+
+Most of the requests issued from Kill Bill Dao (e.g `DefaultPaymentDao`) classes follow the same mechanism:
+
+1. A transaction is started by calling the `execute` method of the https://github.com/killbill/killbill/blob/killbill-0.20.0/util/src/main/java/org/killbill/billing/util/entity/dao/EntitySqlDaoTransactionalJdbiWrapper.java#L87[EntitySqlDaoTransactionalJdbiWrapper]. Here, we create a `Handle`, essentially retrieving a database connection. The time taken to get the connection can be profiled by using the `DAO_CONNECTION` mask.
+2. Then, a jdbi transaction is started using cglib, and this transaction is actually run through a series of handlers, such as our https://github.com/killbill/killbill-commons/blob/killbill-commons-0.22.0/jdbi/src/main/java/org/killbill/commons/jdbi/transaction/RestartTransactionRunner.java[RestartTransactionRunner]. This extra time, is not being measured by our profiling layer.
+3. Finally, for each SQL operation within the transaction, we also proxy the calls using the java `Proxy` mechanism, and so all those calls are funneled trough the associated `EntitySqlDaoWrapperInvocationHandler`, and this is where the timing associated to the `DAO` (and `DAO_DETAILS`) mask is taken.
+
+Note that the profiling time reported by the `API` mask -- since it supersedes all dao calls -- will include everything described above. Therefore it is possible to see an API that would only make a dao call take slightly longer than the dao call itself.
+
+The `DAO` mask will take the total time it takes to run the invocation handler invoke method. Because there are several paths, we also include the option to return `DAO_DETAILS`:
+
+* In most cases, we will have a profiling entry `DAO_DETAILS:<method> (raw)` that only profiles the call requested.
+* In the case of an insert, update, deletion, the code will also update audit logs, and history table. In this case, we will also see a profiling entry `DAO_DETAILS:<method> (history/audit)` that will return the time it took to create the additional records in these tables.
+* In the case of a cacheable query (e.g return a `record_id` associated to an object `uuid`), we may return the result from the cache and so this is the only case where `DAO_DETAILS:<method>:raw` will not be printed.
+* In all other cases, the `DAO_DETAILS:<method> (raw)` should match the `DAO:<method>` time.
+
+==== GLOCK Profiling
+
+The `GLOCK` mask will simply output the time it took to grab the database lock associated with a given `Account` -- the only kind of global lock currently supported in Kill Bill.
+
+==== PLUGIN Profiling
+
+This mask can be used to profile the time it takes for Kill Bill to make calls to a given plugin using a given plugin api. Here again, such plugin calls are being proxied using the `Proxy` mechanism, and the timing is taken from the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.38.0/osgi/src/main/java/org/killbill/billing/osgi/ContextClassLoaderHelper.java#L106[invocation handler].
+
+The information will contain the name of the plugin api class and the method being invoked.
+
+=== Example
+
+Kill Bill will return a json object containing the hierarchy for the calls along with the time spent in uSec (1000 nanoseconds or 0.000001 seconds).
+
+Example (Note the piping to extract the response header, and format the json nicely):
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "Accept: application/json" \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H 'X-Killbill-Profiling-Req: JAXRS,API,DAO,DAO_DETAILS,DAO_CONNECTION,GLOCK' \
+     "http://127.0.0.1:8080/1.0/kb/paymentMethods/3dd4e9d3-2be3-4bf2-b1e4-64a1785afd53" 2>&1 \
+     | grep 'X-Killbill-Profiling-Resp' \
+     | awk '{$1=$2=""; print $0}' \
+     | jq '.'
+----
+
+Response:
+
+[source,json]
+----
+{
+  "rawData": [
+    {
+      "name": "JAXRS:1.0/kb/paymentMethods/3dd4e9d3-2be3-4bf2-b1e4-64a1785afd53",
+      "durationUsec": 7654,
+      "calls": [
+        {
+          "name": "API:getPaymentMethodById",
+          "durationUsec": 4158,
+          "calls": [
+            {
+              "name": "DAO_CONNECTION:get",
+              "durationUsec": 60
+            },
+            {
+              "name": "DAO:PaymentMethodSqlDao: getById",
+              "durationUsec": 1371,
+              "calls": [
+                {
+                  "name": "DAO_DETAILS:PaymentMethodSqlDao (raw): getById",
+                  "durationUsec": 1364
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "API:getAccountById",
+          "durationUsec": 2593,
+          "calls": [
+            {
+              "name": "API:getAccountById",
+              "durationUsec": 2462,
+              "calls": [
+                {
+                  "name": "API:getAccountByRecordIdInternal",
+                  "durationUsec": 2408,
+                  "calls": [
+                    {
+                      "name": "DAO_CONNECTION:get",
+                      "durationUsec": 40
+                    },
+                    {
+                      "name": "DAO:AccountSqlDao: getByRecordId",
+                      "durationUsec": 877,
+                      "calls": [
+                        {
+                          "name": "DAO_DETAILS:AccountSqlDao (raw): getByRecordId",
+                          "durationUsec": 872
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "API:getAccountAuditLogs",
+          "durationUsec": 6
+        }
+      ]
+    }
+  ]
+}
+----
+
+
+We can see that for each mask there is some profiling data and such data retains the struture of the calls being made.
+
+
+=== Client Side
+
+The Ruby client library (https://github.com/killbill/killbill-client-ruby) has been extended to support profiling data. By passing a additional options the library will send the correct header to Kill Bill and capture the resulting information.
+
+Currently, only JAXRS profilingData will be requested and returned for simplification.
+
+In the example below `per_thread_profiling_data` will contain the timing for the various calls, which in that scenario would be `post:/1.0/kb/payments/uuid` and `get:/1.0/kb/payments/uuid:`. The provided hash will contain one key per call and the values will be an array of timing data expressed in uSec:
+
+[source,ruby]
+----
+# Add the :profilingData option
+per_thread_profiling_data = {}
+options = {:username => 'admin', :password => 'password', :profilingData => per_thread_profiling_data}
+res = auth_capture_task.op_create_capture(payment_id, ext_key, amount, currency, username, options)
+----
+
+Note that Ruby client gem will not make any attempt to synchronize access the the profiling_data map, when multiple threads are making calls. It is recommended to use per-thread data and potentially merge the results from the different threads at the end.
+
+
+=== Tips and tricks
+
+* In most cases, the client will be a bottleneck. Make sure to watch the number of sockets in `TIME_WAIT` (`watch 'netstat -an | grep 8080 | grep WAIT | wc -l'`) and speed up the recycling process:
+[source,bash]
+----
+echo 2 > /proc/sys/net/ipv4/tcp_fin_timeout
+echo 15000 65000 > /proc/sys/net/ipv4/ip_local_port_range
+echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
+echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
+----
+* On the server side, check the expected concurrency level by watching the number of sockets in `ESTABLISHED` (`watch 'netstat -an | grep 8080 | grep EST | wc -l'`)
+* Make sure to allocate enough database (`org.killbill.dao.maxActive` / `org.killbill.billing.osgi.dao.maxActive`) and plugin (`org.killbill.payment.plugin.threads.nb`) threads. Check your container thread pool too (e.g. `conf/server.xml` for Tomcat)
+* Use tools like Siege (http://www.joedog.org/siege-home/) to verify your basic setup: `siege -b -t30S -c100 http://127.0.0.1:8080/1.0/kb/test/clock` should yield at least 5k req./s.
+* If Shiro is spending too many CPU cycles for authentication, lower the default number of iterations (e.g. `org.killbill.security.shiroNbHashIterations=2000`).
+* When using YourKit, turn off probes (especially the database ones). They cause a significant slowdown.
+* Allow a warm-up period, before starting a full test, to avoid contention in the JRuby JIT.
+* Use https://github.com/AdoptOpenJDK/mjprof[mjprof] to extract stacktraces:
+[source,bash]
+----
+java -jar target/mjprof-1.0.jar jmx/127.0.0.1:8989/.ncontains/name,RMI TCP/.ncontains/name,RMI Reaper/.ncontains/name,RMI RenewClean/.ncontains/name,RMI Scheduler/.ncontains/name,jruby-restarter/.ncontains/name,com.google.inject.internal.util.$Finalizer/.ncontains/name,Finalizer/.ncontains/name,Reference/.ncontains/name,FelixStartLevel/.ncontains/name,FelixDispatchQueue/.ncontains/name,http-nio-8080/.ncontains/name,Abandoned connection cleanup thread/.ncontains/name,CM Event Dispatcher/.ncontains/name,CM Configuration Updater/.ncontains/name,SCR Component Actor/.ncontains/name,Timer-/.ncontains/name,telnetconsole.Listener/.ncontains/name,O worker /.ncontains/name,O boss /.ncontains/name,NioBlockingSelector/.ncontains/name,Signal Dispatcher/.ncontains/name,main/.ncontains/name,JMX server connection timeout/.ncontains/state,WAITING/.sort/state/
+----
+
+=== Load Tests
+
+==== Integration Tests
+
+The https://github.com/killbill/killbill-integration-tests[integration tests repo] allows to run load tests against a running instance of Kill Bill. The https://github.com/killbill/killbill-integration-tests/blob/master/README.md[README] has a section explaining how they work.
+
+Note: It is difficult to rely on single process MT threaded Ruby script to generate enough load.
+
+==== GNU parallel: simple load testing script
+
+Another way to generate load is to rely on `GNU parallel`:
+
+[source,bash]
+----
+seq 0 500 | parallel -j10 --no-notice -u ./perf_test.sh
+----
+
+Where `perf_test.sh` is:
+
+[source,bash]
+----
+iteration_id=$1
+
+echo "===> Starting $iteration_id"
+
+account_id=$(curl -v \
+                  -X POST \
+                  -u admin:password \
+                  -H 'Content-Type: application/json' \
+                  -H 'X-Killbill-ApiKey: bob' \
+                  -H 'X-Killbill-ApiSecret: lazar' \
+                  -H 'X-Killbill-CreatedBy: creator' \
+                  --data-binary "{\"name\":\"john\",\"email\":\"profiling@example.com\",\"externalKey\":\"perf-$RANDOM-$RANDOM-$RANDOM\",\"currency\":\"USD\"}" \
+                  http://127.0.0.1:8080/1.0/kb/accounts 2>&1 | grep Location | awk '{print $3}' | awk -F'/' '{print $7}')
+
+account_id=$(tr -dc '[[:print:]]' <<< "$account_id")
+
+curl  \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"pluginName":"YOUR-PLUGIN","pluginInfo":{"properties":[{"key":"type","value":"CreditCard","isUpdatable":false},{"key":"ccType","value":"visa","isUpdatable":false},{"key":"ccName","value":"A Smith","isUpdatable":false},{"key":"email","value":"foo@bar.com","isUpdatable":false},{"key":"ccExpirationMonth","value":"03","isUpdatable":false},{"key":"ccExpirationYear","value":"2016","isUpdatable":false},{"key":"ccVerificationValue","value":"222","isUpdatable":false},{"key":"address1","value":"lskdjf","isUpdatable":false},{"key":"address2","value":"","isUpdatable":false},{"key":"city","value":"sdfsdfsff","isUpdatable":false},{"key":"ccFirstName","value":"sdfsdf","isUpdatable":false},{"key":"ccLastName","value":"fdsfdsf","isUpdatable":false},{"key":"zip","value":"23812","isUpdatable":false},{"key":"country","value":"USA","isUpdatable":false},{"key":"state","value":"CA","isUpdatable":false},{"key":"ccNumber","value":"4111111111111111","isUpdatable":false}]}}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/${account_id}/paymentMethods?isDefault=true" > /dev/null 2>&1
+
+
+curl  \
+     -X POST \
+     -u admin:password \
+     -H 'Content-Type: application/json' \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: creator' \
+     --data-binary '{"transactionType":"AUTHORIZE","amount":"10","currency":"USD"}' \
+     "http://127.0.0.1:8080/1.0/kb/accounts/${account_id}/payments" > /dev/null 2>&1
+
+echo "===> Finished $iteration_id"
+----
+
+Note that on a single machine, this client-side script will most likely be the bottleneck (spawning the processes takes too much time). Use http://jmeter.apache.org/[JMeter] instead.
+
+
+== Ruby plugins debugging
+
+=== Using RubyMine
+
+* Add the following dependencies to your Gemfile:
+
+[source,ruby]
+----
+gem 'ruby-debug', '~> 0.10'
+gem 'ruby-debug-ide', '~> 0.6'
+----
+
+* Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
+
+[source,ruby]
+----
+unless defined?(Debugger::PROG_SCRIPT)
+  JRuby.objectspace = true
+
+  require 'ruby-debug-ide'
+  Debugger::PROG_SCRIPT = __FILE__
+
+  require 'ostruct'
+  options = OpenStruct.new(
+      # Host name used for remote debugging
+      'host' => nil,
+      # Port used for remote debugging
+      'port' => 1234,
+      # Port used for multi-process debugging dispatcher
+      'dispatcher_port' => -1,
+      # Load mode (experimental)
+      'load_mode' => false,
+      # Stop when the script is loaded
+      'stop' => false,
+      # Keep frame bindings
+      'frame_bind' => true,
+      # Turn on line tracing
+      'tracing' => false,
+      # Disables interrupt signal handler
+      'int_handler' => true,
+      # Evaluation timeout in seconds
+      'evaluation_timeout' => 20,
+      # Enable all RubyMine-specific incompatible protocol extensions
+      'rm_protocol_extensions' => true,
+      # Enable chatchpointDeleted event
+      'catchpoint_deleted_event' => false,
+      # Allow to pass variable's value as nested element instead of attribute
+      'value_as_nested_element' => true
+  )
+
+  Debugger.keep_frame_binding = options.frame_bind
+  Debugger.tracing = options.tracing
+  Debugger.evaluation_timeout = options.evaluation_timeout
+  Debugger.catchpoint_deleted_event = options.catchpoint_deleted_event || options.rm_protocol_extensions
+  Debugger.value_as_nested_element = options.value_as_nested_element || options.rm_protocol_extensions
+
+  Debugger.debug_program(options)
+
+  exit
+end
+----
+
+* Rebuild and redeploy the plugin:
+
+[source,bash]
+----
+bundle install && \
+rake killbill:clean && \
+rake build && \
+rake killbill:package && \
+rake killbill:deploy[true]
+----
+
+* Create a Ruby remote debug configuration in RubyMine:
+
+ * Remote host: localhost
+ * Remote port: 1234
+ * Remote root folder: /var/tmp/bundles/plugins/ruby/\<plugin\>/\<version\>/ROOT
+ * Local port: 26162
+ * Local root folder: path to your code
+
+* Restart Kill Bill with the Java property `-X+O`
+
+The Kill Bill startup sequence will stop at:
+
+```
+Fast Debugger (ruby-debug-ide 0.6.0, ruby-debug-base 0.10.6, file filtering is supported) listens on 127.0.0.1:1234
+```
+
+until RubyMine is connected.
+
+=== Using ruby-debug
+
+While RubyMine offers a nice GUI, it can quickly lose its context or have a hard time stepping through gems dependencies. `ruby-debug` is much more reliable.
+
+* Add the following dependency to your Gemfile:
+[source,ruby]
+----
+gem 'ruby-debug', '~> 0.10'
+----
+* Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
+[source,ruby]
+----
+require 'ruby-debug'
+Debugger.wait_connection = true
+Debugger.start_remote(nil, 1234)
+----
+* Set a breakpoint in the source code using `debugger`
+* Rebuild and redeploy the plugin:
+[source,bash]
+----
+bundle install && \
+rake killbill:clean && \
+rake build && \
+rake killbill:package && \
+rake killbill:deploy[true]
+----
+* Restart Kill Bill with the Java property `-X+O`
+
+The Kill Bill startup sequence will stop until `ruby-debug` is connected. To launch it:
+
+[source,bash]
+----
+rdebug --client -p 1234
+----
+
+When the breakpoint is hit, you can examine the context and step into the code:
+
+```
+lib/cybersource/api.rb:164
+properties = merge_properties(properties, options)
+(rdb:9) l
+[159, 168] in lib/cybersource/api.rb
+   159          # Pass extra parameters for the gateway here
+   160          options = {}
+   161
+   162          debugger
+   163
+=> 164          properties = merge_properties(properties, options)
+   165          super(kb_account_id, kb_payment_method_id, payment_method_props, set_default, properties, context)
+   166        end
+   167
+   168        def delete_payment_method(kb_account_id, kb_payment_method_id, properties, context)
+(rdb:9) s
+/var/tmp/bundles/plugins/ruby/killbill-cybersource/3.0.0/ROOT/gems/gems/killbill-5.2.0/lib/killbill/helpers/properties_helper.rb:24
+merged = properties_to_hash(properties, options)
+(rdb:9) l
+[19, 28] in /var/tmp/bundles/plugins/ruby/killbill-cybersource/3.0.0/ROOT/gems/gems/killbill-5.2.0/lib/killbill/helpers/properties_helper.rb
+   19          end
+   20          merged.merge(options)
+   21        end
+   22
+   23        def merge_properties(properties, options = {})
+=> 24          merged = properties_to_hash(properties, options)
+   25
+   26          properties = []
+   27          merged.each do |k, v|
+   28            properties << build_property(k, v)
+```
+
+== Seeking help
+
+If all else fail, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] for help (*do not open a Github issue*).
+
+In your message, specify:
+
+* What you are seeing and what you are expecting
+* How to reproduce your scenario (cURL commands, code snippet, ...)
+* https://github.com/killbill/killbill-cloud[KPM] diagnostic output, e.g.
+
+[source,bash]
+----
+kpm diagnostic --killbill-api-credentials=bob lazar \
+               --killbill-credentials=admin password \
+               --killbill-url=http://127.0.0.1:8080 \
+               --killbill-web-path=/var/lib/tomcat/webapps/ROOT.war \
+               --log-dir=/var/lib/tomcat/logs \
+               --account-export=ACCOUNT_ID
+----
+
+If you are using our standard Docker images, you can simply run the following command in the Kill Bill container:
+
+[source,bash]
+----
+$KPM_DIAGNOSTIC_CMD -e killbill_user=admin \
+                    -e killbill_password=password \
+                    -e killbill_api_key=bob \
+                    -e killbill_api_secret=lazar \
+                    -e killbill_account=ACCOUNT_ID
+----

@@ -1,0 +1,94 @@
+image:https://drive.google.com/uc?&id=0Bw8rymjWckBHcU9DbnVkY1FhR2M&w=960&amp;h=480[align=center]
+
+The Catalog is a data model that captures the core configuration of the billing system. This model is at the heart of the billing system.
+It is very important that all the business logic associated with the billing behaviour of your system is captured in the billing system.
+If your billing system is not capable of capturing all of the business logic it ends up being put in multiple places such as your purchase flow, Admin UI, human process etc. It becomes very difficult to keep all these places consistent, and very difficult to make changes when they are needed.
+
+Kill Bill provides a very powerful catalog that, unlike other billing systems, allows the administrator to set up sophisticated business rules around cancellation and plan changes.
+For example, Kill Bill can just be told to “Cancel” a plan and it will know when to perform the cancel, based on things like the type of plan, or whether it is in trial.
+
+The things you can configure with the Kill Bill catalog include:
+
+* Trials and discount phases - plans can be configured with trial and discount phases so that they move automatically between different pricing schemes
+* Cancellation - business rules to determine when a cancellation should happen.
+* Plan Change - business rules to determine when to apply upgrades and downgrades.
+* Which add-ons are available with which product types, so that when the customer upgrades or downgrades, add-ons that are not available are automatically cancelled
+* Billing Alignment - rules to determine if a Plan should be billed independently or on the account billing date.
+* Catalog change - ways to specify how and when catalog changes apply to new and existing subscriptions
+
+Kill Bill also supports the concept of a Price List, which is a grouping of (usually discounted) plans that can be offered to a customer.
+
+Of course, any catalog can only support a limited number of options. When you need to go further, and many people do, you can write plugins to implement pretty much anything you need.
+
+
+==== Concepts
+
+In this section we outline some key pieces of terminology that you will need to understand. A complete Glossary is given at the end of this document.
+Different billing systems use these same words to mean subtly different things so, even if you are familiar with the language, it is worth looking through exactly how we use the terms in Kill Bill.
+
+===== Background Concepts
+
+* *Customer* – someone who buys your product
+* *Administrator* (or *Admin*) – the person who can use the Kill Bill UI to view and modify customer accounts
+* *Kill Bill Administrator* (or *Kill Bill Admin*) - the person responsible for installing or configuring Kill Bill
+* *Account* – a customer account. It represents what Kill Bill knows about a customer.
+* *Subscription* – a contract between you and a customer to purchase a particular product with particular terms. In the system it associates a Plan (see below) with an Account and a start date.
+* *Subscription Bundle* (or just *Bundle*) – a collection of subscriptions that are associated with a particular instance of a product. For example, you might have a voice plan, a data plan and a text plan for your mobile phone. In Kill Bill each plan would have its own subscription and we would represent the fact that they are associated with a single phone by grouping them in a Subscription Bundle. Of course an account might have multiple phones associated with it and a Kill Bill Account can have multiple Bundles associated with it.
+
+==== What’s in a Catalog?
+
+A Kill Bill Catalog includes the following sections:
+
+* *Products* - The things that the customer actually buys (or rents). In the example depicted at the start of the chapter, the product available for rent is a Spy Car, which is available in three different versions: `Standard`, `Sports` and `Super`.
+* *Plans* - Specifications for the terms of the Subscription contract. In particular, plans define how much a customer pays for a product, and how often they pay it. For example, we could offer the Standard Spy Car product at $100 per month.
+* *Plan Phases* (or just *Phases*) - Time periods within a subscription during which certain rules apply. Kill Bill plans can have multiple phases and each phase can have a different price and payment term. In this way, we can have plans with built in trials or discount phases. Kill Bill automatically handles the transitions between phases. In our example above the plans have two phases: they start with a 30 day trial which is free, and then move to a recurring phase at $100 per month.
+* *Price List* - A collection of plans. Price Lists are normally used to group discount plans that are associated with a particular customer group. For example, MI6 might have special rental terms for their Spy Cars with the CIA. In this case they would create a CIA Price List that grouped plans with those special terms together. When CIA agents would come to the rental site, they would see plans from that price list. More importantly if they change plans, for example if they upgrade from Sports to Super to meet the needs of a particularly difficult mission, they will upgrade to the Sports plan within the CIA Price List.
+* *Billing Period* - The period for which the customer is billed (e.g `MONTHLY`, `ANNUAL`, ...)
+* *Rules* - The rules that determine how Kill Bill should behave when a plan is created, cancelled or changed.
+
+
+==== How is the Catalog Used Inside Kill Bill?
+
+The catalog is first used by Kill Bill at the time the user creates a subscription, then subsequently if there is a change of `Plan` (upgrade or downgrade), and then finally when the user cancels the subscription. During such operations, catalog information is retrieved to make sure the system builds the right subscription (e.g. maybe there is a `TRIAL` phase to start). Information about **how** to perform such operations is configured in the catalog through the http://docs.killbill.io/latest/userguide_subscription.html#_subscription_alignment_rules[Subscription Alignment Rules]. Examples of these rules include:
+
+* **Plan Cancellation Timing** - Should the customer get a pro-ration credit when the subscription is cancelled before its next renewal date?
+* **Plan Change Timing** - Should a customer downgrading to a lower (paid) plan be active immediately or should the system wait for the next renewal date?
+
+
+The catalog is also used by the invoicing system to make sure each customer is billed at the right time and for the right amount. Information about **how** the customer is billed and **when** the customer is billed is also defined in the catalog using alignments and their associated rules.
+
+Catalog configuration allows the Kill Bill Administrator to define whether all subscriptions attached to a customer should be invoiced at the same time, or if they should be billed separately on their own schedule. There could also be a mix of both where some are grouped together on the same invoice and others are invoiced independently. In the simplest case, the customer gets one invoice per billing period. Note that grouping subscriptions together may by default lead to some proration for a new subscription, to align it with the billing period. For further discussion of this topic see http://docs.killbill.io/latest/userguide_subscription.html#_billing_alignment_rules[Billing Alignment Rules].
+
+==== Creating the Catalog
+
+Most Kill Bill catalogs have the form of XML documents. Complex catalogs may need to be created by Java programs using a custom plugin (see http://docs.killbill.io/latest/catalog_plugin.html[Developing a Catalog Plugin]), while simple catalogs can be generated directly by the Kaui interface (see http://docs.killbill.io/latest/getting_started.html#_modifying_the_catalog[the Kaui Catalog Interface]). This section describes how to create a catalog configured to your particular needs. For this discussion we assume the catalog is an XML document.
+
+
+The XML document starts in a standard way. The main tag is `<catalog>`. Within the `catalog` tag you should specify the schema location.
+You can use the standard schema location, as shown in the example. This schema can be found at http://docs.killbill.io/latest/catalog.xsd[XSD schema].
+
+In most cases this schema will meet your needs. If not you can have the code generate the current schema by executing the tool killbill-catalog-x.y.z-xsd-tool.jar, where `x.y.z` is replaced by the appropriate version of Kill Bill. The tool for version `0.22.0` can be found http://search.maven.org/remotecontent?filepath=org/kill-bill/billing/killbill-catalog/0.22.0/killbill-catalog-0.22.0-xsd-tool.jar[here]. After downloading this tool, the schema can be generated by the following command:
+
+[source,bash]
+----
+java -jar killbill-catalog-x.y.z-xsd-tool.jar <output_filename>
+----
+
+The **order of content information in the catalog is important**. The first tag should be the “effectiveDate” (when the catalog becomes effective), then “catalogName” and then “currencies”, as shown below. Further, the catalog requires **all attribute strings to be unique**, and those strings **cannot contain spaces**.
+
+
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://docs.killbill.io/latest/catalog.xsd">
+        <effectiveDate>2013-02-08T00:00:00+00:00</effectiveDate>
+        <catalogName>SpyCarBasic</catalogName>
+        <currencies>
+                <currency>USD</currency>
+                <currency>GBP</currency>
+        </currencies>
+        ...
+</catalog>
+----
+

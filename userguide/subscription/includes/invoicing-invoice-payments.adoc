@@ -1,0 +1,98 @@
+Payments can be made against existing invoices, either automatically by the system or manually using our apis. By default one payment is applied to pay one invoice in full. Kill Bill also allows multiple partial payments against a given invoice. Using one payment to pay multiple invoices is not (yet) supported.
+
+Payment in full against an invoice happens automatically provided the customer `Account` has a valid default payment method. However, This behavior will be disabled under the following conditions:
+
+* `Account` does not have a default payment method.
+* `Account` has been tagged with one of the following:
+  ** `AUTO_PAY_OFF`: Prevent system from making automatic payments.
+  ** `MANUAL_PAY`: Prevent system from making automatic payments because we expect those payments to happen outside of the Kill Bill system -- e.g checks.
+
+Anytime an `Account` has a positive balance, i.e. at least one `Invoice` was not fully paid, one can use our apis to issue a manual payment against such invoices. Based on what we said earlier, this situation can occur if the system was configured to not make payments automatically, or in cases where a payment was issued but failed. 
+
+
+The call below illustrates how to make a manual payment against an existing unpaid invoice:
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "Content-Type: application/json" \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H 'X-Killbill-CreatedBy: demo' \
+-X POST \
+--data-binary '{
+    "accountId":  "27cf01b3-ee14-4d7f-a63a-16ad632b7bbb",
+    "paymentMethodId":  "7cb5362a-ca9a-4ae0-9623-381201ded137",
+    "targetInvoiceId":  "99f91a42-a83f-4d59-b337-9df1b53f79b1",
+    "purchasedAmount": 200.0
+}' \
+'http://127.0.0.1:8080/1.0/kb/invoices/99f91a42-a83f-4d59-b337-9df1b53f79b1/payments'
+----
+
+
+Kill Bill keeps track of the mapping between invoices and payments, so that it can correctly compute the invoice balance, and also return the payment details associated with a given invoice. This mapping, `InvoicePayment`, is logically part of the invoice subsystem, and is returned when invoices are fetched.
+
+
+If an invoice doesn't have a corresponding row in `invoice_payments`, this means the invoice isn't paid (because either no payment was ever attempted, or the payment attempts were unsuccessful). There are three types of `InvoicePayment`: successful payment, payment followed by a refund, and payment fillowed by a chargeback. Each of these is described below.
+
+==== Successful Payment
+
+A successful payment against an invoice would have a single row (of type ATTEMPT):
+
+[cols=4, options="header"]
+|===
+|Invoice #
+|Type
+|Payment date
+|Amount
+
+|1029
+|ATTEMPT
+|2013-04-12 22:45:39
+|$20
+|===
+
+==== Refund
+
+A payment followed by a refund would look like this:
+
+[cols=4, options="header"]
+|===
+|Invoice #
+|Type
+|Payment date
+|Amount
+
+|1029
+|ATTEMPT
+|2013-04-12 22:45:39
+|$20
+
+|1029
+|REFUND
+|2013-04-18 10:23:11
+|$-20
+|===
+
+==== Chargeback
+
+Finally, a payment followed by a chargeback would look like this:
+
+[cols=4, options="header"]
+|===
+|Invoice #
+|Type
+|Payment date
+|Amount
+
+|1029
+|ATTEMPT
+|2013-04-12 22:45:39
+|$20
+
+|1029
+|CHARGED_BACK
+|2013-04-18 10:23:11
+|$-20
+|===

@@ -1,0 +1,1257 @@
+= Getting Started
+
+This document explains what you need to get started using Kill Bill in your chosen environment. The first step is installing Kill Bill itself and the Kaui administrative console, along with their required database, in the environment you will be using. Make sure you read the  https://docs.killbill.io/latest/what_is_kill_bill.html[overview] to familiarize yourself with some concepts prior moving forward.
+
+== Installation
+
+There are several different ways to get Kill Bill and Kaui up and running. The packages can be installed on your local computer (Windows, Mac, or Linux) or on a Linux server in the cloud. The three principal options are:
+
+1. Use our one-click installer to install the programs using a ready-to-run container on a fresh AWS Ubuntu instance that you provide
+2. Install Docker on your local machine or a new or existing cloud server instance. Then install Kill Bill and Kaui in a Docker container.
+3. Install Kill Bill and Kaui, together with a MySQL database, directly on an Apache Tomcat server in your chosen environment.
+
+These options are discussed in the remainder of this document.
+
+=== AWS (One-Click)
+
+If you prefer to run Kill Bill on a cloud server, and are familiar with AWS, this is the easiest and fastest way to get started. Just try out our http://docs.killbill.io/latest/aws.html[One-Click installer]. The page shows 3 options, we recommend you use the `Single-Tier single AMI with MariaDB` in this initial phase.
+
+
+=== Docker
+
+You can run Kill Bill locally or in the cloud using our official Docker images. These require the installation of Docker and Docker Compose. Docker Compose is used to setup and manage the three separate Docker containers required by Kill Bill: One each for Kill Bill itself, for Kaui, and for the shared SQL database engine.
+
+The principal steps in the installation are:
+
+1. Make sure that the required versions of Docker and Docker Compose are installed in your chosen environment.
+2. Prepare a YAML file to control the loading of KillBill and the other necessary packages using Docker Compose.
+3. Run Docker Compose to launch the packages in the web server.
+
+If you are working with Mac or Windows, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. This will describe the procedures for setting up and testing Docker in a Mac or Windows environment using Docker Desktop. It is quite easy to get it up and running. This approach will greatly simplify the Kill Bill stack setup, as Tomcat and MySQL configuration will be done for you.
+If you cannot use Docker Desktop, you may still be able to install Docker with older methods using Docker Toolbox. For details see https://docs.docker.com/toolbox/toolbox_install_mac/[Install Docker Toolbox on MacOS] or https://docs.docker.com/toolbox/toolbox_install_windows/[Install Docker Toolbox on Windows].
+
+If you are using a Linux environment, read the appropriate sections of the https://docs.docker.com/install/[Docker Engine Overview].
+
+If you are not using Docker Desktop, proceed with the steps below. The rest of the discussion assumes you are working with a command line interface (CLI) on Mac, Windows, or Linux. On Mac open the Terminal application, or on Windows use the Command window.
+
+Your Linux flavor is assumed to be Ubuntu, either on a local machine or on an AWS instance. Our http://killbill.io/blog/tag/docker/[blog] has tips on how to deploy to other popular cloud providers. If you are using a different Linux flavor, you may have to adapt some of the commands. 
+
+To check whether Docker and Docker Compose are already installed, and what versions you have, open a command (or terminal) window and type the following commands:
+
+   docker --version
+   docker-compose --version
+   
+
+The versions that we are expecting for this discussion are:
+
+* Docker: 19.03.6 or higher
+* Docker Compose: 1.25.4 or higher
+
+
+If Docker or Docker Compose are not installed, on a Mac, one option is to try to install them using Homebrew:
+
+[source,bash]
+----
+brew install docker docker-compose
+----
+
+This may require that the free package Homebrew be installed first. See https://osxdaily.com/2018/03/07/how-install-homebrew-mac-os/[How to install Homebrew on Mac].
+
+On Ubuntu we can use the following commands to install Docker:
+
+[source,bash]
+----
+sudo apt-get update
+sudo apt-get install docker virtualbox
+----
+We have *not* installed Docker Compose in these commands, because the Ubuntu archive is not guaranteed to provide the latest version. Instead you should use the command
+
+[source,bash]
+----
+sudo curl -L https://github.com/docker/compose/releases/download/1.25.4/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+----
+
+This command should be set to load the latest stable release. For information on releases see the https://github.com/docker/compose/releases[releases page].
+
+The next step is to create a YAML file called docker-compose.yml, similar to the one below. The version of the file shown is 3.2, which works with Docker 17.04.0 or higher. For information on compose file formats see https://docs.docker.com/compose/compose-file/compose-versioning/[compose file formats]
+
+[source,yaml]
+----
+version: '3.2'
+volumes:
+  db:
+services:
+  killbill:
+    image: killbill/killbill:0.22.12
+    ports:
+      - "8080:8080"
+    environment:
+      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
+      - KILLBILL_DAO_USER=root
+      - KILLBILL_DAO_PASSWORD=killbill
+      - KILLBILL_CATALOG_URI=SpyCarAdvanced.xml
+  kaui:
+    image: killbill/kaui:2.0.5
+    ports:
+      - "9090:8080"
+    environment:
+      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
+      - KAUI_CONFIG_DAO_USER=root
+      - KAUI_CONFIG_DAO_PASSWORD=killbill
+      - KAUI_KILLBILL_URL=http://killbill:8080
+  db:
+    image: killbill/mariadb:0.22
+    volumes:
+      - type: volume
+        source: db
+        target: /var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=killbill
+----
+
+Now place this file in your current directory and run:
+
+[source,bash]
+----
+docker-compose up
+----
+
+If all goes well 3 containers will start:
+
+* one for MariaDB (shared database, used by both Kill Bill and Kaui)
+* one for Kill Bill (accessible on port 8080)
+* one for Kaui (accessible on port 9090)
+
+The startup sequence lasts a couple of minutes. It is ready when you see the message "INFO: Server startup". If it takes a long time or if the container crashes, verify you have enough memory allocated to Docker. On a Mac for instance, go to Docker Desktop Preferences and set the Memory to 4GiB in the Advanced panel. On Ubuntu, be sure you have at least 4GiB of RAM.
+
+You should now be able to log-in to Kaui by going to http://<IP>:9090. If Docker is running on your local machine, <IP> is 127.0.0.1. Otherwise, it is the IP of your server.
+
+You will be presented with a login page. Default credentials are:
+
+* username: admin
+* password: password
+
+You can also go to http://<IP>:8080/api.html to explore the KillBill APIs.
+
+=== Tomcat
+
+Users familiar with Java technologies can also install Kill Bill and Kaui directly in the Web container of their choice. We recommend using Tomcat version 8.5. This section covers the instructions for installing Kill Bill and Kaui in Tomcat. If this approach is followed, you will also need to configure the database manually as explained below.
+
+==== Tomcat Installation and configuration
+
+The first step in installing Kill Bill in Tomcat is to download and install Tomcat. For this, you need to follow the steps given below:
+
+. Download the Core binary distribution of the Tomcat container from http://tomcat.apache.org/download-80.cgi[here] 
+(At the time of writing, *8.5.59* is the latest version, however it can change in the future as newer versions are released.) The downloaded zip file contains a folder called *apache-tomcat-8.5.59* 
+
+. Extract *apache-tomcat-8.5.59* and place it on any location on your computer. This path will be refered to as *TOMCAT_HOME* from now on. (For example, if you place *apache-tomcat-8.5.59* in a directory called ```C:\Software```, *TOMCAT_HOME* refers to ```C:\Software\apache-tomcat-8.5.59```). It should look like this:
+
+ $TOMCAT_HOME
+     --bin
+     --conf
+     --lib
+     --logs
+     --temp
+     --webapps
+     --work
+ 
+
+
+. Ensure that you have *JDK 8* or higher installed (It can be downloaded from https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
+
+. Set the *JAVA_HOME* environment variable to the path of your JDK installation (For example, if JDK is installed at `C:\Software\jdk1.8.0_102`, you need to set *JAVA_HOME* to `C:\Software\jdk1.8.0_102`)
+
+. Start Tomcat using the script *TOMCAT_HOME/bin/startup.sh* or *TOMCAT_HOME/bin/startup.bat*
+(Depending on your operating system)
+
+. Open a browser and type \http://localhost:8080/. If Tomcat is installed properly, it should display the following page:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/Tomcat-home.png[align=center]
+
+
+==== Database Configuration (Kill Bill)
+
+As mentioned above, you need to configure the Kill Bill database manually. For this, you need to follow the steps given below:
+
+. Install your database (The Kill Bill core team uses *MySQL*, but we also run regression tests against *MariaDB 10* and *PostgreSQL 12*. Users have also successfully deployed Kill Bill with *Oracle*, *Percona*, *Aurora*, etc)
+
+. If you are using MySQL, you need to do the following:
+
+.. Create a Kill Bill user as follows:
+[source,sql]
+  create user killbilluser identified by 'password';
+
+
+.. Create a Kill Bill database as follows:
+[source,sql]
+    create database killbill;
+   
+.. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].
+
+
+. If you are using PostgreSQL, you can refer to the detailed instructions for PostgreSQL setup in our development document https://docs.killbill.io/latest/development.html#_postgresql_configuration[here] 
+
+. You should have a database called *killbill* (Or whatever name you have specified) with the following tables:
+[source,sql]
+ account_email_history
+ account_emails
+ account_history
+ accounts
+ audit_log
+ blocking_state_history
+ blocking_states
+ bundle_history
+ bundles
+ bus_events
+ bus_events_history
+ bus_ext_events
+ bus_ext_events_history
+ catalog_override_block_definition
+ catalog_override_phase_definition
+ catalog_override_phase_usage
+ catalog_override_plan_definition
+ catalog_override_plan_phase
+ catalog_override_tier_block
+ catalog_override_tier_definition
+ catalog_override_usage_definition
+ catalog_override_usage_tier
+ custom_field_history
+ custom_fields
+ invoice_billing_events
+ invoice_history
+ invoice_item_history
+ invoice_items
+ invoice_parent_children
+ invoice_payment_control_plugin_auto_pay_off
+ invoice_payment_history
+ invoice_payments
+ invoice_tracking_id_history
+ invoice_tracking_ids
+ invoices
+ node_infos
+ notifications
+ notifications_history
+ payment_attempt_history
+ payment_attempts
+ payment_history
+ payment_method_history
+ payment_methods
+ payment_transaction_history
+ payment_transactions
+ payments
+ roles_permissions
+ rolled_up_usage
+ service_broadcasts
+ sessions
+ subscription_event_history
+ subscription_events
+ subscription_history
+ subscriptions
+ tag_definition_history
+ tag_definitions
+ tag_history
+ tags
+ tenant_broadcasts
+ tenant_kvs
+ tenants
+ user_roles
+ users
+
+
+
+==== Kill Bill Configuration
+
+The next step is to configure Kill Bill. For this, you need to follow the steps given below:
+
+. Download the current stable version of the Kill Bill war  from https://search.maven.org/search?q=a:killbill-profiles-killbill[Maven Central] (Ensure that you download the `killbill-profiles-killbill-X.Y.Z.war` file and not the `jetty-console.war`, `jar-with-dependencies.war` or `jar-with-dependencies-sources.war`) 
+
+. Rename the `killbill-profiles-killbill-X.Y.Z.war` to `ROOT.war` (Ensure that *ROOT* is in uppercase)
+
+. Ensure that Tomcat server is stopped
+
+. Delete everything under *TOMCAT_HOME/webapps*
+
+. Place `ROOT.war` at *TOMCAT_HOME/webapps*. So, *webapps* folder should look like this:
+
+ $TOMCAT_HOME/webapps
+     --ROOT.war
+   
+   
+ . Open *TOMCAT_HOME/conf/catalina.properties file*. Add the following database properties at the end of this file (Use appropriate values as per your database):
+[source,properties]
+ org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.dao.user=killbill
+ org.killbill.dao.password=killbill
+ org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill
+ org.killbill.billing.osgi.dao.user=killbill
+ org.killbill.billing.osgi.dao.password=killbill
+
+
+. Start Tomcat using the script *TOMCAT_HOME/bin/startup.sh* or *TOMCAT_HOME/bin/startup.bat*
+(Depending on your operating system)
+
+. Verify that there are no errors in the Tomcat logs at  *TOMCAT_HOME/logs/catalina.log*
+
+. Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  *Kill Bill server has started*
+
+. Open a browser and type \http://localhost:8080/index.html. If Kill Bill is configured properly, it should display the following page:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/killbill-home.png[align=center]
+
+==== Database Configuration (Kaui)
+
+In addition to the Kill Bill database, you will also need to configure the Kaui database. For this, you need to follow the steps given below:
+
+. Create a database. In MySQL, you can run the following commands to create a database called *kaui*: 
+[source,sql]
+    create database kaui;
+   
+
+. Run the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[here].
+
+. You should have a database called *kaui* (Or whatever name you have specified in step 1) with the following tables:
+[source,sql]
+ kaui_users
+ kaui_tenants
+ kaui_allowed_users
+ kaui_allowed_user_tenants
+
+
+==== Kaui Configuration
+
+Finally, Kaui needs to be configured. For this, you need to follow the steps given below:
+
+. Download the current version of the Kaui war from https://search.maven.org/search?q=a:kaui-standalone[Maven Central].
+
+. Rename the war file downloaded above to `kaui.war` 
+
+. Ensure that Tomcat server is stopped.
+
+. Place the downloaded war file at *TOMCAT_HOME/webapps*. So, *webapps* folder should look like this:
+
+ $TOMCAT_HOME/webapps
+     --ROOT.war
+     --kaui.war
+
+. Open *TOMCAT_HOME/conf/catalina.properties file*. Add the following database properties  related to Kaui at the end of this file (Use appropriate values as per your database):
+[source,properties]
+ kaui.url=http://127.0.0.1:8080
+ kaui.db.url=jdbc:mysql://127.0.0.1:3306/kaui
+ kaui.db.username=killbill
+ kaui.db.password=killbill
+
+. Start Tomcat using the script *TOMCAT_HOME/bin/startup.sh* or *TOMCAT_HOME/bin/startup.bat*
+(Depending on your operating system)
+
+. Verify that there are no errors in the Tomcat logs at  *TOMCAT_HOME/logs/catalina.log*
+
+. Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  *Kill Bill server has started*
+
+. Open a browser and type \http://localhost:8080/kaui This should display the following sign in page: image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_sign_in.png[align=center]
+
+. Sign in with `admin/password`. This should display the following page:
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_after_sign_in.png[align=center]
+
+==== Customizing Log File Path
+
+The steps above configure the application so that the Kill Bill and Kaui logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
+
+. Create a file called `logback.xml` as follows:
+[source,xml]
+ <?xml version="1.0" encoding="UTF-8"?>
+ <configuration scan="true" scanPeriod="30 seconds">
+   <jmxConfigurator />
+   <property name="LOGS_DIR" value="<log_file_path>" />
+   <conversionRule conversionWord="maskedMsg" converterClass="org.killbill.billing.server.log.obfuscators.ObfuscatorConverter" />
+   <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOGS_DIR:-./logs}/killbill.out</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+         <!-- rollover daily -->
+         <fileNamePattern>${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+         <maxHistory>3</maxHistory>
+         <cleanHistoryOnStart>true</cleanHistoryOnStart>
+         <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+            <!-- or whenever the file size reaches 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+         </timeBasedFileNamingAndTriggeringPolicy>
+      </rollingPolicy>
+      <encoder>
+         <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
+      </encoder>
+   </appender>
+   <appender name="KAUI" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOGS_DIR:-./logs}/kaui.out</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+         <!-- rollover daily -->
+         <fileNamePattern>${LOGS_DIR:-./logs}/kaui-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+         <maxHistory>3</maxHistory>
+         <cleanHistoryOnStart>true</cleanHistoryOnStart>
+         <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+            <!-- or whenever the file size reaches 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+         </timeBasedFileNamingAndTriggeringPolicy>
+      </rollingPolicy>
+      <encoder>
+         <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%X{rails.actionName}', th='%thread',
+                xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', aId='%X{kb.accountId}', tId='%X{kb.tenantId}',
+                %msg%n</pattern>
+      </encoder>
+   </appender>
+   <logger name="jdbc" level="OFF" />
+   <root level="INFO">
+      <appender-ref ref="MAIN" />
+      <appender-ref ref="KAUI" />
+   </root>
+</configuration>
+
+ 
+
+. Replace `<log_file_path>` above with the path where you want the logs to be created. For example, if you'd like the logs to be in a directory called `c:/logs`, you need to replace `<log_file_path>` with `c:/logs`
+
+. Open *TOMCAT_HOME/conf/catalina.properties* file. Add the following property:
+[source,properties]
+  logback.configurationFile=<path_of_logback.xml>
+ 
+. Replace `<path_of_logback.xml>` above with the actual path of your `logback.xml`. For example, if `logback.xml` is placed at `c:/logbackpath`, you need to replace `<path_of_logback.xml>` with `c:/logbackpath/logback.xml`
+
+. Restart Tomcat. Now, the logs will be created at the path specified in the `logback.xml` file. Separate log files will get created for Kill Bill and Kaui as follows:
+
+  <log_file_path>/killbill.out
+  <log_file_path>/kaui.out
+
+==== Setting up KPM in Kaui
+
+KPM stands for *Kill Bill Plugin Manager*. It can be used to manage https://docs.killbill.io/latest/plugin_development.html[plugins]. You can read https://github.com/killbill/killbill-cloud/tree/master/kpm[this] article to know more about kpm.
+
+KPM can be setup in Kaui. When you do this, you can easily perform actions like install, uninstall, restart plugins directly via Kaui without having to run the KPM commands on the command line.
+
+In order to set up KPM in Kaui, you need to do the following:
+
+. Ensure that you have kpm installed as per the instructions https://github.com/killbill/killbill-cloud/tree/master/kpm[here]
+
+. Open a command prompt/terminal window and run the following command (Replace `<kpm_bundles_path>` with the actual path where you would like to install the kpm bundles):
+[source,bash]
+kpm pull_defaultbundles --destination=<kpm_bundles_path>
+
+. Ensure that this downloads the jar files corresponding to the kpm bundles. So, your `kpm_bundles_path` should look like this:
+[source,bash]
+$kpm_bundles_path
+--platform
+--platform/killbill-platform-osgi-bundles-kpm-0.40.4.jar
+--platform/killbill-platform-osgi-bundles-logger-0.40.4.jar
+--sha1.yml
+
+
+. Add the following properties to the `TOMCAT_HOME/conf/catalina.properties` file:
+[source,properties]
+org.killbill.osgi.bundle.install.dir=<kpm_bundles_path>
+org.killbill.billing.plugin.kpm.kpmPath=<kpm_path>
+
+. Replace `<kpm_bundles_path>` with the actual path where the kpm bundles are installed in Step 2 above. Replace `<kpm_path>` with the path of the kpm script (either *.bat* or *.sh* file depending on your OS. For example, if you have installed kpm on Windows at `C:/kpm`, `kpm_path` should refer to `c:/kpm/bin/kpm.bat`)
+
+
+. Restart Tomcat
+
+. Verify that there are no errors in the Kill Bill logs
+
+. Open a browser and type `http://localhost:8080/kaui. Sign in using *admin/password*. This should now display a plug icon in Kaui as follows:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_with_kpm_plug.png[align=center]
+
+. On Clicking *kpm*, you should see the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kpm_screen_in_kaui.png[align=center]
+
+. On clicking *Install New Plugin* you should see the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kpm_kaui_install_plugins.png[align=center]
+
+In order to know more about how to use kpm in kaui, you can refer to our https://docs.killbill.io/latest/userguide_kaui.html#_kpm[Kaui tutorial]
+
+==== Other Notes
+We recommend installing the *Apache Tomcat Native Library*. In order to do this, you need to follow the steps given below: 
+
+. Download the Tomcat Native Library from https://tomcat.apache.org/download-native.cgi[here].
+
+. Install the Tomcat Native Library as per the instructions given http://tomcat.apache.org/native-doc/[here].
+
+If you are unable to install the Tomcat Native Library on Windows, you may skip this step.
+
+
+
+==== FAQ
+
+This section lists some errors that are commonly encountered while setting up Kill Bill and Kaui with Tomcat and how you can fix these errors.
+
+*Logs not created*
+
+Sometimes, even after configuring your `logback.xml` file as specified in the <<Customizing Log File Path>> section, logs might not be created. This is most probably because your `logback.xml` is not a valid XML file. Some reasons for an XML file to be invalid are leading spaces, unclosed XML tags. In general, if you are able to open the XML file in a web browser without any errors, your XML file is valid.
+
+*Application points to the default Database*
+
+Sometimes, when the application is started, it may use the default H2 database and cause the following errors:
+[source,bash]
+Caused by: org.h2.jdbc.JdbcSQLNonTransientConnectionException: A file path that is implicitly relative to the current working directory is not allowed in the database URL "jdbc:h2:file:/var/tmp/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE". Use an absolute path, ~/name, ./name, or the baseDir setting instead. [90011-200]
+        at org.h2.message.DbException.getJdbcSQLException(DbException.java:622)
+        at org.h2.message.DbException.getJdbcSQLException(DbException.java:429)
+        at org.h2.message.DbException.get(DbException.java:205)
+        at org.h2.message.DbException.get(DbException.java:181)
+        at org.h2.engine.ConnectionInfo.getName(ConnectionInfo.java:396)
+        at org.h2.engine.Engine.openSession(Engine.java:50)
+        at org.h2.engine.Engine.openSession(Engine.java:192)
+        at org.h2.engine.Engine.createSessionAndValidate(Engine.java:171)
+        at org.h2.engine.Engine.createSession(Engine.java:166)
+        at org.h2.engine.Engine.createSession(Engine.java:29)
+        at org.h2.engine.SessionRemote.connectEmbeddedOrServer(SessionRemote.java:340)
+        at org.h2.jdbc.JdbcConnection.<init>(JdbcConnection.java:173)
+        at org.h2.jdbc.JdbcConnection.<init>(JdbcConnection.java:152)
+        at org.h2.Driver.connect(Driver.java:69)
+        at org.h2.jdbcx.JdbcDataSource.getJdbcConnection(JdbcDataSource.java:189)
+        at org.h2.jdbcx.JdbcDataSource.getConnection(JdbcDataSource.java:178)
+        at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:358)
+        at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:206)
+        at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:477)
+        at com.zaxxer.hikari.pool.HikariPool.access$100(HikariPool.java:71)
+        at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:725)
+        at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:711)
+        at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+
+This error is mostly because the database properties are not correctly specified. Ensure that the database properties are specified correctly in the *TOMCAT_HOME/conf/catalina.properties* file
+as specified in the <<Kill Bill Configuration>> section above
+
+*Plug Icon not seen in Kaui*
+
+Sometimes, even after configuring kpm in kaui as specified in the <<Setting up KPM in Kaui>> section above, the plug icon is not visible in Kaui. The following error is displayed in the KillBill logs:
+[source,bash]
+org.osgi.framework.BundleException: Duplicate import: org.joda.time.format
+	at org.apache.felix.framework.util.manifestparser.ManifestParser.normalizeImportClauses(ManifestParser.java:366)
+	at org.apache.felix.framework.util.manifestparser.ManifestParser.<init>(ManifestParser.java:180)
+	at org.apache.felix.framework.BundleRevisionImpl.<init>(BundleRevisionImpl.java:121)
+	at org.apache.felix.framework.BundleImpl.createRevision(BundleImpl.java:1243)
+	at org.apache.felix.framework.BundleImpl.<init>(BundleImpl.java:112)
+	at org.apache.felix.framework.Felix.installBundle(Felix.java:2907)
+	at org.apache.felix.framework.BundleContextImpl.installBundle(BundleContextImpl.java:165)
+	at org.apache.felix.framework.BundleContextImpl.installBundle(BundleContextImpl.java:138)
+	at org.killbill.billing.osgi.FileInstall.installOSGIBundle(FileInstall.java:151)
+	at org.killbill.billing.osgi.FileInstall.installAllOSGIBundles(FileInstall.java:142)
+	at org.killbill.billing.osgi.FileInstall.installBundles(FileInstall.java:91)
+	at org.killbill.billing.osgi.BundleRegistry.installBundles(BundleRegistry.java:64)
+	at org.killbill.billing.osgi.DefaultOSGIService.initialize(DefaultOSGIService.java:92)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.killbill.billing.lifecycle.DefaultLifecycle.doFireStage(DefaultLifecycle.java:154)
+	at org.killbill.billing.lifecycle.DefaultLifecycle.fireSequence(DefaultLifecycle.java:141)
+	at org.killbill.billing.lifecycle.DefaultLifecycle.fireStartupSequencePriorEventRegistration(DefaultLifecycle.java:82)
+	at org.killbill.billing.server.listeners.KillbillPlatformGuiceListener.startLifecycle(KillbillPlatformGuiceListener.java:308)
+	at org.killbill.billing.server.listeners.KillbillPlatformGuiceListener.contextInitialized(KillbillPlatformGuiceListener.java:130)
+	at org.apache.catalina.core.StandardContext.listenerStart(StandardContext.java:4689)
+	at org.apache.catalina.core.StandardContext.startInternal(StandardContext.java:5155)
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:183)
+	at org.apache.catalina.core.ContainerBase.addChildInternal(ContainerBase.java:743)
+	at org.apache.catalina.core.ContainerBase.addChild(ContainerBase.java:719)
+	at org.apache.catalina.core.StandardHost.addChild(StandardHost.java:705)
+	at org.apache.catalina.startup.HostConfig.deployWAR(HostConfig.java:970)
+	at org.apache.catalina.startup.HostConfig$DeployWar.run(HostConfig.java:1840)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+	
+This typically happens on Windows machines. In such a case, delete   `<kpm_bundles_path>/platform/killbill-platform-osgi-bundles-jruby-0.40.4.jar` if present. Restart Tomcat. This should fix the issue.
+
+== Quick Tutorial
+
+Now that you have a system setup, we will go through a small tutorial to get started using the system. The tutorial will happen in 2 stages, a first one where we will leverage the power of KAUI, and a second part where we will use the Kill Bill apis and provide code snippets in various languages. The reason for using both KAUI and apis is mostly to introduce both, but all of these steps could either be run entirely through KAUI or using the apis.
+
+At the end of this tutorial, you will have created a Kill Bill tenant and configured such tenant with a valid catalog. The tenant represents a logical deployment running on a (set of) physical servers. For more information about tenants, refer to https://killbill.github.io/slate/#tenant[this section]. The tenant configuration typically includes all the specifics of your business, e.g what you sell, how you sell it, ...
+
+You will have also created an `Account` (a consumer), set up this consumer with a valid payment method, subscribed her to one of your product, and finally will be able to see the invoice and payment generated by the system.
+
+
+=== Setup Using Kill Bill Admin UI (KAUI)
+
+Go to http://127.0.0.1:9090[http://127.0.0.1:9090]. You will be prompted for a username and password. Both Kill Bill and Kaui support role based access control (RBAC), where you can configure fine-grained permissions for your users. The default set of credentials is `admin`/`password`, which grants full access.
+
+Because Kill Bill supports multi-tenancy (where each tenant has its own data, configuration, etc.), the next step is to create your own tenant. We will assume the api key is `bob` and api secret `lazar` in the rest of this guide.
+
+==== Modifying the Catalog
+
+The Kill Bill *catalog* contains products and plans definitions. This XML configuration file is really powerful and offers various options for handling trials, add-ons, upgrades/downgrades, etc. For more details on its features, read the http://docs.killbill.io/latest/userguide_subscription.html[Subscription Billing manual].
+
+For basic use cases, Kaui also lets you configure *simple* (subset of what is supported through XML configuration) plans through the UI, so you don't have to generate the catalog XML manually. This is available on your tenant configuration page, that you can access by clicking on your tenant name at the top right corner of every Kaui page.
+
+For this tutorial, create 2 plans: *standard-free* (free plan) and *standard-monthly* (premium plan), associated with a single `Standard` product (the product category is `BASE`). We could have just defined standard-monthly, but that way you could make free users subscribe to the free plan. This is useful for reporting for example (to track how long it took to upsell them, etc.)
+
+Note that we haven't defined any trial period.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_standard-free_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_standard-monthly_kaui.png[align=center]
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/multi_gateways_catalog_kaui.png[align=center]
+
+==== Creating Your First Account
+
+We will assume that users going to your site have to create an account in your system. When they do, you will need to create a mirrored *account* in Kill Bill.
+
+To do so in Kaui, click the CREATE NEW ACCOUNT link at the top of the page.
+
+Notes:
+
+* The Kill Bill *External key* field should map to the unique id of the account in your system (should be unique and immutable). Kill Bill will auto-generate an id if you don't populate this field
+* There are many more fields you can store (phone number, address, etc.) -- all of them are optional. Keep local regulations in mind though when populating these (PII laws, GDPR, etc.).
+
+==== Adding a Payment Method
+
+To trigger payments, Kill Bill will need to integrate with a payment provider (such as Stripe or PayPal). Each means of payment (e.g. a credit card) will have a *payment method* associated with it.
+
+For simplicity in this tutorial, we will assume your customers send you checks. To create the payment method in Kaui, click the + next to Payment Methods on the main account page. The plugin name should be set to $$__EXTERNAL_PAYMENT__$$, leave all other fields blank and make sure the checkbox Default Payment Method is checked.
+
+Once you are ready to integrate with a real payment processor, all you'll have to do is to create a new payment method for that account. The rest of this tutorial will still apply.
+
+==== Creating Your First Subscription
+
+Let's now try to subscribe a user to the Standard plan. This is the call that would need to be triggered from your website, when the user chooses the premium plan on the subscription checkout page.
+
+In Kaui, click the Subscriptions tab then the + by *Subscription Bundles* (a subscription bundle is a collection, a _bundle_, of subscriptions, containing one base subscription and zero or more add-ons). Select the `standard-monthly` plan in the dropdown. You can also specify an optional (but unique) key to identify this subscription.
+
+Because there is no trial period and because billing is performed in advance by default, Kill Bill will have automatically billed the user for the first month.
+
+You should see the invoice and the payment by clicking on the Invoices and Payments tabs.
+
+Kill Bill will now automatically charge the user on a monthly basis. You can estimate the amount which will be billed at a future date by triggering a dry-run invoice. On the main account page, in the Billing Info section, click the *Trigger invoice generation* wand (specify a date at least a month in the future).
+
+=== API Client
+
+Now that you are familiar with the basics, the next step is to integrate Kill Bill in your application using our APIs. Our https://killbill.github.io/slate/[API documentation] contains snippets to help you get started.
+
+> Note: This section assumes you are already familiar with the core concepts of Kill Bill. If you aren't, make sure to go back to the previous section first.
+
+==== Creating Your First Account
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step1" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step1" data-toggle="tab" href="#curl-step1" role="tab" aria-controls="curl-step1" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step1" data-toggle="tab" href="#java-step1" role="tab" aria-controls="java-step1" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step1" data-toggle="tab" href="#ruby-step1" role="tab" aria-controls="ruby-step1" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step1" data-toggle="tab" href="#python-step1" role="tab" aria-controls="python-step1" aria-selected="false">Python</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="go-tab-step1" data-toggle="tab" href="#go-step1" role="tab" aria-controls="go-step1" aria-selected="false">Go</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="php-tab-step1" data-toggle="tab" href="#php-step1" role="tab" aria-controls="php-step1" aria-selected="false">PHP</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step1" role="tabpanel" aria-labelledby="curl-tab-step1">
+++++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{ "name": "John Doe", "currency": "USD"}' \
+     'http://127.0.0.1:8080/1.0/kb/accounts'
+----
+++++
+    <p>The cURL output should return a <code>Location</code> header which contains the unique identifier (ID) of this account: <code>Location: http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8</code></p>
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step1" role="tabpanel" aria-labelledby="java-tab-step1">
+++++
+[source,java]
+----
+import org.killbill.billing.catalog.api.Currency;
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.RequestOptions;
+import org.killbill.billing.client.api.gen.AccountApi;
+import org.killbill.billing.client.model.gen.Account;
+
+KillBillHttpClient client = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                   "admin",
+                                                   "password",
+                                                   "bob",
+                                                   "lazar");
+AccountApi accountApi = new AccountApi(client);
+
+Account body = new Account();
+body.setName("John Doe");
+body.setCurrency(Currency.USD);
+
+RequestOptions requestOptions = RequestOptions.builder()
+                                              .withCreatedBy("tutorial")
+                                              .build();
+Account account = accountApi.createAccount(body, requestOptions);
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
+++++
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+body = KillBillClient::Model::Account.new
+body.name = 'John Doe'
+body.currency = 'USD'
+
+account = body.create('tutorial', nil, nil, options)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step1" role="tabpanel" aria-labelledby="python-tab-step1">
+++++
+[source,python]
+----
+import killbill
+
+killbill.configuration.base_uri = 'http://127.0.0.1:8080'
+killbill.configuration.username = 'admin'
+killbill.configuration.password = 'password'
+
+account_api = killbill.api.AccountApi()
+body = killbill.models.account.Account(name='John Doe', currency='USD')
+account = account_api.create_account(body, 'tutorial', 'bob', 'lazar')
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="go-step1" role="tabpanel" aria-labelledby="go-tab-step1">
+++++
+[source,go]
+----
+
+import (
+	"context"
+	"encoding/base64"
+	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/killbill/kbcli/kbclient"
+	"github.com/killbill/kbcli/kbclient/account"
+	"github.com/killbill/kbcli/kbmodel"
+)
+
+trp := httptransport.New("127.0.0.1:8080", "", nil)
+
+authWriter := runtime.ClientAuthInfoWriterFunc(
+	func(r runtime.ClientRequest, _ strfmt.Registry) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte("admin:password"))
+		if err := r.SetHeaderParam("Authorization", "Basic "+encoded); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiKey", "bob"); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiSecret", "lazar"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+createdBy := "tutorial"
+defaults := kbclient.KillbillDefaults{
+	CreatedBy: &createdBy,
+}
+
+client := kbclient.New(trp, strfmt.Default, authWriter, defaults)
+body := &kbmodel.Account{
+	Name:     "John Doe",
+	Currency: "USD",
+}
+
+newAccount, err := client.Account.CreateAccount(
+	context.Background(),
+	&account.CreateAccountParams{
+		Body:                  body,
+		ProcessLocationHeader: true,
+	})
+if err == nil {
+	print(newAccount.GetPayload().AccountID)
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="php-step1" role="tabpanel" aria-labelledby="php-tab-step1">
+++++
+[source,php]
+----
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$config = Killbill\Client\Swagger\Configuration::getDefaultConfiguration();
+$config->setHost('http://127.0.0.1:8080')
+       ->setUsername('admin')
+       ->setPassword('password')
+       ->setApiKey('X-Killbill-ApiKey', 'bob')
+       ->setApiKey('X-Killbill-ApiSecret', 'lazar');
+
+$accountApi = new Killbill\Client\Swagger\Api\AccountApi(null, $config);
+
+$accountData = new Killbill\Client\Swagger\Model\Account();
+$accountData->setName('John Doe');
+$accountData->setCurrency('USD');
+
+$account = $accountApi->createAccount($accountData, 'tutorial', NULL, NULL);
+----
+++++
+  </div>
+</div>
+++++
+
+==== Adding a Payment Method
+
+Note: replace `1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8` below with the ID of your account.
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step2" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step2" data-toggle="tab" href="#curl-step2" role="tab" aria-controls="curl-step2" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step2" data-toggle="tab" href="#java-step2" role="tab" aria-controls="java-step2" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step2" data-toggle="tab" href="#ruby-step2" role="tab" aria-controls="ruby-step2" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step2" data-toggle="tab" href="#python-step2" role="tab" aria-controls="python-step2" aria-selected="false">Python</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="go-tab-step2" data-toggle="tab" href="#go-step2" role="tab" aria-controls="go-step2" aria-selected="false">Go</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="php-tab-step2" data-toggle="tab" href="#php-step2" role="tab" aria-controls="php-step2" aria-selected="false">PHP</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step2">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step2" role="tabpanel" aria-labelledby="curl-tab-step2">
+++++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{ "pluginName": "__EXTERNAL_PAYMENT__" }' \
+     http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8/paymentMethods?isDefault=true
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step2" role="tabpanel" aria-labelledby="java-tab-step2">
+++++
+[source,java]
+----
+import java.util.UUID;
+
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.RequestOptions;
+import org.killbill.billing.client.api.gen.AccountApi;
+import org.killbill.billing.client.model.gen.PaymentMethod;
+
+KillBillHttpClient client = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                   "admin",
+                                                   "password",
+                                                   "bob",
+                                                   "lazar");
+AccountApi accountApi = new AccountApi(client);
+
+PaymentMethod body = new PaymentMethod();
+body.setIsDefault(true);
+body.setPluginName("__EXTERNAL_PAYMENT__");
+
+RequestOptions requestOptions = RequestOptions.builder()
+                                              .withCreatedBy("tutorial")
+                                              .build();
+UUID accountId = UUID.fromString("1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8");
+PaymentMethod paymentMethod = accountApi.createPaymentMethod(accountId,
+                                                             body,
+                                                             true,
+                                                             null,
+                                                             null,
+                                                             null,
+                                                             requestOptions);
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step2" role="tabpanel" aria-labelledby="ruby-tab-step2">
+++++
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+body = KillBillClient::Model::PaymentMethod.new
+body.account_id = '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8'
+body.plugin_name = '__EXTERNAL_PAYMENT__'
+
+pm = body.create(true, 'tutorial', nil, nil, options)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step2" role="tabpanel" aria-labelledby="python-tab-step2">
+++++
+[source,python]
+----
+import killbill
+
+killbill.configuration.base_uri = 'http://127.0.0.1:8080'
+killbill.configuration.username = 'admin'
+killbill.configuration.password = 'password'
+
+account_api = killbill.api.AccountApi()
+body = killbill.models.payment_method.PaymentMethod(plugin_name='__EXTERNAL_PAYMENT__')
+account_api.create_payment_method('1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
+                                  body,
+                                  'tutorial',
+                                  'bob',
+                                  'lazar',
+                                  is_default=True)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="go-step2" role="tabpanel" aria-labelledby="go-tab-step2">
+++++
+[source,go]
+----
+import (
+	"context"
+	"encoding/base64"
+	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/killbill/kbcli/kbclient"
+	"github.com/killbill/kbcli/kbclient/account"
+	"github.com/killbill/kbcli/kbmodel"
+)
+
+trp := httptransport.New("127.0.0.1:8080", "", nil)
+
+authWriter := runtime.ClientAuthInfoWriterFunc(
+	func(r runtime.ClientRequest, _ strfmt.Registry) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte("admin:password"))
+		if err := r.SetHeaderParam("Authorization", "Basic "+encoded); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiKey", "bob"); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiSecret", "lazar"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+createdBy := "tutorial"
+defaults := kbclient.KillbillDefaults{
+	CreatedBy: &createdBy,
+}
+
+client := kbclient.New(trp, strfmt.Default, authWriter, defaults)
+body := &kbmodel.PaymentMethod{
+	PluginName: "__EXTERNAL_PAYMENT__",
+}
+
+isDefault := true
+pm, err := client.Account.CreatePaymentMethod(
+	context.Background(),
+	&account.CreatePaymentMethodParams{
+		Body:                  body,
+		AccountID:             "1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+		IsDefault:             &isDefault,
+		ProcessLocationHeader: true,
+	})
+if err == nil {
+	print(pm.GetPayload().PaymentMethodID)
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="php-step2" role="tabpanel" aria-labelledby="php-tab-step2">
+++++
+[source,php]
+----
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$config = Killbill\Client\Swagger\Configuration::getDefaultConfiguration();
+$config->setHost('http://127.0.0.1:8080')
+       ->setUsername('admin')
+       ->setPassword('password')
+       ->setApiKey('X-Killbill-ApiKey', 'bob')
+       ->setApiKey('X-Killbill-ApiSecret', 'lazar');
+
+$accountApi = new Killbill\Client\Swagger\Api\AccountApi(null, $config);
+
+$pmData = new Killbill\Client\Swagger\Model\PaymentMethod();
+$pmData->setPluginName('__EXTERNAL_PAYMENT__');
+
+$pm = $accountApi->createPaymentMethod(
+                     $pmData,
+                     'tutorial',
+                     '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
+                     NULL,
+                     NULL,
+                     $default = 'true'
+                   );
+----
+++++
+  </div>
+</div>
+++++
+
+==== Creating Your First Subscription
+
+Note: replace `1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8` below with the ID of your account.
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step3" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step3" data-toggle="tab" href="#curl-step3" role="tab" aria-controls="curl-step3" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step3" data-toggle="tab" href="#java-step3" role="tab" aria-controls="java-step3" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step3" data-toggle="tab" href="#ruby-step3" role="tab" aria-controls="ruby-step3" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step3" data-toggle="tab" href="#python-step3" role="tab" aria-controls="python-step3" aria-selected="false">Python</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="go-tab-step3" data-toggle="tab" href="#go-step3" role="tab" aria-controls="go-step3" aria-selected="false">Go</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="php-tab-step3" data-toggle="tab" href="#php-step3" role="tab" aria-controls="php-step3" aria-selected="false">PHP</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step3">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step3" role="tabpanel" aria-labelledby="curl-tab-step3">
+++++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{
+            "accountId": "1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+            "planName": "standard-monthly"
+         }' \
+     http://127.0.0.1:8080/1.0/kb/subscriptions
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step3" role="tabpanel" aria-labelledby="java-tab-step3">
+++++
+[source,java]
+----
+import java.util.UUID;
+
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.RequestOptions;
+import org.killbill.billing.client.api.gen.SubscriptionApi;
+import org.killbill.billing.client.model.gen.Subscription;
+
+KillBillHttpClient client = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                   "admin",
+                                                   "password",
+                                                   "bob",
+                                                   "lazar");
+SubscriptionApi subscriptionApi = new SubscriptionApi(client);
+
+UUID accountId = UUID.fromString("1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8");
+Subscription body = new Subscription();
+body.setAccountId(accountId);
+body.setPlanName("standard-monthly");
+
+RequestOptions requestOptions = RequestOptions.builder()
+                                              .withCreatedBy("tutorial")
+                                              .build();
+Subscription subscription = subscriptionApi.createSubscription(body,
+                                                               null,
+                                                               null,
+                                                               null,
+                                                               requestOptions);
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step3" role="tabpanel" aria-labelledby="ruby-tab-step3">
+++++
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+body = KillBillClient::Model::Subscription.new
+body.account_id  = '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8'
+body.plan_name = 'standard-monthly'
+
+subscription = body.create('tutorial',
+                           nil,
+                           nil,
+                           nil,
+                           false,
+                           options)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step3" role="tabpanel" aria-labelledby="python-tab-step3">
+++++
+[source,python]
+----
+import killbill
+
+killbill.configuration.base_uri = 'http://127.0.0.1:8080'
+killbill.configuration.username = 'admin'
+killbill.configuration.password = 'password'
+
+subscription_api = killbill.api.SubscriptionApi()
+body = killbill.models.subscription.Subscription(account_id='1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
+                                                 plan_name='standard-monthly')
+
+subscription_api.create_subscription(body,
+                                     'tutorial',
+                                     'bob',
+                                     'lazar')
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="go-step3" role="tabpanel" aria-labelledby="go-tab-step3">
+++++
+[source,go]
+----
+import (
+	"context"
+	"encoding/base64"
+	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/killbill/kbcli/kbclient"
+	"github.com/killbill/kbcli/kbclient/subscription"
+	"github.com/killbill/kbcli/kbmodel"
+)
+
+trp := httptransport.New("127.0.0.1:8080", "", nil)
+
+authWriter := runtime.ClientAuthInfoWriterFunc(
+	func(r runtime.ClientRequest, _ strfmt.Registry) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte("admin:password"))
+		if err := r.SetHeaderParam("Authorization", "Basic "+encoded); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiKey", "bob"); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiSecret", "lazar"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+createdBy := "tutorial"
+defaults := kbclient.KillbillDefaults{
+	CreatedBy: &createdBy,
+}
+
+client := kbclient.New(trp, strfmt.Default, authWriter, defaults)
+planName := "standard-monthly"
+body := &kbmodel.Subscription{
+	AccountID: "1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+	PlanName:  &planName,
+}
+
+sub, err := client.Subscription.CreateSubscription(
+	context.Background(),
+	&subscription.CreateSubscriptionParams{
+		Body:                  body,
+		ProcessLocationHeader: true,
+	})
+if err == nil {
+	print(sub.GetPayload().SubscriptionID)
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="php-step3" role="tabpanel" aria-labelledby="php-tab-step3">
+++++
+[source,php]
+----
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$config = Killbill\Client\Swagger\Configuration::getDefaultConfiguration();
+$config->setHost('http://127.0.0.1:8080')
+       ->setUsername('admin')
+       ->setPassword('password')
+       ->setApiKey('X-Killbill-ApiKey', 'bob')
+       ->setApiKey('X-Killbill-ApiSecret', 'lazar');
+
+$subscriptionApi = new Killbill\Client\Swagger\Api\SubscriptionApi(null, $config);
+
+$subData = new Killbill\Client\Swagger\Model\Subscription();
+$subData->setAccountId('1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8');
+$subData->setPlanName('standard-monthly');
+
+$sub = $subscriptionApi->createSubscription(
+                           $subData,
+                           'tutorial',
+                           NULL,
+                           NULL
+                         );
+----
+++++
+  </div>
+</div>
+++++
+
+=== Next steps
+
+Explore our full https://killbill.github.io/slate/[API documentation].
+
+We also have lots of examples in our https://github.com/killbill/killbill-integration-tests[Ruby] and https://github.com/killbill/killbill/tree/master/profiles/killbill/src/test/java/org/killbill/billing/jaxrs[Java] integration tests.
+
+For support along the way, do *not* open GitHub issues. Instead, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[Google Group]. Our +++<a href="https://github.com/sponsors/killbill" onclick="getOutboundLink('https://github.com/sponsors/killbill'); return false;">GitHub sponsors</a>+++ can also jump on our VIP community Slack channel.

@@ -1,0 +1,595 @@
+= Kill Bill development
+
+This guide explains how you can setup the Kill Bill development environment. 
+
+== Setting up Kill Bill in your development environment
+
+In order to set up Kill Bill in your development environment, there are a couple of things that you need to do like setting up the code in an IDE, configuring the database and building and running the application. This section covers all these steps. By the end of this section, you should have the code set up and Kill Bill server running in your development environment.
+
+=== Setting up code in an IDE
+
+You first need to set up the Kill Bill code in an IDE. You can use any IDE of your choice. This section explains setting up the code in Eclipse IDE. You can download the latest version of the Eclipse IDE from  https://www.eclipse.org/downloads/[here]
+
+==== Cloning the Repository
+
+The first step is to clone the Kill Bill repository. For this, you need to follow the steps given below:
+
+. Start Eclipse
+
+. Go to *Git Repository view* (Click on `Window > Show View > Other > Git Repositories`)
+
+. Click on *Clone a Git Repository and add the clone to this view*
+
+. In the Git Repository details, enter the Kill Bill Git URL https://github.com/killbill/killbill in the *URI* field. 
+
+.. If you have Git credentials, you can select *https* in the *Protocol* dropdown and enter your Git credentials in the *User/Password* fields . 
+.. If you do not have Git credentials , you can Select *Git* in the *Protocol* Dropdown. This disables the credentials fields. 
+
+.. Click *Next*
+
+. In the branch selection view, select the branch named *master* (By default, all the branches appear selected, you need to uncheck all branches except for *master*). Click *Next*
+
+. Select the path on your computer where you would like to clone the code. This path will be referred to as *PROJECT_ROOT* from now on). For example, if you choose `C:/MyProjects/KillBill`, *PROJECT_ROOT* refers to this path. Click *Finish* (This starts the cloning process and may take a while depending on your internet speed)
+
+Note that cloning the repository as specified above gives a read-only access to the repository. If you'd like to make changes to the repository, you need to fork the repository, make changes to your fork and create a Pull Request.
+
+====  Creating an Eclipse Project
+
+Once the repository is cloned, you need to create an Eclipse project. For this, you need to follow the steps given below:
+
+. Click on `File > Import > Maven > Existing Maven Project`. Click *Next*
+
+. Click *Browse*. Select the *PROJECT_ROOT* root directory and click  *Finish*
+
+. Some of the Maven plugins used may not be available to m2e, so you may see errors as follows:image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/development/m2e_plugin_errors.png[align=center]
+
+. Click *Cancel*
+
+. Create a file `lifecycle-mapping-metadata.xml` as follows:
+[source,xml]
+ <?xml version="1.0" encoding="UTF-8"?>
+ <lifecycleMappingMetadata>
+   <pluginExecutions>
+      <pluginExecution>
+         <pluginExecutionFilter>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <versionRange>1.4</versionRange>
+            <goals>
+               <goal>run</goal>
+            </goals>
+         </pluginExecutionFilter>
+         <action>
+            <execute>
+               <runOnConfiguration>true</runOnConfiguration>
+               <runOnIncremental>true</runOnIncremental>
+            </execute>
+         </action>
+      </pluginExecution>
+      <pluginExecution>
+         <pluginExecutionFilter>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>templating-maven-plugin</artifactId>
+            <versionRange>1.0-alpha-3</versionRange>
+            <goals>
+               <goal>filter-sources</goal>
+            </goals>
+         </pluginExecutionFilter>
+         <action>
+            <execute>
+               <runOnConfiguration>true</runOnConfiguration>
+               <runOnIncremental>true</runOnIncremental>
+            </execute>
+         </action>
+      </pluginExecution>
+      <pluginExecution>
+         <pluginExecutionFilter>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <versionRange>[1.0,)</versionRange>
+            <goals>
+               <goal>add-test-source</goal>
+               <goal>add-resource</goal>
+               <goal>add-test-resource</goal>
+               <goal>maven-version</goal>
+               <goal>add-source</goal>
+               <goal>parse-version</goal>
+            </goals>
+         </pluginExecutionFilter>
+         <action>
+            <execute>
+               <runOnConfiguration>true</runOnConfiguration>
+               <runOnIncremental>true</runOnIncremental>
+            </execute>
+         </action>
+      </pluginExecution>
+      <pluginExecution>
+         <pluginExecutionFilter>
+            <groupId>com.hubspot.maven.plugins</groupId>
+            <artifactId>dependency-scope-maven-plugin</artifactId>
+            <versionRange>0.10</versionRange>
+            <goals>
+               <goal>check</goal>
+            </goals>
+         </pluginExecutionFilter>
+         <action>
+           <ignore />
+         </action>
+      </pluginExecution>
+      <pluginExecution>
+         <pluginExecutionFilter>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-dependency-plugin</artifactId>
+            <versionRange>3.1.2</versionRange>
+            <goals>
+               <goal>analyze-duplicate</goal>
+               <goal>analyze-only</goal>
+            </goals>
+         </pluginExecutionFilter>
+         <action>
+            <ignore />
+         </action>
+      </pluginExecution>
+   </pluginExecutions>
+</lifecycleMappingMetadata>
+
+
+. Go to `Window > Preferences > Maven > Lifecycle Mappings`. Click *Browse* and select the path of the `lifecycle-mapping-metadata.xml` file. Click `Apply and Close`
+
+. Build the project again (In Project Explorer, `Right click on killbill > Maven > Update Project > OK`)
+
+. This will get rid of all the build errors. Your Eclipse workspace should look like this:image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/development/eclipse_workspace.png[align=center]
+
+
+=== Configuring the database
+
+Before you can execute the code, you need to configure the Kill Bill database manually. By default Kill Bill expects *MySQL*, but you can also use *PostgreSQL*
+
+==== MySQL configuration
+
+In order to configure MySQL, you need to follow the steps given below (These steps can be executed either via the *MySQL Command line tool* or via *MySQLWorkBench*):
+
+. Create a user corresponding to Kill Bill. You can run the following command :
+[source,sql]
+ create user killbilluser identified by 'password';
+
+ . Create a database corresponding to Kill Bill. You can run the following command:
+[source,sql]
+    create database killbill;
+ 
+. Select the Kill Bill database created above using the following command:
+[source,sql]
+ use killbill;
+ 
+. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here].
+
+. Grant  privileges to the user created above on the Kill bill database using the following command:
+[source,sql]
+ GRANT ALL ON killbill.* TO 'killbilluser' ;
+ 
+
+==== PostgreSQL configuration
+
+In order to configure PostgreSQL, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
+
+. Create a user corresponding to Kill Bill. You can run the following command :
+[source,sql]
+ CREATE ROLE killbilluser WITH LOGIN INHERIT CREATEDB CREATEROLE NOREPLICATION PASSWORD 'killbill';
+
+ . Create a database corresponding to Kill Bill. You can run the following command:
+[source,sql]
+ CREATE DATABASE killbill WITH OWNER = killbilluser;
+ 
+
+. Connect to the Kill Bill database created above. In psql, you can run the following:
+[source,sql]
+  \connect killbill;
+  
+. Create the Kill Bill schema. Run the following command:
+[source,sql]
+  CREATE SCHEMA killbillschema authorization killbilluser;
+  
+. Connect to the schema created above using the following command:
+[source,sql]
+  set schema 'killbillschema';
+
+. Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL. 
+
+. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here]. In psql, you  can run the following command:
+[source,sql]
+  \i <ddl_file_path>
+
+
+. Grant privileges to the schema using the following command:
+[source,sql]
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA killbillschema TO killbilluser;
+
+Once the database configuration is done, you should have a database called *killbill*  with the following tables:
+[source,sql]
+ account_email_history
+ account_emails
+ account_history
+ accounts
+ audit_log
+ blocking_state_history
+ blocking_states
+ bundle_history
+ bundles
+ bus_events
+ bus_events_history
+ bus_ext_events
+ bus_ext_events_history
+ catalog_override_block_definition
+ catalog_override_phase_definition
+ catalog_override_phase_usage
+ catalog_override_plan_definition
+ catalog_override_plan_phase
+ catalog_override_tier_block
+ catalog_override_tier_definition
+ catalog_override_usage_definition
+ catalog_override_usage_tier
+ custom_field_history
+ custom_fields
+ invoice_billing_events
+ invoice_history
+ invoice_item_history
+ invoice_items
+ invoice_parent_children
+ invoice_payment_control_plugin_auto_pay_off
+ invoice_payment_history
+ invoice_payments
+ invoice_tracking_id_history
+ invoice_tracking_ids
+ invoices
+ node_infos
+ notifications
+ notifications_history
+ payment_attempt_history
+ payment_attempts
+ payment_history
+ payment_method_history
+ payment_methods
+ payment_transaction_history
+ payment_transactions
+ payments
+ roles_permissions
+ rolled_up_usage
+ service_broadcasts
+ sessions
+ subscription_event_history
+ subscription_events
+ subscription_history
+ subscriptions
+ tag_definition_history
+ tag_definitions
+ tag_history
+ tags
+ tenant_broadcasts
+ tenant_kvs
+ tenants
+ user_roles
+ users
+
+
+
+
+=== Build
+
+Once you set up the code and database, the next step is to build the application. Kill Bill is a standard Maven project. In order to build Kill Bill, you need to follow the steps given below:
+
+. Ensure that you have *Maven 3.5.2 or higher* (It can be downloaded from http://maven.apache.org/download.cgi[here])
+
+. Maven requires JDK. Ensure that you have *JDK 8 or higher* (It can be downloaded from
+https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
+
+. Ensure that *JAVA_HOME* environment variable is set to the path of your JDK installation (For example, if JDK is installed at `C:\Software\jdk1.8.0_102`, you need to set *JAVA_HOME* to `C:\Software\jdk1.8.0_102`)
+
+. Navigate to *PROJECT_ROOT* 
+
+. Run the following command (The first time you run this, the build will take a considerable amount of time as Maven will download all the dependencies from the internet and cache them in the local repository (`~/.m2/repository`). Subsequent builds will be faster):
+[source,bash]
+  mvn clean install -DskipTests
+  
+
+
+. Verify that the following is displayed which confirms that the build is successful:
+[source,bash]
+ [INFO] killbill ........................................... SUCCESS [ 17.938 s]
+ [INFO] killbill-api ....................................... SUCCESS [ 23.352 s]
+ [INFO] killbill-util ...................................... SUCCESS [01:37 min]
+ [INFO] killbill-tenant .................................... SUCCESS [ 23.817 s]
+ [INFO] killbill-account ................................... SUCCESS [ 21.540 s]
+ [INFO] killbill-catalog ................................... SUCCESS [ 44.055 s]
+ [INFO] killbill-currency .................................. SUCCESS [ 12.204 s]
+ [INFO] killbill-subscription .............................. SUCCESS [ 29.722 s]
+ [INFO] killbill-entitlement ............................... SUCCESS [ 26.420 s]
+ [INFO] killbill-junction .................................. SUCCESS [ 17.059 s]
+ [INFO] killbill-invoice ................................... SUCCESS [ 36.480 s]
+ [INFO] killbill-overdue ................................... SUCCESS [ 23.769 s]
+ [INFO] killbill-payment ................................... SUCCESS [ 36.311 s]
+ [INFO] killbill-beatrix ................................... SUCCESS [ 29.213 s]
+ [INFO] killbill-jaxrs ..................................... SUCCESS [ 36.799 s]
+ [INFO] killbill-profiles .................................. SUCCESS [  0.357 s]
+ [INFO] killbill-profiles-killbill ......................... SUCCESS [ 39.344 s]
+ [INFO] killbill-profiles-killpay .......................... SUCCESS [ 25.608 s]
+ [INFO] ------------------------------------------------------------------------
+ [INFO] BUILD SUCCESS
+ [INFO] ------------------------------------------------------------------------
+
+=== Running the application
+
+Once the build is successful, you can run the application to verify that everything is set up correctly. In order to run the application, you need to follow the steps given below:
+
+. Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. Update the following properties as per your database:
+[source,properties]
+ org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill 
+ # For PostgreSQL, use jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
+ org.killbill.dao.user=root
+ org.killbill.dao.password=root
+ org.killbill.dao.logLevel=DEBUG
+ org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill 
+ # For PostgreSQL, use jdbc:postgresql://127.0.0.1:5432/killbill?currentSchema=killbillschema
+ org.killbill.billing.osgi.dao.user=root
+ org.killbill.billing.osgi.dao.password=root
+ 
+ 
+. Naviagate to the *PROJECT_ROOT* directory
+
+. Start Kill Bill by running the following command (Replace *PROJECT_ROOT* with your actual project root):
+[source,bash]
+ mvn -Dorg.killbill.server.properties=file:///PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties -Dlogback.configurationFile=./profiles/killbill/src/main/resources/logback.xml jetty:run
+ 
+. This should display the following:
+[source,bash]
+ [INFO] Started ServerConnector@7de2f9a6{HTTP/1.1, (http/1.1)}{0.0.0.0:8080}
+ [INFO] Started @95008ms
+ [INFO] Started Jetty Server
+
+. Open a browser window and type \http://localhost:8080. This should display the following page:image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/development/killbill-homepage.png[align=center]
+
+=== Customizing Log File Path
+
+The steps above configure the application so that the Kill Bill logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:
+
+. Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/logback.xml`. Add the following after the license section:
+[source,xml]
+ <?xml version="1.0" encoding="UTF-8"?>
+  <configuration>
+   <jmxConfigurator />
+   <property name="LOGS_DIR" value="<log_file_path>" />
+   <conversionRule conversionWord="maskedMsg" converterClass="org.killbill.billing.server.log.obfuscators.ObfuscatorConverter" />
+   <appender name="MAIN" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>${LOGS_DIR:-./logs}/killbill.out</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+         <!-- rollover daily -->
+         <fileNamePattern>${LOGS_DIR:-./logs}/killbill-%d{yyyy-MM-dd}.%i.out.gz</fileNamePattern>
+         <maxHistory>3</maxHistory>
+         <cleanHistoryOnStart>true</cleanHistoryOnStart>
+         <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+            <!-- or whenever the file size reaches 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+         </timeBasedFileNamingAndTriggeringPolicy>
+      </rollingPolicy>
+      <encoder>
+         <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
+      </encoder>
+   </appender>
+   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+         <!-- See http://jira.qos.ch/browse/LOGBACK-262 -->
+         <pattern>%date{"yyyy-MM-dd'T'HH:mm:ss,SSSZ", UTC} lvl='%level', log='%logger{0}', th='%thread', xff='%X{req.xForwardedFor}', rId='%X{req.requestId}', tok='%X{kb.userToken}', aRId='%X{kb.accountRecordId}', tRId='%X{kb.tenantRecordId}', %maskedMsg%n</pattern>
+      </encoder>
+   </appender>
+   <logger name="jdbc" level="OFF" />
+   <root level="INFO">
+      <appender-ref ref="MAIN" />
+   </root>
+</configuration>
+
+. Replace `<log_file_path>` above with the path where you want the logs to be created. For example, if you’d like the logs to be in a directory called `c:/logs`, you need to replace `<log_file_path>` with `c:/logs`
+
+. Restart the application by running the Maven command specified above. Now, the logs will be created at the path specified in the `logback.xml` file as follows:
+
+  <log_file_path>/killbill.out
+
+=== Setting up a Breakpoint and Remote Debugging
+
+Sometimes, you may face some issues in running the application. In such cases, it is useful to set up a breakpoint and debug the application. Here is how you can do this:
+
+. Create a new environment variable *MAVEN_OPTS* and set it to `-Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n`
+
+
+. Do the following in Eclipse:
+
+.. Press *Ctrl + Shift + T* and locate the file that you would like to debug. For example, if the application fails to start, you would need to debug the `DefaultKillbillConfigSource`. 
+
+..  If this does not show the source code do the following:
+
+... Click *Attach Source*. 
+
+... Click on *External Location* and Navigate to your Maven local repository (`~/.m2/repository`). Select the jar file corresponding to the file that you want to debug. For the  `DefaultKillbillConfigSource` you need to select 
+`/org/kill-bill/billing/killbill-platform-base/0.40.4/killbill-platform-base-0.40.4-sources.jar` (At the time of writing, `0.40.4` is the latest version of this jar, however this can change so the exact version might be different for you) 
+
+.. Set up a breakpoint as required. For example, if it is an issue in starting the application, you would need to set up a breakpoint in  `DefaultKillbillConfigSource.java#L118` 
+
+.. Click `Run > Debug Configurations`
+
+.. Double click  `New Remote Java Application`
+
+.. Enter the name that you would like to give to this debug configuration in the *Name* field
+
+.. Click *Apply*
+
+.. Click *Close*
+
+. Start the application as explained in *Running the Application* section above
+
+. Click `Run > Debug Configurations` and double click the  the Debug configuration that you created above
+
+. This runs the application in debug mode. You can also set additional breakpoints as required.
+
+
+=== Some common errors and their solutions
+
+==== Build Failure
+
+Sometimes, after building the application, the build may fail with the following errors:
+[source,bash]
+ [INFO] killbill-payment ................................... SUCCESS [01:42 min]
+ [INFO] killbill-beatrix ................................... SUCCESS [02:04 min]
+ [INFO] killbill-jaxrs ..................................... SUCCESS [01:45 min]
+ [INFO] killbill-profiles .................................. SUCCESS [  9.896 s]
+ [INFO] killbill-profiles-killbill ......................... FAILURE [02:48 min]
+ [INFO] killbill-profiles-killpay .......................... SKIPPED
+ [INFO] ------------------------------------------------------------------------
+ [INFO] BUILD FAILURE
+ [INFO] ------------------------------------------------------------------------
+ [INFO] Total time:  26:55 min
+ [INFO] Finished at: 2020-11-23T10:46:24+05:30
+ [INFO] ------------------------------------------------------------------------
+ [ERROR] Failed to execute goal org.apache.rat:apache-rat-plugin:0.13:check (default) on project killbill-profiles-killbill: Too many files with unapproved license: 1 See RAT report in: <PROJECT_ROOT>\profiles\killbill\target\rat.txt -> [Help 1]
+ [ERROR]
+ [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+ [ERROR] Re-run Maven using the -X switch to enable full debug logging.
+ [ERROR]
+ [ERROR] For more information about the errors and possible solutions, please read the following articles:
+ [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+ [ERROR]
+ [ERROR] After correcting the problems, you can resume the build with the command
+ [ERROR]   mvn <args> -rf :killbill-profiles-killbill
+ 
+This error is most probably because the `logback.xml` file is missing license information. You can build the application using the following command: 
+
+ mvn clean install -DskipTests -Dcheck.skip-rat=true
+
+
+==== Jetty does not start 
+ 
+Sometimes, when you run the application, Jetty may fail to start with the following error:
+[source,bash]
+  Failed startup of context o.e.j.m.p.JettyWebAppContext@1fafd0af 
+  
+In such a case, build the application again using the instructions in the *Build* section above and run the application again.
+
+==== Application points to default database
+
+Sometimes, when the application is started, it may not use the database configured in the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. Instead, it may use the default H2 database and cause the following errors:
+[source,bash]
+ java.io.IOException: org.h2.jdbc.JdbcSQLNonTransientConnectionException: A file path that is implicitly relative to the current working directory is not allowed in the database URL "jdbc:h2:file:/var/tmp/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE". Use an absolute path, ~/name, ./name, or the baseDir setting instead. [90011-200]
+        at org.killbill.commons.embeddeddb.h2.H2EmbeddedDB.refreshTableNames(H2EmbeddedDB.java:114)
+        at org.killbill.commons.embeddeddb.h2.H2EmbeddedDB.start(H2EmbeddedDB.java:97)
+        at org.killbill.billing.server.modules.EmbeddedDBProvider.initializeEmbeddedDB(EmbeddedDBProvider.java:73)
+        at org.killbill.billing.server.modules.EmbeddedDBProvider.get(EmbeddedDBProvider.java:60)
+        at org.killbill.billing.server.modules.KillbillServerModule.configureEmbeddedDBs(KillbillServerModule.java:141)
+        at org.killbill.billing.server.modules.KillbillPlatformModule.configure(KillbillPlatformModule.java:84)
+        at org.killbill.billing.server.modules.KillbillServerModule.configure(KillbillServerModule.java:113)
+        at com.google.inject.AbstractModule.configure(AbstractModule.java:61)
+        at com.google.inject.spi.Elements$RecordingBinder.install(Elements.java:347)
+        at com.google.inject.spi.Elements.getElements(Elements.java:104)
+        at com.google.inject.internal.InjectorShell$Builder.build(InjectorShell.java:137)
+        at com.google.inject.internal.InternalInjectorCreator.build(InternalInjectorCreator.java:105)
+        at com.google.inject.Guice.createInjector(Guice.java:87)
+
+This error could be due to one of the following issues:
+
+. The path of the  `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` is not specified correctly while starting the application.  Ensure that the correct path is specified
+
+. While starting the application, the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` is specified as `file://PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. The file protocol requires three slashes, so ensure that it is specified as `file:///`
+
+. The database URL is not specified properly, ensure that the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` has the correct database properties as specified in the *Running the Application* section above
+
+
+==== Logs not created
+
+Sometimes, even after configuring your `logback.xml` file as specified in the <<Customizing Log File Path>> section, logs might not be created. This is most probably because your `logback.xml` is not a valid XML file. Some reasons for an XML file to be invalid are leading spaces, unclosed XML tags. In general, if you are able to open the XML file in a web browser without any errors, your XML file is valid. 
+
+=== Dependencies
+
+The base `pom.xml` (`org.kill-bill.billing:killbill-oss-parent`) defines all of the dependencies required by Kill Bill. If a `-SNAPSHOT` version is specified (e.g. `0.141.74-SNAPSHOT`), this means some dependencies haven't been released yet and you need to build them locally, before being able to build Kill Bill.
+
+Typically, the following repositories need to be built in order:
+
+1. https://github.com/killbill/killbill-oss-parent[killbill-oss-parent]
+2. https://github.com/killbill/killbill-commons[killbill-commons]
+3. https://github.com/killbill/killbill-platform[killbill-platform]
+
+== Navigating the Kill Bill codebase
+
+It can be quite daunting to start poking around the Kill Bill codebase, as the code is scattered over various repositories. Here is a primer on how to get started.
+
+=== Core system
+
+* https://github.com/killbill/killbill-api: Java APIs, used when embedding Kill Bill (advanced users), by the REST API layer (internally) as well as by plugins, which need to interact with the core system.
+* https://github.com/killbill/killbill-plugin-api: Java Plugin APIs, which need to be implemented by plugin developers.
+* https://github.com/killbill/killbill-commons: similar in concept to Apache Commons, repository of re-useable components. You could use these in your projects even outside of the Kill Bill environment.
+* https://github.com/killbill/killbill-platform: underlying Kill Bill platform, contains code unrelated to billing and payments, such as setting up the lifecycle, the OSGI environment, the webapp container bridge, logging, etc.
+* https://github.com/killbill/killbill: the Kill Bill library, containing the core of the system. It is divided into submodules, each one of them being independent (own APIs, own set of tables, etc.) and interacting with other modules either via internal Java APIs or Bus events.
+
+The following blog posts can help provide more context on the Kill Bill architecture:
+
+* http://killbill.io/blog/kill-bill-billing-system-architecture/
+* http://killbill.io/blog/kill-bill-plugins-architecture/
+* http://killbill.io/blog/persistent-bus-in-kill-bill/
+
+
+=== Ecosystem
+
+* https://github.com/killbill/killbill-integration-tests: while each repository contains its own test suites, from unit tests to functional tests (with and without a persistent layer), as well as end-to-end tests (see the `beatrix` and `profiles/killbill` tests in the main killbill repository for example), the killbill-integration-tests repository adds another set of tests which focus on long running scenarii against a running Kill Bill server. This also gives you a base framework to develop your own tests, to verify the integration of Kill Bill in your environment and to make sure it follows your business rules.
+* https://github.com/killbill/killbill-client-java, https://github.com/killbill/killbill-client-ruby, etc. provide clients for the HTTP API in various languages.
+* https://github.com/killbill/killbill-stripe-plugin, https://github.com/killbill/killbill-avatax-plugin, etc. provide integrations with third-party providers.
+* https://github.com/killbill/killbill-analytics-plugin, etc. provide additional functionality (e.g. notification plugins).
+
+== Date, Time and Timezone
+
+A few general concepts around time in Kill Bill:
+
+* Kill Bill's granularity is the day, and as a result the system will not invoice for portions of a day.
+* Each account in Kill Bill has a default timezone and that timezone is used throughout the system to be able to convert a DateTime into a Date into the account Timezone.
+* Kill Bill will internally use UTC for all its Datetime manipulation, but any Date information is interpreted as a Date in the account timezone.
+
+
+=== Mysql Date, DateTime, Timestamp
+
+We are only relying on date and datetime which are not sensitive to the MySQL timezone setting:
+
+* Datetime: Storing a Datetime value into MySQL relies on `datetime` which is independent of the mysql time_zone. It is stored as a UTC value, and the selected value is always the same, regardless of the MySQL timezone.
+* LocalDate: Storing a LocalDate value into MySQL relies on `date` which is also independent of the MySQL time_zone.
+
+=== System Configuration
+
+From an operation point of view, there are different places where timezone may be set:
+
+1. Server on which Kill Bill runs
+2. JVM setting
+3. Database server
+
+*It is required to have Kill Bill runs in UTC for correct serialization of DateTime/LocalDate.* Actually, in Java, there is no UTC timezone setting but instead `GMT`. In a first approximation, we will consider those identical, even though they are not and could lead to some rare issues.
+
+When Kill Bill starts, it will override the default timezone if this one was specified as a system property with something different than GMT. The code will log a WARN message and proceed to do so, to avoid issues later down the road.
+
+=== REST APIs
+
+Kill Bill APIs that accept dates as an argument will allow for the following:
+
+* A fully qualified Datetime (a point in time)
+* A Date
+
+If there is a need to convert from a Datetime to a Date, the conversion will occur by specifying the account timezone, so the resulting Date is as seen by the customer. This would for instance be the case when triggering a future invoice by specifying a target Datetime.
+
+If there is a need to convert from a Date to Datetime, this is obviously more subtle as we can't infer the additional precision to compute the time. The Date is always interpreted to be a Date as seen by the customer, that is in the account timezone.
+
+The system will use the reference time on the account in such a way that converting back from that fully qualified Datetime using the account timezone would give us back the original Date provided.
+
+=== Multiple changes in a day
+
+So what happens if a user is making several subscription changes within the same day?
+
+In the default mode, Kill Bill will react to changes immediately and trigger a new invoice for each change, which in turn might result in a charge.
+
+Let's consider the following case, where there exists 3 monthly plans (Bronze, Silver and Gold), ordered by ascending price:
+
+* Initially, the customer is invoiced for the Bronze, from january 1st to feb 1st. By default a payment would also be made.
+* On January 1st again, the customer changes its mind and moves to Silver. A new invoice is generated that will credit the full month -- including the day of january 1st -- and the new plan is now invoiced from january 1st to february 1st and the credit generated is immediately used, so in the end the customer is really only invoiced for the difference of the price between the 2 plans; Additionally, a new payment is made for that amount.
+* If now the customer changes its plan on Jan 2nd, the portion from January 1st to January 2nd will be invoiced for the Silver plan and the portion from January 2nd to February 1st will be invoiced for the Gold plan.
+
+From an entitlement point of view, the system will reflect the current plan and therefore two different calls to retrieve the plan information on January 1st may lead to different results since there was a change of plan during that day.

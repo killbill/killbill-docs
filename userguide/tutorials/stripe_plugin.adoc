@@ -1,0 +1,240 @@
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_cover_photo.jpg[align=center]
+
+= How to integrate Kill Bill and Stripe end-to-end for a Monthly Subscription
+
+== Introduction
+
+Creating a recurring billing solution can be difficult, and there are many challenges in the way.  Customer management, automatic invoicing, secure payments, and failed transaction management are some common difficulties a business with a recurring subscription model may face.   
+
+In addition, many existing SaaS solutions force vendor lock-in on their customers, meaning the entirety of data is not owned by you.  You are also limited by the features offered by the provider for your pricing schemes, as opposed to building your own.
+
+.Kill Bill solves these challenges by:
+- Operating from an entirely Open Source model -- whether it runs locally or in the cloud, you own the subscription data, as opposed to being limited to the types of reports the SaaS solution provides
+- Integrating with providers like Stripe for payments, which will cover PCI complexity while you own the recurring billing logic
+
+In this tutorial, we will guide you step-by-step on how to integrate Kill Bill and Stripe end-to-end for a monthly subscription model.
+
+=== Step 1: Install Docker
+
+The recommended way of installing Docker and Docker Compose is via Docker's repositories, for ease of installation and upgrade tasks.
+
+Select the appropriate instructions for your link:https://docs.docker.com/install/[preferred operating system].
+
+=== Step 2:  Install Docker Compose
+
+Select the appropriate instructions for your link:https://docs.docker.com/compose/install/[preferred operating system].
+
+=== Step 3:  Create a `+docker-compose.yaml+` file
+
+In a terminal, type the following:
+
+[source, bash]
+----
+$ mkdir killbill
+$ cd killbill
+----
+
+With your favorite text editor, create a `+docker-compose.yaml+` file and reflect the following:
+
+[source,yaml]
+----
+version: '3.7'
+volumes:
+  db:
+services:
+  killbill:
+    image: killbill/killbill:0.22.2
+    ports:
+      - "8080:8080"
+    environment:
+      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
+      - KILLBILL_DAO_USER=root
+      - KILLBILL_DAO_PASSWORD=killbill
+  kaui:
+    image: killbill/kaui:2.0.1
+    ports:
+      - "9090:8080"
+    environment:
+      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
+      - KAUI_CONFIG_DAO_USER=root
+      - KAUI_CONFIG_DAO_PASSWORD=killbill
+      - KAUI_KILLBILL_URL=http://killbill:8080
+  db:
+    image: killbill/mariadb:0.22
+    volumes:
+      - type: volume
+        source: db
+        target: /var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=killbill
+----
+
+Note that you may have to change the link:https://docs.docker.com/compose/compose-file/compose-versioning/[version] of the yaml file you create, according to which version of Docker you are using.
+
+Save the file, and run:
+
+[source,bash]
+----
+$ docker-compose up
+----
+
+The startup sequence lasts a couple of minutes.  You should see something like the following once it finishes:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_docker_startup.png[align=center]
+
+If it takes a long time or if the container crashes, verify you have enough memory allocated to Docker. On a Mac for instance, go to Docker Desktop Preferences and set the Memory to 4GiB in the Advanced panel.
+
+You may now access the following:
+
+.Kaui UI
+- http://127.0.0.1:9090 (username/password: admin/password)
+
+.Kill Bill API
+- http://127.0.0.1:8080
+
+=== Step 4:  Add a new tenant 
+
+Now, we need to add a new tenant.  
+
+1.  At the top of the navigation panel, hover over the gear icon and select 'TENANTS.'
+
+2.  Select the '+' icon next to Kaui Tenants.
+
+.Enter the following information for the purpose of this tutorial:
+- Name: bob
+- API Key: bob
+- API Secret: lazar
+
+=== Step 5:  Create a new Sports product
+
+After creating a new tenant, you should be brought to the following screen:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_tenant.png[align=center]
+
+At the bottom of the screen, select the '+' icon next to Existing Plans to create a new product.
+
+For the purpose of this tutorial, enter the following:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_new_product.png[align=center]
+
+Click 'Save' and you should see the following:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_existing_plans.png[align=center]
+
+=== Step 6:  Create a Stripe account
+
+Create an account at https://www.stripe.com.  Once you have logged in, give your account a name by clicking on "Add a name" under the Unnamed account drop-down in the upper left-hand corner.  A name is required for the Stripe integration.
+
+Next, in the left panel, navigate to Developers > API Keys and click on "Reveal test key token."  You will need these keys once we configure the Stripe plugin for Kill Bill.
+
+=== Step 7:  Install the Stripe Plugin
+
+In Kaui, hover over the plug icon at the top of the page and click on 'KPM (Kill Bill Plugin Manager).'  
+
+Select "Install New Plugin" in the upper-right corner.
+
+In the list of plugins, find "stripe" and click on the cloud button to install.
+
+After a few moments, refresh the `+/kpm+` page.  You should see the stripe-plugin listed with a status of 'STOPPED.'  Click the play button to start it.  If you refresh again, you should find the stripe-plugin listed with a status of 'RUNNING.'
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_plugin_running.png[align=center]
+
+=== Step 8:  Configure the Stripe Plugin with your API Keys
+
+In Kaui, at the top of the screen, hover over the gear icon and select 'TENANTS.'
+
+Click 'bob.'
+
+At the bottom of the screen, navigate to the tab labeled 'Plugin Config.'
+
+For Plugin name, select "stripe" from the drop-down menu.
+
+In the configuration, enter the following and paste your publishable and secret keys you obtained from Stripe in Step 5.
+
+[source,java]
+----
+org.killbill.billing.plugin.stripe.apiKey=sk_test_XXXX
+org.killbill.billing.plugin.stripe.publicKey=pk_test_XXXX
+----
+
+=== Step 9:  Clone and Run the Demo
+
+Open a terminal and clone the killbill-stripe demo:
+
+[source, bash]
+----
+$ git clone https://github.com/killbill/killbill-stripe-demo.git
+----
+
+Next, use RVM to install Ruby (Ruby 2.1+ or JRuby 1.7.20+ is recommended).
+
+[source, bash]
+----
+$ gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+\curl -sSL https://get.rvm.io | bash -s stable --ruby
+----
+
+Afterwards, install the dependencies by running in the parent folder:
+
+[source, bash]
+----
+$ gem install bundler
+$ bundle install
+----
+
+Obtain the IP address of your Kill Bill Docker container by running the following:
+
+[source,nash]
+----
+$ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' <CONTAINER_ID>
+----
+
+Now, you can run the app using your Stripe publishable key:
+
+[source,bash]
+----
+$ KB_URL='http://<KILL_BILL_CONTAINER_IP>:8080' PUBLISHABLE_KEY=<YOUR_PUBLISHABLE_STRIPE_KEY> ruby app.rb
+----
+
+In your browser, navigate to \http://localhost:4567/ and click the 'Buy' button.
+
+Enter dummy data (4242 4242 4242 4242 as the credit card number, any three digit CVC and any expiry date in the future work) and complete the checkout process.
+
+=== Step 10:  What just happened?
+
+After we complete the checkout process with Stripe, the card has been tokenized, or intercepted and replaced with a surrogate token ID.  If you visit to the Stripe Dashboard (https://dashboard.stripe.com), you should be able to navigate to the Payments page in the left-hand panel to see a succeeded Kill Bill charge for $10.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_tokenization.png[align=center]
+
+In Kaui, navigate to the `+/accounts+` page to see the newly created Kill Bill account, and select it:
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_kbaccount.png[align=center]
+
+You will see that a new payment method has been associated with this account by expanding 'Payment Methods' in the lower left-hand corner.  A Customer object is also created in Stripe (see `+customer_id+`), so the token associated with this account can be re-used.
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_payment_methods.png[align=center]
+
+If you select 'Subscriptions' at the top of the page, you will see our newly creeated John Doe account now has a monthly subscription for our 'Sports' product, at a value of $10.00.
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_subscription_bundles.png[align=center]
+
+Navigating to the 'Payments' tab at the top of the page, you will also see that a payment was processed with an AUTH AMOUNT of $10.00.
+
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/tutorials/stripe_integration_payments.png[align=center]
+
+
+== Conclusion
+
+Now, you should have a complete working setup of a monthly subscription model integrated with Kill Bill and Stripe.  
+
+.Try playing around with the demo project to fit your needs, or check out the reference docs for more information:
+- API reference (https://killbill.github.io/slate/)
+- Production deployment (https://docs.killbill.io/latest/aws.html)
+- Community forum for help (https://groups.google.com/forum/#!forum/killbilling-users)
+
