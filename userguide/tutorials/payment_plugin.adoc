@@ -1,6 +1,18 @@
 = Payment Plugin Overview
 
-Payment plugins integrate Kill Bill with a specific gateway (i.e. payment processor), such as Stripe or Braintree. While we already have many open-source payment plugins available on GitHub, this guide will give you pointers in case you need to develop your own.
+Payment plugins integrate Kill Bill with a specific gateway (i.e. payment processor), such as Stripe or Braintree. We already have many open-source payment plugins available on GitHub as follows:
+
+. https://github.com/killbill/killbill-stripe-plugin[killbill-stripe-plugin] - Plugin to use  https://stripe.com/[Stripe] as the payment gateway
+
+. https://github.com/killbill/killbill-adyen-plugin[killbill-adyen-plugin] - Plugin to use https://www.adyen.com/[Adyen] as the payment gateway
+
+. https://github.com/killbill/killbill-paypal-express-plugin[killbill-paypal-express-plugin] - Plugin to use https://www.paypal.com/webapps/mpp/express-checkout[PayPal Express Checkout] as the payment gateway
+ 
+. https://github.com/killbill/killbill-qualpay-plugin[killbill-qualpay-plugin] - Plugin to use https://www.qualpay.com/[QualPay] as the payment gateway  
+
+. https://github.com/killbill/killbill-litle-plugin[killbill-litle-plugin] - Plugin to use https://www.litle.com/[Litle & Co.] as the payment gateway  
+
+This guide will give you pointers in case you need to develop your own payment plugin.
 
 Before reading this guide, make sure to familiarize yourself with https://docs.killbill.io/latest/userguide_subscription.html#components-payment[payment components] and the https://docs.killbill.io/latest/userguide_payment.html[payment userguide].
 
@@ -19,17 +31,19 @@ In order to get started with your own payment plugin, you need to do the followi
 
 . Set up the *Hello World Plugin* as per our https://docs.killbill.io/latest/plugin_development.html#_java_plugins[plugin development] document.
 
+. Create a new Maven project similar to the *Hello World Plugin* 
+
 . Create a class similar to https://github.com/killbill/killbill-hello-world-java-plugin/blob/719779b1ea25c14928e92996b6aa21cc9bf8d4fe/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldPaymentPluginApi.java[HelloWorldPaymentPluginApi.java]. This is a reference class that is included in the *Hello World Plugin*. It implements the `PaymentPluginApi` interface.
 
 . Alternatively, you can create a class that extends the https://github.com/killbill/killbill-plugin-framework-java/blob/6bc92fa3f7f091304499fb78df901ecb03fdaf47/src/main/java/org/killbill/billing/plugin/api/payment/PluginPaymentPluginApi.java[PluginPaymentPluginApi.java]. This is a class from the *Kill Bill Plugin framework*. It also implements the `PaymentPluginApi` interface.
-. Write code within your class for all the methods in the `PaymentPluginApi` interface. You can refer to our https://github.com/killbill/killbill-stripe-plugin/blob/657482f82949f08d4d317be8eb159855e7aad6f7/src/main/java/org/killbill/billing/plugin/stripe/StripePaymentPluginApi.java[StripePluginApi] or https://github.com/killbill/killbill-adyen-plugin/blob/0c5205d2ee42b543852e7cbd1a6f6f065ad575e5/src/main/java/org/killbill/billing/plugin/adyen/api/AdyenPaymentPluginApi.java[AdyenPaymentPluginApi] if required.
+. Implement the desired methods from the `PaymentPluginApi` interface within your class. These methods are explained in the <<PaymentPluginApi Methods>> table below.
 
-. You can also copy an existing plugin and modify it for your gateway. The https://github.com/killbill/killbill-adyen-plugin[Adyen] plugin is a good starting point.
+. Create a class similar to https://github.com/killbill/killbill-hello-world-java-plugin/blob/719779b1ea25c14928e92996b6aa21cc9bf8d4fe/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldActivator.java[HelloWorldActivator].  This class will be responsible for starting the plugin.
 
 
 == PaymentPluginApi Methods
 
-The following table lists the methods in https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] interface which need to be implemented by your code:
+The following table lists the methods in https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] interface. You can implement the required methods in your class.
 
 |===
 |Method Name | Method Description
@@ -70,13 +84,13 @@ The following table lists the methods in https://github.com/killbill/killbill-pl
 
 A few pointers for implementing these methods:
 
-* Almost all the `PaymentPluginApi` methods accept parameters like *Kill bill accountId*, *Kill Bill payment id*, *Kill Bill transaction id*, etc which are self-explanatory. These may or may not be used by your plugin code. But you may need some of these values to populate the `PaymentTransactionInfoPlugin` object which is returned by all the methods as explained below. 
+* Almost all the `PaymentPluginApi` methods accept parameters like *Kill bill accountId*, *Kill Bill payment id*, *Kill Bill transaction id*, etc which are self-explanatory. These may or may not be used by your plugin code. But you may need some of these values to populate the <<PaymentTransactionInfoPlugin>> object which is returned by most of the methods.
 
 * All the methods listed in the `PaymentPluginApi` also accept `Iterable<PluginProperty> properties` as a parameter. A https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PluginProperty.java[PluginProperty] consists of a *key-value* pair. It can be used to pass plugin specific properties to the plugin. For example, if your plugin requires properties like *city=San Francisco* and *billing_address=abc*, a client application can create two `PluginProperty` objects and pass a `List` of these objects.
 
 * All the methods listed in the `PaymentPluginApi` also accept as parameter either a `TenantContext` or a `CallContext`.  Read only operations (operations which retrieve some data from Kill Bill) like the `getPaymentInfo` listed below accept a `TenantContext`. Read/write operations like `authorizePayment` listed below accept a `CallContext`. Both these values can be used for auditing purposes. 
 
-* It is quite possible that your plugin might support some of the operations listed above. In such a case, the plugin can do one of the following:
+* It is quite possible that your plugin might not support some of the operations listed above. In such a case, the plugin can do one of the following:
 
 ** Return an *empty list* when the return type is a list 
 ** Return a transaction with status *CANCELED* if the return type is a `PaymentTransactionInfoPlugin` 
@@ -85,13 +99,41 @@ A few pointers for implementing these methods:
 == PaymentTransactionInfoPlugin 
 
 
-All the payment related methods listed in the `PaymentPluginApi` return an https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentTransactionInfoPlugin.java[PaymentTransactionInfoPlugin] object. Again, the Kill Bill Plugin framework includes a class https://github.com/killbill/killbill-plugin-framework-java/blob/46d94fbeb1cf089aa04e62cfecf751ca47032023/src/main/java/org/killbill/billing/plugin/api/payment/PluginPaymentTransactionInfoPlugin.java[ PluginPaymentTransactionInfoPlugin] which implements the `PaymentTransactionInfoPlugin`. You can create a class that extends this class as done in our https://github.com/killbill/killbill-stripe-plugin/blob/657482f82949f08d4d317be8eb159855e7aad6f7/src/main/java/org/killbill/billing/plugin/stripe/StripePaymentTransactionInfoPlugin.java[Stripe plugin]
+Most of the methods in the `PaymentPluginApi` return a https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentTransactionInfoPlugin.java[PaymentTransactionInfoPlugin] object. Again, the Kill Bill Plugin framework includes a class called https://github.com/killbill/killbill-plugin-framework-java/blob/46d94fbeb1cf089aa04e62cfecf751ca47032023/src/main/java/org/killbill/billing/plugin/api/payment/PluginPaymentTransactionInfoPlugin.java[ PluginPaymentTransactionInfoPlugin] which implements the `PaymentTransactionInfoPlugin`. You can create a class that extends this class and have the plugin methods return this object.
 
-The `PaymentTransactionInfoPlugin` has methods that return information like *Kill bill accountId*, *Kill Bill payment id*, *Kill Bill transaction id*, etc. Kill Bill retrieves and uses these values as required.
+The `PaymentTransactionInfoPlugin` has the following methods (Your plugin code needs to populate this information in the `PaymentTransactionInfoPlugin` object and a client application can then invoke these methods to retrieve this information):
 
-The  `PaymentTransactionInfoPlugin` also has a `getProperties` method that returns a `PluginProperty` List. This can be used to return plugin specific properties to the client API 
+|===
+|Method Name | Method Description
+|getKbPaymentId
+|Returns Payment Id in Kill Bill
+|getKbTransactionPaymentId
+|Returns Transaction Payment Id in Kill Bill
+|getTransactionType
+|Returns the transaction type (https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/TransactionType.java[TransactionType] object)
+|getAmount
+|Returns the processed amount
+|getCurrency
+|Returns the processed currency
+|getCreatedDate
+|Returns the date when the payment was created
+|getEffectiveDate
+|Returns the date when the payment is effective
+|getStatus
+| Returns the payment status (https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginStatus.java[PaymentPluginStatus] object)
+|getGatewayError
+|Returns the gateway error if any
+|getGatewayErrorCode
+|Returns the gateway error code if any
+|getFirstPaymentReferenceId
+|Returns gateway specific first payment id if any
+|getSecondPaymentReferenceId
+|Returns gateway specific second payment id if any
+|getProperties
+|Returns a `PluginProperty` List. This can be used to return plugin specific properties to the client API 
+|===
 
-In addition, the `PaymentTransactionInfoPlugin` has a `getStatus` method that returns an  https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginStatus.java[PaymentPluginStatus].  It is very important to correctly populate the status type. The following table elaborates how the status should be populated:
+It is very important to correctly populate the status type in the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginStatus.java[PaymentPluginStatus].   The following table elaborates how the status should be populated:
 
 |===
 |Status | Status Description
@@ -116,4 +158,417 @@ The Janitor matches the internal transactions against plugin transactions via th
 You should try to avoid *UNDEFINED* as much as possible, because it is the only case where Kill Bill cannot retry payments (since the payment may or may not have happened).
 
 
+== GoCardless Plugin Tutorial
 
+In order to demonstrate creating a Payment plugin, we will be creating a Kill Bill payment plugin for https://gocardless.com/[GoCardless]. GoCardless allows direct debit from customer's bank accounts. It requires a customer to set up a mandate the first time after which it directly collects payments against the mandates. 
+
+GoCardless provides a https://developer.gocardless.com/getting-started/api/making-your-first-request/#setting-up-your-client-library[client library]. We will be using this library to integrate GoCardless with Kill Bill. For the sake of simplicity, we will be creating a very basic plugin that can only process payments. 
+
+The complete code for this tutorial is available at https://github.com/killbill/killbill-gocardless-example-plugin[Github]
+
+=== How GoCardless works
+
+The first step in GoCardless would be adding a customer and setting up the payment mandate. GoCardless supports three ways to do this as explained https://developer.gocardless.com/getting-started/api/adding-your-first-customer/[here]. In this tutorial, we will be using the *hosted payment page* approach.  This includes the following steps as explained https://developer.gocardless.com/getting-started/api/adding-your-first-customer/#setting-up-direct-debit-mandates-using-hosted-payment-pages[here]:
+
+. A client application  *initiates* the *GoCardless Redirect flow* with the *customer details*  (optional) and a *success page URL*.
+
+. The *GoCardless redirect flow* initiates setting up the mandate and returns a *redirect URL*. 
+
+. The client application redirects the user to this URL to set up a mandate. 
+
+. The user *manually* sets up a mandate at this page
+
+. Once done, GoCardless redirects the user to the *success page URL* sent to it in step 1. 
+
+. The client application *completes* the *GoCardless Redirect flow* 
+
+. GoCardless then actually sets up the mandate and returns a *mandate Id*
+
+. The *mandate Id* can then be used to charge the customer
+
+=== Using GoCardless from Kill Bill
+
+In order to use GoCardless from Kill Bill, we will need to create a payment plugin corresponding to GoCardless. Since we are developing a very basic plugin that can only process payments, we only need to do the following:
+
+. Set up the mandate. This is a two step process as explained above where:
+
+.. Step 1 involves redirecting the user to a page to manually to set up the mandate. This can be implemented via the `PaymentPluginApi#buildFormDescriptor` method
+
+.. Step 2 involves completing the GoCardless flow and retrieving the mandate Id. This can be implemented via the `PaymentPluginApi#addPaymentMethod` method
+
+. Implement the `PaymentPluginApi#purchasePayment` method to charge the customer
+
+Thus, the end-to-end flow will be as follows:
+
+. The client application invokes the `GoCardlessPlugin#buildFormDescriptor` method with a *success page URL*
+
+. The `GoCarldessPlugin#buildFormDescriptor` method initiates the GoCardless redirect flow as explained https://developer.gocardless.com/getting-started/api/adding-your-first-customer/[here] and obtains the *redirect URL* which is returned to the client application
+
+. The client application redirects the user to this URL and the user sets up the mandate manually on this page
+
+. GoCardless redirects the user to the *success page*. This invokes the `GoCarldessPlugin#addPaymentMethod`
+
+. The `GoCarldessPlugin#addPaymentMethod` completes the redirect flow as explained https://developer.gocardless.com/getting-started/api/adding-your-first-customer/[here] and obtains the *mandate id* which is saved in the Kill Bill database
+
+. The client application can then invoke `GoCarldessPlugin#purchasePayment`. This charges the customer against the saved *mandate id*  as explained https://developer.gocardless.com/getting-started/api/taking-your-first-payment/[here]
+
+=== Creating the GoCardless Plugin
+
+Let us now understand how we can create a payment plugin for GoCardless.
+
+==== Step 1 - Initial Setup
+
+The first step in creating a payment plugin would be to create a new Maven project. For this we need to do the following:
+
+. Create a new Maven project
+
+. Copy the https://github.com/killbill/killbill-hello-world-java-plugin/blob/719779b1ea25c14928e92996b6aa21cc9bf8d4fe/pom.xml[Hello World Plugin pom.xml]
+
+. Add the following additional Maven dependency:
+[source,bash]
+        <dependency>
+            <groupId>org.kill-bill.commons</groupId>
+            <artifactId>killbill-clock</artifactId>
+        </dependency>
+
+
+. Generate a GoCardless access token ( https://manage-sandbox.gocardless.com/developers) and create an environment variable *GC_ACCESS_TOKEN* with this token
+
+==== Step 2 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java[GoCardlessPluginApi]
+
+We will first need to create a class similar to `HelloWorldPaymentPluginApi` that implements the `PaymentPluginApi` interface. We can create this class as follows:
+
+[source,java,linenums]
+public class GoCardlessPaymentPluginApi implements PaymentPluginApi {
+	private static final Logger logger = LoggerFactory.getLogger(GoCardlessPaymentPluginApi.class);
+	private OSGIKillbillAPI killbillAPI;
+	private Clock clock;
+	private static String GC_ACCESS_TOKEN_PROPERTY = "GC_ACCESS_TOKEN";
+    private GoCardlessClient client;
+    public GoCardlessPaymentPluginApi(final OSGIKillbillAPI killbillAPI,final Clock clock) { 
+		this.killbillAPI = killbillAPI;
+		this.clock = clock;
+		client = GoCardlessClient.newBuilder(System.getenv(GC_ACCESS_TOKEN_PROPERTY)).withEnvironment(GoCardlessClient.Environment.SANDBOX).build();
+	}
+	//other methods
+}
+
+* The `GoCardlessPaymentPluginApi` implements the `PaymentPluginApi` interface.
+* It declares the following fields:
+** `killbillAPI` - This is of type https://github.com/killbill/killbill-platform/blob/617d4b626ddd7c081d2927355c6f8cfe2cbd4bd5/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIKillbillAPI.java[OSGIKillbillAPI]. The `OSGIKillBillAPI` is a Kill Bill class which exposes all of Kill Bill’s internal APIs. 
+** `GC_ACCESS_TOKEN_PROPERTY` - This is a String field that is required for accessing the GoCardless access token
+** `clock` - This is of type https://github.com/killbill/killbill-commons/blob/aa83708f56377aabff8391c3ddc197817ad19ec2/clock/src/main/java/org/killbill/clock/Clock.java[Clock]. This is part of Kill Bill's clock library.
+
+** `client` of type http://gocardless.github.io/gocardless-pro-java/com/gocardless/GoCardlessClient.html[GoCardlessClient]. This is a GoCardless specific class that can be used to access the GoCardless API
+
+* The constructor simply initializes the fields with the values passed in. In addition, it also creates a GoCardless client and initializes the `client` field 
+
+Within this class, we need to implement the `buildFormDescriptor`, `addPaymentMethod` and `purchasePayment` as explained in the <<Using GoCardless from Kill Bill>> section above. 
+
+==== Step 3 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentTransactionInfoPlugin.java[GoCardlessPaymentTransactionInfoPlugin]
+
+As explained earlier, most of the `PaymentPluginApi` methods return a <<PaymentTransactionInfoPlugin>> object. Thus, we need to create a class corresponding to this as follows:
+
+[source,java,linenums]
+public class GoCardlessPaymentTransactionInfoPlugin extends PluginPaymentTransactionInfoPlugin{
+	public GoCardlessPaymentTransactionInfoPlugin(UUID kbPaymentId, UUID kbTransactionPaymentPaymentId,
+			TransactionType transactionType, BigDecimal amount, Currency currency, PaymentPluginStatus pluginStatus,
+			String gatewayError, String gatewayErrorCode, String firstPaymentReferenceId,
+			String secondPaymentReferenceId, DateTime createdDate, DateTime effectiveDate,
+			List<PluginProperty> properties) {
+		super(kbPaymentId, kbTransactionPaymentPaymentId, transactionType, amount, currency, pluginStatus, gatewayError,
+				gatewayErrorCode, firstPaymentReferenceId, secondPaymentReferenceId, createdDate, effectiveDate, properties);
+	}
+
+}
+
+* The `GoCardlessPaymentTransactionInfoPlugin` extends the https://github.com/killbill/killbill-plugin-framework-java/blob/46d94fbeb1cf089aa04e62cfecf751ca47032023/src/main/java/org/killbill/billing/plugin/api/payment/PluginPaymentTransactionInfoPlugin.java[PluginPaymentTransactionInfoPlugin] class from the Kill Bill plugin framework.
+
+* The `GoCardlessPaymentTransactionInfoPlugin` constructor simply invokes the superclass constructor.
+
+==== Step 4 - Implementing https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L293[GoCardlessPaymentPluginApi#buildFormDescriptor]
+
+As explained earlier, the `buildFormDescriptor` method needs to be implemented to *initiate* the *Gocardless redirect flow* in GoCardless and obtain the *redirect URL*. This method can be implemented as follows:
+
+[source,java,linenums]
+public HostedPaymentPageFormDescriptor buildFormDescriptor(UUID kbAccountId, Iterable<PluginProperty> customFields,
+	Iterable<PluginProperty> properties, CallContext context) throws PaymentPluginApiException {
+	logger.info("buildFormDescriptor, kbAccountId=" + kbAccountId);
+	// retrieve properties
+	String successRedirectUrl = PluginProperties.findPluginPropertyValue("success_redirect_url", properties); // "https://developer.gocardless.com/example-redirect-uri/"; - this is the URL to which GoCardless will redirect after users set up the  mandate
+	String redirectFlowDescription = PluginProperties.findPluginPropertyValue("redirect_flow_description",properties); 
+	String sessionToken = PluginProperties.findPluginPropertyValue("session_token", properties); PrefilledCustomer customer = buildCustomer(customFields);// build a PrefilledCuctomer object from custom fields if present
+	RedirectFlow redirectFlow = client.redirectFlows().create().withDescription(redirectFlowDescription)
+			.withSessionToken(sessionToken) 
+			.withSuccessRedirectUrl(successRedirectUrl).withPrefilledCustomer(customer).execute();
+	logger.info("RedirectFlow Id", redirectFlow.getId());
+	logger.info("RedirectFlow URL", redirectFlow.getRedirectUrl());
+	PluginHostedPaymentPageFormDescriptor pluginHostedPaymentPageFormDescriptor = new PluginHostedPaymentPageFormDescriptor(
+			kbAccountId, redirectFlow.getRedirectUrl());
+	return pluginHostedPaymentPageFormDescriptor;
+}
+
+* The `buildFormDescriptor` method accepts  `Iterable<PluginProperty> properties` as a parameter. As explained above, a `PluginProperty` can be used to pass a plugin specific key-value pair to a plugin. 
+
+* The code first retrieves the `successRedirectUrl`, `redirectFlowDescription` and `sessionToken` sent by the client application from the `properties` passed in. As explaind earlier, a client application needs to send a `successRedirectUrl`. The  `redirectFlowDescription` and `sessionToken` are GoCardless specific values, so the `buildFormDescriptor` method passes these values to the corresponding GoCardless method
+
+* Next, the `client.redirectFlows().create()` is invoked which returns  a `RedirectFlow` object. The `RedirectFlow` object contains the *redirect URL*. 
+
+* Finally, a `HostedPaymentPageFormDescriptor` object is created using the *redirect URL* and the *Kill Bill Account Id*. This is then returned to the client application.
+
+
+==== Step 5 - Implementing https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L223[GoCardlessPaymentPluginApi#addPaymentMethod]
+
+The addPayment method is typically used to add a payment method in Kill Bill corresponding to a customer/account. In the case of GoCardless, we will be using it to *complete* the *redirect flow*. So, this method can be implemented as follows:
+
+[source,java,linenums]
+public void addPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMethodPlugin paymentMethodProps,
+		boolean setDefault, Iterable<PluginProperty> properties, CallContext context)
+		throws PaymentPluginApiException {
+	logger.info("addPaymentMethod, kbAccountId=" + kbAccountId);
+	final Iterable<PluginProperty> allProperties = PluginProperties.merge(paymentMethodProps.getProperties(),
+			properties);
+	String redirectFlowId = PluginProperties.findPluginPropertyValue("redirect_flow_id", allProperties);  //retrieve the redirect flow id
+	String sessionToken = PluginProperties.findPluginPropertyValue("session_token", allProperties); 
+	try {
+		//Use the redirect flow id to "complete" the GoCardless flow
+		RedirectFlow redirectFlow = client.redirectFlows().complete(redirectFlowId).withSessionToken(sessionToken).execute();
+		String mandateId = redirectFlow.getLinks().getMandate(); //obtain mandate id from the redirect flow  
+		logger.info("MandateId:", mandateId);
+		try {
+			//save Mandate id in the Kill Bill database 
+			killbillAPI.getCustomFieldUserApi().addCustomFields(ImmutableList.of(new PluginCustomField(kbAccountId,
+					ObjectType.ACCOUNT, "GOCARDLESS_MANDATE_ID", mandateId, clock.getUTCNow())), context);
+		} catch (CustomFieldApiException e) {
+			logger.warn("Error occured while saving mandate id", e);
+			throw new PaymentPluginApiException("Error occured while saving mandate id", e);
+		}
+	} catch (GoCardlessApiException e) {
+		logger.warn("Error occured while completing the GoCardless flow", e.getType(), e);
+		throw new PaymentPluginApiException("Error occured while completing the GoCardless flow", e);
+	}
+}
+
+* Like other methods, the `addPaymentMethod` method also accepts  `Iterable<PluginProperty> properties` as a parameter. 
+
+* In addition, it also accepts `PaymentMethodPlugin paymentMethodProps` as a parameter.
+
+* `PaymentMethodPlugin` is a generic object that represents a payment method (creditcard, bank account, etc.). It has a `getProperties` method. 
+
+* The `properties` parameter is typically used to pass properties which are related to the specific method call (`addPaymentMethod` in this case) while the `PaymentMethodPlugin#getProperties`  typically refers to non-standard generic information about the payment method itself. 
+
+* A client application can use either of these to pass in the GoCardless properties. The code above (like other plugins) is lenient and accepts both ways. So, it first invokes `PluginProperties.merge` to merge both properties and stores them into a merged `allProperties` list
+
+* It then retrieves the `redirectFlowId` and `sessionToken` from `allProperties`. AIf you recall, the `redirectFlowId` is sent to a client application after the `buildFormDescriptor` method call. A client application needs to send this back. The  `sessionToken` is a GoCardless specific value, so the `addPaymentMethod` method just passes it to the corresponding GoCardless method
+
+* Next, the `client.redirectFlows().complete` is invoked with the `redirectFlowId` and the `sessionToken`. This returns a `RedirectFlow` object which contains the *mandate Id*. 
+
+* Finally, the *mandateId* is stored in the Kill Bill database . Normally, each plugin has its own plugin specific tables. However, since we are not creating a full-fledged GoCardless plugin, we are storing the *mandateId* in the *custom_fields* table.  The  *custom_fields* table can be used to store arbitrary key/value pairs in the Kill Bill database.
+
+
+==== Step 6 - Implementing https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L94[GoCardlessPaymentPluginApi#purchasePayment]
+
+Once a user sets up a payment method as done above, the `purchasePayment` method can be used by a client application to trigger payments against a *mandateId*. So, this method can be implemented as follows:
+
+[source,java,linenums]
+public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
+	UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
+	CallContext context) throws PaymentPluginApiException {
+	logger.info("purchasePayment, kbAccountId=" + kbAccountId);
+	PaymentTransactionInfoPlugin paymentTransactionInfoPlugin; 
+	String mandate = getMandateId(kbAccountId, context);  //retrieve mandateId from Kill Bill tables
+	logger.info("MandateId:", mandate);
+	if (mandate != null) {
+		logger.info("Processing payment");
+		try {
+			String idempotencyKey = PluginProperties.findPluginPropertyValue("idempotencykey", properties); 
+			com.gocardless.services.PaymentService.PaymentCreateRequest.Currency goCardlessCurrency = convertKillBillCurrencyToGoCardlessCurrency(currency);
+			Payment payment = client.payments().create().withAmount(Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)))
+					.withCurrency(goCardlessCurrency).withLinksMandate(mandate).withIdempotencyKey(idempotencyKey)
+					.execute();
+			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+			outputProperties.add(new PluginProperty("paymentId", payment.getId(), false));
+			paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
+					kbPaymentId, kbTransactionId, TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.PROCESSED, null,
+					null, String.valueOf(payment.getId()), null, new DateTime(), new DateTime(payment.getCreatedAt()), outputProperties);
+			logger.info("Payment processed, PaymentId:", payment.getId());
+		} catch (GoCardlessApiException e) {
+			paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
+					kbPaymentId, kbTransactionId, TransactionType.PURCHASE, amount, currency,  PaymentPluginStatus.ERROR, e.getErrorMessage(),				String.valueOf(e.getCode()), null, null, new DateTime(), null, null);
+			logger.warn("Error occured in purchasePayment", e.getType(), e);
+		}
+	}
+	else {
+		logger.warn("Unable to fetch mandate, so cannot process payment");
+		paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
+				kbPaymentId, kbTransactionId, TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.CANCELED, null, null, null, null, new DateTime(), null, null);
+	}
+	return paymentTransactionInfoPlugin;
+}
+
+* Like the other methods, the `purchasePayment` method accepts  `Iterable<PluginProperty> properties` as a parameter. This can be used to pass properties which are related to the `purchasePayment` call.
+
+* In addition, it also accepts parameters corresponding to `amount` (specifies the amount to charge the customer) and `currency` (specifies the currency to be used)
+
+* If you recall, the `addPaymentMethod` stores the *mandate id* in the Kill Bill database. This is first retrieved and assigned to `mandate` 
+
+* Next, the `idempotencyKey` is retrieved from the `properties` passed in. The  `idempotencyKey` is a GoCardless specific value, so the `purchasePayment` method passes it to the corresponding GoCardless method
+
+*  The `currency` object passed in is of type `org.killbill.billing.catalog.api.Currency`. This is then converted to a *GoCardless Currency object* (of type `com.gocardless.services.PaymentService.PaymentCreateRequest.Currency`). Most payment plugins have code similar to this to convert Kill Bill objects to compatible objects in the plugin's client library.
+
+* Finally, the `client.payments().create()` is invoked with the `amount` and `currency` values. This returns a `Payment` object which contains a `paymentId`
+
+* The `purchasePayment` method returns a `PaymentTransactionInfoPlugin` object.  The <<PaymentTransactionInfoPlugin>> section above explaind this interface in detail. In this case, we have created a `GoCardlessPaymentTransactionInfoPlugin` class. 
+
+* If the payment is successful, the `GoCardlessPaymentTransactionInfoPlugin` object is created with the following values:
+
+** *kbPaymentId* - Set to `kbPaymentId`. It corresponds to the Kill Bill payment id. 
+
+** *kbTransactionId* - Set to `kbTransactionId`. Tt corresponds to the Kill Bill transaction id. 
+
+** *TransactionType* - Set to `TransactionType.PURCHASE` since this is a purchase transaction
+
+** *amount* - Set to `amount`. It corresponds to the amount with which the customer is charged
+
+** *currency* - Set to `currency`. It corresponds to the currency in which the customer is charged
+
+** - *PaymentPluginStatus* - Set to `PaymentPluginStatus.PROCESSED` since the payment was processed successfully 
+
+** *gatewayError* - Set to `null` since there is no error
+
+** *gatewayErrorCode* - set to `null` since there is no error
+
+** *firstPaymentReferenceId* - Set to the *payment Id* returned by GoCardless
+
+** *secondPaymentReferenceId* - set to `null` since GoCardless does not have a secondPaymentReferenceId
+
+** *createdDate* - Set to the current date
+
+** *effectiveDate* - Set to the date when the payment was created 
+
+** *properties* - Set to a `outputProperties`. This is a `List<PluginProperty>`  The GoCardless *payment Id* is added to this List. The client API can use these properties as desired.
+
+* If there is an exception while processing the payment,  the `GoCardlessPaymentTransactionInfoPlugin` object is created with the following values :
+
+** PaymentPluginStatus - Set to `PaymentPluginStatus.ERROR` since there was an error in the payment
+
+** *gatewayError* - Set to the *error message* from the exception
+
+** *gatewayErrorCode* - Set to the *error code* from the exception
+
+** *firstPaymentReferenceId* - Set to `null` since the payment failed
+
+** *effectiveDate* - Set to `null` since the payment failed
+
+** *properties* - Set to `null` since the payment failed
+
+* If the code is unable to retrieve the `mandateId` from the Kill Bill database, this object is created with the following values:
+
+** *PaymentPluginStatus* - Set to `PaymentPluginStatus.CANCELED` since the gateway was not contacted as the plugin was unable to retrieve the `mandateId`
+
+** *gatewayError* - Set to `null` since there is no error
+
+** *gatewayErrorCode* - set to `null` since there is no error
+
+** *firstPaymentReferenceId* - Set to `null` since the payment was not processed
+
+** *effectiveDate* - Set to `null` since the payment was not processed
+
+** *properties* - Set to `null` since the payment was not processed
+
+
+==== Step 7 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessActivator.java[GoCardlessActivator]
+
+We also need to create a class similar to `HelloWorldActivator` that starts the plugin. We can create this class as follows:
+
+[source,java,linenums]
+public class GoCardlessActivator extends KillbillActivatorBase{
+	public static final String PLUGIN_NAME = "killbill-gocardless";
+	@Override
+    public void start(final BundleContext context) throws Exception {
+        super.start(context);
+        final GoCardlessPaymentPluginApi pluginApi = new GoCardlessPaymentPluginApi(killbillAPI,clock.getClock());
+        registerPaymentPluginApi(context, pluginApi);
+        // Register the servlet, which is used as the entry point to generate the Hosted Payment Pages redirect url
+        final PluginApp pluginApp = new PluginAppBuilder(PLUGIN_NAME, killbillAPI, dataSource, super.clock, configProperties)
+                .withRouteClass(GoCardlessCheckoutServlet.class)
+                .withService(pluginApi)
+                .withService(clock)
+                .build();
+        final HttpServlet stripeServlet = PluginApp.createServlet(pluginApp);
+        registerServlet(context, stripeServlet);
+    }
+    private void registerPaymentPluginApi(final BundleContext context, final PaymentPluginApi api) {
+        final Hashtable<String, String> props = new Hashtable<String, String>();
+        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
+        registrar.registerService(context, PaymentPluginApi.class, api, props);
+    }
+    private void registerServlet(final BundleContext context, final HttpServlet servlet) {
+        final Hashtable<String, String> props = new Hashtable<String, String>();
+        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
+        registrar.registerService(context, Servlet.class, servlet, props);
+    }
+}
+
+* The `start` method creates a new `GoCardlessPaymentPluginApi` object
+
+* It then invokes the `registerPaymentPluginApi` method which registers the servlet. This code is pretty standard across all plugins and can be used as it is
+
+* In the case of GoCardless, we need to create a servlet as explained below. The `start` method then creates this servlet and invokes the `registerServlet` method which registers the servlet 
+
+==== Step 8 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessCheckoutServlet.java[GoCardlessCheckoutServlet]
+
+In the case of GoCardless, we need to create an additional servlet that invokes the `GoCardlessPluginApi#buildFormDescriptor` method. A client API always invokes Kill Bill via the 
+https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[PaymentGatewayApi] interface. If you take a look at the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java#L43[PaymentGatewayApi#buildFormDescriptor] method, you will notice that it accepts a `UUID paymentMethodId` as a parameter. Thus, this method assumes that a *payment method* already exists.(You can read https://docs.killbill.io/latest/userguide_subscription.html#_payment_methods[this] to understand how  payment methods work). However, in the case of GoCardless, we are using `GoCardlessPluginApi#buildFormDescriptor` to create a form where a user sets up a mandate. Thus, the *payment method* will not exist in Kill Bill at the time of invoking the `PaymentGatewayApi#buildFormDescriptor` method. So, this method cannot directly invoke the `GoCardlessPlugin#buildFormDescriptor` method. To work around this, we need to create a servlet and invoke the `GoCardlessPlugin#buildFormDescriptor` method from this servlet. The client application can invoke this servlet and not the `PaymentGatewayApi#buildFormDescriptor` method
+
+This servlet can be created as follows:
+[source,java,linenums]
+@Singleton
+// Handle /plugins/killbill-gocardless/checkout
+@Path("/checkout")
+public class GoCardlessCheckoutServlet {
+    private final OSGIKillbillClock clock;
+    private final GoCardlessPaymentPluginApi goCardlessPaymentPluginApi;
+    private static final Logger logger = LoggerFactory.getLogger(GoCardlessCheckoutServlet.class);
+    @Inject
+    public GoCardlessCheckoutServlet(final OSGIKillbillClock clock,
+                                     final GoCardlessPaymentPluginApi goCardlessPaymentPluginApi) {
+        this.clock = clock;
+        this.goCardlessPaymentPluginApi = goCardlessPaymentPluginApi;
+    }
+    // Setting up Direct Debit mandates using Hosted Payment Pages, before a payment method has been added to the account
+    @POST
+    public Result createSession(@Named("kbAccountId") final UUID kbAccountId,
+                                @Named("success_redirect_url") final Optional<String> successUrl,
+                                @Named("redirect_flow_description") final Optional<String> description,
+                                @Named("lineItemName") final Optional<String> token,
+                                @Local @Named("killbill_tenant") final Tenant tenant) throws PaymentPluginApiException {
+    	logger.info("Inside createSession");
+        final CallContext context = new PluginCallContext(GoCardlessActivator.PLUGIN_NAME, clock.getClock().getUTCNow(), kbAccountId, tenant.getId());
+        final ImmutableList<PluginProperty> properties = ImmutableList.of(
+                new PluginProperty("success_redirect_url", successUrl.orElse("https://developer.gocardless.com/example-redirect-uri/"), false),
+                new PluginProperty("redirect_flow_description", description.orElse("Kill Bill payment"), false),
+                new PluginProperty("session_token", token.orElse("killbill_token"), false));
+        final HostedPaymentPageFormDescriptor hostedPaymentPageFormDescriptor = goCardlessPaymentPluginApi.buildFormDescriptor(kbAccountId,
+                ImmutableList.of(),
+                properties,
+                context);
+        return Results.with(hostedPaymentPageFormDescriptor, Status.CREATED)
+                .type(MediaType.json);
+    }
+}
+
+* The servlet is mapped to the `/checkout` path. Thus, a client application needs to make a request to this path to invoke the servlet
+
+* The `createSession` method creates `PluginProperty` objects corresponding to the values passed in as parameters
+
+* It then invokes the `GoCardlessPlugin#buildFormDescriptor` method
+
+
+==== Step 9 - Deployment
+
+The GoCardless plugin can be built and deployed as per the instructions specified https://docs.killbill.io/latest/plugin_development.html#_development[here]
+
+==== Step 10 - Testing
+
+Once the plugin is deployed successfully, it can be tested using `curl` commands as specified https://github.com/killbill/killbill-gocardless-example-plugin/[here]
