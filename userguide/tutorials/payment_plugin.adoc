@@ -288,7 +288,7 @@ public class GoCardlessPaymentTransactionInfoPlugin extends PluginPaymentTransac
 
 ==== Step 4 - Implementing https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L293[GoCardlessPaymentPluginApi#buildFormDescriptor]
 
-As explained earlier, the `buildFormDescriptor` method needs to be implemented to *initiate* the *Gocardless redirect flow* in GoCardless and obtain the *redirect URL*. This method can be implemented as follows:
+The `buildFormDesciptor` is typically used for https://docs.killbill.io/latest/userguide_payment.html#_hosted_payment_page_flow[hosted payment flows] to display a form where a user can enter his/her payment details. In the case of GoCardless, we will be using it to *initiate* the *Gocardless redirect flow* in GoCardless and obtain the *redirect URL*. This method can be implemented as follows:
 
 [source,java,linenums]
 public HostedPaymentPageFormDescriptor buildFormDescriptor(UUID kbAccountId, Iterable<PluginProperty> customFields,
@@ -370,7 +370,7 @@ public void addPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMe
 
 ==== Step 6 - Implementing https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L94[GoCardlessPaymentPluginApi#purchasePayment]
 
-Once a user sets up a payment method as done above, the `purchasePayment` method can be used by a client application to trigger payments against a *mandateId*. So, this method can be implemented as follows:
+The `purchasePayment` is used to charge a customer against a payment method.So, once a user sets up a payment method as done above, the `purchasePayment` method can be used by a client application to trigger payments against a *mandateId*. So, this method can be implemented as follows:
 
 [source,java,linenums]
 public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
@@ -448,7 +448,7 @@ public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPay
 
 ** *effectiveDate* - Set to the date when the payment was created. This is retrieved from the `payment` object returned by GoCardless
 
-** *properties* - Set to a List<PluginProperty>` called `outputProperties` which contains the GoCardless *payment Id*. The client API can use the `properties` as desired.
+** *properties* - Set to a `List<PluginProperty>` called `outputProperties` which contains the GoCardless *payment Id*. The client API can use the `properties` as desired.
 
 * If there is an exception while processing the payment,  the `GoCardlessPaymentTransactionInfoPlugin` object is created with the following values :
 
@@ -514,14 +514,14 @@ public class GoCardlessActivator extends KillbillActivatorBase{
 
 * The `start` method creates a new `GoCardlessPaymentPluginApi` object
 
-* It then invokes the `registerPaymentPluginApi` method which registers the servlet. This code is pretty standard across all plugins and can be used as it is
+* It then invokes the `registerPaymentPluginApi` method which registers the plugin. This code is pretty standard across all plugins and can be used as it is
 
 * In the case of GoCardless, we need to create a servlet as explained below. The `start` method then creates this servlet and invokes the `registerServlet` method which registers the servlet 
 
 ==== Step 8 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessCheckoutServlet.java[GoCardlessCheckoutServlet]
 
-In the case of GoCardless, we need to create an additional servlet that invokes the `GoCardlessPluginApi#buildFormDescriptor` method. A client API always invokes Kill Bill via the 
-https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[PaymentGatewayApi] interface. If you take a look at the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java#L43[PaymentGatewayApi#buildFormDescriptor] method, you will notice that it accepts a `UUID paymentMethodId` as a parameter. Thus, this method assumes that a *payment method* already exists.(You can read https://docs.killbill.io/latest/userguide_subscription.html#_payment_methods[this] to understand how  payment methods work). However, in the case of GoCardless, we are using `GoCardlessPluginApi#buildFormDescriptor` to create a form where a user sets up a mandate. Thus, the *payment method* will not exist in Kill Bill at the time of invoking the `PaymentGatewayApi#buildFormDescriptor` method. So, this method cannot directly invoke the `GoCardlessPlugin#buildFormDescriptor` method. To work around this, we need to create a servlet and invoke the `GoCardlessPlugin#buildFormDescriptor` method from this servlet. The client application can invoke this servlet and not the `PaymentGatewayApi#buildFormDescriptor` method
+In the case of GoCardless, we need to create an additional servlet that invokes the `GoCardlessPluginApi#buildFormDescriptor` method. Normally, a client API invokes `buildFormDescriptor` via the 
+https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[PaymentGatewayApi] interface. If you take a look at the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java#L43[PaymentGatewayApi#buildFormDescriptor] method, you will notice that it accepts a `UUID paymentMethodId` as a parameter. Thus, this method assumes that a *payment method* already exists.(You can read https://docs.killbill.io/latest/userguide_subscription.html#_payment_methods[this] to know more about payment methods). However, in the case of GoCardless, we are using `GoCardlessPluginApi#buildFormDescriptor` to create a form where a user sets up a mandate. Thus, the *payment method* will not exist in Kill Bill at the time of invoking the `PaymentGatewayApi#buildFormDescriptor` method. So, this method cannot directly invoke the `GoCardlessPlugin#buildFormDescriptor` method. To work around this, we need to create a servlet and invoke the `GoCardlessPlugin#buildFormDescriptor` method from this servlet. The client application can invoke this servlet and not the `PaymentGatewayApi#buildFormDescriptor` method
 
 This servlet can be created as follows:
 [source,java,linenums]
@@ -566,9 +566,9 @@ public class GoCardlessCheckoutServlet {
 
 * It then invokes the `GoCardlessPlugin#buildFormDescriptor` method
 
-==== Step 9 - Deployment
+==== Step 9 - Build and Deployment
 
-The GoCardless plugin can be built and deployed as per the instructions specified https://docs.killbill.io/latest/plugin_development.html#_development[here]
+The GoCardless plugin can be built and deployed as per the instructions specified in our https://docs.killbill.io/latest/plugin_development.htm[plugin developement document] for https://docs.killbill.io/latest/plugin_development.html#_build[build] and https://docs.killbill.io/latest/plugin_development.html#_deployment[deployment]. 
 
 ==== Step 10 - Testing
 
