@@ -1,13 +1,13 @@
-= Multi-Tier Option
+= Multitier Option
 
 
-There are at least three different ways to setup a working Kill Bill system on AWS. Two options are based on a single *Amazon Machine Image (AMI)* containing the complete Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI). These options are *single-tier* and *multi-tier*. The https://docs.killbill.io/latest//aws-singletier.html[*single-tier* option] is designed to deploy a limited version of Kill Bill quickly for trial and experimentation. For production deployments, we offer the multi-tier option. A third alternative available for deploying a production system is https://docs.killbill.io/latest//aws-cf.html[CloudFormation templates]. The multi-tier option requires more setup than CloudFormation, but provides more control over the deployment.
+There are at least three different ways to setup a working Kill Bill system on AWS. Two options are based on a single *Amazon Machine Image (AMI)* containing the complete Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI). These options are *single tier* and *multitier*. The https://docs.killbill.io/latest//aws-singletier.html[*single tier* option] is designed to deploy a limited version of Kill Bill quickly for trial and experimentation. For production deployments, we offer the multitier option. A third alternative available for deploying a production system is https://docs.killbill.io/latest//aws-cf.html[CloudFormation templates]. The multi-tier option requires more setup than CloudFormation, but provides more control over the deployment.
 
 == Overview
 
-This document describes the multi-tier option. This configuration uses two or more EC2 instances and a separate database provided by the AWS *Relational Database Service (RDS)*. It also includes an AWS *Elastic Load Balancer (ELB)* to correctly spread the traffic among the various nodes, and to route traffic to either the Kill Bill Server or KAUI based on the incoming port. 
+This document describes the multitier option. This configuration uses two or more EC2 instances and a separate database provided by the AWS *Relational Database Service (RDS)*. It also includes an AWS *Elastic Load Balancer (ELB)* to correctly spread the traffic among the various nodes, and to route traffic to either the Kill Bill Server or KAUI based on the incoming port. 
 
-The diagram below shows the principal components of the multi-tier system: The ELB, the RDS, and two or more EC2 instances. Each EC2 is an instance of Ubuntu Linux, running both Kill Bill and KAUI within a `tomcat` server. Clients interact only with the ELB, which routes requests to the rest of the system.
+The diagram below shows the principal components of the multitier system: The ELB, the RDS, and two or more EC2 instances. Each EC2 is an instance of Ubuntu Linux, running both Kill Bill and KAUI within a `tomcat` server. Clients interact only with the ELB, which routes requests to the rest of the system.
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multi-tier-ami_deployment.png[align=center]
 
@@ -21,7 +21,7 @@ Check the upper right corner of your screen to be sure you are in the appropriat
 
 In addition, AWS places all resources within a *Virtual Private Cloud (VPC)*. A default VPC will be created and used automatically in the following steps. However, if you have access to other VPCs, you will need to ensure that all Kill Bill resources are deployed in the same one.
 
-=== Setup the Database
+=== Setup the Databases
 
 Once you are logged in, the first step is to setup the RDS instance. This process begins with the RDS dashboard, which should be available from the Services menu. When the dashboard appears, select *Databases* from the left menu, and click the red button at the top right that reads *Create Database*:
 
@@ -189,7 +189,7 @@ Your Inbound Rules should now look like this:
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound-new.png[align=center]
 
 
-==== 6. Login to an instance
+==== 6. Login to an Instance
 
 Now that your instances are set up, you need to ensure that you can login to them for configuration and maintenance when needed. To login, use the secure shell command:
 
@@ -257,7 +257,7 @@ exit
 
 Each `show tables` command should display a list of table names for the database.
 
-=== Testing
+=== Initial Testing
 
 You can now login to KAUI from your browser using the URL http://INSTANCE_IP:3000, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. This should display the KAUI login screen. For an introduction to KAUI, see our http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide. The default credentials are: `admin` / `password`. The first few requests might be a bit slow as Kill Bill initializes itself.
 
@@ -266,7 +266,7 @@ In addition, you can login to the Kill Bill server using the URL http://INSTANCE
 If these logins succeed, your EC2 instances and your RDS databases are setup properly.
 
 
-=== Add the ELB in front of the EC2 instances
+=== Add the ELB
 
 The last major task is to setup the Elastic Load Balancer in front of the EC2 instances.
 
@@ -290,7 +290,7 @@ On this page you need to do the following:
 4. Click *Add Listener* to add a second listener using the same protocol and set its port to 8443.
 5. Scroll to the bottom and select at least *two* availability zones. *IMPORTANT: You must select all of the zones that your EC2 instances are contained in. Otherwise, the load balancer will be unable to connect to these instances.*
 
-=== 2. Configure Security
+==== 2. Configure Security
 
 Now choose *Next: Configure Security Settings*. You will now see a page titled *Step 2: Configure Security Settings*.
 
@@ -350,7 +350,7 @@ Go back to the listener tab and confirm that the second listener points to the n
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-check-listeners.png[align=center]
 
-== Creating a Certificate
+== Create a Certificate
 
 We recommend for security that you choose the HTTPS protocol to access KAUI. This protocol uses SSL/TLS encryption and authentication to verify and protect all communication with the KAUI server. To use this protocol you must create or provide an X.509 certificate. This section describes how to create a certificate using the *Amazon Certificate Manager (ACM).*
 
@@ -378,14 +378,14 @@ The two strings labeled *Name* and *Value* should be copied to the two required 
 
 Your second CNAME is much simpler. The first entry will be `kaui`. The second entry will be simply your domain name, e.g., `mydomain.com`.
 
-==== Create and Validate your Certificate
+==== 3. Create and Validate your Certificate
 
 When your CNAMEs are set, return to ACM and click *Continue*. The display changes to show that your certificate is *Pending Validation*. The certificate should now appear also on the main ACM page. When (and if) it is validated, the status will change to *Success*. *This may take several hours or more.* A short time later it will change again to *Issued*.
 
 When your certificate is successfully created, you may delete the temporary (validation) CNAME. Then proceed as described above.
 
 
-== Testing
+== Final Testing
 
 When your ELB is complete you can proceed to testing. If you are using HTTPS you should be able to login to KAUI from your browser using the URL https://kaui.DOMAIN, where DOMAIN is *your* domain that you have used for your certificate. If you are using HTTP you will need to use the URL http://DNS_NAME where DNS_NAME is the *DNS name* for the KAUI load balancer as given on the Load Balancer dashboard.
 
@@ -396,31 +396,56 @@ Similarly, you should be able to login directly to the Kill Bill server using th
  
 Congratulations! Your multi-tier installation is ready to go!
 
-== Kill Bill Configuration
+== Configuration
 
-Kill Bill global properties are defined in `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the MySQL credentials. Take a look at our https://docs.killbill.io/latest/userguide_configuration.html[configuration guide] for more details.
+Kill Bill defines a number of global properties and per-tenant properties that can be varied. These properties are explained in the https://docs.killbill.io/latest/userguide_configuration.html[configuration guide]. Default values for these properties are built into the Kill Bill code; these values can be overridden by values defined in the file `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the database URL and credentials.
 
-This is also where you can change the default Kill Bill admin credentials: specify `org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini` and create the `shiro.ini` file accordingly (see our https://docs.killbill.io/latest/user_management.html[RBAC guide] for more details).
+This file also defines the location of the `shiro.ini` file, which by default is in the same directory. This file defines the Kill Bill admin credentials, along with any other users and their roles. See the https://docs.killbill.io/latest/user_management.html[RBAC guide] for details about this file.
 
-If you make manual changes to these configuration files, however, remember to make the same changes to *all* your EC2 instances!
+If you make changes to these configuration files, remember to make the same changes to *all* your EC2 instances!
 
-== Maintenance
+== Upgrades
 
-In this section, we will discuss procedures to verify the operation of the system, and what to do when things are not working. These procedures focus on maintenance of a single EC2 instance; they should be used independently for each instance you have deployed.
+From time to time new versions of Kill Bill and KAUI may be released. This section explains how to upgrade to these new versions. You will need to follow these procedures for *each* of your instances.
 
-=== System Health and Information
+First, login to your instance using `ssh`, then switch to the `tomcat` user: 
 
-To verify the correct operation (health) of the various software components, login to your EC2 instance and issue the following command:
+`sudo su - tomcat`
+
+The configuration file `/var/lib/killbill/kpm.yml` specifies the Kill Bill version (and its plugins) to be run on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:
+
+1. Edit the configuration file to update the version number
+2. Run the command `$KPM_INSTALL_KB_CMD`
+3. Delete the cached directory `/var/lib/tomcat/webapps/ROOT`
+4. Restart the instance.
+
+A similar process can be used for KAUI: update `/var/lib/kaui/kpm.yml`, run `$KPM_INSTALL_KAUI_CMD`, delete the cached directory `/var/lib/tomcat/webapps2/ROOT` and restart the instance.
+
+== Troubleshooting
+
+If your installation does not seem to work correctly, the first step is to review your installation process carefully, to be sure that everything has been done and checked as described in this document. If problems persist, we will be glad to work with you to identify the problem. To help us to do this, there are several information reports that you may need to gather. These reports are somewhat technical but can be analyzed by Kill Bill personnel. This section explains how to obtain the reports that may be needed.
+
+The procedures described here focus on obtaining detailed reports for a single EC2 instance. They should be used independently for each instance you have deployed.
+
+=== System Health Check
+
+The healthcheck report checks the health of various software components, and determines if any queues are growing improperly over time. To create this report, login to your EC2 instance and issue the following command:
 
 `curl http://127.0.0.1:8080/1.0/healthcheck`
 
 This will return a series of messages giving the health status of each component.
+
+=== System Information
 
 For a detailed system information report, use the following command:
 
 `curl -u ADMIN:PASSWORD http://127.0.0.1:8080/1.0/kb/nodesInfo`
 
 Here ADMIN and PASSWORD are your KAUI administrator access credentials.
+
+=== Service Statuses
+
+This procedure does not produce a report, but does provide important information about the status of each service.
 
 The Kill Bill multitier option runs two services on each instance. The status of each service can be checked by the following commands:
 
@@ -444,50 +469,40 @@ Tomcat logs are under `/var/lib/tomcat/logs/`:
 * KAUI logs: `/var/lib/tomcat/logs/kaui.out`
 * Kill Bill server logs: `/var/lib/tomcat/logs/catalina.out`
 
-=== System Diagnostics
+It is not necessary to download these logs separately, though, as they will be included in the output from the diagnostic command to be discussed next.
 
-The `diagnostic` command creqtes an extensive report that may be useful for troubleshooting. To run this command:
+=== Diagnostic Command
+
+The `diagnostic` option of the `kpm` command creates an extensive report for a given tenant that may be useful for troubleshooting. To run this command:
 
 ```
 # Login as 'tomcat'
 > sudo su - tomcat
 #
-# Set your access credentials. This example
-#   assumes the default credentials are used:
+# Run the command with your access credentials:
 #
 > kpm  diagnostic \
-  --killbill-credentials=admin password \
+  --killbill-credentials=ADMIN PASSWORD \
   --bundles-dir=/var/lib/killbill/bundles \
   --database-name=killbill \
-  --database-credentials=root root \
-  --killbill-api-credentials=bob lazar \
+  --database-credentials=DBUSER DBPASS \
+  --killbill-api-credentials=KEY SECRET \
   --kaui-web-path=/var/lib/tomcat/webapps2 \
   --killbill-url=http://127.0.0.1:8080 \
-  --database-host=127.0.0.1:3306
-...
+  --database-host=DBURL:3306
+```
+
+You will need to edit this command to include:
+
+1. Your KAUI username and password (ADMIN PASSWORD)
+2. Your database credentials (DBUSER DBPASS)
+3. The key and secret key for your tenant (KEY SECRET)
+4. Your database URL (DBURL)
 
 The last line of the response should look like:
 
 `Diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip`
 
-This will be a very large file.
-
-
-== Upgrades
-
-From time to time new versions of Kill Bill and KAUI may be released. This section explains how to install these new versions. You will need to follow these procedures for *each* of your instances.
-
-First, login to your instance using `ssh`, then switch to the `tomcat` user: 
-
-`sudo su - tomcat`
-
-The configuration file `/var/lib/killbill/kpm.yml` specifies the Kill Bill version (and its plugins) running on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:
-
-1. Edit the configuration file to update the version number
-2. Run the command `$KPM_INSTALL_KB_CMD`
-3. Delete the cached directory `/var/lib/tomcat/webapps/ROOT`
-4. Restart the instance.
-
-A similar process can be used for KAUI: update `/var/lib/kaui/kpm.yml`, run `$KPM_INSTALL_KAUI_CMD`, delete the cached directory `/var/lib/tomcat/webapps2/ROOT` and restart the instance.
+The specified zip file contains several reports of various sizes. This report can be downloaded to your computer using `sftp` and forwarded to Kill Bill for analysis.
 
 
