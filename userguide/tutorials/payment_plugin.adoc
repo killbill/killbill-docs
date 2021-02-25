@@ -405,36 +405,41 @@ The `purchasePayment` is used to charge a customer against a payment method. So,
 
 [source,java,linenums]
 public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPaymentId, UUID kbTransactionId,
-	UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
-	CallContext context) throws PaymentPluginApiException {
+		UUID kbPaymentMethodId, BigDecimal amount, Currency currency, Iterable<PluginProperty> properties,
+		CallContext context) throws PaymentPluginApiException {
 	logger.info("purchasePayment, kbAccountId=" + kbAccountId);
-	PaymentTransactionInfoPlugin paymentTransactionInfoPlugin; 
-	String mandate = getMandateId(kbAccountId, context);  //retrieve mandateId from Kill Bill tables
-	logger.info("MandateId:", mandate);
+	PaymentTransactionInfoPlugin paymentTransactionInfoPlugin;
+	String mandate = getMandateId(kbAccountId, context); // retrieve mandateId from Kill Bill tables
+	logger.info("MandateId="+mandate);
 	if (mandate != null) {
 		logger.info("Processing payment");
 		try {
-			String idempotencyKey = PluginProperties.findPluginPropertyValue("idempotencykey", properties); 
-			com.gocardless.services.PaymentService.PaymentCreateRequest.Currency goCardlessCurrency = convertKillBillCurrencyToGoCardlessCurrency(currency);
-			Payment payment = client.payments().create().withAmount(Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)))
+			String idempotencyKey = PluginProperties.findPluginPropertyValue("idempotencykey", properties);
+			com.gocardless.services.PaymentService.PaymentCreateRequest.Currency goCardlessCurrency = convertKillBillCurrencyToGoCardlessCurrency(
+					currency);
+			Payment payment = client.payments().create()
+					.withAmount(Math.toIntExact(KillBillMoney.toMinorUnits(currency.toString(), amount)))
 					.withCurrency(goCardlessCurrency).withLinksMandate(mandate).withIdempotencyKey(idempotencyKey)
+					.withMetadata("kbPaymentId", kbPaymentId.toString()).withMetadata("kbTransactionId", kbTransactionId.toString()) //added for getPaymentInfo
 					.execute();
 			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
 			outputProperties.add(new PluginProperty("paymentId", payment.getId(), false));
-			paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
-					kbPaymentId, kbTransactionId, TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.PROCESSED, null,
-					null, String.valueOf(payment.getId()), null, new DateTime(), new DateTime(payment.getCreatedAt()), outputProperties);
-			logger.info("Payment processed, PaymentId:", payment.getId());
+			paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+					TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.PROCESSED, null, null,
+					String.valueOf(payment.getId()), null, new DateTime(), new DateTime(payment.getCreatedAt()),
+					outputProperties);
+			logger.info("Payment processed, PaymentId="+payment.getId());
 		} catch (GoCardlessApiException e) {
-			paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
-					kbPaymentId, kbTransactionId, TransactionType.PURCHASE, amount, currency,  PaymentPluginStatus.ERROR, e.getErrorMessage(),				String.valueOf(e.getCode()), null, null, new DateTime(), null, null);
+			paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+					TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.ERROR, e.getErrorMessage(),
+					String.valueOf(e.getCode()), null, null, new DateTime(), null, null);
 			logger.warn("Error occured in purchasePayment", e.getType(), e);
 		}
-	}
-	else {
+	} else {
 		logger.warn("Unable to fetch mandate, so cannot process payment");
-		paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
-				kbPaymentId, kbTransactionId, TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.CANCELED, null, null, null, null, new DateTime(), null, null);
+		paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(kbPaymentId, kbTransactionId,
+				TransactionType.PURCHASE, amount, currency, PaymentPluginStatus.CANCELED, null, 
+				null, null, null, new DateTime(), null, null);
 	}
 	return paymentTransactionInfoPlugin;
 }
@@ -449,7 +454,7 @@ public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPay
 
 *  The `currency` object passed in is of type `org.killbill.billing.catalog.api.Currency`. This is then converted to a *GoCardless Currency object* (of type `com.gocardless.services.PaymentService.PaymentCreateRequest.Currency`). Most payment plugins have code similar to this to convert Kill Bill objects to compatible objects in the plugin's client library.
 
-* Finally, the `client.payments().create()` is invoked with the `idempotencyKey`,`amount` and `currency` values. This returns a `Payment` object which contains a `paymentId`
+* Finally, the `client.payments().create()` is invoked with the `idempotencyKey`,`amount` and `currency` values. This returns a `Payment` object which contains a `paymentId`. Additionally, the `kbPaymentId` and `kbTransactionId` are sent as *metadata* to GoCardless in this call. GoCardless *metadata* allows an application to send custom key value pairs to GoCardless. These can then be retrieved later on as required.  In our case, the `kbPaymentId` and `kbTransactionId` are required for the `getPaymentInfo` call which will be explained further. 
 
 * The `purchasePayment` method returns a `PaymentTransactionInfoPlugin` object.  The <<PaymentTransactionInfoPlugin>> section above explaind this interface in detail. We have already created a https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentTransactionInfoPlugin.java[GoCardlessPaymentTransactionInfoPlugin] class above.
 
@@ -511,36 +516,63 @@ public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPay
 
 ==== Step 7 - Implementing https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L211[GoCardlessPaymentPluginApi#getPaymentInfo]
 
-As explained earlier, the Kill Bill Janitor system attempts to fix *PENDING* and *UNKNOWN* states by  polling the plugin via `PaymentPluginApi#getPaymentInfo` method. So, this method needs to be implemented as follows:
+As explained earlier, the Kill Bill Janitor system attempts to fix *PENDING* and *UNKNOWN* states by  polling the plugin via `PaymentPluginApi#getPaymentInfo` method. So, this method can be implemented as follows:
 [source,java]
 public List<PaymentTransactionInfoPlugin> getPaymentInfo(UUID kbAccountId, UUID kbPaymentId,
-		Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
-	String paymentId = PluginProperties.findPluginPropertyValue("payment_id", properties);
-	Payment payment = client.payments().get(paymentId).execute();
-	Currency killBillCurrency = convertGoCardlessCurrencyToKillBillCurrency(payment.getCurrency());
-	PaymentPluginStatus status = convertGoCardlessToKillBillStatus(payment.getStatus());
-	GoCardlessPaymentTransactionInfoPlugin paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
-			kbPaymentId, null, TransactionType.PURCHASE, new BigDecimal(payment.getAmount()), killBillCurrency,
-			status, null, null, String.valueOf(payment.getId()), null, new DateTime(),
-			new DateTime(payment.getCreatedAt()), null); // TODO: passing null for output properties and kbTransactionId
+	Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
+	logger.info("getPaymentInfo");
 	List<PaymentTransactionInfoPlugin> paymentTransactionInfoPluginList = new ArrayList<>();
-	paymentTransactionInfoPluginList.add(paymentTransactionInfoPlugin);
+	String mandateId = getMandateId(kbAccountId, context) ;
+	logger.info("Mandate="+mandateId);
+	Mandate mandate = client.mandates().get(mandateId).execute(); //get GoCardless Mandate object
+	String customerId = mandate.getLinks().getCustomer(); //retrieve customer id from mandate
+	logger.info("CustomerId="+customerId);
+	Iterable<Payment> payments = client.payments().all().withCustomer(customerId).execute(); //get all payments related to customer
+	for (Payment payment : payments) {
+		String kbPaymentIdFromPayment = payment.getMetadata().get("kbPaymentId"); //get kbPaymentId from metadata in payment
+		logger.info("kbPaymentIdFromPayment="+kbPaymentIdFromPayment);
+		if(kbPaymentIdFromPayment != null && kbPaymentId.toString().equals(kbPaymentIdFromPayment)) {
+			logger.info("Found matching payment");
+			Currency killBillCurrency = convertGoCardlessCurrencyToKillBillCurrency(payment.getCurrency());
+			logger.info("payment_status="+payment.getStatus());
+			PaymentPluginStatus status = convertGoCardlessToKillBillStatus(payment.getStatus());
+			String kbTransactionPaymentIdStr = payment.getMetadata().get("kbTransactionId"); 
+			UUID kbTransactionPaymentId = kbTransactionPaymentIdStr !=null?UUID.fromString(kbTransactionPaymentIdStr):null;
+			logger.info("kbTransactionPaymentId="+kbTransactionPaymentId);
+			List<PluginProperty> outputProperties = new ArrayList<PluginProperty>();
+			outputProperties.add(new PluginProperty("mandateId",mandateId,false)); //arbitrary data to be returned to the caller
+			outputProperties.add(new PluginProperty("customerId",customerId,false));  //arbitrary data to be returned to the caller
+			GoCardlessPaymentTransactionInfoPlugin paymentTransactionInfoPlugin = new GoCardlessPaymentTransactionInfoPlugin(
+					kbPaymentId, kbTransactionPaymentId, TransactionType.PURCHASE, new BigDecimal(payment.getAmount()), killBillCurrency,
+					status, null, null, String.valueOf(payment.getId()), null, new DateTime(),
+					new DateTime(payment.getCreatedAt()), outputProperties); 
+			paymentTransactionInfoPluginList.add(paymentTransactionInfoPlugin);
+		}
+	}
 	return paymentTransactionInfoPluginList;
 }
 
-* Like the other methods, the `getPaymentInfo` method accepts  `Iterable<PluginProperty> properties` as a parameter.  
+* If you recall, the `addPaymentMethod` stores the *mandate id* in the Kill Bill database in the *custom_fields* table. This is first retrieved and assigned to `mandateId`.
 
-* The code first retrieves the `paymentId`, sent by the Janitor system from the properties passed in. 
+* Next, the GoCardless Mandate object is retrieved via `client.mandates().get(mandateId)` as explained https://developer.gocardless.com/api-reference/#mandates-get-a-single-mandate[here].
 
-* Next, the `payments().get()` is invoked with the `paymentId`. This returns a `Payment` object with additional details about the payment as specified https://developer.gocardless.com/api-reference/#payments-get-a-single-payment[here].
+* Next, the `customerId` associated with the mandate is retrieved and all the `payments` associated with the customer are retrieved via `client.payments().all().withCustomer(customerId)` as explained https://developer.gocardless.com/api-reference/#payments-list-payments[here].
 
-* The code then retrieves the GoCardless currency(object of type `com.gocardless.resources.Payment.Currency`) from the `payment` object and converts it to Kill Bill currency (object of type `org.killbill.billing.catalog.api.Currency`).
+* The code then iterates through the `payment` objects and obtains the `Payment` object corresponding to the `kbPaymentId` passed in. If you recall, the `purchasePayment` method sends `kbPaymentId` and `kbTransactionId` as metadata fields in GoCardless. Thus, the `kbPaymentId` is retrieved from the metadata of each `Payment` object and compared with the `kbPaymentId` passed in. 
 
-* Next, the code retrieves the GoCardless status (object of type `com.gocardless.resources.Payment.Status`) from the `payment` object and converts it to a `org.killbill.billing.payment.plugin.api.PaymentPluginStatus` object.
+* The code then creates a `GoCardlessPaymentTransactionInfoPlugin` corresponding to a matching `Payment` as follows:
 
-* Finally, it builds the `GoCardlessPaymentTransactionInfoPlugin` object using these parameters, adds it to a List and returns it.
+** It first retrieves the *GoCardless currency* (`com.gocardless.resources.Payment.Currency`) from the `payment` object and converts it to *Kill Bill currency* ( `org.killbill.billing.catalog.api.Currency`).
 
-* Depending on the status in the `GoCardlessPaymentTransactionInfoPlugin` object, the Janitor updates the internal payment state as well as invoice balance, etc.
+** Next, the code retrieves the *GoCardless status* (`com.gocardless.resources.Payment.Status`) from the `payment` object and converts it to a *Kill Bill status* (`org.killbill.billing.payment.plugin.api.PaymentPluginStatus`).
+
+** It then retrieves the `kbTransactionId` from the payment metadata. This step is very important because, the Janitor uses the *transaction id* to match the internal transactions with the plugin transactions as explained earlier. 
+
+** Next, it creates some `PluginProperty` objects and adds them to the `outputProperties` List. Any arbitrary key-value pairs which need to be returned to the caller can be specified here. 
+
+** Finally, it builds the `GoCardlessPaymentTransactionInfoPlugin` object using these parameters.
+
+* The Janitor then updates the internal payment state as well as invoice balance, etc. based on the information in the GoCardlessPaymentTransactionInfoPlugin` object.
 
 
 ==== Step 8 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessActivator.java[GoCardlessActivator]
