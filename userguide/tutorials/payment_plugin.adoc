@@ -558,19 +558,18 @@ public List<PaymentTransactionInfoPlugin> getPaymentInfo(UUID kbAccountId, UUID 
 
 * Next, the `customerId` associated with the mandate is retrieved and all the `payments` associated with the customer are retrieved via `client.payments().all().withCustomer(customerId)` as explained https://developer.gocardless.com/api-reference/#payments-list-payments[here].
 
-* The code then iterates through the `payment` objects and obtains the `Payment` object corresponding to the `kbPaymentId` passed in. If you recall, the `purchasePayment` method sends `kbPaymentId` and `kbTransactionId` as metadata fields in GoCardless. Thus, the `kbPaymentId` is retrieved from the metadata of each `Payment` object and compared with the `kbPaymentId` passed in. 
+* The code then iterates through the `payment` objects and obtains the `Payment` object corresponding to the `kbPaymentId` passed in. If you recall, the `purchasePayment` method sends `kbPaymentId` and `kbTransactionId` to GoCardless as metadata fields. Thus, the `kbPaymentId` is retrieved from the metadata of each `Payment` object and compared with the `kbPaymentId` passed in. 
 
-* The code then creates a `GoCardlessPaymentTransactionInfoPlugin` corresponding to a matching `Payment` as follows:
+* The code then creates a `GoCardlessPaymentTransactionInfoPlugin` corresponding to a matching `Payment`using the following:
 
-** It first retrieves the *GoCardless currency* (`com.gocardless.resources.Payment.Currency`) from the `payment` object and converts it to *Kill Bill currency* ( `org.killbill.billing.catalog.api.Currency`).
+**  *killBillCurrency*  - The *GoCardless currency* (`com.gocardless.resources.Payment.Currency`) is retrieved from the `payment` object and converted to *Kill Bill currency* ( `org.killbill.billing.catalog.api.Currency`).
 
-** Next, the code retrieves the *GoCardless status* (`com.gocardless.resources.Payment.Status`) from the `payment` object and converts it to a *Kill Bill status* (`org.killbill.billing.payment.plugin.api.PaymentPluginStatus`).
 
-** It then retrieves the `kbTransactionId` from the payment metadata. This step is very important because, the Janitor uses the *transaction id* to match the internal transactions with the plugin transactions as explained earlier. 
+** *status* - The *GoCardless status* (`com.gocardless.resources.Payment.Status`) is retrieved from the `payment` object and converted to *Kill Bill status* (`org.killbill.billing.payment.plugin.api.PaymentPluginStatus`).
 
-** Next, it creates some `PluginProperty` objects and adds them to the `outputProperties` List. Any arbitrary key-value pairs which need to be returned to the caller can be specified here. 
+** *kbTransactionId* - This is retrieved from the payment metadata. This step is very important because, the Janitor uses the *transaction id* to match the internal transactions with the plugin transactions as explained earlier. 
 
-** Finally, it builds the `GoCardlessPaymentTransactionInfoPlugin` object using these parameters.
+** *outputProperties* - This is a List of `PluginProperty` objects. Some `PluginProperty` objects are created and added to the `outputProperties` List. Any arbitrary key-value pairs which need to be returned to the caller can be specified here. 
 
 * The Janitor then updates the internal payment state as well as invoice balance, etc. based on the information in the GoCardlessPaymentTransactionInfoPlugin` object.
 
