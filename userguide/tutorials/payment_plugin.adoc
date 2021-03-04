@@ -155,7 +155,7 @@ You should try to avoid *UNDEFINED* as much as possible, because it is the only 
 
 == GoCardless Plugin Tutorial
 
-In order to demonstrate creating a payment plugin, we will be creating a Kill Bill payment plugin for https://gocardless.com/[GoCardless]. GoCardless allows direct debit from customer's bank accounts. It requires a customer to set up a mandate the first time, after which it directly collects payments against the mandate. 
+In order to demonstrate creating a payment plugin, we will be creating a Kill Bill payment plugin for https://gocardless.com/[GoCardless]. GoCardless allows direct debit from customer's bank accounts. It requires a customer to set up a *mandate* the first time. A *mandate* is an *authorisation* from a customer to take payments from their bank account. Once a mandate is set up, it directly collects payments against the mandate. 
 
 GoCardless provides a https://developer.gocardless.com/getting-started/api/making-your-first-request/#setting-up-your-client-library[client library]. We will be using this library to integrate GoCardless with Kill Bill. For the sake of simplicity, we will be creating a very basic plugin that can only process payments. Refunds, credits and other plugin functionality will currently not be implemented.
 
@@ -181,11 +181,11 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/paym
 
 . The merchant site *initiates* the *GoCardless Redirect flow* with the *customer details*  (optional) and a *success page URL*.
 
-. The *GoCardless redirect flow* returns a *redirect URL*. 
+.  *GoCardless* returns a *redirect URL*. 
 
 . The merchant site redirects the user to this URL. 
 
-. The user *manually*  confirms setting up a mandate at this page.
+. The user *manually*  enters bank details at this page.
 
 . If successful, GoCardless redirects the user to the *success page URL* sent to it in step 1. 
 
@@ -195,7 +195,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/paym
 
 . If successful, it returns a *mandate Id* to the merchant site.
 
-. The *mandate Id* can then be used to charge the customer.
+. The merchant site then charges the customer against the *mandate Id* as required.
 
 === Using GoCardless from Kill Bill
 
@@ -217,6 +217,8 @@ The diagram below explains the end-to-end flow. We consider the following actors
 
 *Kill Bill* - The Kill Bill system
 
+*Checkout Servlet* - Servlet that initiates setting up the payment method. This is explained https://docs.killbill.io/latest/payment_plugin.html#_step_9_creating_gocardlesscheckoutservlet[further] in detail
+
 *GoCardless Plugin*:  Payment plugin corresponding to GoCardless that can process payments using the GoCardless system
 
 *GoCardless*: The GoCardless payment system
@@ -225,15 +227,19 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/paym
 
 . A user enter's his/her payment details on a merchant site.
 
-. The merchant site invokes the `GoCardlessCheckoutServlet` (this is explained below).
+. The merchant site invokes the `Checkout Servlet`.
 
-. The `GoCardlessCheckoutServlet` invokes the `GoCarldessPlugin#buildFormDescriptor`.
+. The `Checkout Servlet` invokes the `GoCarldessPlugin#buildFormDescriptor`.
 
 . The `GoCarldessPlugin#buildFormDescriptor` method invokes the `redirectFlows().create()`. This *initiates* the *GoCardless redirect flow*  and returns the *redirect URL* .
 
-. The merchant site redirects the user to this URL and the user manually confirms setting up the mandate on this page.
+. The merchant site redirects the user to this URL.
 
-. GoCardless redirects the user to the *success page*. This invokes the `KillBill#addPaymentMethod` which in turn invokes `GoCardlessPlugin#addPaymentMethod`.
+* The user manually enters bank details on this page.
+
+. GoCardless redirects the user to the *success page*. 
+
+* The merchant site invokes the `KillBill#addPaymentMethod` which in turn invokes `GoCardlessPlugin#addPaymentMethod`.
 
 . The `GoCarldessPlugin#addPaymentMethod` invokes `redirectFlows().complete`. This *completes* the *redirect flow* and returns the *mandate id* which is saved in the Kill Bill database.
 
