@@ -2423,15 +2423,13 @@ AWS Marketplace
 <div class="paragraph"><p>Your Kill Bill installation is ready to go!</p></div></div></div></div></div>
 <div class="sect1"><h2 id="_testing">Testing</h2><div class="sectionbody"><div class="paragraph"><p>You can now login to KAUI from your browser using the URL <a class="bare" href="http://INSTANCE_IP:443">http://INSTANCE_IP:443</a>, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as <strong>Public IPV4 Address</strong>. This should display the KAUI login screen. For an introduction to KAUI, see our <a href="http://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui">Getting Started</a> guide. The default credentials are: <code>admin</code> / <code>password</code>. The first few requests might be a bit slow as Kill Bill initializes itself.</p></div>
 <div class="paragraph"><p>In addition, you can login to the Kill Bill server using the URL <a class="bare" href="http://INSTANCE_IP:8443">http://INSTANCE_IP:8443</a>. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.</p></div></div></div>
-<div class="sect1"><h2 id="_login_to_your_instance">Login to your Instance</h2><div class="sectionbody"><div class="paragraph"><p>You have setup access to port 22 in your security group. This will allow you to login directly to your instance from a terminal or command window. You will need to do this to perform some maintenance tasks that will be described below.</p></div>
+<div class="sect1"><h2 id="_login">Login</h2><div class="sectionbody"><div class="paragraph"><p>You have setup access to port 22 in your security group. This will allow you to login directly to your instance from a terminal or command window. You may need to do this to perform some configuration and maintenance tasks that will be described below.</p></div>
 <div class="paragraph"><p>To login, use the secure shell command:</p></div>
 <div class="paragraph"><p><code>ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP</code></p></div>
 <div class="paragraph"><p>Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.</p></div>
 <div class="paragraph"><p>On Windows versions before Windows 10, you may need to download a program called PuTTY to enable <code>ssh</code>. On Windows 10 <code>ssh</code> is available but may need to be activated through the Settings screen.</p></div>
 <div class="paragraph"><p>The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer <code>yes</code>.</p></div>
 <div class="paragraph"><p>You will now be able to explore your instance and perform various configuration and maintenance tasks. To exit from your login, type <code>exit</code>.</p></div></div></div>
-<div class="sect1"><h2 id="_kill_bill_configuration">Kill Bill Configuration</h2><div class="sectionbody"><div class="paragraph"><p>Kill Bill global properties are defined in <code>/var/lib/killbill/config/killbill.properties</code>. For example, this is where you can change the MySQL credentials. Take a look at our <a href="https://docs.killbill.io/latest/userguide_configuration.html">configuration guide</a> for more details.</p></div>
-<div class="paragraph"><p>This is also where you can change the default Kill Bill admin credentials: specify <code>org.killbill.security.shiroResourcePath=/var/lib/killbill/config/shiro.ini</code> and create the <code>shiro.ini</code> file accordingly (see our <a href="https://docs.killbill.io/latest/user_management.html">RBAC guide</a> for more details).</p></div></div></div>
 <div class="sect1"><h2 id="_using_https">Using HTTPS</h2><div class="sectionbody"><div class="sect2"><h3 id="_adding_a_certificate">Adding a Certificate</h3><div class="paragraph"><p>By default, accessing KAUI from a web browser will show that the site is <strong>Not Secure</strong>. You may even see an initial page requiring you to approve a security exception before you can access the site. In order to make the site secure, you will need to add a valid X.509 SSL/TLS certificate.</p></div>
 <div class="paragraph"><p>The easiest option to add the certificate is to make use of the tool <code>certbot</code>, which relies on the free Certificate Authority (CA) <code>Let’s Encrypt</code>. This method provides an easy way to obtain and install free certificates.</p></div>
 <div class="paragraph"><p><code>Certbot</code> is pre-installed in the latest Kill Bill AMI, but if you need a different version of <code>certbot</code>, this is also available through the new package manager <code>snap</code>. This package manager is also preinstalled in the Kill Bill AMI.</p></div>
@@ -2475,16 +2473,26 @@ sudo ln -s /snap/bin/certbot /usr/bin/certbot</code></pre></div></div></div>
 <div class="sect2"><h3 id="_testing_and_renewal">Testing and Renewal</h3><div class="paragraph"><p>When your certificate is installed, you should be able to access KAUI from you browser using <code>https://</code> followed by your CNAME as the address. The browser should indicate that the site is secure.</p></div>
 <div class="paragraph"><p>When your certificate is successfully installed, you can edit your security groups again to remove the access through port 80.</p></div>
 <div class="paragraph"><p>The <code>Let&#8217;s Encrypt</code> certifcates are only valid 90 days and will therefore neeed to be renewed. <code>certbot</code> will create a cron entry under <code>/etc/cron.d/certbot</code> to make this process automatic.</p></div></div></div></div>
-<div class="sect1"><h2 id="_maintenance">Maintenance</h2><div class="sectionbody"><div class="paragraph"><p>After launching the EC2 instance, the full stack should come up, with all services enabled and running, including:</p></div>
+<div class="sect1"><h2 id="_configuration">Configuration</h2><div class="sectionbody"><div class="paragraph"><p>Kill Bill defines a number of global properties and per-tenant properties that can be varied. These properties are explained in the <a href="https://docs.killbill.io/latest/userguide_configuration.html">configuration guide</a>. Default values for these properties are built into the Kill Bill code; these values can be overridden by values defined in the file <code>/var/lib/killbill/config/killbill.properties</code>. For example, this is where you can change the database URL and credentials.</p></div>
+<div class="paragraph"><p>This file also defines the location of the <code>shiro.ini</code> file, which by default is in the same directory. This file defines the Kill Bill admin credentials, along with any other users and their roles. See the <a href="https://docs.killbill.io/latest/user_management.html">RBAC guide</a> for details about this file.</p></div></div></div>
+<div class="sect1"><h2 id="_upgrades">Upgrades</h2><div class="sectionbody"><div class="paragraph"><p>From time to time new versions of Kill Bill and KAUI may be released. This section explains how to upgrade to these new versions.</p></div>
+<div class="paragraph"><p>First, login to your instance using <code>ssh</code>, then switch to the <code>tomcat</code> user:</p></div>
+<div class="paragraph"><p><code>sudo su - tomcat</code></p></div>
+<div class="paragraph"><p>The configuration file <code>/var/lib/killbill/kpm.yml</code> specifies the Kill Bill version (and its plugins) to be run on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>Edit the configuration file to update the version number</p></li><li><p>Run the command <code>$KPM_INSTALL_KB_CMD</code></p></li><li><p>Delete the cached directory <code>/var/lib/tomcat/webapps/ROOT</code></p></li><li><p>Restart the instance.</p></li></ol></div>
+<div class="paragraph"><p>A similar process can be used for KAUI: update <code>/var/lib/kaui/kpm.yml</code>, run <code>$KPM_INSTALL_KAUI_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps2/ROOT</code> and restart the instance.</p></div></div></div>
+<div class="sect1"><h2 id="_troubleshooting">Troubleshooting</h2><div class="sectionbody"><div class="paragraph"><p>After launching the EC2 instance, the full stack should come up, with all services enabled and running, including:</p></div>
 <div class="ulist"><ul><li><p>An <code>nginx</code> instance receiving traffic on port <code>443</code> and <code>8443</code></p></li><li><p>A instance of Kill Bill server listening on <code>127.0.0.1:8080</code> (and receiving external traffic through nginx on port <code>8443</code>)</p></li><li><p>A instance of Kaui listening on <code>127.0.0.1:3000</code> (and receiving external traffic through nginx on port <code>443</code>)</p></li><li><p>A local <code>mysql</code> server running on port <code>3306</code></p></li></ul></div>
 <div class="paragraph"><p>In this section, we will provide some tips to verify the operation of the system, and what to do when things are not working.</p></div>
-<div class="sect2"><h3 id="_system_health_and_information">System Health and Information</h3><div class="paragraph"><p>To verify the correct operation (health) of the various software components, login to your EC2 instance and issue the following command:</p></div>
+<div class="paragraph"><p>If your installation does not seem to work correctly, the first step is to review your installation process carefully, to be sure that everything has been done and checked as described in this document. If problems persist, we will be glad to work with you to identify the problem. To help us to do this, there are several information reports that you may need to gather. These reports are somewhat technical but can be analyzed by Kill Bill personnel. This section explains how to obtain the reports that may be needed.</p></div>
+<div class="sect2"><h3 id="_system_health_check">System Health Check</h3><div class="paragraph"><p>The healthcheck report checks the health of various software components, and determines if any queues are growing improperly over time. To create this report, login to your EC2 instance and issue the following command:</p></div>
 <div class="paragraph"><p><code>curl <a class="bare" href="http://127.0.0.1:8080/1.0/healthcheck">http://127.0.0.1:8080/1.0/healthcheck</a></code></p></div>
-<div class="paragraph"><p>This will return a series of messages giving the health status of each component.</p></div>
-<div class="paragraph"><p>For a detailed system information report, use the following command:</p></div>
+<div class="paragraph"><p>This will return a series of messages giving the health status of each component.</p></div></div>
+<div class="sect2"><h3 id="_system_information">System Information</h3><div class="paragraph"><p>For a detailed system information report, use the following command:</p></div>
 <div class="paragraph"><p><code>curl -u ADMIN:PASSWORD <a class="bare" href="http://127.0.0.1:8080/1.0/kb/nodesInfo">http://127.0.0.1:8080/1.0/kb/nodesInfo</a></code></p></div>
-<div class="paragraph"><p>Here ADMIN and PASSWORD are your KAUI administrator access credentials.</p></div>
-<div class="paragraph"><p>The Kill Bill single-tier option is composed of four services. The status of each service can be checked by the following commands:</p></div>
+<div class="paragraph"><p>Here ADMIN and PASSWORD are your KAUI administrator access credentials.</p></div></div>
+<div class="sect2"><h3 id="_service_statuses">Service Statuses</h3><div class="paragraph"><p>This procedure does not produce a report, but does provide important information about the status of each service.</p></div>
+<div class="paragraph"><p>The Kill Bill single tier option is composed of four services. The status of each service can be checked by the following commands:</p></div>
 <div class="ulist"><ul><li><p>Kill Bill service: <code>sudo service killbill status</code></p></li><li><p>KAUI service: <code>sudo service kaui status</code></p></li><li><p>Nginx service: <code>sudo service nginx status</code></p></li><li><p>Mysql service: <code>sudo service mysql status</code></p></li></ul></div>
 <div class="paragraph"><p>For each report there should be a line near the top with the following form:</p></div>
 <div class="paragraph"><p><code>Active: active (running) since Sat 2020-10-24 20:13:43 UTC; 1 day 1h ago</code></p></div>
@@ -2494,68 +2502,37 @@ sudo ln -s /snap/bin/certbot /usr/bin/certbot</code></pre></div></div></div>
 <div class="ulist"><ul><li><p>KAUI logs: <code>/var/lib/tomcat/logs/kaui.out</code></p></li><li><p>Kill Bill server logs: <code>/var/lib/tomcat/logs/catalina.out</code></p></li></ul></div>
 <div class="paragraph"><p>Nginx logs can be found under <code>/var/log/nginx/</code></p></div>
 <div class="ulist"><ul><li><p>Access logs: <code>/var/log/nginx/access.log</code></p></li><li><p>Error logs: <code>/var/log/nginx/error.log</code></p></li></ul></div></div>
-<div class="sect2"><h3 id="_system_diagnostics">System Diagnostics</h3><div class="paragraph"><p>The <code>diagnostic</code> command creqtes an extensive report that may be useful for troubleshooting. To run this command:</p></div>
+<div class="sect2"><h3 id="_diagnostic_command">Diagnostic Command</h3><div class="paragraph"><p>The <code>diagnostic</code> option of the <code>kpm</code> command creates an extensive report for a given tenant that may be useful for troubleshooting. To run this command:</p></div>
 <div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span># Login as &#39;tomcat&#39;
 &gt; sudo su - tomcat
 #
-# Set your access credentials. This example
-#   assumes the default credentials are used:
+# Run the command with your access credentials:
 #
 &gt; kpm  diagnostic \
-  --killbill-credentials=admin password \
+  --killbill-credentials=ADMIN PASSWORD \
   --bundles-dir=/var/lib/killbill/bundles \
   --database-name=killbill \
-  --database-credentials=root root \
-  --killbill-api-credentials=bob lazar \
+  --database-credentials=DBUSER DBPASS \
+  --killbill-api-credentials=KEY SECRET \
   --kaui-web-path=/var/lib/tomcat/webapps2 \
   --killbill-url=http://127.0.0.1:8080 \
-  --database-host=127.0.0.1:3306
-...
-
-The last line of the response should look like:
-
-`Diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip`
-
-This will be a very large file.
-
-=== Databases
-
-To access the mysql (MariaDB) databases, you can use the following command:
-
-`mysql -u root -proot`
-
-This enables interactive access to the database manager. There is one `killbill` and one `kaui` database created and used by the respective applications. To verify the tables in each database, you can type:</code></pre></div></div>
-<div class="paragraph"><p>use killbill
-show tables;</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>or</code></pre></div></div>
-<div class="paragraph"><p>use kaui
-show tables;</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>
-Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!
-
-To exit the mysql interactive mode, type `exit`.
-
-
-=== Load Balancer
-
-The load balancer `nginx` should normally require little attention. The configuration files are located under `/etc/nginx/. The configuration file for `nginx itself is `/etc/nginx/nginx.conf`. Additional configuration files are located under `/etc/nginx/sites-enabled/`. The only file normally present in this directory is `/etc/nginx/sites-enabled/killbill.conf`. This file may need to be edited to enable SSL, as explained above.
-
-== Upgrades
-
-From time to time new versions of Kill Bill and KAUI may be released. This section explains how to install these new versions in a production system with minimal disruption.
-
-First, login to your instance using `ssh`, then switch to the `tomcat` user:
-
-`sudo su - tomcat`
-
-The configuration file `/var/lib/killbill/kpm.yml` specifies the Kill Bill version (and its plugins) running on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:
-
-1. Edit the configuration file to update the version number
-2. Run the command `$KPM_INSTALL_KB_CMD`
-3. Delete the cached directory `/var/lib/tomcat/webapps/ROOT`
-4. Restart the instance.
-
-A similar process can be used for KAUI: update `/var/lib/kaui/kpm.yml`, run `$KPM_INSTALL_KAUI_CMD`, delete the cached directory `/var/lib/tomcat/webapps2/ROOT` and restart the instance.</code></pre></div></div></div></div></div></div></div><div class="col-12 col-md-3 col-xl-2 bd-sidebar sticky-top border-columns border-right p-0"><nav class="collapse bd-links toc right-side-menu" id="toc" data-toggle="toc"></nav></div></div></div><div class="container-fluid"><div class="row"><div class="col-12 border-columns"></div><div id="footer"><div id="footer-text">Last updated 2021-03-11 13:36:38 UTC</div><script>
+  --database-host=127.0.0.1:3306</code></pre></div></div>
+<div class="paragraph"><p>You will need to edit this command to include:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>Your KAUI username and password (ADMIN PASSWORD)</p></li><li><p>Your database credentials (DBUSER DBPASS)</p></li><li><p>The key and secret key for your tenant (KEY SECRET)</p></li></ol></div>
+<div class="paragraph"><p>The last line of the response should look like:</p></div>
+<div class="paragraph"><p><code>Diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip</code></p></div>
+<div class="paragraph"><p>The specified zip file contains several reports of various sizes. This report can be downloaded to your computer using <code>sftp</code> and forwarded to Kill Bill for analysis.</p></div></div>
+<div class="sect2"><h3 id="_databases">Databases</h3><div class="paragraph"><p>To access the mysql (MariaDB) databases, you can use the following command:</p></div>
+<div class="paragraph"><p><code>mysql -u root -proot</code></p></div>
+<div class="paragraph"><p>This enables interactive access to the database manager. There is one <code>killbill</code> and one <code>kaui</code> database created and used by the respective applications. To verify the tables in each database, you can type:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>use killbill
+show tables;</code></pre></div></div>
+<div class="paragraph"><p>or</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>use kaui
+show tables;</code></pre></div></div>
+<div class="paragraph"><p>Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!</p></div>
+<div class="paragraph"><p>To exit the mysql interactive mode, type <code>exit</code>.</p></div></div>
+<div class="sect2"><h3 id="_load_balancer">Load Balancer</h3><div class="paragraph"><p>The load balancer <code>nginx</code> should normally require little attention. The configuration files are located under <code>/etc/nginx/. The configuration file for `nginx itself is `/etc/nginx/nginx.conf</code>. Additional configuration files are located under <code>/etc/nginx/sites-enabled/</code>. The only file normally present in this directory is <code>/etc/nginx/sites-enabled/killbill.conf</code>. This file may need to be edited to enable SSL, as explained above.</p></div></div></div></div></div></div><div class="col-12 col-md-3 col-xl-2 bd-sidebar sticky-top border-columns border-right p-0"><nav class="collapse bd-links toc right-side-menu" id="toc" data-toggle="toc"></nav></div></div></div><div class="container-fluid"><div class="row"><div class="col-12 border-columns"></div><div id="footer"><div id="footer-text">Last updated 2021-03-13 03:27:59 UTC</div><script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
