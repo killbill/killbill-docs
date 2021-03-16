@@ -1,0 +1,91 @@
+=== Payment Method Flows Overview
+
+When an end-user enters his/her payment details (like card information) into a merchant website, these payment details need to be saved in Kill Bill in order for Kill Bill to be able to process recurring payments. Additionally, the payment details may need to be saved within the payment gateway so that the end user does not have to enter their payment details each time. 
+
+*Payment method flows* describe how a user's payment details gets added in Kill Bill and the payment gateway.
+
+The end-user's payment details are referred to as a *payment method* in Kill Bill. The https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentApi.java#L541[PaymentApi#addPaymentMethod] is the entry point for saving a payment method in Kill Bill.
+
+Kill Bill supports three main payment method flows as follows:
+
+* *Client-side tokenization* - In this case, the end user's payment method details are converted into a token which is sent to Kill Bill.
+
+*  *Hosted Payment Page* - In this case, the merchant website redirects the end-user to a page on the payment gateway which collects the payment method details. Kill Bill then invokes the payment gateway to obtain a gateway specific token.
+
+* *Server-side tokenization* - In this case, the end user's payment details are sent to Kill Bill which invokes the payment gateway to perform tokenization.
+
+The flow diagrams below explain these payment method flows. We consider the following actors:
+
+* *Browser*: The end-user sitting behind a browser and initiating the payment method flow
+
+* *Merchant Site*: customer facing web site which receives the order
+
+* *Kill Bill* - The Kill Bill system
+
+* *Checkout Servlet* - Plugin servlet that initiates setting up the payment method. 
+
+* *Payment Plugin*: https://docs.killbill.io/latest/payment_plugin.html[Kill Bill plugin] corresponding to the payment gateway 
+
+* *Payment Gateway*: Entity that processes the payment
+
+=== Client-side Tokenization Payment Method Flow
+
+In this case, the merchant website collects the end-user's payment details. These are then converted into a *token* (either via a payment gateway specific Javascript or iFrame). This token is sent to Kill Bill. Kill Bill then saves it in the Kill Bill database and uses it to charge the customer.
+
+The following diagram explains this payment method flow:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/payment-userguide/clientside-tokenization-payment-method-flow.png[align=center]
+
+. The end user enters payment details on the merchant website.
+
+. The merchant website converts it into a token and invokes the `addPaymentMethod` in Kill Bill with this token. This saves the token in the Kill Bill database.
+
+. Some payment gateways require the token to be saved within the gateway so as to be able to process recurring payments. In such cases, Kill Bill invokes the `addPaymentMethod` in the payment plugin corresponding to the payment gateway. 
+
+. The payment plugin then makes a gateway specific call to save the payment token within the gateway.
+
+=== Hosted Payment Page Payment Method Flow
+
+Sometimes, a merchant site may not provide a payment form/may not want to collect payment data and tokenize it. The hosted payment page flow is useful in such situations. In such cases, the merchant site needs to perform a two-step process. In the first step, it needs to invoke Kill Bill to obtain the URL to redirect the user and redirect the user to this page. Once the end-user enters his/her payment details on this page, the merchant site needs to invoke Kill Bill to add the payment method. Kill Bill then retrieves the payment details from the payment gateway and saves them in the Kill Bill database. This information is then used by Kill Bill to charge the customer.
+
+
+The following diagram explains this payment method flow:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/payment-userguide/hpp-payment-method-flow.png[align=center]
+
+. The end user initiates the checkout process.
+
+. The merchant website invokes a checkout servlet in Kill Bill. 
+
+. Kill Bill invokes the https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java#L269[PaymentPluginApi#buildFormDescriptor] method in the payment plugin. 
+
+. The `PaymentPlugin#buildFormDescriptor` method makes a gateway specific call and obtains a redirect URL.
+
+. The merchant website redirects the end user to this URL.
+
+. The end user enters payment details on this page.
+
+. If successful, the payment gateway redirects the user to a success URL on the merchant site.
+
+. The merchant site then invokes the `KillBill#addPaymentMethod`
+
+. Kill Bill in turn invokes the `PaymentPlugin#addPaymentMethod`.
+
+. The `PaymentPlugin#addPaymentMethod` performs a gateway specific call and obtains a gateway specific payment method id. This is then saved in the Kill Bill database.
+
+
+=== Server-side Tokenization Payment Method Flow
+
+Sometimes, a merchant site may collect the card details from the end-user and send them to Kill Bill. In this case, Kill Bill makes a call to the payment gateway to tokenize the card information. However, this approach is used *very rarely* as this requires a merchant website to be *PCI Level 1 compliant*. To know what it takes to be PCI Level 1 compliant, you can read https://web.archive.org/web/20210311043301/https://medium.com/groupon-eng/payments-groupon-part-1-b17b178441a1[this] article.
+
+The following diagram explains this payment method flow:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/payment-userguide/serverside-tokenization-payment-method-flow.png[align=center]
+
+. The end user enters payment details on the merchant website.
+
+. The merchant website invokes the `KillBill#addPaymentMethod` with the payment details. 
+
+. Kill Bill invokes the `PaymentPlugin#addPaymentMethod` method.
+
+. The `PaymentPlugin#addPaymentMethod` performs a gateway specific call to tokenize the payment details and obtains a token. This is saved within the Kill Bill database.
