@@ -1,6 +1,8 @@
 = Installation via CloudFormation
 
-CloudFormation deployments leverage the capabilites of AWS infrastructure to provide a **prodution ready** deployment with a **1-click** button: Both Kill Bill and KAUI instances can be scaled up or down, and CloudWatch provides the requires metrics to follow what is happening, and the RDS database comes automatically configured and ready for use.
+There are at least three different ways to setup a working Kill Bill system on AWS. Two options are based on a single *Amazon Machine Image (AMI)* containing the complete Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI). These options are *single tier* and *multitier*. The https://docs.killbill.io/latest//aws-singletier.html[*single tier* option] is designed to deploy a limited version of Kill Bill quickly for trial and experimentation. The https://docs.killbill.io/latest//aws-multitier.html[*multitier* option] is designed for production deployments; this requires more setup than other options,  but provides the most control over the deployment.
+
+A third alternative available for deploying a production system is CloudFormation. This deployment method leverages the capabilites of the AWS infrastructure to provide a robust **production ready** deployment with a single click. Both Kill Bill and KAUI instances can be scaled up or down; CloudWatch provides metrics to follow what is happening; and the RDS database comes automatically configured and ready for use. The entire CloudFormation configuration, or stack, is defined by a *CloudFormation Template*.
 
 == Overview of the Stack
 
@@ -10,8 +12,8 @@ With the click of a button, the template will install and configure:
 
 * Kill Bill and Kaui on a custom AMI optimized for AWS workloads (integrated with CloudWatch, SQS, SES, X-Ray and more)
 * Auto Scaling Groups, to automatically scale up and down the number of instances as needed (such as when batches of invoices are generated)
-* A load balancer, integrated with our internal healthchecks to promptly take out of rotation unhealthy instances
-* A RDS Aurora Cluster with automatic failover
+* A load balancer, integrated with our internal healthchecks to promptly take unhealthy instances out of rotation 
+* An RDS Aurora Cluster with automatic failover
 
 
 The following diagram shows the various AWS entities that will be created by CloudFormation:
@@ -19,9 +21,9 @@ The following diagram shows the various AWS entities that will be created by Clo
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/cf_stack.png[align=center]
 
 
-The elastic load balancer will listen on the port `80` for routing traffic to our Kill Bill server instances, and on the port `9090` for accessing KAUI, our admin UI. Internally, both Kill Bill server instances, and KAUI server instances will listen on port `8080`.
+The elastic load balancer will listen on port `80` for routing traffic to our Kill Bill server instances, and on port `9090` for accessing KAUI, our admin UI. Internally, both Kill Bill server instances, and KAUI server instances will listen on port `8080`.
 
-The CloudFormation template allows to specify different groups of subnets to isolate the Kill Bill server and KAUI server instances with the RDS instances. Typically one would specify at least 2 subnets, in different availability zones for each of those groups. 
+The CloudFormation template allows you to specify different groups of subnets to isolate the Kill Bill server and KAUI server instances with the RDS instances. You will need to specify at least two subnets, in different availability zones, for each of those groups. 
 
 The CloudFormation template will also create individual security groups for the various components:
 
@@ -30,10 +32,10 @@ The CloudFormation template will also create individual security groups for the 
 * RDS Security group: Opens ingress `3306`, and everything for egress.
 
 
-**Pre-requisites:** The CloudFormation template will require thr following:
+**Pre-requisites:** The CloudFormation template will require the following:
 
 * A valid VPC
-* A VPC Internet Gateway configured to access all the touside world
+* A VPC Internet Gateway configured to access all the outside world
 * Valid subnets for the VPC as described above
 
 **Example:** Given a VPC with a CIDR of `192.168.0.0/16`
