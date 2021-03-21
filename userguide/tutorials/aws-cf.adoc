@@ -2,16 +2,22 @@
 
 There are at least three different ways to setup a working Kill Bill system on AWS. Two options are based on a single *Amazon Machine Image (AMI)* containing the complete Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI). These options are *single tier* and *multitier*. The https://docs.killbill.io/latest//aws-singletier.html[*single tier* option] is designed to deploy a limited version of Kill Bill quickly for trial and experimentation. The https://docs.killbill.io/latest//aws-multitier.html[*multitier* option] is designed for production deployments; this requires more setup than other options,  but provides the most control over the deployment.
 
-A third alternative available for deploying a production system is CloudFormation. This deployment method leverages the capabilites of the AWS infrastructure to provide a robust **production ready** deployment with a single click. Both Kill Bill and KAUI instances can be scaled up or down; CloudWatch provides metrics to follow what is happening; and the RDS database comes automatically configured and ready for use. The entire CloudFormation configuration, or stack, is defined by a *CloudFormation Template*.
+A third alternative available for deploying a production system, discussed here, is *CloudFormation*. This deployment method leverages the capabilites of the AWS infrastructure to provide a robust *production ready* deployment with a single click. The entire CloudFormation configuration, or stack, is defined by a *CloudFormation Template*.
 
-== Overview of the Stack
+The features of the CloudFormation system include:
 
-Running Kill Bill on AWS using our +++<a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">official CloudFormation template</a>+++ is the easiest and fastest way to get started with a production cluster. *It is also the only method of installation that is certified by the core developers for a Highly Available, horizontally scalable and production-ready installation.*
+* Both Kill Bill and KAUI instances can be scaled up or down using AWS autoscaling groups
+* AWS CloudWatch provides metrics to follow what is happening
+* The RDS database based on AWS Aurora comes automatically configured and ready for use 
+
+== Overview
+
+Running Kill Bill on AWS using our +++<a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">official CloudFormation template</a>+++ is the easiest and fastest way to get started with a production cluster. *It is also the only method of installation that is certified by the core developers for a highly available, horizontally scalable and production-ready installation.*
 
 With the click of a button, the template will install and configure:
 
 * Kill Bill and Kaui on a custom AMI optimized for AWS workloads (integrated with CloudWatch, SQS, SES, X-Ray and more)
-* Auto Scaling Groups, to automatically scale up and down the number of instances as needed (such as when batches of invoices are generated)
+* Auto Scaling Groups, to automatically scale up and down the number of EC2 instances as needed (such as when batches of invoices are generated)
 * A load balancer, integrated with our internal healthchecks to promptly take unhealthy instances out of rotation 
 * An RDS Aurora Cluster with automatic failover
 
@@ -20,10 +26,46 @@ The following diagram shows the various AWS entities that will be created by Clo
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/cf_stack.png[align=center]
 
+All resources for this system run within a single AWS *Virtual Private Cloud (VPC)*, providing a dedicated block of IP addresses which must be located in a single *region*. The cloud is partitioned into *availability zones*, which are accessed by *subnets*. The resources must be distributed over at least two availability zones.
 
-The elastic load balancer will listen on port `80` for routing traffic to our Kill Bill server instances, and on port `9090` for accessing KAUI, our admin UI. Internally, both Kill Bill server instances, and KAUI server instances will listen on port `8080`.
+Multiple instances of KAUI and the Kill Bill server are deployed in the VPC, each running on its own Ubuntu Linux server. AWS autoscaling is used to increase and decrease the number of instances of each package as needed.
 
-The CloudFormation template allows you to specify different groups of subnets to isolate the Kill Bill server and KAUI server instances with the RDS instances. You will need to specify at least two subnets, in different availability zones, for each of those groups. 
+Access to these instances is managed by an AWS *Elastic Load Balancer (ELB)*. The ELB routes each request to the correct package and distributes the requests across the available instances. The ELB will listen on port `80` for routing traffic to the Kill Bill instances, and on port `9090` for accessing KAUI.
+
+
+The elastic load balancer will listen on port `80` for routing traffic to our Kill Bill server instances, and on port `9090` for accessing KAUI, our admin UI. Internally, both Kill Bill server instances, and KAUI server instances will listen on port `8080`. These ports will be different if HTTPS is used (see below).
+
+The back end of the system is an *Aurora* database manager provided through the AWS *Relational Database System (RDS)*. Aurora is a robust database system developed by AWS, compatible with MySQL and Postgres. There are separate databases maintained for Kill Bill and KAUI.
+
+Finally, the complete CloudFormation system makes use of AWS scalable and reliable *S3* storage technology, and incorporates AWS *CloudWatch* for monitoring and reports.
+
+== Installation
+
+=== Login to AWS
+
+To begin, log in to Amazon Web Services at https://aws.amazon.com. If you are new to AWS, you will be asked to create an account and provide billing information. You will need to sign in as a *Root User*. This should take you to the *AWS Management Console*, which provides links to all available services.
+
+Check the upper right corner of your screen to be sure you are in the appropriate region. All resources you create will be placed in this region, and may not be accessible from other regions.
+
+
+=== Setup the VPC and Subnets
+
+All resources for your CloudFormation deployment must be placed within a single VPC. To prepare for CloudFormation deployment you will first need to setup and identify your VPC and subnets.
+
+==== 1. Setup your VPC
+
+From the *Services* menu item at the top of the main AWS page, under *Networking and Content Delivery*, select VPC. This will open the *VPC Dashboard*. Then select *Your VPCs* from the left menu.
+
+Normally you will see one VPC, which AWS provides by default. This VPC will automatically be used for all your resources. If you have more than one, you need to select the one you want to use and be sure to set its ID as a parameter for your CloudFormation configuration. If there is no VPC listed, you must create one. The only parameter you need to set is the ipv4 CIDR block, which designates a range of (private) IP addresses. A suggested value is `192.168.0.0/16`.
+
+==== 2. Setup your Subnets
+
+From the left menu of the VPC Dashboard select *Subnets*. This shows a list of your subnets. By default AWS creates one subnet for each Availability Zone in your region. You may create your own subnets, as long as you give each a CIDR block representing a unique subset of your VPC, and assign each to a specific availability zone. 
+
+
+
+
+
 
 The CloudFormation template will also create individual security groups for the various components:
 
