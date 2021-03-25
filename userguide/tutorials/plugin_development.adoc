@@ -10,7 +10,7 @@ This document is indented to provide some information about plugin development:
 
 == Kill Bill Plugins
 
-Kill Bill Plugins are based on the https://www.osgi.org/[OSGI standard] to provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:
+Kill Bill Plugins are based on the https://docs.osgi.org/[OSGI standard] to provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:
 
 * They can be called from the Kill Bill platform through https://github.com/killbill/killbill-plugin-api[plugin APIs]. This happens when a plugin that implements one of those APIs (or 'SPI' to be more precise) was correctly registered in the system.
 * They can receive notifications (bus events) from the Kill Bill platform
@@ -134,6 +134,40 @@ listening on:
 [source,bash]
 2020-12-09T04:58:15,750+0000 lvl='INFO', log='HelloWorldServlet', th='http-nio-8080-exec-1', xff='', rId='b79decfb-e809-4c01-9064-cff18722a67c', tok='', aRId='', tRId='', Hello world
 
+==== A closer look at HelloWorldServlet
+
+The `HelloWorldServlet` has a method called `hello` which provides some basic skeleton code. It can be expanded as required. A few pointers about this method:
+
+[source,java]
+  @GET
+    public void hello(@Local @Named("killbill_tenant") final Optional<Tenant> tenant) {
+        // Find me on http://127.0.0.1:8080/plugins/hello-world-plugin
+        logger.info("Hello world");
+        if(tenant != null && tenant.isPresent() ) {
+        	logger.info("tenant is available");
+        	Tenant t1 = tenant.get();
+        	logger.info("tenant id:"+t1.getId());
+        }
+        else {
+        	logger.info("tenant is not available");
+        }
+    }
+
+* This method provides the code for the \http://localhost:8080/plugins/hello-world-plugin endpoint.
+
+
+
+* It accepts a parameter corresponding to `Tenant` which is an `Optional`. 
+
+* If the headers *X-Killbill-ApiKey / X-Killbill-ApiSecret* are set while accessing this endpoint as shown below, Kill Bill automatically injects a `Tenant` object into the servlet. 
+[source,bash]
+curl -v -u admin:password -H "X-Killbill-ApiKey: bob" -H "X-Killbill-ApiSecret: lazar" "http://127.0.0.1:8080/plugins/hello-world-plugin"
+
+* The `Tenant` object can then be used to retrieve tenant information like `tenantId` as demonstrated in the code above.
+
+* If the headers *X-Killbill-ApiKey / X-Killbill-ApiSecret* are NOT set while accessing this endpoint as shown below, Kill Bill injects an empty `Optional` into the servlet.
+[source,bash]
+curl -v -u admin:password "http://127.0.0.1:8080/plugins/hello-world-plugin"
 
 ==== Setting up a breakpoint and debugging
 
