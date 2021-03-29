@@ -523,7 +523,7 @@ public PaymentTransactionInfoPlugin purchasePayment(UUID kbAccountId, UUID kbPay
 ==== Step 7 - Implementing https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L211[GoCardlessPaymentPluginApi#getPaymentInfo]
 
 As explained earlier, the Kill Bill Janitor system attempts to fix *PENDING* and *UNKNOWN* states by  polling the plugin via `PaymentPluginApi#getPaymentInfo` method. So, this method can be implemented as follows:
-[source,java]
+[source,java,linenums]
 public List<PaymentTransactionInfoPlugin> getPaymentInfo(UUID kbAccountId, UUID kbPaymentId,
 	Iterable<PluginProperty> properties, TenantContext context) throws PaymentPluginApiException {
 	logger.info("getPaymentInfo");
@@ -583,52 +583,10 @@ public List<PaymentTransactionInfoPlugin> getPaymentInfo(UUID kbAccountId, UUID 
 
 * In addition to the Janitor, the `getPaymentInfo` can also be used used on the merchant website (or in Kaui) to display the payment details to the customer. In such cases, it is invoked via an API call as specified https://killbill.github.io/slate/#payment-retrieve-a-payment-using-paymentid[here]. An important point to note is that the actual plugin method (`GoCardlessPluginApi#getPaymentInfo`) is invoked only when the `withPluginInfo=true` is specified in the API call. If `withPluginInfo=false` is specified, the plugin method is not invoked and Kill Bill just returns the payment information from the Kill Bill database.
 
-
-==== Step 8 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessActivator.java[GoCardlessActivator]
-
-We also need to create a class similar to `HelloWorldActivator` that starts the plugin. We can create this class as follows:
-
-[source,java,linenums]
-public class GoCardlessActivator extends KillbillActivatorBase{
-	public static final String PLUGIN_NAME = "killbill-gocardless";
-	@Override
-    public void start(final BundleContext context) throws Exception {
-        super.start(context);
-        final GoCardlessPaymentPluginApi pluginApi = new GoCardlessPaymentPluginApi(killbillAPI,clock.getClock());
-        registerPaymentPluginApi(context, pluginApi);
-        // Register the servlet, which is used as the entry point to generate the Hosted Payment Pages redirect url
-        final PluginApp pluginApp = new PluginAppBuilder(PLUGIN_NAME, killbillAPI, dataSource, super.clock, configProperties)
-                .withRouteClass(GoCardlessCheckoutServlet.class)
-                .withService(pluginApi)
-                .withService(clock)
-                .build();
-        final HttpServlet stripeServlet = PluginApp.createServlet(pluginApp);
-        registerServlet(context, stripeServlet);
-    }
-    private void registerPaymentPluginApi(final BundleContext context, final PaymentPluginApi api) {
-        final Hashtable<String, String> props = new Hashtable<String, String>();
-        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
-        registrar.registerService(context, PaymentPluginApi.class, api, props);
-    }
-    private void registerServlet(final BundleContext context, final HttpServlet servlet) {
-        final Hashtable<String, String> props = new Hashtable<String, String>();
-        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
-        registrar.registerService(context, Servlet.class, servlet, props);
-    }
-}
-
-* The `GoCardlessActivator` class defines a static field called `PLUGIN_NAME` with the value `killbill-gocardless`. This is the name of the plugin and will be used by Kill Bill to route payment to the appropriate plugin as explained in our https://docs.killbill.io/latest/userguide_payment.html#_payment_methods+and_plugin_names[Payment User Guide]
-
-* The `start` method creates a new `GoCardlessPaymentPluginApi` object
-
-* It then invokes the `registerPaymentPluginApi` method which registers the plugin. This code is pretty standard across all plugins and can be used as it is
-
-* In the case of GoCardless, we need to create a servlet as explained below. The `start` method then creates this servlet and invokes the `registerServlet` method which registers the servlet 
-
-==== Step 9 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessCheckoutServlet.java[GoCardlessCheckoutServlet]
+==== Step 8 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessCheckoutServlet.java[GoCardlessCheckoutServlet]
 
 In the case of GoCardless, we need to create an additional servlet that invokes the `GoCardlessPluginApi#buildFormDescriptor` method. Normally, a client API invokes `buildFormDescriptor` via the 
-https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[PaymentGatewayApi] interface. If you take a look at the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java#L43[PaymentGatewayApi#buildFormDescriptor] method, you will notice that it accepts a `UUID paymentMethodId` as a parameter. Thus, this method assumes that a *payment method* already exists. (You can read https://docs.killbill.io/latest/userguide_subscription.html#_payment_methods[this] to know more about payment methods). However, in the case of GoCardless, we are using `GoCardlessPluginApi#buildFormDescriptor` to create a form where a user sets up a mandate. Thus, the *payment method* will not exist in Kill Bill at the time of invoking the `PaymentGatewayApi#buildFormDescriptor` method. So, this method cannot directly invoke the `GoCardlessPlugin#buildFormDescriptor` method. To work around this, we need to create a servlet and invoke the `GoCardlessPlugin#buildFormDescriptor` method from this servlet. The client application can invoke this servlet and not the `PaymentGatewayApi#buildFormDescriptor` method
+https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java[PaymentGatewayApi] interface. If you take a look at the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentGatewayApi.java#L43[PaymentGatewayApi#buildFormDescriptor] method, you will notice that it accepts a `UUID paymentMethodId` as a parameter. Thus, this method assumes that a *payment method* already exists. (You can read the https://docs.killbill.io/latest/userguide_payment.html#_payment_methods[payment user guide] to know more about payment methods). However, in the case of GoCardless, we are using `GoCardlessPluginApi#buildFormDescriptor` to create a form where a user sets up a mandate. Thus, the *payment method* will not exist in Kill Bill at the time of invoking the `PaymentGatewayApi#buildFormDescriptor` method. So, this method cannot directly invoke the `GoCardlessPlugin#buildFormDescriptor` method. To work around this, we need to create a servlet and invoke the `GoCardlessPlugin#buildFormDescriptor` method from this servlet. The client application can invoke this servlet and not the `PaymentGatewayApi#buildFormDescriptor` method
 
 This servlet can be created as follows:
 [source,java,linenums]
@@ -669,9 +627,68 @@ public class GoCardlessCheckoutServlet {
 
 * The servlet is mapped to the `/checkout` path. Thus, a client application needs to make a request to this path to invoke the servlet
 
-* The `createSession` method creates `PluginProperty` objects corresponding to the values passed in as parameters
+* The `createSession` accepts properties corresponding to `clock` and `goCardlessPaymentPluginApi`. These are injected via the `GoCardlessActivator` class as explained below  
 
-* It then invokes the `GoCardlessPlugin#buildFormDescriptor` method
+* It then creates `PluginProperty` objects corresponding to the values passed in as parameters
+
+* Finally, it invokes the `GoCardlessPlugin#buildFormDescriptor` method
+
+
+==== Step 9 - Creating https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessActivator.java[GoCardlessActivator]
+
+We also need to create a class similar to `HelloWorldActivator` that starts the plugin. We can create this class as follows:
+
+[source,java,linenums]
+public class GoCardlessActivator extends KillbillActivatorBase{
+//This is the plugin name and is used by Kill Bill to route payment to the appropriate payment plugin
+	public static final String PLUGIN_NAME = "killbill-gocardless";
+	@Override
+    public void start(final BundleContext context) throws Exception {
+        super.start(context);
+        final GoCardlessPaymentPluginApi pluginApi = new GoCardlessPaymentPluginApi(killbillAPI,clock.getClock());
+        registerPaymentPluginApi(context, pluginApi);
+        // Register the servlet, which is used as the entry point to generate the Hosted Payment Pages redirect url
+        final PluginApp pluginApp = new PluginAppBuilder(PLUGIN_NAME, killbillAPI, dataSource, super.clock, configProperties)
+                .withRouteClass(GoCardlessCheckoutServlet.class)
+                .withService(pluginApi)
+                .withService(clock)
+                .build();
+        final HttpServlet goCardlessServlet = PluginApp.createServlet(pluginApp);
+        registerServlet(context, goCardlessServlet);
+    }
+    private void registerPaymentPluginApi(final BundleContext context, final PaymentPluginApi api) {
+        final Hashtable<String, String> props = new Hashtable<String, String>();
+        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
+        registrar.registerService(context, PaymentPluginApi.class, api, props);
+    }
+    private void registerServlet(final BundleContext context, final HttpServlet servlet) {
+        final Hashtable<String, String> props = new Hashtable<String, String>();
+        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
+        registrar.registerService(context, Servlet.class, servlet, props);
+    }
+}
+
+* The `GoCardlessActivator` class defines a static field called `PLUGIN_NAME` with the value `killbill-gocardless`. This is the name of the plugin and will be used by Kill Bill to route payment to the appropriate plugin as explained in our https://docs.killbill.io/latest/userguide_payment.html#_payment_methods_and_plugin_names[Payment User Guide]
+
+* The `start` method creates a new `GoCardlessPaymentPluginApi` object
+
+* It then invokes the `registerPaymentPluginApi` method which registers the plugin with the `PLUGIN_NAME`. This code is pretty standard across all plugins and can be used as it is
+
+* In the case of GoCardless, we need to create a checkout servlet as explained above. The `start` method creates this servlet via `PluginAppBuilder` as follows:
+
+** `withRouteClass` specifies the name of the servlet, in this case `GoCardlessCheckoutServlet`
+
+** `withService` specifies `pluginApi`. Since the `GoCardlessCheckoutServlet` accepts a parameter corresponding to `GoCardlessPaymentPluginApi`, this is injected via `withService`
+
+** Similarly, since `GoCardlessPaymentPluginApi` accepts a parameter corresponding to `OSGIKillbillClock`, a `clock` object is injected via `withService`
+
+** Any other values that need to be passed to the servlet can be injected similarly
+
+** The `build` method is invoked which creates `pluginApp`
+
+** Finally, the servlet is created via `PluginApp.createServlet` 
+
+* The `registerServlet` method is then invoked which registers the servlet 
 
 ==== Step 10 - Build and Deployment
 
