@@ -53,7 +53,7 @@ The next stage is to identify existing (similar) plugins which could be used as 
 
 == Development
 
-It is recommended to clone some of our existing plugins to get started. For `java`, the https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] is a good starting point. For `ruby`, we also provide a https://github.com/killbill/killbill-hello-world-ruby-plugin[hello world plugin]. Depending on the type of plugin to be built, there may be a better example to look at (e.g. look at an existing payment plugin if you are building a new gateway integration).
+It is recommended to clone some of our existing plugins to get started. For `java`, the https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] is a good starting point. Depending on the type of plugin to be built, there may be a better example to look at (e.g. look at an existing payment plugin if you are building a new gateway integration).
 
 We provide two plugin frameworks that can be used to implement some of the work that plugins need to do - although your plugin does not have to rely on these frameworks, it is often a good idea to leverage those to avoid boilerplate code.
 
@@ -296,11 +296,9 @@ We also provide a collection of https://github.com/killbill/killbill-plugin-fram
 
 
 
-== Deployment
+== Plugin Layout
 
 === Overview
-
-==== Plugin Layout
 
 In its simplest form, deploying a plugin means placing the plugin binary at the right place on the filesystem. Kill Bill will scan the filesystem on startup and will start all the plugins that were detected.
 Kill Bill will use the value of the system property `org.killbill.osgi.bundle.install.dir` to determine the root of plugin directory structure.
@@ -338,7 +336,7 @@ The file `sha1.yml` is a used by the `KPM` tool to keep track of artifacts that 
 
 The file `plugin_identifiers.json` is used to keep a mapping between the `pluginKey` (the user visible plugin identifer), and the `pluginName` (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.
 
-==== Plugin Coordinates, Plugin Key, Plugin Name, ...
+=== Plugin Coordinates, Plugin Key, Plugin Name, ...
 
 Today, both our `ruby` and `java` plugins are released through maven and are therefore identified through their maven coordinates. We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins. Plugin Coordinates are too cumbersome to manipulate though and are unsuitable for non-published plugins (typical use case for a plugin being developed), so we introduced some identifers.
 
@@ -353,6 +351,9 @@ There is a distinction to be made between publicly released Kill Bill plugins an
 Each entry in that repository is identified by a key, and that key is the `pluginKey`.
 * Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form `<prefix>::<something>` to make sure there is no name collision with Kill Bill plugin keys.
 
+== Plugin Installation
+
+Kill Bill looks for plugins at the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file. So, installing the plugin simply means placing the plugin artifact at this path. This can either be done manually or via kpm as explained below.
 
 === Deploying by Hand
 
@@ -398,10 +399,83 @@ Note that if you don't need any custom configuration, make sure to delete the de
 Also, in the case of `ruby` plugin (and as mentionned before), the correct version of the `jruby.jar` must exist (and be named that way) under the `platform` directory entry. The correct version must match the Kill Bill version (or more precisely the version of the https://github.com/killbill/killbill-platform[platform] used for the specific version of https://github.com/killbill/killbill[killbill]).
 
 
-==== Deployment Through KPM
+=== Deployment Through KPM
 
-The standard way to deploy plugins is to rely on https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM].
-The https://github.com/killbill/killbill-cloud/blob/831e3c4ca536788ce64c83dfbd09b68668dddb6d/kpm/README.adoc[KPM README] explains how to install KPM and also provides some guidance on how to deploy publicly released Kill Bill plugins.
+The standard way to deploy plugins is to use the Kill Bill Package Manager (https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM]).
+
+KPM can be used for:
+
+* Deploying *custom* (plugins developed by you) Java/Ruby plugins
+* Deploying *Kill Bill* (plugins maintained by the Kill Bill team) Java/Ruby plugins
+* Deploying *Third-party* (plugins developed and maintained by a third party and not by the Kill Bill team) Java/Ruby plugins
+
+==== Custom Java/Ruby plugins
+
+If you are a developer and either modifying an existing plugin or creating a new plugin, you can use KPM to install the plugin. 
+
+A custom Java plugin can be installed using the `kpm install_java_plugin` command as shown below:
+
+[source,bash]
+kpm install_java_plugin '<plugin-key>' --from-source-file="<jar_path>.jar" 
+--destination="<path_to_install_plugin>"
+
+* Replace `plugin-key` with an appropriate value. We suggest that you specify a plugin_key with a namespace *dev:* to make it clear this is not a released version. So, you can use a plugin-key called `dev:pluginname`
+* Replace `<jar_path>` by the full path of the JAR file
+* Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path should match the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file.
+* If `--destination` is not specified, the plugin is installed by default in the `var/tmp/bundles` directory
+* For detailed instructions, refer to the https://docs.killbill.io/latest/plugin_development.html#_deployment[deployment] section above.
+
+The steps for installing a custom Ruby plugin are very similar to that of installing a Java plugin. Instead of the jar path, the path of the package (tar.gz) needs to be specified. 
+
+So, a custom Ruby plugin can be installed using the `kpm install_ruby_plugin` command as shown below:
+
+[source,bash]
+kpm install_ruby_plugin '<plugin-key>' --from-source-file="<package_path>.tar.gz"  
+--destination="<path_to_install_plugin>"
+
+* Replace `plugin-key`,`<package_path>` and `<path_to_install_plugin>` with appropriate values. 
+
+==== Kill Bill Java/Ruby Plugins
+
+A Kill Bill plugin is a plugin that is maintained by the Kill Bill team. Such plugins have a key in the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[Plugin Directory]. So, in order to install such a plugin, its key needs to be specified.
+
+A Kill Bill Java plugin can be installed using the `kpm install_java_plugin` command as follows:
+
+[source,bash]
+kpm install_java_plugin '<plugin-key>'
+
+* Replace `plugin-key` with an appropriate value from the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[Plugin Directory]. 
+* For example, in order to install the stripe plugin, you can replace `plugin-key` with `stripe`
+
+Similarly, a Kill Bill Ruby plugin can be installed using the `kpm install_ruby_plugin` command as follows:
+
+[source,bash]
+kpm install_ruby_plugin '<plugin-key>'
+
+* As in the case of a Java plugin, you need to replace `plugin-key` with an appropriate value. 
+
+==== Third party Java/Ruby plugins
+
+Third-party plugins are plugins developed and maintained by a third party and not by the Kill Bill team.  Such plugins can be installed via KPM from their binary repositories (Maven Central, GitHub Packages and Cloudsmith).
+
+A third party Java plugin can be installed using the `kpm install_java_plugin` command as follows: 
+
+[source,bash]
+kpm install_java_plugin '<plugin-key>' 
+--group_id="<group id>"
+--artifact_id="<artifact_id>"
+--version="<version>"  
+
+* Replace `plugin-key` with the plugin name.
+* Replace `<group id>`, `<artifact_id>`, `<version>` with appropriate values from the binary repository.
+
+Similarly, a third party Ruby plugin can be installed using the `kpm install_ruby_plugin` command as follows: 
+
+[source,bash]
+kpm install_ruby_plugin '<plugin-key>' 
+--group_id="<group id>"
+--artifact_id="<artifact_id>"
+--version="<version>"
 
 
 == Plugin Configuration
