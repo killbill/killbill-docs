@@ -2,33 +2,59 @@
 
 == Overview
 
-The HTTP protocol, commonly used for message exchange over the internet, does not provide encryption. As a result messages exchanged with this protocol may be insecure and subject to eavesdropping, and their source may be uncertain. To avoid this problem, HTTP is frequently combined with an encryption scheme known as SSL, or more recently TLS, that can be used to keep messages safe from unauthorized access, and verify that the sender is who they claim to be. This secure protocol is called HTTPS. 
+The HTTP protocol, commonly used for message exchange over the internet, does not provide encryption or authentication. As a result messages exchanged with this protocol may be insecure and subject to eavesdropping, and their source may be uncertain. To avoid this problem, HTTP is frequently combined with an encryption scheme known as SSL, or more recently TLS, that can be used to keep messages safe from unauthorized access, and verify that the sender is who they claim to be. This secure protocol is called HTTPS. 
 
 HTTPS is based on the use of a verification document called a *certificate*. the certificate serves two purposes:
 
 1. It provides the keys necessary for a highly secure encryption.
 2. It provides the electronic signature of a *certificate authority (CA)* who guarantees the identity of the sender.
 
+Increasingly, modern browsers require valid certificates when accessing sites using the HTTPS protocol. It may be difficult or impossible to access these sites if a vald certificate is not found.
+
 The details of the structure of certificates are defined by international standards and are well beyond the scope of this discussion. One thing you need to understand, though, is the certificate authority. Normally this is either an organization that is intrinsically well-known and trusted, such as DigiCert or GlobalSign (called a *root* CA), or an organization in the *trust hierarchy* derived from a root. A CA in a trust hierarchy must be itself certified by another CA in a chain which eventually leads to the root CA. Your CA, in turn, must be able to certify that *you* are who you say you are!
 
-For temporary use, you can sometimes create a *self-signed* certificate, in which you are your own CA. Most browsers will frown on this, since you are simply vouching for yourself, but it allows you to get started with security.
+For temporary use, you can sometimes create a *self-signed* certificate, in which you are your own CA. Most browsers will frown on this, since you are simply vouching for yourself, but it may allow you to get started with security.
 
-If you own a domain, your domain provider can serve as your CA. If you don't have a domain, you can purchase one for very low cost from a domain provider such as Godaddy. When you obtain a domain you need to prove your identity, so your domain provider must trust you. To demonstrate this trust you will need a CNAME.
+If you own a domain, your domain provider can serve as your CA. If you don't have a domain, you can purchase one for very low cost from a domain provider such as Godaddy. When you obtain a domain you need to prove your identity, so your domain provider can trust you. To demonstrate this trust you will need a CNAME.
 
 == CNAMEs
 
-A CNAME, or *Canonical Name*, is an identifier that links your CA to one or more resources that you are protecting with your certificate.
+A CNAME, or *Canonical Name*, is an identifier that links your CA to the resources that you are protecting with your certificate. For Kill Bill you will be protecting public access to your EC2 instance or load balancer, identified by its DNS name. The CNAME will link your domain to your resource. If your domain is `mydomain.com` your CNAME might look like `kaui.mydomain.com`. The CNAME is part of your domain's DNS profile, and your domain provider should have instructions for setting it up.
+
+When you are creating your certificate, you may also need a second temporary CNAME. This is used only to connect your resource to the trust hierarchy.
 
 == Obtaining a Certificate
 
 There are many ways to obtain a certificate that you can use to protect a particular resource. Here we will describe three that may be of use in particular Kill Bill scenarios, especially those running on AWS. These are:
 
-1. Using a free CA (such as *Let's Encrypt*)
-2. Using the AWS Certificate Manager
-3. Creating a self-signed certificate
+1. Creating a self-signed certificate
+2. Using a free CA (such as *Let's Encrypt*)
+3. Using the AWS Certificate Manager
+
+== Self-Signed Certificates
+
+The quickest and easiest way to create a certificate is to sign it yourself. In this way you become your own CA. A self-signed certificate will provide encryption, but it cannot prove the identity of your service because you are vouching for yourself. Most browsers will complain or require extra steps to use your service, and some may not allow its use at all.
+
+One simple way to create a self-signed certificate is to use the free command line program `openssl`. This program is usually preloaded in Linux and Macintosh environments, and can be downloaded for Windows.
+
+First, open your terminal or command application, if necessary, and type `openssl version` to be sure the program is available. If not, you will need to download it first.
+
+Next, type the following command:
+
+```
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout privateKey.key -out certificate.crt
+```
+This will bring up a series of questions about your identity, such as name, address, phone, etc. You can ignore most of these by typing Enter. Then type:
+
+```
+openssl rsa -in privateKey.key -text > private.pem
+openssl x509 -inform PEM -in certificate.crt > public.pem
+```
 
 
 == Using Certbot
+
+
 
 === Adding a Certificate
 
