@@ -1,0 +1,111 @@
+= Swagger Documentation
+
+Kill Bill provides in-built support for http://swagger.io/swagger-ui/[Swagger UI]. Swagger UI allows viewing and interacting with Kill Bill's API without having to write any code. This can be very useful for debugging. This document is aimed at providing a detailed walkthrough of how to set up and use Kill Bill's Swagger documentation.
+
+To know more about Kill Bill's Swagger UI Integration, you can refer to https://github.com/killbill/killbill-docs/tree/v3/swagger[this] Github page.
+
+== Pre-requisites
+
+* You have gone through the https://docs.killbill.io/latest/getting_started.html[Getting started] tutorial and have Kill Bill, Kaui and the database setup and running
+
+* You have a tenant configured with API key `bob` and API secret `lazar`
+
+== View API Methods
+
+In order to view Kill Bill API methods in Swagger UI, you need to do the following:
+
+. Ensure that Kill Bill is running (either on https://docs.killbill.io/latest/getting_started.html#_aws_one_click[AWS] or via https://docs.killbill.io/latest/getting_started.html#_docker[Docker] or in https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat]) or https://docs.killbill.io/latest/development.html#_running_the_application[standalone]
+
+. Type *<KILL_BILL_HOME>/api.html* in a browser. (Replace *<KILL_BILL_HOME>* with your Kill Bill home URL, so if Kill Bill is deployed at 127.0.0.1:8080, you can use \http://127.0.0.1:8080/api.html). This displays all Kill Bill's API methods as follows:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/swagger_ui_home.png[align=center]
+
+. You can expand any API method to know more about it simply by clicking it. For example, to retrieve all the payment methods related to an account you can click on `1/1.0/kb/accounts/{accountId}/paymentMethods` which displays the following:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/retrieve_account_payment_methods.png[align=center]
+
+The top section (red box) indicates the method's parameters while the bottom section (blue box) indicates the valid responses.
+
+== Authorization
+
+Swagger UI allows executing an API method. Before executing any API method, the authorization information needs to be entered as explained below. This needs to be done only once.
+
+. Click the *Authorize* button in the top right corner. This displays the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/swagger_ui_authorization.png[align=center]
+
+. In the *Basic Authorization* section, enter the *username* as `admin` and *password* as `password`. Click *Authorize* as follows:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/basic_authorization.png[align=center]
+
+. In the *Killbill Api Key* section, enter the value as `bob` and click *Authorize*:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/kill_bill_api_key.png[align=center]
+
+. In the *Killbill Api Secret* section, enter the value as `lazar` and click *Authorize*
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/kill_bill_api_secret.png[align=center]
+
+== Execute a GET API method
+
+Swagger UI can now be used to execute any API method. This section explains how you can execute a GET API method. 
+
+Suppose you would like to execute the `1/1.0/kb/accounts/{accountId}/paymentMethods` method to retrieve all the payment methods associated with an account. You need to do the following:
+
+.  Click on the `1/1.0/kb/accounts/{accountId}/paymentMethods` method.  This expands the method as follows:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/retrieve_account_payment_methods2.png[align=center]
+ 
+. Click on *Try it Out*. This displays the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/retrieve_account_payment_method_execution.png[align=center]
+
+. Enter values for parameters as follows:
+
+* `accountId` - The account whose payment methods are to be retrieved (example - `a21f1ca3-53ec-456b-8039-7170350c9c12`)
+
+* `withPluginInfo` - Optional, defaults to false, indicating that plugin info should not be retrieved
+
+* `includedDeleted` - Optional, defaults to false, indicating that deleted payment methods should not be included
+
+* `pluginProperty` - Optional, can be used to specify plugin properties
+
+* `audit` - Optional, defaults to NONE, indicating that audit information should not be returned
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/retrieve_account_payment_method_execution2.png[align=center]
+. Click *Execute*. This displays the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/retrieve_account_payment_method_output.png[align=center]
+
+So, all the payment methods associated with the specified `accountId` are returned.
+
+== Execute a POST API method
+
+This section explains how you can execute a POST API method. 
+
+Suppose you would like to execute the `/1.0/kb/accounts/{accountId}/payments` method to trigger a payment. 
+You need to do the following:
+
+. Click on the `/1.0/kb/accounts/{accountId}/payments` method. This expands the method as follows:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/trigger_payment.png[align=center]
+
+. Click on *Try it Out*. This displays the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/trigger_payment_execution.png[align=center]
+
+. Enter values for parameters as follows:
+
+* `accountId` - The account to be charged (example - `a21f1ca3-53ec-456b-8039-7170350c9c12`)
+
+* `body` - The body of the POST request. For example, to trigger a purchase transaction, you may enter the following:
+[source,json]
+{
+  "transactionType": "PURCHASE",
+  "amount": 10,
+  "currency": "GBP"
+}
+
+* `paymentMethodId` - Optional, can be left blank. If left blank, the user's default payment method gets charged
+
+* `X-Killbill-CreatedBy` - The person/API that creates this request. You can enter any value (example - `swagger-demo`)
+
+* `X-Killbill-Reason` - The reason for creating the request. Optional, can be left blank.
+
+* `X-Killbill-Comment` - Additional comment. Optional, can be left blank.
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/trigger_payment_execution2.png[align=center]
+
+. Click *Execute*. This displays the following screen:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/swagger/trigger_payment_execution_output.png[align=center]
+
+So, you can see that a purchase payment is triggered against the default payment method for the specified `accountId`
+
+
