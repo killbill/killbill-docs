@@ -1,0 +1,152 @@
+= Using HTTPS and SSL/TLS
+
+== Overview
+
+The HTTP protocol, commonly used for message exchange over the internet, does not provide encryption or authentication. As a result messages exchanged with this protocol may be insecure and subject to eavesdropping, and their source may be uncertain. To avoid this problem, HTTP is frequently combined with an encryption scheme known as SSL, or more recently TLS, that can be used to keep messages safe from unauthorized access, and verify that the sender is who they claim to be. This secure protocol is called HTTPS. 
+
+HTTPS is based on the use of a verification document called a *certificate*. the certificate serves two purposes:
+
+1. It provides the keys necessary for a highly secure encryption.
+2. It provides the electronic signature of a *certificate authority (CA)* who guarantees the identity of the sender.
+
+Increasingly, modern browsers require valid certificates when accessing sites using the HTTPS protocol. It may be difficult or impossible to access these sites if a vald certificate is not found.
+
+The details of the structure of certificates are defined by international standards and are well beyond the scope of this discussion. One thing you need to understand, though, is the certificate authority. Normally this is either an organization that is intrinsically well-known and trusted, such as DigiCert or GlobalSign (called a *root* CA), or an organization in the *trust hierarchy* derived from a root. A CA in a trust hierarchy must be itself certified by another CA in a chain which eventually leads to the root CA. Your CA, in turn, must be able to certify that *you* are who you say you are!
+
+For temporary use, you can sometimes create a *self-signed* certificate, in which you are your own CA. Most browsers will frown on this, since you are simply vouching for yourself, but it may allow you to get started with security.
+
+If you own a domain, your domain provider can serve as your CA. If you don't have a domain, you can purchase one for very low cost from a domain provider such as Godaddy. When you obtain a domain you need to prove your identity, so your domain provider can trust you. To demonstrate this trust you will need a CNAME.
+
+== CNAMEs
+
+A CNAME, or *Canonical Name*, is an identifier that links your CA to the resources that you are protecting with your certificate. For Kill Bill you will be protecting public access to your EC2 instance or load balancer, identified by its DNS name. The CNAME will link your domain to your resource. If your domain is `mydomain.com` your CNAME might look like `kaui.mydomain.com`. The CNAME is part of your domain's DNS profile, and your domain provider should have instructions for setting it up.
+
+When you are creating your certificate, you may also need a second temporary CNAME. This is used only to connect your resource to the trust hierarchy.
+
+== Obtaining a Certificate
+
+There are many ways to obtain a certificate that you can use to protect a particular resource. Here we will describe three that may be of use in particular Kill Bill scenarios, especially those running on AWS. These are:
+
+1. Creating a self-signed certificate
+2. Using a free CA (such as *Let's Encrypt*)
+3. Using the AWS Certificate Manager
+
+== Self-Signed Certificates
+
+The quickest and easiest way to create a certificate is to sign it yourself. In this way you become your own CA. A self-signed certificate will provide encryption, but it cannot prove the identity of your service because you are vouching for yourself. Most browsers will complain or require extra steps to use your service, and some may not allow its use at all.
+
+One simple way to create a self-signed certificate is to use the free command line program `openssl`. This program is usually preloaded in Linux and Macintosh environments, and can be downloaded for Windows.
+
+First, open your terminal or command application, if necessary, and type `openssl version` to be sure the program is available. If not, you will need to download it first.
+
+Next, type the following command:
+
+```
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout privateKey.key -out certificate.crt
+```
+This will bring up a series of questions about your identity, such as name, address, phone, etc. You can ignore most of these by typing Enter. Then type:
+
+```
+openssl rsa -in privateKey.key -text > private.pem
+openssl x509 -inform PEM -in certificate.crt > public.pem
+```
+
+
+== Using Certbot
+
+
+
+=== Adding a Certificate
+
+By default, accessing KAUI from a web browser will show that the site is *Not Secure*. You may even see an initial page requiring you to approve a security exception before you can access the site. In order to make the site secure, you will need to add a valid X.509 SSL/TLS certificate.
+
+The easiest option to add the certificate is to make use of the tool `certbot`, which relies on the free Certificate Authority (CA) `Let’s Encrypt`. This method provides an easy way to obtain and install free certificates.
+
+`Certbot` is pre-installed in the latest Kill Bill AMI, but if you need a different version of `certbot`, this is also available through the new package manager `snap`. This package manager is also preinstalled in the Kill Bill AMI.
+
+To setup your certificate, perform the following steps:
+
+==== 1. Create a CNAME
+
+To create your certificate, you must first setup a *CNAME*, or Canonical Name, based on a verified domain that you own (this is *not* an AWS domain). If you do not have a domain, you can obtain one for free, or very low cost, from an online source such as GoDaddy. The CNAME is part of your domain's DNS profile, and your domain provider should have instructions for creating it.
+
+The CNAME will link your domain to your EC2 instance. If your domain is `mydomain.com` your CNAME might look like `kaui.mydomain.com`. To set this up your domain provider will have you link the name `kaui` to your EC2 instance using its public DNS name.
+
+==== 2. Add your CNAME to the `nginx` configuration file
+
+First, login to your EC2 instance as described above.
+
+Next, using a text editor of your choosing, edit the file `/etc/nginx/sites-enabled/killbill.conf`. You will need to use `sudo` to edit this file.
+
+This file contains two server blocks. The second block contains the lines:
+
+```
+server {
+    listen 443;
+    server_name _;
+```
+Replace the underscore after `server_name` with your CNAME:
+
+```
+server {
+    listen 443;
+    server_name killbill.domain.com;
+```
+
+Save the modified file, then reload it with the following command:
+
+`sudo nginx -s reload`
+
+==== 3. Enable HTTP on port 80 (temporarily)
+
+Go to your EC2 dashboard and add a new inbound rule as follows: Type: HTTP, Protocol: TCP, Port Range: 80, Source: 0.0.0.0/0. Your inbound rules should now look like this:
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-ami-inbound-port-80.png[align=center]
+
+This is just to allow `certbot` to create your certificate. After the certificate is created, we recommend that you remove this rule to maintain security.
+
+==== 4. (Optional) Update the `certbot` package
+
+First, remove the existing `certbot` package by typing the command:
+
+`sudo apt-get remove certbot'
+
+When asked if you want to proceed, type `Y` for yes.
+
+Next, install the latest version of `certbot` using `snap`, and link it to the `/usr/bin` directory:
+
+```
+sudo snap install --classic certbot
+sudo ln -s /snap/bin/certbot /usr/bin/certbot
+```
+
+==== 5. Create and Install the Certificate
+
+Run `certbot` using the following command:
+
+`sudo certbot --nginx`
+
+Respond to any questions that are asked. If all goes well, you will see a message like:
+
+```
+IMPORTANT NOTES:
+ - Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/deployment.killbill.io/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/deployment.killbill.io/privkey.pem
+   Your cert will expire on 2020-05-11. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot again
+   with the "certonly" option. To non-interactively renew *all* of
+   your certificates, run "certbot renew"
+```
+
+If the message does not appear, review the above steps carefully. If needed you can also try the `certbot` https://certbot.eff.org/help/[help page].
+
+=== Testing and Renewal
+
+When your certificate is installed, you should be able to access KAUI from you browser using `https://` followed by your CNAME as the address. The browser should indicate that the site is secure.
+
+When your certificate is successfully installed, you can edit your security groups again to remove the access through port 80.
+
+The `Let's Encrypt` certifcates are only valid 90 days and will therefore neeed to be renewed. `certbot` will create a cron entry under `/etc/cron.d/certbot` to make this process automatic.
+
