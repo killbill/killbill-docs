@@ -10,7 +10,7 @@ Kill Bill provides a https://github.com/killbill/killbill-client-java[Java clien
 
 == Setting up the Kill Bill Java client
 
-The first step in setting up the Kill Bill Java client is to add the following Maven dependency related to the Kill Bill client to your POM file. (You can find out the latest version number of the library from the https://github.com/killbill/killbill-client-java[README] file)
+The first step in setting up the Kill Bill Java client is to add the following Maven dependency related to the Kill Bill client to your POM file. (You can find out the latest version number of the library from its https://github.com/killbill/killbill-client-java[README] file)
 
 [source,xml]
  <dependency>
@@ -26,6 +26,7 @@ The first step in setting up the Kill Bill Java client is to add the following M
 Once the dependency is added, you can write code that invokes the Kill Bill APIs as shown below.
  
 [source,java]
+ public void testGetPaymentMethods() throws KillBillClientException {
  int default_connection_timeout_sec = 10;
  int default_read_timeout_sec = 60;
  int default_request_timeout_sec = default_read_timeout_sec;
@@ -38,19 +39,19 @@ Once the dependency is added, you can write code that invokes the Kill Bill APIs
  String kbServerUrl = String.format("http://%s:%d", serverHost, serverPort);
  KillBillHttpClient killBillHttpClient = new KillBillHttpClient(kbServerUrl, username, password, apiKey,apiSecret, null, null, default_connection_timeout_sec * 1000, default_read_timeout_sec * 1000,default_request_timeout_sec * 1000);
  AccountApi accountApi = new AccountApi(killBillHttpClient);
- UUID accountId = UUID.fromString("a21f1ca3-53ec-456b-8039-7170350c9c12");
  String createdBy = "Kill Bill Client Tutorial";
  String reason = "Demonstrating Kill Bill Client";
  String comment = "Demonstrating Kill Bill Client";
  RequestOptions requestOptions =  RequestOptions.builder().withCreatedBy(createdBy).withReason(reason).withComment(comment).build();
  ImmutableMap<String, String> NULL_PLUGIN_PROPERTIES = null;
+  UUID accountId = UUID.fromString("a21f1ca3-53ec-456b-8039-7170350c9c12"); //accountId whose payment methods are to be fetched, replace with appropriate accountId from your database
  List<PaymentMethod> paymentMethods = accountApi.getPaymentMethodsForAccount(accountId, NULL_PLUGIN_PROPERTIES,requestOptions);
  logger.info("Payment methods=" + paymentMethods.size());
-
+ }
 
  * This code first declares and initializes some variables like `username`, `password` and so on. 
  
- * Next, a https://github.com/killbill/killbill-client-java/blob/9634a6d114ab71c868e7ef9ddc8a987cfec414ab/src/main/java/org/killbill/billing/client/KillBillHttpClient.java[KillBillHttpClient] instance is created using the variables declared earlier.  
+ * Next, a https://github.com/killbill/killbill-client-java/blob/9634a6d114ab71c868e7ef9ddc8a987cfec414ab/src/main/java/org/killbill/billing/client/KillBillHttpClient.java[KillBillHttpClient] instance is created using these variables.  
  
  * After that, the code creates an https://github.com/killbill/killbill-client-java/tree/9634a6d114ab71c868e7ef9ddc8a987cfec414ab/src/main/java/org/killbill/billing/client/api/gen[AccountApi] instance using the `killBillHttpClient` object. `AccountApi` can be used to execute account related Kill Bill methods. Just like `AccountApi`, the https://github.com/killbill/killbill-client-java/tree/9634a6d114ab71c868e7ef9ddc8a987cfec414ab/src/main/java/org/killbill/billing/client/api/gen[org.killbill.billing.client.api.gen] package has other classes  like `PaymentMethodApi`, `OverDueApi` which can be used to invoke the corresponding API methods.
  
@@ -66,7 +67,41 @@ In order to execute this code, you need to ensure Kill Bill is running (either o
 
 == TroubleShooting
 
-In case you face an error in executing the code, you can take a look at the Kill Bill logs to obtain additional information about the error. The Kill Bill log files can be configured as explained https://docs.killbill.io/latest/development.html#_customizing_log_file_path[here]. It may also be useful to set a break point and debug the code as explained https://docs.killbill.io/latest/development.html#_setting_up_a_breakpoint_and_remote_debugging[here]. 
+This section lists some troubleshooting tips which can be useful to identify/fix errors.
+
+=== Using KillBillClientException
+
+The code above specifies a https://github.com/killbill/killbill-client-java/blob/9634a6d114ab71c868e7ef9ddc8a987cfec414ab/src/main/java/org/killbill/billing/client/KillBillClientException.java[KillBillClientException] in the *throws* clause. This exception is typically thrown in case there is an error in executing an API method. It can be used to obtain an error code which provides more information about the error.
+
+The following code demonstrates how this exception can be used:
+
+[source,java]
+ List<PaymentMethod> paymentMethods = null;
+ try {
+ paymentMethods = accountApi.getPaymentMethodsForAccount(accountId, NULL_PLUGIN_PROPERTIES,requestOptions);
+ } catch (KillBillClientException e) {
+	int errorCode = e.getBillingException().getCode();
+	if(errorCode == ErrorCode.ACCOUNT_DOES_NOT_EXIST_FOR_ID.getCode())   {
+	logger.info(accountId+" does not exist");
+	}
+ }
+
+* The catch block retrieves the error code from the  `KillBillClientException`
+
+* This `errorCode` can then compared with the error codes defined in the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/ErrorCode.java[ErrorCode] class. The code above compares it with `ACCOUNT_DOES_NOT_EXIST_FOR_ID` and logs an error message accordingly.
+
+=== More about errors
+
+The `KillBillClientException` is only thrown when the server returns a 400, 401, 409, 500, etc error.
+If there is no response (204) or if an object cannot be found (404), the code returns a null (for single objects) or an empty list (for collections of objects). 
+
+=== Kill Bill logs
+
+The Kill Bill logs can also be useful while troubleshooting as they can provide additional information about the error. The Kill Bill log files can be configured as explained https://docs.killbill.io/latest/development.html#_customizing_log_file_path[here]. 
+
+=== Debugging the code
+
+Finally, it may also be useful to set a break point and debug the code in order to identify the issue. The steps for this are explained https://docs.killbill.io/latest/development.html#_setting_up_a_breakpoint_and_remote_debugging[here]. 
 
 == Using the sample code
 
