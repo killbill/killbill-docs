@@ -1,0 +1,20 @@
+=== Payment Methods and plugin names
+
+By default, each plugin has a *name* which is specific to the plugin and configured in the plugin code. On start-up, Kill Bill detects all the plugins and starts them. When a plugin is started, it gets *registered* with Kill Bill with its name.
+
+When a payment method is added in Kill Bill via the `KillBill#addPaymentMethod`, the name of the plugin corresponding to the payment method needs to be specified by the merchant application. This gets saved in the Kill Bill database as part of the payment method record. 
+
+Kill Bill then uses the plugin name to route the payment processing to the appropriate plugin. So, while charging a customer against a payment method, the plugin name corresponding to the payment method is retrieved from the Kill Bill database and the payment is processed by the corresponding plugin. 
+
+As explained earlier, each end-user has an `account` in Kill Bill. Each `account` has a default payment method associated with it. In case the end-user is to be charged against the default payment method, the plugin name corresponding to the default payment method is retrieved and used. A merchant application can also explicitly specify a payment method against which the end-user should be charged. In such cases, the plugin name corresponding to the specified payment method is retrieved and used.
+
+==== Payment Methods and plugin names example
+
+Suppose there are two payment plugins named *PluginA* and *PluginB*. When Kill Bill is started, it starts both plugins which register themselves with Kill Bill as *PluginA* and *PluginB* respectively. Now suppose an end-user enters payment method details corresponding to *PluginA*. When the merchant application invokes `KillBill#addPaymentMethod`, *PluginA* needs to be specified along with the payment method details for *PluginA*. This creates a `PaymentMethod` record in the Kill Bill database with the payment method details and plugin name as *PluginA*.
+
+An end-user can choose to enter multiple payment methods. So, if the end-user chooses to enter payment method details corresponding to *PluginB*, the merchant application needs to invoke `KillBill#addPaymentMethod` with plugin name as *PluginB*. This creates another `PaymentMethod` record in the Kill Bill database corresponding to *PluginB*.
+
+Assuming that *PluginA* is the default payment method associated with the account, Kill Bill then retrieves the plugin name (*PluginA*) from the database and routes the payment processing to the *PluginA* code.
+
+In case the merchant application wishes to override the default payment method and charge the customer using *PluginB*, it needs to specify the payment method id corresponding to *PluginB*. Kill Bill then retrieves the plugin name (*PluginB*) corresponding to the payment method id and charges the customer using *PluginB*.
+
