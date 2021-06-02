@@ -1,25 +1,49 @@
-As the name implies, the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a plugin that sends out emails. It is a https://docs.killbill.io/latest/notification_plugin.html[notification plugin] that listens to events and sends emails accordingly. This document covers how to install, test and use this plugin.
+As the name implies, the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a plugin that sends out emails. This document covers how to install, test and use this plugin.
 
 == Prerequisites
 
-* You have Kill Bill, Kaui and the database setup and running as explained in the https://docs.killbill.io/latest/getting_started.html[Getting Started Guide]
+Ensure that you have Kill Bill, Kaui and the database set up as explained in the https://docs.killbill.io/latest/getting_started.html[Getting Started Guide]
 
-* You have a tenant configured with API key bob and API secret lazar - chk if required
+== Overview
+
+The https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a https://docs.killbill.io/latest/notification_plugin.html[notification plugin]. It listens to https://docs.killbill.io/latest/notification_plugin.html#_kill_bill_events_handled_by_notification_plugin[events] and sends emails accordingly.
+
+Currently, the email notification plugin supports the following events:
+
+[options="header",cols="1,1"]
+|===
+|Event Type   |Event Description
+//-------------
+|INVOICE_CREATION   |The customer will receive an email informing that a new invoice is available.   
+|INVOICE_NOTIFICATION   |The customer will receive an email about upcoming invoices (the time at which to send the email is configured through the Kill Bill system property `org.killbill.invoice.dryRunNotificationSchedule`   
+|INVOICE_PAYMENT_SUCCESS   |The customer will receive an email after each successful payment or refund   
+|INVOICE_PAYMENT_FAILED   |The customer will receive an email after each failed payment   
+|SUBSCRIPTION_CANCEL   | The customer will receive an email at the time a subscription was requested to be cancelled and/or at the effective date of the subscription cancellation   
+|===
+
+Note that in order to send an email, the tenant or account must be configured to permit such event(s).
+
+The plugin will typically extract some per account information:
+
+* The `locale` is used to determine which translation to use
+* The account `email` address is obviously requested to be able to send the email
+* In addition to this, and depending on which information the templates require, other fields may be needed (e.g `address1`, `city`, ...)
 
 == Plugin Installation
 
-KPM stands for Kill Bill Package Manager. In order to install a plugin via KPM, please follow the steps given below: 
+https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM] stands for Kill Bill Package Manager. In order to install a plugin via KPM, please follow the steps given below: 
 
-* Ensure that you have https://github.com/killbill/killbill-cloud/blob/master/kpm[kpm] installed. 
+* Ensure that you have kpm installed as explained https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation[here]. 
 
-* Install the plugin as explained https://docs.killbill.io/latest/plugin_development.html#_deployment_through_kpm[here]. (Use `email-notifications` as the plugin key)
+* Install the plugin as per https://docs.killbill.io/latest/plugin_development.html#_deployment_through_kpm[these] plugin installation instructions. (Use `email-notifications` as the plugin key)
 
-* Verify that the plugin is installed properly. This can be done by ensuring that the plugin JAR is present at the path where the plugin is installed. Alternatively, you can also open Kpm in Kaui and verify that the email notification plugin is running as follows:
+* Verify that the plugin is installed properly. This can be done by ensuring that the plugin JAR is present at the `path_to_install_plugin` specified in the previous step. Alternatively, you can also open Kpm in Kaui and verify that the email notification plugin is running as follows:
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/demail-notification-plugin/kaui_email_notification_plugin.png[align=center]
 
 
 == Database Configuration
 
-The email-notification-plugin requires some additional database tables. In order to create these tables, you need to follow the steps given below:
+The email-notification-plugin requires some additional database tables. In order to create these tables, please follow the steps given below:
 
 * Connect to the Kill Bill database. 
 
@@ -28,15 +52,15 @@ The email-notification-plugin requires some additional database tables. In order
 
 == Plugin Configuration
 
-The email-notification-plugin requires some additional configuration. This configuration can either be done by executing the required API endpoints via cURL or via Kaui.
+Each tenant that requires to use the plugin, needs to be configured with the SMTP properties required for sending emails. Additionally, the tenant can also be configured with the events for which emails should be sent. In addition to the per-tenant configuration, the email-notification-plugin also allow a more granular account level configuration for the set of emails to be sent for the particular account. In order for emails to be sent, either the tenant or the account needs to be configured with the events for which the email needs to be sent.
 
-In order to perform the configuration via cURL, you need to do the following:
+The tenant/account configuration can be done by executing the required API endpoints via *cURL*. 
 
-. *Tenant Configuration* - Each tenant that requires the use of the plugin must be configured with the SMTP properties. Additionally the default events for which emails should be sent can also be configured. So, you need to do the following:
+In order to *configure the tenant*, please follow the steps given below:
 
-.. Create a file called `email-config.txt` with the following contents:
+. Create a file called `email-config.txt` with the following contents:
 [source,bash]
-org.killbill.billing.plugin.email-notifications.defaultEvents=INVOICE_PAYMENT_SUCCESS,SUBSCRIPTION_CANCEL
+org.killbill.billing.plugin.email-notifications.defaultEvents=<events>
 org.killbill.billing.plugin.email-notifications.smtp.host=127.0.0.1
 org.killbill.billing.plugin.email-notifications.smtp.port=25
 org.killbill.billing.plugin.email-notifications.smtp.useAuthentication=true
@@ -46,15 +70,15 @@ org.killbill.billing.plugin.email-notifications.smtp.useSSL=false
 org.killbill.billing.plugin.email-notifications.smtp.sendHTMLEmail=true
 org.killbill.billing.plugin.email-notifications.smtp.defaultSender=xxx@yyy.com
 
-.. Assign the required events to the `org.killbill.billing.plugin.email-notifications.defaultEvents` property. The following events can be specified: INVOICE_CREATION, INVOICE_NOTIFICATION, INVOICE_PAYMENT_SUCCESS, INVOICE_PAYMENT_FAILED, and SUBSCRIPTION_CANCEL.
+. Replace `<events>` with a comma separated list of the events for which the emails need to be sent. For example, to configure the tenant to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `org.killbill.billing.plugin.email-notifications.defaultEvents=INVOICE_CREATION,INVOICE_PAYMENT_SUCCESS`
 
-.. Run the following cURL command (Replace `<email-config-path>` with the path where the `email-config.txt` is present):
+. Run the following cURL command (Replace `<email-config-path>` with the path where the `email-config.txt` is present):
 [source,bash]
 curl -v -X POST -u admin:password -H "X-Killbill-ApiKey: email_tenant" -H "X-Killbill-ApiSecret: email_tenant" -H "X-Killbill-CreatedBy: admin" -H "Content-Type: text/plain" --data-binary <email-config-path>/email-config.txt http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-email-notifications
 
-. *Account configuration* - In addition to the per-tenant configuration, we also allow a more granular configuration for the set of emails to send at the account level. Note that this step is optional, in case emails are not configured at the account level, the plugin sends emails based on what is configured for the tenant.
+In order to *configure the account*, please follow the steps given below:
 
-Run the following cURL command to configure the account:
+. Run the following cURL command:
 [source,bash]
 curl -v \
      -X POST \
@@ -63,13 +87,118 @@ curl -v \
      -H 'X-Killbill-ApiSecret: lazar' \
      -H 'X-Killbill-CreatedBy: admin' \
      -H 'Content-Type: application/json' \
-     -d '["INVOICE_NOTIFICATION","INVOICE_CREATION","INVOICE_PAYMENT_SUCCESS","INVOICE_PAYMENT_FAILED","SUBSCRIPTION_CANCEL"]' \
+     -d '[<events>]' \
     http://127.0.0.1:8080/plugins/killbill-email-notifications/v1/accounts/{accountId}
-     
     
-== Template and resource configuration     
+. Replace `<events>` with a comma separated list of the events for which the emails need to be sent. For example, to configure the account to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `"INVOICE_CREATION","INVOICE_PAYMENT_SUCCESS"`
 
-The email-notification plugin uses the https://mustache.github.io/[Mustache engine] for the templating mechanism. The plugin comes with a set of https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/templates[default templates], however users can also upload their own templates.In addition to the templates, users can also upload some resources files to allow for string translations in different languages, e.g. to have different translations for the catalog product names.
+A few *notes*:
+    
+. Either the tenant or the account should be configured with the events for which emails need to be sent, otherwise no emails are sent.
+
+. If a tenant is configured with some events, but account is not configured, then emails will be sent based on what is configured at the tenant level.
+
+. If a tenant is not configured with any events but account is configured with events, then emails will be sent based on what is configured at the account level. 
+
+. If both tenant and account are configured with separate events, emails will be sent for events configured for both.
+
+
+== Testing the plugin
+
+Once the plugin is installed and configured as explained above, it can be used for sending emails.
+
+In order to test and verify that emails are sent correctly, please follow the steps given below:
+
+. Start a local SMTP server. We are typically relying on the `namshi/smtp` docker image:
+[source, bash]
+# Start the SMTP server on port 25
+docker run -tid --name smtp_server -p 25:25  -e DISABLE_IPV6=true namshi/smtp
+
+. Create a tenant as follows (specify the required `apiKey` and `apiSecret`):
+[source,bash]
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '{ "apiKey": "bob", "apiSecret": "lazar"}' \
+    "http://127.0.0.1:8080/1.0/kb/tenants"
+
+. Configure the tenant as specified above.
+
+. Create an account as follows (Replace `<email_id>` with the email id where you would like to receive the email):
+[source, bash]
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '{ "name": "John Doe", "email": "<email_id>", "currency": "USD", "company": "Acme Corporation", "locale":"en_US", "address1": "57 Academy Drive","city": "Oak Creek","state": "WI","postalCode": "53154", "country": "US"}' \
+"http://127.0.0.1:8080/1.0/kb/accounts" 
+
+. If successful, the command above returns a `Location` header like \ http://127.0.0.1:8080/1.0/kb/accounts/eda3e357-20a1-456d-a9b3-b39ca3db8020 with an account id. Copy this account id (`eda3e357-20a1-456d-a9b3-b39ca3db8020` in this case) and save it for future use.
+
+. Add a payment method as follows (replace `<account_id>` with the account_id obtained above): 
+[source, bash]
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '{ "accountId": "<account_id>", "pluginName": "__EXTERNAL_PAYMENT__"}' \
+    "http://127.0.0.1:8080/1.0/kb/accounts/<account_id>/paymentMethods" 
+    
+. If successful, the command above returns a `Location` header like \ http://127.0.0.1:8080/1.0/kb/paymentMethods/c2ff0040-7c5b-48bf-9685-a4c57501535f with a payment method id. Copy this payment method id(`c2ff0040-7c5b-48bf-9685-a4c57501535f` in this case) and save it for future use.
+
+. Set the payment method as default as follows(replace `<account_id>` and `<payment_method_id>` with the values obtained above):
+[source,bash]
+curl -v \
+    -X PUT \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    "http://127.0.0.1:8080/1.0/kb/accounts/<account_id>/paymentMethods/<payment_method_id>/setDefault"
+
+. Create a external charge to trigger an invoice as follows(replace `<account_id>` with the account_id obtained above):
+[source,bash]
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '[ { "accountId": "<account_id>", "description": "My charge", "amount": 50, "currency": "USD" }]'    \
+    "http://127.0.0.1:8080/1.0/kb/invoices/charges/<account_id>?autoCommit=true"
+
+. Confirm that an email is sent for the invoice and successful payment.
+
+Note that steps 2-9 can also be done via https://docs.killbill.io/latest/userguide_kaui.html[Kaui]. The instructions for this will be updated shortly.
+   
+== Template and resource configuration    
+
+The email notification plugin uses the https://mustache.github.io/[Mustache engine] for the templating mechanism. The email notification plugin comes with some https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/templates[default templates]. There is a template corresponding to every event, when the event occurs, the corresponding template is used to send the email. However, users can also upload their own templates. In addition to templates, users can also upload some resource files to allow for string translations in different languages, e.g. to have different translations for the catalog product names.
 
 === Supported Keys And Resources
 
@@ -157,26 +286,51 @@ curl -v \
 --data-binary @/Translation_en_US.properties \
 http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:TEMPLATE_TRANSLATION_en_US
 
-== Testing the plugin
+=== Uploading String translations/template keys
 
-Once the plugin is installed and configured, it can be tested as follows:
+In addition to the templates, the email-notification-plugin also allows uploading some resource files to allow for string translations in different languages, e.g. to have different translations for the catalog product names. In addition, if a custom email template uses some specific keys, the translation strings for these also need to be updated. Thus, you need to do the following:
 
-* Start a local SMTP server. We are typically relying on the namshi/smtp docker image:
+*Uploading String Translations*
+
+* Create a properties file for your locale. You can use the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[default translation template] as a reference.
+
+* Add the required properties (key-value pairs) to your file. 
+
+* Upload the new translation template using the following cURL command:
 [source, bash]
-# Start the SMTP server on port 25
-docker run -tid --name smtp_server -p 25:25  -e DISABLE_IPV6=true namshi/smtp
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H 'X-Killbill-CreatedBy: admin' \
+-H "Content-Type: text/plain" \
+-X POST \
+--data-binary @/<template-name>.properties \
+http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:TEMPLATE_TRANSLATION_en_US
 
-* Create a tenant either via https://killbill.github.io/slate/#tenant-create-a-tenant[cURL] or https://docs.killbill.io/latest/userguide_kaui.html#_kaui_tenants[Kaui].
-* Configure the tenant as specified above.
-* Create an account either via https://killbill.github.io/slate/#account-create-an-account[cURL] or kaui. Specify at least the `locale` and `email`. The  default template also requires the following fields to be set on the Account: `company_name`, `address1`, `city`, `state_or_province`, `postal_code`, `country`.
+*Adding Additional Keys*
 
-* Configure the account as specified above.
+Sometimes, a custom email template may use some specific keys. These need to be updated in the translation template as well.  
 
-* Add a payment method either via https://killbill.github.io/slate/#account-add-a-payment-method[cURL] or kaui and set it as default.
+* Download the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[Translation_en_US.properties].
 
-* Create a external charge either via https://killbill.github.io/slate/#invoice-create-external-charge-s[cURL] or Kaui to trigger an invoice.
+* Add the required key to this file. For example, if your email template uses a key called `merchant.address`, you will need to add a key as follows:
+[source,bash]
+merchant.address=<actual merchant address>
 
-* Confirm that an email is sent for the invoice and successful payment.
+* Upload the new translation template using the following cURL command:
+[source, bash]
+curl -v \
+-u admin:password \
+-H "X-Killbill-ApiKey: bob" \
+-H "X-Killbill-ApiSecret: lazar" \
+-H 'X-Killbill-CreatedBy: admin' \
+-H "Content-Type: text/plain" \
+-X POST \
+--data-binary @/Translation_en_US.properties \
+http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:TEMPLATE_TRANSLATION_en_US
+
+
 
 
 == FAQ
