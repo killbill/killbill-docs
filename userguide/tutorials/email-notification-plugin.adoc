@@ -1,4 +1,4 @@
-As the name implies, the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a plugin that sends out emails. This document covers how to install, test and use this plugin.
+As the name implies, the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a plugin that sends out emails when certain events occur. This document covers how to install, test and use this plugin.
 
 == Prerequisites
 
@@ -15,23 +15,23 @@ Currently, the email notification plugin supports the following events:
 |Event Type   |Event Description
 //-------------
 |INVOICE_CREATION   |The customer will receive an email informing that a new invoice is available.   
-|INVOICE_NOTIFICATION   |The customer will receive an email about upcoming invoices (the time at which to send the email is configured through the Kill Bill system property `org.killbill.invoice.dryRunNotificationSchedule`   
+|INVOICE_NOTIFICATION   |The customer will receive an email about upcoming invoices (the time at which to send the email is configured through the Kill Bill system property `org.killbill.invoice.dryRunNotificationSchedule`)   
 |INVOICE_PAYMENT_SUCCESS   |The customer will receive an email after each successful payment or refund   
 |INVOICE_PAYMENT_FAILED   |The customer will receive an email after each failed payment   
 |SUBSCRIPTION_CANCEL   | The customer will receive an email at the time a subscription was requested to be cancelled and/or at the effective date of the subscription cancellation   
 |===
 
-Note that in order to send an email, the tenant or account must be configured to permit such event(s).
+In order to send an email the following is required:
 
-The plugin will typically extract some per account information:
+* The tenant or account must be configured to permit such event(s). This is explained in the <<Plugin Configuration>> section below.
 
-* The `locale` is used to determine which translation to use
-* The account `email` address is obviously requested to be able to send the email
-* In addition to this, and depending on which information the templates require, other fields may be needed (e.g `address1`, `city`, ...)
+* The account for which the emails need to be sent must have certain fields like `locale`, `email`, `company`, `address1`, `city`, `state`, `postalCode`, `country` set. This is explained in the <<Testing the plugin>> section below.
+
+
 
 == Plugin Installation
 
-https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM] stands for Kill Bill Package Manager. In order to install a plugin via KPM, please follow the steps given below: 
+A plugin can be installed via the https://github.com/killbill/killbill-cloud/blob/master/kpm[Kill Bill Package Manager (KPM)]. For this, please follow the steps given below:
 
 * Ensure that you have kpm installed as explained https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation[here]. 
 
@@ -52,15 +52,21 @@ The email-notification-plugin requires some additional database tables. In order
 
 == Plugin Configuration
 
-Each tenant that requires to use the plugin, needs to be configured with the SMTP properties required for sending emails. Additionally, the tenant can also be configured with the events for which emails should be sent. In addition to the per-tenant configuration, the email-notification-plugin also allow a more granular account level configuration for the set of emails to be sent for the particular account. In order for emails to be sent, either the tenant or the account needs to be configured with the events for which the email needs to be sent.
+Each tenant that requires to use the plugin, needs to be configured with the SMTP properties required for sending emails. Additionally, the tenant can also be configured with the events for which emails should be sent. In addition to the per-tenant configuration, the plugin also allow a more granular account level configuration for the set of emails to be sent for the particular account. Thus, either the tenant or the account needs to be configured with the events for which the email needs to be sent.
 
-The tenant/account configuration can be done by executing the required API endpoints via *cURL*. 
+The tenant/account configuration can be done by executing the required API endpoints via *cURL* as explained below:
 
-In order to *configure the tenant*, please follow the steps given below:
-
-. Create a file called `email-config.txt` with the following contents:
+[[tenant-config,Tenant Configuration]]
+. *Configure the tenant* using the following cURL command (Replace `<events>` with a comma separated list of the events for which the emails need to be sent. For example, to configure the tenant to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `org.killbill.billing.plugin.email-notifications.defaultEvents=INVOICE_CREATION,INVOICE_PAYMENT_SUCCESS`):
 [source,bash]
-org.killbill.billing.plugin.email-notifications.defaultEvents=<events>
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: text/plain' \
+     -d 'org.killbill.billing.plugin.email-notifications.defaultEvents=<events>
 org.killbill.billing.plugin.email-notifications.smtp.host=127.0.0.1
 org.killbill.billing.plugin.email-notifications.smtp.port=25
 org.killbill.billing.plugin.email-notifications.smtp.useAuthentication=true
@@ -68,17 +74,12 @@ org.killbill.billing.plugin.email-notifications.smtp.userName=uuuuuu
 org.killbill.billing.plugin.email-notifications.smtp.password=zzzzzz
 org.killbill.billing.plugin.email-notifications.smtp.useSSL=false
 org.killbill.billing.plugin.email-notifications.smtp.sendHTMLEmail=true
-org.killbill.billing.plugin.email-notifications.smtp.defaultSender=xxx@yyy.com
+org.killbill.billing.plugin.email-notifications.smtp.defaultSender=xxx@yyy.com' \
+http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-email-notifications
+     
+. If you are on Windows, we recommend that you use https://git-scm.com/download/win[Git Bash] to run the above command. Since the above is a multiline cURL command, it may not run run properly in the standard windows command prompt. Alternatively, you may also use Postman to execute the tenant configuration endpoint as explained https://docs.killbill.io/latest/postman.html[here].
 
-. Replace `<events>` with a comma separated list of the events for which the emails need to be sent. For example, to configure the tenant to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `org.killbill.billing.plugin.email-notifications.defaultEvents=INVOICE_CREATION,INVOICE_PAYMENT_SUCCESS`
-
-. Run the following cURL command (Replace `<email-config-path>` with the path where the `email-config.txt` is present):
-[source,bash]
-curl -v -X POST -u admin:password -H "X-Killbill-ApiKey: email_tenant" -H "X-Killbill-ApiSecret: email_tenant" -H "X-Killbill-CreatedBy: admin" -H "Content-Type: text/plain" --data-binary <email-config-path>/email-config.txt http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-email-notifications
-
-In order to *configure the account*, please follow the steps given below:
-
-. Run the following cURL command:
+. *Configure the account* using the following cURL command (Replace `{accountId}` with the id of the account for which emails need to be sent and `<events>` with a comma separated list of the events for which the emails need to be sent. For example, to configure the account to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `"INVOICE_CREATION","INVOICE_PAYMENT_SUCCESS"`):
 [source,bash]
 curl -v \
      -X POST \
@@ -90,9 +91,7 @@ curl -v \
      -d '[<events>]' \
     http://127.0.0.1:8080/plugins/killbill-email-notifications/v1/accounts/{accountId}
     
-. Replace `<events>` with a comma separated list of the events for which the emails need to be sent. For example, to configure the account to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `"INVOICE_CREATION","INVOICE_PAYMENT_SUCCESS"`
-
-A few *notes*:
+*Some notes*:
     
 . Either the tenant or the account should be configured with the events for which emails need to be sent, otherwise no emails are sent.
 
@@ -100,14 +99,12 @@ A few *notes*:
 
 . If a tenant is not configured with any events but account is configured with events, then emails will be sent based on what is configured at the account level. 
 
-. If both tenant and account are configured with separate events, emails will be sent for events configured for both.
+. If both tenant and account are configured with separate events, emails will be sent based on the events configured for both.
 
 
 == Testing the plugin
 
-Once the plugin is installed and configured as explained above, it can be used for sending emails.
-
-In order to test and verify that emails are sent correctly, please follow the steps given below:
+Once the plugin is installed and configured as explained above, it can be used for sending emails. You can verify that the plugin is working correctly by following the steps given below:
 
 . Start a local SMTP server. We are typically relying on the `namshi/smtp` docker image:
 [source, bash]
@@ -127,9 +124,9 @@ curl -v \
     -d '{ "apiKey": "bob", "apiSecret": "lazar"}' \
     "http://127.0.0.1:8080/1.0/kb/tenants"
 
-. Configure the tenant as specified above.
+. Configure the tenant as specified in the <<tenant-config>> section above with *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS* events.
 
-. Create an account as follows (Replace `<email_id>` with the email id where you would like to receive the email):
+. Create an account as follows (Replace `<email_id>` with the email id where you would like to receive the email and change values for the other fields as required):
 [source, bash]
 curl -v \
     -X POST \
@@ -144,9 +141,9 @@ curl -v \
     -d '{ "name": "John Doe", "email": "<email_id>", "currency": "USD", "company": "Acme Corporation", "locale":"en_US", "address1": "57 Academy Drive","city": "Oak Creek","state": "WI","postalCode": "53154", "country": "US"}' \
 "http://127.0.0.1:8080/1.0/kb/accounts" 
 
-. If successful, the command above returns a `Location` header like \ http://127.0.0.1:8080/1.0/kb/accounts/eda3e357-20a1-456d-a9b3-b39ca3db8020 with an account id. Copy this account id (`eda3e357-20a1-456d-a9b3-b39ca3db8020` in this case) and save it for future use.
+. If successful, the command above returns a `Location` header like \http://127.0.0.1:8080/1.0/kb/accounts/eda3e357-20a1-456d-a9b3-b39ca3db8020. Copy the `account_id` in the header (`eda3e357-20a1-456d-a9b3-b39ca3db8020` in this case) and save it for future use.
 
-. Add a payment method as follows (replace `<account_id>` with the account_id obtained above): 
+. Add a payment method as follows (replace `<account_id>` with the account id obtained above): 
 [source, bash]
 curl -v \
     -X POST \
@@ -161,9 +158,10 @@ curl -v \
     -d '{ "accountId": "<account_id>", "pluginName": "__EXTERNAL_PAYMENT__"}' \
     "http://127.0.0.1:8080/1.0/kb/accounts/<account_id>/paymentMethods" 
     
-. If successful, the command above returns a `Location` header like \ http://127.0.0.1:8080/1.0/kb/paymentMethods/c2ff0040-7c5b-48bf-9685-a4c57501535f with a payment method id. Copy this payment method id(`c2ff0040-7c5b-48bf-9685-a4c57501535f` in this case) and save it for future use.
+. If successful, the command above returns a `Location` header like \
+\http://127.0.0.1:8080/1.0/kb/paymentMethods/c2ff0040-7c5b-48bf-9685-a4c57501535f. Copy the payment method id in the header (`c2ff0040-7c5b-48bf-9685-a4c57501535f` in this case) and save it for future use.
 
-. Set the payment method as default as follows(replace `<account_id>` and `<payment_method_id>` with the values obtained above):
+. Set the payment method as default as follows (replace `<account_id>` and `<payment_method_id>` with the values obtained above):
 [source,bash]
 curl -v \
     -X PUT \
@@ -194,17 +192,35 @@ curl -v \
 
 . Confirm that an email is sent for the invoice and successful payment.
 
-Note that steps 2-9 can also be done via https://docs.killbill.io/latest/userguide_kaui.html[Kaui]. The instructions for this will be updated shortly.
+Note that you can also use https://docs.killbill.io/latest/userguide_kaui.html[Kaui] for executing steps 2-9 above. 
+
    
-== Template and resource configuration    
+== Template and resource configuration  
 
-The email notification plugin uses the https://mustache.github.io/[Mustache engine] for the templating mechanism. The email notification plugin comes with some https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/templates[default templates]. There is a template corresponding to every event, when the event occurs, the corresponding template is used to send the email. However, users can also upload their own templates. In addition to templates, users can also upload some resource files to allow for string translations in different languages, e.g. to have different translations for the catalog product names.
+The email notification plugin uses https://mustache.github.io/[Mustache] templates for generating emails. This section explains how custom email templates can be configured.
 
-=== Supported Keys And Resources
+=== Templates Overview
 
-Each email template is assigned a *key*. In order to upload a custom email template, its key needs to be specified. The approach taken is to create  *one template per locale and per type* (as opposed to one template per type with an additional set of translation string bundles for each locale).
+An email template contains the body of an email. In addition to static text, it contains some variables which are replaced at runtime by the mustache engine. 
 
-The following table specifies details about each template (assuming that the locale is `en_US`):
+The email notification plugin comes with some https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/templates[default templates]. However, users can also upload their own custom templates.
+
+The email notification plugin uses *one template per locale and per type* (as opposed to one template per type with an additional set of translation string bundles for each locale). So, for example, the *INVOICE_CREATION* event can have templates like `INVOICE_CREATION_en_US`, `INVOICE_CREATION_fr_FR` and so on. When an *INVOICE CREATION* email needs to be sent for a user, the user's `locale` is checked and the corresponding template is used. The https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/templates[default templates] are available only for the *en_US* locale, however, users can upload templates for other locales if required.
+
+
+=== Resources overview
+
+In addition to templates, the email notification plugin requires a resource file. This resource file contains *key-value pairs* which can be used to replace variables in a template. The email notification plugin comes with a https://github.com/killbill/killbill-email-notifications-plugin/tree/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations[default resource file] that contains key-value pairs for the variables in the default templates.
+
+Unlike email templates, all the events have a single resource file. However, different locales can have different resource files. This allows having string translations in different languages, (like different translations for the catalog product names). So for example, you can have different resource files like `Translation_en_US.properties`, `Translation_fr_FR.properties` and so on. When an email needs to be sent for a user, the user's `locale` is checked and the corresponding resource file is used to replace the variables in the template.
+
+The https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[default resource file] is available only for the *en_US* locale. Users can add additional key-value pairs to this resource file as well as add new resource files for different locales.  
+
+=== Template/Translation Resource Keys
+
+Each email template and the translation resource is assigned a *key*. In order to upload a custom email template/translation resource, its key needs to be specified. 
+
+The following table provides details about the template/translation resource keys (assuming that the locale is `en_US`):
 
 [options="header",cols="1,1,1,1"]
 |===
@@ -217,7 +233,7 @@ The following table specifies details about each template (assuming that the loc
 |Subscription cancellation (requested date)   |killbill-email-notifications:SUBSCRIPTION_CANCELLATION_REQUESTED_en_US   |Template for the email that will be sent when a user requests to cancel a subscription|https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/templates/SubscriptionCancellationRequested.mustache[SubscriptionCancellationRequested.mustache]   
 |Subscription cancellation (effective date)   |killbill-email-notifications:SUBSCRIPTION_CANCELLATION_EFFECTIVE_en_US   |Template for the email that will be sent when a subscription is actually cancelled|https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/templates/SubscriptionCancellationEffective.mustache[SubscriptionCancellationEffective.mustache]
 |Payment refunds   |killbill-email-notifications:PAYMENT_REFUND_en_US   |Template for the email that will be sent when a payment is refunded|https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/templates/PaymentRefund.mustache[PaymentRefund.mustache]  
-|Transation strings   |killbill-email-notifications:TEMPLATE_TRANSLATION_en_US   |Includes all the text values referenced in the templates. Also includes the email subjects using the following keys:
+|Translation strings   |killbill-email-notifications:TEMPLATE_TRANSLATION_en_US   |Includes all the text values referenced in the templates. Also includes the email subjects using the following keys:
 *upcomingInvoiceSubject
 successfulPaymentSubject
 failedPaymentSubject
@@ -228,14 +244,14 @@ invoiceCreationSubject*
 |https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[Translation_en_US.properties]
 |===
 
+=== Uploading a custom template
 
-=== Uploading a template
-
-As explained earlier, you can upload per-tenant email templates for various events. At runtime the plugin will look at the configured templates and based on the locale associated with a given account, decide which one to take; the administrator should upload one template per event and type of locale supported. If a given Account does not have a locale specified, this will fail with a exception Translation for locale XXX isn't found.
+As explained earlier, you can upload per-tenant email templates for various events. At runtime the plugin will look at the configured templates and based on the locale associated with a given account, decide which one to take. An administrator should upload one template per event and type of locale supported. If a given Account does not have a `locale` specified, email sending will fail with a exception `Translation for locale XXX isn't found`.
 
 Let's look at an example to upload a template for the next upcoming invoice and for a locale `en_US`:
 
-* Create the template `/tmp/UpcomingInvoice.mustache`:
+. Create the template `/tmp/UpcomingInvoice.mustache`:
++
 ``` bash
 *** You Have a New Invoice ***
 
@@ -256,7 +272,8 @@ You have a new invoice from {{text.merchantName}}, due on {{invoice.targetDate}}
 
 If you have any questions about your account, please reply to this email or contact {{text.merchantName}} Support at: {{text.merchantContactPhone}}
 ```
-* Upload the template for your tenant:
+
+. Upload the template for your tenant:
 [source, bash]
 curl -v \
 -u admin:password \
@@ -268,35 +285,17 @@ curl -v \
 --data-binary @/tmp/UpcomingInvoice.mustache \
 http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:UPCOMING_INVOICE_en_US
 
-* If your template uses some specific keys, ensure that you also update the translation strings for it. For this, you need to do the following:
+. If your template uses some additional keys than what are specified in the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[default translation file], these need to be added to the translation file as explained in the next section.
 
-** Download https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[Translation_en_US.properties]
+=== Uploading Resource files
 
-** Add your keys to this file.
+As explained earlier, you can upload additional resource files for different locales or additional keys in existing resource files. In order to do this, please follow the steps given below:
 
-** Upload the new translation template using the following cURL command:
-[source, bash]
-curl -v \
--u admin:password \
--H "X-Killbill-ApiKey: bob" \
--H "X-Killbill-ApiSecret: lazar" \
--H 'X-Killbill-CreatedBy: admin' \
--H "Content-Type: text/plain" \
--X POST \
---data-binary @/Translation_en_US.properties \
-http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:TEMPLATE_TRANSLATION_en_US
+. Check if a resource file https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/[already exists] for your locale. If so, download the file and if not, create a new file. You can use the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[default translation template] as a reference to create a new file. 
 
-=== Uploading String translations/template keys
+. Add the required properties (key-value pairs) to your file. 
 
-In addition to the templates, the email-notification-plugin also allows uploading some resource files to allow for string translations in different languages, e.g. to have different translations for the catalog product names. In addition, if a custom email template uses some specific keys, the translation strings for these also need to be updated. Thus, you need to do the following:
-
-*Uploading String Translations*
-
-* Create a properties file for your locale. You can use the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[default translation template] as a reference.
-
-* Add the required properties (key-value pairs) to your file. 
-
-* Upload the new translation template using the following cURL command:
+. Upload the new resource file using the following cURL command (Replace `<template-name>` with the name of the file created in the previous step and `<translation_key>` with the translation key. For example the translation key for a resource file for the `en_US` locale will be *TEMPLATE_TRANSLATION_en_US*):
 [source, bash]
 curl -v \
 -u admin:password \
@@ -306,34 +305,11 @@ curl -v \
 -H "Content-Type: text/plain" \
 -X POST \
 --data-binary @/<template-name>.properties \
-http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:TEMPLATE_TRANSLATION_en_US
+http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:<translation_key>
 
-*Adding Additional Keys*
+== Troubleshooting
 
-Sometimes, a custom email template may use some specific keys. These need to be updated in the translation template as well.  
-
-* Download the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en_US.properties[Translation_en_US.properties].
-
-* Add the required key to this file. For example, if your email template uses a key called `merchant.address`, you will need to add a key as follows:
-[source,bash]
-merchant.address=<actual merchant address>
-
-* Upload the new translation template using the following cURL command:
-[source, bash]
-curl -v \
--u admin:password \
--H "X-Killbill-ApiKey: bob" \
--H "X-Killbill-ApiSecret: lazar" \
--H 'X-Killbill-CreatedBy: admin' \
--H "Content-Type: text/plain" \
--X POST \
---data-binary @/Translation_en_US.properties \
-http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:TEMPLATE_TRANSLATION_en_US
-
-
-
-
-== FAQ
+This section explains some common issues and their solutions.
 
 === Emails not sent
 
@@ -342,7 +318,7 @@ Sometimes, even after configuring the plugin as mentioned above, you may find th
 *Missing information on Account*
 
 In order to send an email, the `Account` record needs to have 
-the `locale` and `email` fields set. In addition, if you are using the default templates provided by the plugin, the `company_name`, `address1`, `city`, `state_or_province`, `postal_code`, `country` fields also need to be set on the Account. If any of these fields are missing, you will see the following exception in the Kill Bill logs and emails will not be sent:
+the `locale` and `email` fields set. In addition, if you are using the default templates provided by the plugin, the `company`, `address1`, `city`, `state`, `postalCode`, `country` fields also need to be set on the Account. If any of these fields are missing, emails will not be sent and you will see the following exception in the Kill Bill logs:
 
 [source,bash]
 com.samskivert.mustache.MustacheException: No key, method or field with name 'account.companyName' on line 12
@@ -351,9 +327,9 @@ Ensure that the account for which the emails are to be sent has all the required
 
 *Missing information in template*
 
-Sometimes, you may upload a custom template. However, you may forget to upload the translation keys for it. In such a case, you will see the following exception in the Kill Bill logs:
+Sometimes, you may upload a custom template. However, you may forget to upload the translation keys for it in the resource file. In such a case, the email will not be sent and you will see the following exception in the Kill Bill logs:
 
 [source,bash]
 com.samskivert.mustache.MustacheException: No key, method or field with name 'text.merchantName' 
 
-Ensure that you also update the translation properties as specified above.
+Ensure that you also update the translation properties as specified in the <<Uploading Resource files>> section above.
