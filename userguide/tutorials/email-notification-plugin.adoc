@@ -4,7 +4,7 @@ As the name implies, the https://github.com/killbill/killbill-email-notification
 
 Ensure that you have Kill Bill, Kaui, and the database set up as explained in the https://docs.killbill.io/latest/getting_started.html[Getting Started Guide].
 
-== Overview
+== Overview 
 
 The https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a https://docs.killbill.io/latest/notification_plugin.html[notification plugin]. It listens to https://docs.killbill.io/latest/notification_plugin.html#_kill_bill_events_handled_by_notification_plugin[events] and sends emails accordingly.
 
@@ -20,6 +20,8 @@ Currently, the email notification plugin supports the following events:
 |INVOICE_PAYMENT_FAILED   |The customer will receive an email after each failed payment.  
 |SUBSCRIPTION_CANCEL   | The customer will receive an email at the time a subscription was requested to be canceled and/or at the effective date of the subscription cancellation.  
 |===
+
+In addition, it can be extended to to handle other types of events as well. This is explained in the <<Configuring the plugin for additional events>> section below.
 
 To send an email the following is required:
 
@@ -122,14 +124,25 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/accounts"
 
 
+== SMTP Server Notes
+
+In order to be able to use the email notification plugin to send emails, a local SMTP server is required. 
+
+
+
+We typically use the `namshi/smtp` docker image as follows to start a local SMTP server on port 25:
+
+[source, bash]
+docker run -tid --name smtp_server -p 25:25  -e DISABLE_IPV6=true namshi/smtp
+
+Alternatively, if you would like to use a non-docker based SMTP server, you can use https://www.mailslurper.com/[MailSlurper]. MailSlurper is a small handy SMTP server that can be useful for development and testing. It can be downloaded and configured as explained https://www.mailslurper.com/[here].
+
+
 == Testing the plugin
 
 Once the plugin is installed and configured as explained above, it can be used for sending emails. You can verify that the plugin is working correctly by following the steps given below:
 
-. Start a local SMTP server. We are typically relying on the `namshi/smtp` docker image:
-[source, bash]
-# Start the SMTP server on port 25
-docker run -tid --name smtp_server -p 25:25  -e DISABLE_IPV6=true namshi/smtp
+. Start a local SMTP server as explained in the <<SMTP Server Notes>> section above.
 
 . Create a tenant as follows (specify the required `apiKey` and `apiSecret`):
 [source,bash]
@@ -326,6 +339,22 @@ curl -v \
 --data-binary @/<template-name>.properties \
 http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:<translation_key>
 
+== Configuring the plugin for additional events
+
+As explained earlier, the email notification plugin is a https://docs.killbill.io/latest/notification_plugin.html[notification plugin]. In addition to the events handled by it by default, it can be configured to listen to other events and send emails accordingly. 
+
+In order to configure the plugin to send emails for other events, you will need to modify the plugin code as follows:
+
+. Ensure that the event for which you would like to send an email is defined in the https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[ExtBusEventType.java].
+
+. Modify the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/java/org/killbill/billing/plugin/notification/setup/EmailNotificationListener.java[EmailNotificationListener] class as follows:
+
+.. Modify the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/java/org/killbill/billing/plugin/notification/setup/EmailNotificationListener.java#L113[EmailNotificationListener#handleKillbillEvent] method to add case statements corresponding to the events that need to be handled.
+
+.. Add a method corresponding to the email that you would like to send similar to the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/java/org/killbill/billing/plugin/notification/setup/EmailNotificationListener.java#L213[EmailNotificationListener#sendEmailForUpComingInvoice] method.
+
+. Upload email templates and translation resource file corresponding to the email that you would like to send as explained in the <<Template and resource configuration>> section.
+
 == Troubleshooting
 
 This section covers some common issues and their solutions.
@@ -352,3 +381,7 @@ Sometimes, you may upload a custom template. However, you may forget to upload t
 com.samskivert.mustache.MustacheException: No key, method or field with name 'text.merchantName'
 
 Ensure that you also update the translation properties as specified in the <<Uploading Resource files>> section above.
+
+=== Enabling SSL in emails
+
+In order to enable SSL while sending emails, you need to configure the tenant with the `org.killbill.mail.useSSL=true` as specified in the <<tenant-config>> section above.
