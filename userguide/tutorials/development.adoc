@@ -130,6 +130,19 @@ Once the repository is cloned, you need to create an Eclipse project. For this, 
             <ignore />
          </action>
       </pluginExecution>
+      <pluginExecution>
+         <pluginExecutionFilter>
+            <groupId>org.basepom.maven</groupId>
+            <artifactId>duplicate-finder-maven-plugin</artifactId>
+            <versionRange>1.5.0</versionRange>
+            <goals>
+               <goal>check</goal>
+            </goals>
+         </pluginExecutionFilter>
+         <action>
+            <ignore />
+         </action>
+      </pluginExecution>      
    </pluginExecutions>
 </lifecycleMappingMetadata>
 
@@ -471,7 +484,7 @@ Sometimes, when you run the application, Jetty may fail to start with the follow
   
 In such a case, build the application again using the instructions in the *Build* section above and run the application again.
 
-==== Application points to default database
+==== Application points to the default database
 
 Sometimes, when the application is started, it may not use the database configured in the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties`. Instead, it may use the default H2 database and cause the following errors:
 [source,bash]
@@ -502,6 +515,64 @@ This error could be due to one of the following issues:
 ==== Logs not created
 
 Sometimes, even after configuring your `logback.xml` file as specified in the <<Customizing Log File Path>> section, logs might not be created. This is most probably because your `logback.xml` is not a valid XML file. Some reasons for an XML file to be invalid are leading spaces, unclosed XML tags. In general, if you are able to open the XML file in a web browser without any errors, your XML file is valid. 
+
+==== SQLException on startup
+
+Sometimes, even after configuring everything as explained above, the following exception might occur when Kill Bill is started:
+
+[source,bash]
+Caused by: java.sql.SQLTransientConnectionException: Could not connect to address=(host=127.0.0.1)(port=3306)(type=master) : RSA public key is not available client side (option serverRsaPublicKeyFile not set)
+	at org.mariadb.jdbc.internal.util.exceptions.ExceptionFactory.createException(ExceptionFactory.java:79)
+	at org.mariadb.jdbc.internal.util.exceptions.ExceptionFactory.create(ExceptionFactory.java:153)
+	at org.mariadb.jdbc.MariaDbDataSource.getConnection(MariaDbDataSource.java:305)
+	at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:364)
+	at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:206)
+	at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:476)
+	at com.zaxxer.hikari.pool.HikariPool.access$100(HikariPool.java:71)
+	at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:726)
+	at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:712)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+
+	
+Some later versions of MySQL require requesting a public key from the server. Thus, the database connection string needs to be specified as follows in the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` file:
+
+[source,bash]
+org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill?allowPublicKeyRetrieval=true&useSSL=false
+org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill?allowPublicKeyRetrieval=true&useSSL=false
+
+
+==== ClassNotFoundException on startup
+
+Sometimes, even after configuring everything as explained above, the following exception might occur when Kill Bill is started:
+
+[source,bash]
+Caused by: java.lang.ClassNotFoundException: jar file 'killbill-api-0.53.17.jar' could not be instantiate from file path. Error: C:\Users\<username>\.m2\repository\org\kill-bill\billing\killbill-api\0.53.17\killbill-api-0.53.17.jar (The system cannot find the path specified)
+    at org.killbill.billing.lifecycle.ServiceFinder.findClasses (ServiceFinder.java:130)
+    at org.killbill.billing.lifecycle.ServiceFinder.initialize (ServiceFinder.java:64)
+    at org.killbill.billing.lifecycle.ServiceFinder.<init> (ServiceFinder.java:48)
+    at org.killbill.billing.util.glue.IDBISetup.mapperFactoriesToRegister (IDBISetup.java:65)
+    at org.killbill.billing.server.modules.KillbillServerModule.configureDao (KillbillServerModule.java:127)
+    at org.killbill.billing.server.modules.KillbillPlatformModule.configure (KillbillPlatformModule.java:86)
+    at org.killbill.billing.server.modules.KillbillServerModule.configure (KillbillServerModule.java:99)
+    at com.google.inject.AbstractModule.configure (AbstractModule.java:61)
+    at com.google.inject.spi.Elements$RecordingBinder.install (Elements.java:347)
+    at com.google.inject.spi.Elements.getElements (Elements.java:104)
+    at com.google.inject.internal.InjectorShell$Builder.build (InjectorShell.java:137)
+
+    
+This error typically occurs on Windows machines and is most probably due to a space being present in the Maven repository path. By default, on Windows, Maven uses the `C:\Users\<username>\.m2\` path for the local repository. If there is a space in the `<username>`, this error can occur. In order to get rid of this error you can change the path of the Maven local repository using the following steps:
+
+. Open `<MAVEN_HOME>/conf/settings.xml`.
+
+. Update `<localRepository>` to the desired path. For example, to create the Maven local repository at the `c:/mavenrepo` path, you need to specify `<localRepository>c:/mavenrepo</localRepository>`.
+
+. Update the new Maven local repository path in Eclipse by navigating to `Window --> Preferences --> Maven --> User Settings`. In the `Global Settings` box, click `Browse` and select the `<MAVEN_HOME>/conf/settings.xml`.
+
+. Restart the application.
+
 
 === Dependencies
 

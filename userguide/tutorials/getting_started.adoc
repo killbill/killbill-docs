@@ -27,8 +27,9 @@ The principal steps in the installation are:
 2. Prepare a YAML file to control the loading of KillBill and the other necessary packages using Docker Compose.
 3. Run Docker Compose to launch the packages in the web server.
 
-If you are working with Mac or Windows, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. This will describe the procedures for setting up and testing Docker in a Mac or Windows environment using Docker Desktop. It is quite easy to get it up and running. This approach will greatly simplify the Kill Bill stack setup, as Tomcat and MySQL configuration will be done for you.
-If you cannot use Docker Desktop, you may still be able to install Docker with older methods using Docker Toolbox. For details see https://docs.docker.com/toolbox/toolbox_install_mac/[Install Docker Toolbox on MacOS] or https://docs.docker.com/toolbox/toolbox_install_windows/[Install Docker Toolbox on Windows].
+If you are working with Mac or Windows, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. This will describe the procedures for setting up and testing Docker in a Mac or Windows environment using https://docs.docker.com/desktop/[Docker Desktop]. Note that https://docs.docker.com/docker-for-windows/install/[Docker Desktop for Windows] requires installing https://docs.microsoft.com/en-us/windows/wsl/install-win10[WSL] if you are on Windows 10 home as explained in the https://docs.docker.com/docker-for-windows/install/[Windows installation document].
+It is quite easy to get it up and running. This approach will greatly simplify the Kill Bill stack setup, as Tomcat and MySQL configuration will be done for you.
+
 
 If you are using a Linux environment, read the appropriate sections of the https://docs.docker.com/install/[Docker Engine Overview].
 
@@ -126,14 +127,14 @@ If all goes well 3 containers will start:
 
 The startup sequence lasts a couple of minutes. It is ready when you see the message "INFO: Server startup". If it takes a long time or if the container crashes, verify you have enough memory allocated to Docker. On a Mac for instance, go to Docker Desktop Preferences and set the Memory to 4GiB in the Advanced panel. On Ubuntu, be sure you have at least 4GiB of RAM.
 
-You should now be able to log-in to Kaui by going to http://<IP>:9090. If Docker is running on your local machine, <IP> is 127.0.0.1. Otherwise, it is the IP of your server.
+You should now be able to log-in to Kaui by going to \http://<IP>:9090. If Docker is running on your local machine, <IP> is 127.0.0.1. Otherwise, it is the IP of your server.
 
 You will be presented with a login page. Default credentials are:
 
 * username: admin
 * password: password
 
-You can also go to http://<IP>:8080/api.html to explore the KillBill APIs.
+You can also go to \http://<IP>:8080/api.html to explore the KillBill APIs.
 
 === Tomcat
 
@@ -144,7 +145,7 @@ Users familiar with Java technologies can also install Kill Bill and Kaui direct
 The first step in installing Kill Bill in Tomcat is to download and install Tomcat. For this, you need to follow the steps given below:
 
 . Download the Core binary distribution of the Tomcat container from http://tomcat.apache.org/download-80.cgi[here] 
-(At the time of writing, *8.5.59* is the latest version, however it can change in the future as newer versions are released.) The downloaded zip file contains a folder called *apache-tomcat-8.5.59* 
+(At the time of writing, *8.5.59* is the latest version, however it can change in the future as newer versions are released.) The downloaded zip file contains a folder called *apache-tomcat-8.5.59*
 
 . Extract *apache-tomcat-8.5.59* and place it on any location on your computer. This path will be refered to as *TOMCAT_HOME* from now on. (For example, if you place *apache-tomcat-8.5.59* in a directory called ```C:\Software```, *TOMCAT_HOME* refers to ```C:\Software\apache-tomcat-8.5.59```). It should look like this:
 
@@ -562,6 +563,62 @@ org.osgi.framework.BundleException: Duplicate import: org.joda.time.format
 	at java.lang.Thread.run(Thread.java:745)
 	
 This typically happens on Windows machines. In such a case, delete   `<kpm_bundles_path>/platform/killbill-platform-osgi-bundles-jruby-0.40.4.jar` if present. Restart Tomcat. This should fix the issue.
+
+
+*SQLException on startup*
+
+Sometimes, even after configuring everything as explained above, the following exception might occur when Kill Bill is started:
+
+[source,bash]
+Caused by: java.sql.SQLTransientConnectionException: Could not connect to address=(host=127.0.0.1)(port=3306)(type=master) : RSA public key is not available client side (option serverRsaPublicKeyFile not set)
+	at org.mariadb.jdbc.internal.util.exceptions.ExceptionFactory.createException(ExceptionFactory.java:79)
+	at org.mariadb.jdbc.internal.util.exceptions.ExceptionFactory.create(ExceptionFactory.java:153)
+	at org.mariadb.jdbc.MariaDbDataSource.getConnection(MariaDbDataSource.java:305)
+	at com.zaxxer.hikari.pool.PoolBase.newConnection(PoolBase.java:364)
+	at com.zaxxer.hikari.pool.PoolBase.newPoolEntry(PoolBase.java:206)
+	at com.zaxxer.hikari.pool.HikariPool.createPoolEntry(HikariPool.java:476)
+	at com.zaxxer.hikari.pool.HikariPool.access$100(HikariPool.java:71)
+	at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:726)
+	at com.zaxxer.hikari.pool.HikariPool$PoolEntryCreator.call(HikariPool.java:712)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+
+	
+Some later versions of MySQL require requesting a public key from the server. Thus, the database connection string needs to be specified as follows in the `TOMCAT_HOME/conf/catalina.properties file` file:
+
+[source,bash]
+org.killbill.dao.url=jdbc:mysql://127.0.0.1:3306/killbill?allowPublicKeyRetrieval=true&useSSL=false
+org.killbill.billing.osgi.dao.url=jdbc:mysql://127.0.0.1:3306/killbill?allowPublicKeyRetrieval=true&useSSL=false
+
+
+*ClassNotFoundException on startup*
+
+Sometimes, even after configuring everything as explained above, the following exception might occur when Kill Bill is started:
+
+[source,bash]
+Caused by: java.lang.ClassNotFoundException: jar file 'killbill-api-0.53.17.jar' could not be instantiate from file path. Error: C:\Users\<username>\.m2\repository\org\kill-bill\billing\killbill-api\0.53.17\killbill-api-0.53.17.jar (The system cannot find the path specified)
+    at org.killbill.billing.lifecycle.ServiceFinder.findClasses (ServiceFinder.java:130)
+    at org.killbill.billing.lifecycle.ServiceFinder.initialize (ServiceFinder.java:64)
+    at org.killbill.billing.lifecycle.ServiceFinder.<init> (ServiceFinder.java:48)
+    at org.killbill.billing.util.glue.IDBISetup.mapperFactoriesToRegister (IDBISetup.java:65)
+    at org.killbill.billing.server.modules.KillbillServerModule.configureDao (KillbillServerModule.java:127)
+    at org.killbill.billing.server.modules.KillbillPlatformModule.configure (KillbillPlatformModule.java:86)
+    at org.killbill.billing.server.modules.KillbillServerModule.configure (KillbillServerModule.java:99)
+    at com.google.inject.AbstractModule.configure (AbstractModule.java:61)
+    at com.google.inject.spi.Elements$RecordingBinder.install (Elements.java:347)
+    at com.google.inject.spi.Elements.getElements (Elements.java:104)
+    at com.google.inject.internal.InjectorShell$Builder.build (InjectorShell.java:137)
+
+    
+This error typically occurs on Windows machines and is most probably due to a space being present in the Maven repository path. By default, on Windows, Maven uses the `C:\Users\<username>\.m2\` path for the local repository. If there is a space in the `<username>`, this error can occur. In order to get rid of this error you can change the path of the Maven local repository using the following steps:
+
+. Open `<MAVEN_HOME>/conf/settings.xml`.
+
+. Update `<localRepository>` to the desired path. For example, to create the Maven local repository at the `c:/mavenrepo` path, you need to specify `<localRepository>c:/mavenrepo</localRepository>`.
+
+. Restart the application.
 
 == Quick Tutorial
 
