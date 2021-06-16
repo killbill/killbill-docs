@@ -202,23 +202,28 @@ A bundle is nothing but a JAR file. However, its `manifest.mf` has some addition
 
 Although each bundle is isolated from other bundles, sometimes bundles may need to communicate/share classes with other bundles. A bundle can export a package to make the corresponding classes available for use by other bundles. A bundle can also import a package to use the classes of another bundle.
 
-For example if a bundle `bundle1` requires a class `p1.p2.A` from `bundle2`, `bundle2` needs to export the `p1.p2` package and `bundle1` needs to import this package. The packages imported by a bundle as specified as a `Import-package` header in the `manifest.mf` while packages exported by a bundle are specified as a `Export-package` header in the `manifest.mf`.
+For example if a bundle `bundle1` requires a class `p1.p2.A` from `bundle2`, `bundle2` needs to export the `p1.p2` package and `bundle1` needs to import this package. The packages imported by a bundle are specified as a `Import-package` header in the `manifest.mf` while packages exported by a bundle are specified as a `Export-package` header in the `manifest.mf`.
 
 The OSGi container ensures that a given bundle's package dependencies can be satisfied before the bundle runs. Thus, if the package dependencies cannot be satisfied, the bundle will not run.
 
-==== Importing Packages in Plugins
+==== Kill Bill OSGi Overview
 
-As explained earlier, Kill Bill plugins are packaged as OSGi bundles. The http://felix.apache.org/documentation/subprojects/apache-felix-maven-bundle-plugin-bnd.html[`maven-bundle-plugin`] specified in the https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/pom.xml[`pom.xml`] is responsible for this. Thus, the `maven-bundle-plugin` takes care of creating the jar with the correct OSGi headers (including adding the required packages to the `Import-Package` header). In addition, the https://github.com/killbill/killbill-oss-parent/blob/f3d9725cc7759a54eb6f978b3d3f763e1d170021/pom.xml[killbill-oss-parent pom] file (which is the parent of the plugin `pom.xml` file) also specifies the packages to be included in the `Import-Package` header.
+The Kill Bill core itself is packaged as an OSGi bundle (referred to as system bundle). It exports several packages as specified in the <<Packages exported by Kill Bill>> section. Packages exported by Kill Bill are automatically imported by a plugin as specified in the <<Packages Imported by Plugins by default>> section. However, in some cases, a plugin may need to explicitly import packages exported by Kill Bill as explained in the <<Importing Additional Packages in Plugins>> section.
+
+
+==== Packages exported by Kill Bill
+
+As explained earlier, the Kill Bill system bundle exports the packages which it desires to share with plugins. The packages exported by the Kill Bill system bundle are specified in the https://github.com/killbill/killbill-platform/blob/4e735e9c3367cee2272964f16d028795f55592d3/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L49[OSGIConfig.java]. Additionally, Kill Bill also offers a system property, `org.killbill.osgi.system.bundle.export.packages.extra`, to specify additional packages to be exported by the system bundle and that could in turn be imported by a plugin.
+
+==== Packages Imported by Plugins by default
+
+As explained earlier, Kill Bill plugins are packaged as OSGi bundles. The http://felix.apache.org/documentation/subprojects/apache-felix-maven-bundle-plugin-bnd.html[`maven-bundle-plugin`] specified in the https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/pom.xml[`pom.xml`] is responsible for packaging a plugin as an OSGi bundle. Thus, the `maven-bundle-plugin` takes care of creating the jar with the correct OSGi headers (including adding the required packages to the `Import-Package` header). In addition, the https://github.com/killbill/killbill-oss-parent/blob/f3d9725cc7759a54eb6f978b3d3f763e1d170021/pom.xml[killbill-oss-parent pom] file (which is the parent of the plugin `pom.xml` file) also specifies the packages to be included in the `Import-Package` header.
 
 Thus, when a plugin is built, the `Import-Package` header is automatically computed based on:
 
 * Packages computed by the `maven-bundle-plugin`.
 * Packages specified in the `killbill-oss-parent` pom file.
 
-
-==== Packages exported by Kill Bill
-
-The Kill Bill system bundle also exports the packages which it desires to share with plugins. The packages exported by the Kill Bill system bundle are specified in the https://github.com/killbill/killbill-platform/blob/4e735e9c3367cee2272964f16d028795f55592d3/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L49[OSGIConfig.java]. Additionally, Kill Bill also offers a system property, `org.killbill.osgi.system.bundle.export.packages.extra`, to specify additional packages to be exported by the system bundle and that could in turn be imported by a plugin.
 
 ==== Importing Additional Packages in Plugins
 
@@ -233,7 +238,7 @@ org.killbill.osgi.system.bundle.export.packages.extra=<package1>,<package2>..<pa
 
 . Open plugin `pom.xml`
 
-. Specify the following in the `properties` section of the `pom.xml`:
+. Specify the following in the `properties` section of the `pom.xml` (Replace `<package>` with the fully qualified name of the package that you would like to export):
 [source,xml]
  <osgi.extra-import>
             <package1>;
@@ -243,6 +248,27 @@ org.killbill.osgi.system.bundle.export.packages.extra=<package1>,<package2>..<pa
 </osgi.extra-import> 
 
 This causes the package to be added to the `Import-Package` header of the plugin jar. You can see an example of this in the https://github.com/killbill/killbill-adyen-plugin/blob/0c5205d2ee42b543852e7cbd1a6f6f065ad575e5/pom.xml#L44[Kill Bill Adyen Plugin pom file]. 
+
+==== Exporting Additional Packages from a Plugin
+
+A plugin can also export packages corresponding to the classes that it wants to share with other plugins. This mechanism is particularly useful since it allows plugins to share custom functionality with other plugins. 
+
+To *export* a package from a plugin, you need to follow the steps given below.
+
+. Open plugin `pom.xml`.
+
+. Specify the following in the `properties` section of the `pom.xml` (Replace `<package>` with the fully qualified name of the package that you would like to export): 
+[source,xml]
+<osgi.export>
+  <package1>,
+  <package2>
+   ....
+  <packagen>
+</osgi.export>
+
+. This causes the specified packages to be added to the `Export-Package` header of the plugin jar.
+
+. Other plugins can then use the classes in these packages by importing them as explained above.
 
 === Examples of Plugins
 
@@ -497,4 +523,8 @@ mvn clean install -Dcheck.fail-enforcer=false -Dcheck.fail-dependency=false -Dch
 
 However, this is *not recommended*, we recommend that you fix the POM file and run the build with all the checks in place.
 
+=== java.lang.NoClassDefFoundError or java.lang.ClassNotFoundException while running the plugin
 
+Sometimes, when you develop a custom plugin, a `java.lang.NoClassDefFoundError` or a `java.lang.ClassNotFoundException` exception may occur on starting Kill Bill. This is most probably because the class in question is not present on the classpath. 
+
+For a plugin to work, any classes used by the plugin must be present on the classpath. So, the class needs to be present in the plugin jar itself or it must be imported from Kill Bill. For the import mechanism to work, there must be a matching export in Kill Bill. Refer to the <<Importing Additional Packages in Plugins>> section above for further details.
