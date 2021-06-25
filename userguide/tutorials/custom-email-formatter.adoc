@@ -1,0 +1,160 @@
+= Custom Email Formatter
+
+== Purpose
+
+The purpose of this document is to explain how to  customize an invoice sent in an email via a custom plugin.
+
+== Prerequisites
+
+* You have Kill Bill, Kaui, and the database set up as explained in the https://docs.killbill.io/latest/getting_started.html[Getting Started] Guide.
+
+* You have the email notification plugin installed as explained in the https://docs.killbill.io/latest/email-notification-plugin.html[Email Notification Plugin] document.
+
+== Overview
+
+The https://github.com/killbill/killbill-email-notifications-plugin/[Email Notification Plugin] can be used to send emails to customers when certain https://docs.killbill.io/latest/email-notification-plugin.html#_overview[predefined events] occur. The plugin defines some https://github.com/killbill/killbill-email-notifications-plugin/tree/4d653e0d6ad6cd637716737d25f854f16652aaee/src/main/resources/org/killbill/billing/plugin/notification/templates[email templates] which determine the body of the email. Users can also upload their own https://docs.killbill.io/latest/email-notification-plugin.html#_uploading_a_custom_template[custom templates]. Sometimes users may wish to customize the invoice sent in the email by including additional fields. This can be achieved by creating a custom plugin as explained in this document.
+
+== Plugin Tutorial
+
+We provide a _sample_ https://github.com/killbill/killbill-custom-invoice-formatter-example[custom invoice formatter] plugin. Let us now take a closer look at how you can create a similar custom plugin.
+
+=== Initial Setup
+
+. Create a new Maven project. 
+
+. Copy the https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/26d6e27baa3ab2849187899ce499e3a63360fc91/pom.xml[pom.xml] from the sample project.
+
+=== Create InvoiceFormatter class 
+
+First, you need to create an `InvoiceFormatter` class similar to  https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/26d6e27baa3ab2849187899ce499e3a63360fc91/src/main/java/org/killbill/billing/plugin/custominvoiceformatter/CustomInvoiceFormatter.java[CustomInvoiceFormatter] as follows:
+
+```java
+public class CustomInvoiceFormatter extends DefaultInvoiceFormatter{
+
+	public CustomInvoiceFormatter(Map<String, String> translator, Invoice invoice, Locale locale) {
+		super(translator, invoice, locale);
+		logger.info("Creating CustomInvoiceFormatter");
+	}
+	
+	private static final Logger logger = LoggerFactory.getLogger(CustomInvoiceFormatter.class);
+	
+	private String greeting="Here is your new invoice!!";
+	
+	public String getGreeting() {
+		return greeting;
+	}
+
+}
+```
+* The `CustomInvoiceFormatter` class extends `org.killbill.billing.plugin.notification.generator.formatters.DefaultInvoiceFormatter`.
+
+* It has a constructor as shown above.
+
+* A field called `greeting` is defined. This is a custom field. It has a corresponding `getGreeting` method.
+
+* You can add other custom fields as required. For each field, ensure that the field is initialized and that there is a `getter` method that returns the value of the field. 
+
+=== Create InvoiceFormatterFactory class
+
+Next, you need to create an `InvoiceFormatterFactory` class similar to the 
+https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/26d6e27baa3ab2849187899ce499e3a63360fc91/src/main/java/org/killbill/billing/plugin/custominvoiceformatter/CustomInvoiceFormatterFactory.java[CustomInvoiceFormatterFactory] class. This is responsible for creating an `InvoiceFormatter`. 
+
+```java
+public class CustomInvoiceFormatterFactory implements InvoiceFormatterFactory{
+	
+	private static final Logger logger = LoggerFactory.getLogger(CustomInvoiceFormatterFactory.class);
+	
+	public CustomInvoiceFormatterFactory() {
+		super();
+		logger.info("Creating CustomInvoiceFormatterFactory");
+	}
+
+	@Override
+	public InvoiceFormatter createInvoiceFormatter(Map<String, String> translator, Invoice invoice, Locale locale,
+			TenantContext context) {
+		return new CustomInvoiceFormatter(translator, invoice, locale);
+	}
+
+}
+```
+
+* The `CustomInvoiceFormatterFactory` implements the `org.killbill.billing.plugin.notification.api.InvoiceFormatterFactory` interface. 
+
+* It has a default constructor as shown above.
+
+* It has a `createInvoiceFormatter` formatter method that creates and returns a `CustomInvoiceFormatter` object.
+
+
+=== Create Activator
+
+Finally, you need to create an `Activator` class similar to the https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/26d6e27baa3ab2849187899ce499e3a63360fc91/src/main/java/org/killbill/billing/plugin/custominvoiceformatter/CustomInvoiceFormatterActivator.java[CustomInvoiceFormatterActivator]. As with other plugins, the `Activator` class is responsible for registering the plugin with Kill Bill.
+
+
+```java
+public class CustomInvoiceFormatterActivator extends KillbillActivatorBase{
+
+	// Ideally that string should match the pluginName on the filesystem, but there
+	// is no enforcement
+	//
+	public static final String PLUGIN_NAME = "custom-invoice-formatter-plugin";
+
+	private CustomInvoiceFormatterFactory customInvoiceFormatterFactory;
+	private ServiceRegistration<InvoiceFormatterFactory> registration = null;
+
+	@Override
+	public void start(final BundleContext context) throws Exception {
+		super.start(context);
+
+		// create CustomInvoiceFormatterFactory
+		customInvoiceFormatterFactory = new CustomInvoiceFormatterFactory();
+		Hashtable<String, Object> properties = new Hashtable<>();
+		registration = context.registerService(InvoiceFormatterFactory.class, customInvoiceFormatterFactory,
+				properties); // register factory as OSGi service
+
+	}
+
+	@Override
+	public void stop(final BundleContext context) throws Exception {
+		super.stop(context);
+		if (registration != null) {
+			registration.unregister();
+			registration = null;
+		}
+		// Do additional work on shutdown (optional)
+	}
+
+}
+```
+
+* The `CustomInvoiceFormatterActivator` extends the `org.killbill.billing.osgi.libs.killbill.KillbillActivatorBase` class. 
+
+* The `start` method creates a `CustomInvoiceFormatterFactory` and registers it as an OGGi service as shown above.
+
+* The `stop` method unregisters the service.
+
+== Build and Deploy
+
+Once the code changes as done, the custom plugin can be built and deployed as explained below.
+
+. Build the code using the following Maven command:
+[source,bash]
+mvn clean install -DskipTests=true
+
+. Install the plugin using the following https://github.com/killbill/killbill-cloud/blob/master/kpm[kpm] command (Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path should match the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file):
+[source,bash]
+kpm install_java_plugin 'dev-custom-invoice-formatter' --from-source-file=target/ custom-invoice-formatter-plugin*-SNAPSHOT.jar --destination=<path_to_install_plugin>
+
+== Test
+
+In order to test the plugin,you need to *upload an email template* with the new invoice fields and execute the steps that would *trigger the email*. 
+
+For example, in order to include the `greeting` field created earlier  in the invoice creation email, you will need to do the following:
+
+* Create an email template with the  `invoice.greeting` field as shown below and upload the new template as explained https://docs.killbill.io/latest/email-notification-plugin.html#_uploading_a_custom_template[here].
+[source,bash]
+{{invoice.greeting}}
+
+* Trigger the invoice creation email as explained https://docs.killbill.io/latest/email-notification-plugin.html#_testing_the_plugin[here].
+
+* Verify that the email includes the `greeting` field.
+
