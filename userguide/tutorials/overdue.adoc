@@ -33,7 +33,7 @@ Kill Bill has two distinct in-built mechanisms that come into play here, these a
 
 The *Payment Retry System* is a system that retries failed payments as per a defined schedule. The schedule can be defined via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The scenario above states that the system should be configured to retry failed payments 4 times. So, the Payment Retry System needs to be configured accordingly. 
 
-The *Overdue System* defines the flow that the system must follow when an account is overdue (that is, has an unpaid balance). It can be configured via an XML file. The XML file can be specified via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The XML file defines the various _states_ that the account must go through, the _change in the user's entitlements_ when the account is transitioned from one state to the other and the _period_ after which the state is re-evaluated.
+The *Overdue System* defines the flow that the system must follow when an account is overdue (that is, has an unpaid balance). It can be configured via an XML file. The XML file can be specified via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The XML file defines the various _states_ that the account must go through, the _change in the user's entitlements_ when the account is transitioned from one state to the other and the _period_ after which the state is re-evaluated. The scenario above states that the entitlements should be blocked after 14 days and the subscription should be cancelled after 21 days. So, this needs to be configured in the overdue XML file.
 
 It is important to understand that the *Payment Retry System* and the *Overdue system* are *independent* of each other. So, the *Payment Retry System* attempts payments as per its retry schedule while the *overdue system* moves the account from one state to the other as per its configuration.
 
@@ -335,6 +335,8 @@ So, we will be doing the following:
 Notes: For simplicity, we are using dates (e.g `2021-01-10`) when manipulating the Kill Bill clock instead of fully qualified datetimes (`2021-01-10T01:43:23.000Z`). Passing such a date will end up moving the Kill Bill clock to a given point in time and that point in time may end up before the exact time of the event we are trying to trigger. In such case, retry moving the clock by one day and that should trigger it. An alternative is to specify the exact datetime when moving the clock, but that requires looking into Kill Bill internal tables to understand what is the exact trigger time. This is more rigorous but less convenient.
 
 [start = 1]
+. Start Kill Bill Ensure either on https://docs.killbill.io/latest/getting_started.html#_aws_one_click[AWS], https://docs.killbill.io/latest/getting_started.html#_docker[Docker], https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat] or  https://docs.killbill.io/latest/development.html#_running_the_application[standalone] mode.
+
 . Set the date to `2021-07-26` (This is not mandatory, but would make the flow in sync with the diagram above):
 [source,bash]
 curl -v \
@@ -346,7 +348,7 @@ curl -v \
 -X POST \
 "http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2021-07-26"
 
-[start = 2]
+[start = 3]
 . Create your account:
 
 [source,bash]
@@ -362,7 +364,7 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/accounts"
 ----
 
-[start = 3]
+[start = 4]
 . Add the payment method (assuming `60035793-cbe5-472a-8bd8-3c67cc3beaf4` is the accountId):
 
 [source,bash]
@@ -379,7 +381,7 @@ curl -v \
 ----
 
 
-[start = 4]
+[start = 5]
 . Create a subscription to trigger some invoices and (failed) payment. 
 
 [source,bash]
@@ -395,7 +397,7 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/subscriptions"
 ----
  
-[start = 5]
+[start = 6]
 . Move the clock to reach end of trial (`2021-08-06`) and see first payment
 
 [source,bash]
@@ -410,8 +412,8 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2021-08-06"
 ----
 
-[start = 6]
-. Configure payment plugin to fail subsequent payments (You can then refer to the  https://github.com/killbill/killbill-payment-test-plugin#global-state-configuration[Payment Test Plugin Global State Configuration] to understand this better.)
+[start = 7]
+. Configure payment plugin to fail subsequent payments (You can then refer to the  https://github.com/killbill/killbill-payment-test-plugin#global-state-configuration[Payment Test Plugin Global State Configuration] to understand this better).
 
 [source,bash]
 ----
@@ -426,7 +428,7 @@ curl -v \
  -v 'http://127.0.0.1:8080/plugins/killbill-payment-test/configure'
 ----
 
-[start = 7]
+[start = 8]
 . Move the clock to the next month (`2021-09-06`) and observe first failed payment
 
 
@@ -442,7 +444,7 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2021-09-06"
 ----
 
-[start = 8]
+[start = 9]
 . Move clock +1 day (`2021-09-07`) and observe first payment retry
 
 [source,bash]
@@ -457,16 +459,13 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/test/clock?requestedDate=2021-09-07"
 ----
 
-[start = 9]
+[start = 10]
 . Move clock +1 day (`2021-09-08`) and observe second payment retry
 
-[start = 10]
 . Move clock +8 day (`2021-09-16`) and observe third payment retry. Also verify that the account is in `WARNING` status
 
-[start = 11]
 . Move clock +4 day (`2021-09-20`) and verify that the account is in `BLOCKED` status
 
-[start = 12]
 . Move clock +1 day (`2021-09-21`) and configure the payment plugin to suceed:
 [source,bash]
 ----
@@ -481,8 +480,8 @@ curl -v \
  -v 'http://127.0.0.1:8080/plugins/killbill-payment-test/configure'
 ----
 
-[start = 13]
-. Move clock +1 day (`2021-09-22`) and observe the final payment retry
+[start = 14]
+. Move clock +1 day (`2021-09-22`) and observe the final payment retry. Verify that the payment is successful and the account is moved to the `CLEAR` status
 
 [[platform_use]]
 == Use of the Platform
@@ -518,12 +517,15 @@ When retrieving entitlement/overdue status, the web site could be implemented to
 
 === Custom Plugins
 
-In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs-in for instance). Another pattern is to create a custom notification plugin that will listen to `Overdue` events. In order to create a Java plugin, you can refer to this https://docs.killbill.io/latest/notification_plugin.html[tutorial]. If you would like to create a Ruby plugin, you can refer to the https://github.com/killbill/killbill-hello-world-ruby-plugin/blob/master/lib/helloworld/user_listener.rb[Hello World Ruby Example].
-
-The plugin would need to filter for `OVERDUE_CHANGE` https://github.com/killbill/killbill-plugin-api/blob/master/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[events]
+In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs-in for instance). Another pattern is to create a custom notification plugin that will listen to `Overdue` events. In order to create a Java plugin, you can refer to this https://docs.killbill.io/latest/notification_plugin.html[tutorial]. If you would like to create a Ruby plugin, you can refer to the https://github.com/killbill/killbill-hello-world-ruby-plugin/blob/master/lib/helloworld/user_listener.rb[Hello World Ruby Example]. The plugin would need to filter for `OVERDUE_CHANGE` https://github.com/killbill/killbill-plugin-api/blob/master/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[events].
 
 Such plugins can be used for the following purpose:
 
-* Email/Notify user about the new state
+* Email/Notify user about the new state (We already have an https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] which can also be extended to handle `OVERDUE_CHANGE` events)
 * Take action to modify the experience (based on the state name): for instance to degrade the service, modify the login flow to prompt for payment, ...
 
+
+== Additional Resources
+
+* https://docs.killbill.io/latest/userguide_subscription.html[Subscription Billing User Guide]
+* https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide]
