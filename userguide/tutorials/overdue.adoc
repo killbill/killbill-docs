@@ -29,7 +29,7 @@ Additionally, we want to prevent users from changing plans (e.g. upgrade) until 
 
 Before we understand how to implement the above scenario, let us understand some high-level concepts.
 
-Kill Bill has two distinct in-built mechanisms that come into play here, these are the *Payment Retry System* and the *Overdue System*. Though separate, these two systems work in close conjunction with each other.
+Kill Bill has two distinct built-in mechanisms that come into play here, these are the *Payment Retry System* and the *Overdue System*. Though separate, these two systems work in close conjunction with each other.
 
 The *Payment Retry System* is a system that retries failed payments as per a defined schedule. The schedule can be defined via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The scenario above states that the system should be configured to retry failed payments 4 times. So, the Payment Retry System needs to be configured accordingly. 
 
@@ -136,7 +136,7 @@ In order to understand more about catalogs, you can refer to the https://docs.ki
 
 Next, you need to define the overdue configuration XML file. Based on the scenario defined above, the overdue configuration will define the three states the account will go through:
 
-1. The account will enter the `WARNING` state 10 days after the first unpaid invoice (i.e. 20 days after the subscription creation)
+1. The account will enter the `WARNING` state 10 days after the first unpaid invoice (Trial period will last for 10 days, after which a $10 invoice will be generated. 10 days after this (20 days after the subscription creation), the account needs to enter the `WARNING` state)
 2. 4 days later, the account will move to the `BLOCKED` state
 3. 7 days later, the account will move to the `CANCELLATION` state.
 
@@ -332,7 +332,7 @@ So, we will be doing the following:
 * Move clock +1 day and configure payment plugin to succeed
 * Move clock +1 day (6 days from last payment attempt) and observe fourth payment retry which is successful
 
-Notes: For simplicity, we are using dates (e.g `2021-01-10`) when manipulating the Kill Bill clock instead of fully qualified datetimes (`2021-01-10T01:43:23.000Z`). Passing such a date will end up moving the Kill Bill clock to a given point in time and that point in time may end up before the exact time of the event we are trying to trigger. In such case, retry moving the clock by one day and that should trigger it. An alternative is to specify the exact datetime when moving the clock, but that requires looking into Kill Bill internal tables to understand what is the exact trigger time. This is more rigorous but less convenient.
+Notes: For simplicity, we are using dates (e.g `2021-01-10`) when manipulating the Kill Bill clock instead of fully qualified datetimes (`2021-01-10T01:43:23.000Z`). Passing such a date will end up moving the Kill Bill clock to a given point in time and that point in time may end up before the exact time of the event we are trying to trigger. In such case, retry moving the clock by one day and that should trigger it. An alternative is to specify the exact datetime when moving the clock. This would require retrieving the account object and obtaining the `reference_time` field from it to know the exact date time.
 
 [start = 1]
 . Start Kill Bill Ensure either on https://docs.killbill.io/latest/getting_started.html#_aws_one_click[AWS], https://docs.killbill.io/latest/getting_started.html#_docker[Docker], https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat] or  https://docs.killbill.io/latest/development.html#_running_the_application[standalone] mode.
