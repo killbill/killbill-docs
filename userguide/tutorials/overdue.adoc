@@ -8,7 +8,7 @@ In this tutorial, we look a little bit deeper into Kill Bill's payment retry sys
 
 * Ensure that you have configured Kill Bill, Kaui and the database as explained in the http://docs.killbill.io/latest/getting_started.html[Getting Started] document.
 * Ensure that you have set up a tenant configured with API key `bob` and API secret `lazar`.
-* Ensure that the `org.killbill.server.test.mode=true` property is set which allows to move the clock through time
+* Ensure that the `org.killbill.server.test.mode=true` property is set which allows to move the clock through time.
 * Ensure that you have gone through the https://docs.killbill.io/latest/userguide_subscription.html[Subscription UserGuide] and are familiar with catalogs, invoices, payments and other concepts.
 * Ensure that you have https://curl.haxx.se/[cURL] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[Git Bash] to run the `cURL` commands.
 
@@ -37,9 +37,12 @@ The *Overdue System* defines the flow that the system must follow when an accoun
 
 It is important to understand that the *Payment Retry System* and the *Overdue system* are *independent* of each other. So, the *Payment Retry System* attempts payments as per its retry schedule while the *overdue system* moves the account from one state to the other as per its configuration.
 
-Having said that, most business cases would require using both the systems in conjunction with one another. For example, the scenario defined above requires attempting the payment 4 times as well as blocking the entitlements and changing the user's access when the balance is unpaid. So, we will need to configure both the *Payment Retry System* and the *Overdue system* in order to implement this scenario.
+Having said that, most business cases would require using both the systems in conjunction with one another. Even the scenario defined above requires attempting the payment 4 times as well as blocking the entitlements and changing the user's access when the balance is unpaid. Thus, both the systems come into play.
 
-Let us now understand how to implement this scenario.
+Although the payment retry system and overdue systems need to be configured independently of each other, it makes sense to *align payment retries with overdue states*. This allows retrying the payment on the boundary of each overdue state. Thus, this prevents transitioning from one state to the next if the payment gets retried successfully. In the scenario defined above, the 3rd payment attempt is after 10 days (just before the first overdue state) and the final payment attempt is after 16 days ( before the last overdue state).  Ideally, it would make sense to configure another payment retry just before the second overdue state as well.
+
+Let us now understand how to to configure both the *Payment Retry System* and the *Overdue system* in order to implement this scenario.
+
 
 == Configuration of the System
 
