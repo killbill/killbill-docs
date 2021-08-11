@@ -15,7 +15,7 @@ The credentials are passed in the request using http basic authentication mechan
 * Simple configuration file (`shiro.ini` file)
 * Database configuration
 * LDAP integration
-* Okta integration
+* Okta/Auth0 integration
 
 For simple deployments where only few static users/roles need to be assigned, the `shiro.ini` file is the simplest and the best option. By default both Kill Bill (`shiro.ini`) and Kaui ship with an `admin` user (and its password `password`) that has all the permissions. One can immediatly log-in to Kaui using such user, and start configuring tenants as needed.
 
@@ -31,7 +31,7 @@ This documentation is only specific to `users`, `roles` and associated `permissi
 
 == User Management APIs 
 
-For a large entreprise solution, an LDAP or Okta integration is probably the most flexible, but it is also the most complex, and so for those that require the flexibility of an RBAC systems without the associated complexity, Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database.
+For a large entreprise solution, an LDAP or Okta/Auth0 integration is probably the most flexible, but it is also the most complex, and so for those that require the flexibility of an RBAC systems without the associated complexity, Kill Bill offers apis to manage the users/roles/permissions, where new user/roles/permissions will be stored in a database.
 
 This solution relies on a mixed solution between the `shiro.ini` file and the database backend: An initial user must be configured in the `shiro.ini` with at least enough permissions to use the User Management APIs:
 
@@ -148,11 +148,10 @@ curl -v \
 
 == LDAP configuration
 
-To enable LDAP, Kill Bill needs to be launched with the following System Properties (note that the values here are just examples and might need to be updated depending on your LDAP configuration):
+To enable LDAP, Kill Bill needs to be launched with the following properties (note that the values here are just examples and might need to be updated depending on your LDAP configuration):
 
 [source,properties]
 ----
-killbill.server.ldap=true
 org.killbill.security.ldap.dnSearchTemplate=uid={0},ou=users,dc=mycompany,dc=com
 org.killbill.security.ldap.searchBase=ou=groups,dc=mycompany,dc=com
 org.killbill.security.ldap.groupSearchFilter=memberOf=uid={0},ou=users,dc=mycompany,dc=com
@@ -165,11 +164,112 @@ org.killbill.security.ldap.authenticationMechanism=simple
 org.killbill.security.ldap.permissionsByGroup=support-group: entitlement:*\nfinance-group: invoice:*, payment:*\nops-group: *:*
 ----
 
+The following System Property should also be set:
+
+[source,properties]
+----
+killbill.server.ldap=true
+----
+
 Notes:
 
 * If no groups are defined in LDAP, all users will only have read-only permissions
 * Before an LDAP user can use Kaui, an admin needs to associate his login to the right tenants (see below)
-* If you have trouble connecting to your LDAP system, enable DEBUG logging off the package `org.apache.shiro` in your `logback.xml` and check the logs
+* If you have trouble connecting to your LDAP system, enable DEBUG logging of the package `org.apache.shiro` in your `logback.xml` and check the logs
+
+[source,xml]
+----
+<logger name="org.apache.shiro" level="DEBUG"/>
+----
+
+== Okta configuration
+
+Kill Bill integrates with Okta machine-to-machine authentication APIs.
+
+To enable this, Kill Bill needs to be launched with the following properties:
+
+[source,properties]
+----
+org.killbill.security.okta.url=https://XXX.okta.com
+org.killbill.security.okta.apiToken=YYYY
+org.killbill.security.okta.permissionsByGroup=support-group: entitlement:*\nfinance-group: invoice:*, payment:*\nops-group: *:*
+----
+
+Notes:
+
+* The url must match your customer url
+* The `apiToken` can be created at https://XXX-admin.okta.com/admin/access/api/tokens
+* The groups must match the ones defined in Okta (https://XXX-admin.okta.com/admin/groups)
+
+The following System Property should also be set:
+
+[source,properties]
+----
+killbill.server.okta=true
+----
+
+Notes:
+
+* If no groups are defined in Okta, all users will only have read-only permissions
+* Before an Okta user can use Kaui, an admin needs to associate his login to the right tenants (see below)
+* If you have trouble connecting to Okta, enable DEBUG logging of the package `org.apache.shiro` in your `logback.xml` and check the logs
+
+[source,xml]
+----
+<logger name="org.apache.shiro" level="DEBUG"/>
+----
+
+== Auth0 configuration
+
+Kill Bill integrates with both Auth0 Machine to Machine authentication APIs and Auth0 JWT.
+
+=== Machine to Machine authentication APIs
+
+To integrate Auth0 with Kill Bill:
+
+1. Create a `killbill` Machine to Machine application, and write down the `Domain`, `Client ID`, and `Client Secret`. In Advanced Settings, make sure to enable the `Client Credentials` and `Password` grant types.
+2. Create a `killbill` API, and write down the `Identifier` (e.g. `https://killbill/1.0/kb/security`). Authorize the `killbill` application and configure the permissions (e.g. `invoice:*`). Authorize the `Auth0 Management API` application and make sure the `read:users` permission is granted.
+3. Assign permissions to your users.
+4. Write down the `Database connection name` Kill Bill should be authenticating against (e.g. the default one is `Username-Password-Authentication`).
+
+Configure Kill Bill as such:
+
+[source,properties]
+----
+org.killbill.security.auth0.url=https://XXXX.us.auth0.com
+org.killbill.security.auth0.clientId=YYYY
+org.killbill.security.auth0.clientSecret=ZZZZ
+org.killbill.security.auth0.apiIdentifier=https://killbill/1.0/kb/security
+org.killbill.security.auth0.databaseConnectionName=Username-Password-Authentication
+----
+
+The following System Property should also be set:
+
+[source,properties]
+----
+killbill.server.auth0=true
+----
+
+Notes:
+
+* If no permissions are defined in Auth0, users will only have read-only permissions
+* Before an Auth0 user can use Kaui, an admin needs to associate his login to the right tenants (see below)
+* If you have trouble connecting to Auth0, enable DEBUG logging of the package `org.apache.shiro` in your `logback.xml` and check the logs
+
+[source,xml]
+----
+<logger name="org.apache.shiro" level="DEBUG"/>
+----
+
+=== JWT
+
+Kill Bill can also support authentication and authorization via JWT (useful to integrate with https://github.com/oauth2-proxy/oauth2-proxy for instance).
+
+By default, the subject is decoded from the JWT and permissions looked up in Auth0. However, if the `Add Permissions in the Access Token` setting is turned on in Auth0, the JWT will contain the permissions, and Kill Bill will trust these without calling Auth0.
+
+The username in Kill Bill maps to the `sub` claim by default. You can change this by setting `org.killbill.security.auth0.usernameClaim` (e.g. you could set it to `email` for instance, if the `email` is a claim in the token).
+
+If you are changing this, make sure to update the matching setting in Kaui (`-Dkaui.jwt.username_claim` System Property or `KAUI_USERNAME_CLAIM` environment variable).
 
 == KAUI
 
@@ -189,7 +289,7 @@ If you are storing roles, usernames and passwords in the Kill Bill database, lea
 
 Roles can be created by going to `/role_definitions/new`.
 
-==== LDAP and Okta
+==== LDAP, Okta, and Auth0
 
 If you are delegating roles and users management to a third-party system, Kaui only needs to know the login of the users. Password and roles being managed outside of Kill Bill, you need to access your third-party system to set and update these.
 
@@ -209,6 +309,6 @@ Kaui has the concept of a super user (*root*) for critical, cross-tenants, opera
 
 == Summary
 
-1. User, roles, permissions need to be configured on the server side (`shiro.ini`, database, LDAP, Okta, ...)
+1. User, roles, permissions need to be configured on the server side (`shiro.ini`, database, LDAP, Okta/Auth0, ...)
 2. Tenants can then be created (using a user whole role's permissions allow such operation)
 3. Mapping between tenant and allowed users need to be defined in Kaui
