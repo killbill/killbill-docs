@@ -12,37 +12,39 @@ In this tutorial, we look a little bit deeper into Kill Bill's payment retry sys
 * Ensure that you have gone through the https://docs.killbill.io/latest/userguide_subscription.html[Subscription UserGuide] and are familiar with catalogs, invoices, payments and other concepts.
 * Ensure that you have https://curl.haxx.se/[cURL] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[Git Bash] to run the `cURL` commands.
 
-=== Scenario
+== Overdue and Payment Retry System Overview
 
-Let's assume you want to build a website where your customers can subscribe to movies (similar to Netflix). For simplicity's sake, we will assume you only provide one $10/month plan for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access.
+Before we dive into the details, let us understand some high-level concepts.
 
-We now want to configure the overdue system (dunning) to take some actions when users don't pay:
+Kill Bill has two distinct built-in mechanisms that come into play in such situations, these are the *Payment Retry System* and the *Overdue System*. Though separate, these two systems work in close conjunction with each other.
+
+The *Payment Retry System* is a system that retries failed payments as per a defined schedule. The schedule can be defined via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis.
+
+The *Overdue System* defines the flow that the system must follow when an account is overdue (that is, has an unpaid balance). It can be configured via an XML file. The XML file can be specified via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The XML file defines the various _states_ that the account must go through, the _change in the user's entitlements_ when the account is transitioned from one state to the other and the _period_ after which the state is re-evaluated. 
+
+It is important to understand that the *Payment Retry System* and the *Overdue system* are *independent* of each other. So, the *Payment Retry System* attempts payments as per its retry schedule while the *overdue system* moves the account from one state to the other as per its configuration.
+
+Having said that, most business cases would require using both the systems in conjunction with one another. This is because most business cases would prefer to retry payments several times before blocking the user's access.
+
+Although the payment retry system and overdue systems need to be configured independently of each other, it makes sense to *align payment retries with overdue states*. This allows retrying the payment on the boundary of each overdue state and thus prevents transitioning from one state to the next if the payment gets retried successfully. Further, to ensure that the payment is always retried before the overdue system, it makes sense to configure a payment retry 1 day before each overdue state. 
+
+== Scenario
+
+Let us now define a test scenario and understand how to configure the payment retry system and overdue system.
+
+Let's assume you want to build a website where your customers can subscribe to movies (similar to Netflix). For simplicity's sake, we will assume you only provide one $10/month plan for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access. After the trial period, the customer should be invoiced with $10. We would also want to take some actions if the user fails to pay:
 
 1. The system should be configured to retry failed payments 4 times: the first payment retry should happen 1 day after the payment failure, the next attempt should happen 8 days after previous attempt, the third attempt should happen 4 days after the previous attempt and the last one should happen 7 days after the previous attempt
 2. The system should notify the user when an invoice has not been paid after 10 days (during which time the system already automatically retried 2 times)
 3. The system should block the entitlements associated with the account after 14 days
 4. The system should automatically cancel the subscriptions after 21 days
 
+
 Additionally, we want to prevent users from changing plans (e.g. upgrade) until they clear their balance.
 
-== Overdue and Payment Retry System Overview
-
-Before we understand how to implement the above scenario, let us understand some high-level concepts.
-
-Kill Bill has two distinct built-in mechanisms that come into play here, these are the *Payment Retry System* and the *Overdue System*. Though separate, these two systems work in close conjunction with each other.
-
-The *Payment Retry System* is a system that retries failed payments as per a defined schedule. The schedule can be defined via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The scenario above states that the system should be configured to retry failed payments 4 times. So, the Payment Retry System needs to be configured accordingly. 
-
-The *Overdue System* defines the flow that the system must follow when an account is overdue (that is, has an unpaid balance). It can be configured via an XML file. The XML file can be specified via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The XML file defines the various _states_ that the account must go through, the _change in the user's entitlements_ when the account is transitioned from one state to the other and the _period_ after which the state is re-evaluated. The scenario above states that the entitlements should be blocked after 14 days and the subscription should be cancelled after 21 days. So, this needs to be configured in the overdue XML file.
-
-It is important to understand that the *Payment Retry System* and the *Overdue system* are *independent* of each other. So, the *Payment Retry System* attempts payments as per its retry schedule while the *overdue system* moves the account from one state to the other as per its configuration.
-
-Having said that, most business cases would require using both the systems in conjunction with one another. Even the scenario defined above requires attempting the payment 4 times as well as taking some actions when the balance is unpaid. Thus, both the systems come into play.
-
-Although the payment retry system and overdue systems need to be configured independently of each other, it makes sense to *align payment retries with overdue states*. This allows retrying the payment on the boundary of each overdue state and thus prevents transitioning from one state to the next if the payment gets retried successfully. In the scenario defined above, the 2nd payment attempt is after 9 days (just before the first overdue state), the 3rd payment attempt is after 13 days (before the second overdue state) and the final payment attempt is after 20 days ( before the last overdue state).  
+Note that in the scenario defined above, the 2nd payment attempt is after 9 days (just before the first overdue state), the third payment attempt is after 13 days (before the second overdue state) and the final payment attempt is after 20 days ( before the last overdue state). Thus, we are configuring the system to retry payments 1 day before each overdue state.
 
 Let us now understand how to to configure both the *Payment Retry System* and the *Overdue system* in order to implement this scenario.
-
 
 == Configuration of the System
 
@@ -493,6 +495,13 @@ curl -v \
 [start = 15]
 . Move clock +5 day (`2021-09-26`) and observe the final payment retry. Verify that the payment is successful and the account is moved to the `CLEAR` status.
 
+==  Default Payment Retry Schedule and Overdue Configuration
+
+Even if the payment retry schedule is not configured explicitly, there is a default schedule of `8,8,8`. This means that a first retry would happen 8 days after the initial failure, and then if the first retry attempt failed, another attempt would be scheduled 8 days later and then finally a last one 8 days after that. 
+
+If the overdue XML is not configured explicitly, there is a default overdue XML as specified https://github.com/killbill/killbill/blob/29762c013855f7e105861eecd6d5cb393ef98cb8/overdue/src/main/resources/NoOverdueConfig.xml[here]. However, this does not do anything. So, even if a user has unpaid invoices, the user's account will not be overdue.
+
+
 [[platform_use]]
 == Use of the Platform
 
@@ -524,7 +533,6 @@ Note that retrieving subscriptions through the `GET /1.0/kb/subscriptions/{subsc
 
 When retrieving entitlement/overdue status, the web site could be implemented to take all kinds of actions such as displaying warning message, degrading experience, emailing customer, ...
 
-
 === Custom Plugins
 
 In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs-in for instance). Another pattern is to create a custom notification plugin that will listen to `Overdue` events and take appropriate action. The plugin would need to handle the `OVERDUE_CHANGE` event. 
@@ -536,13 +544,6 @@ Such plugins can be used for the following purpose:
 * Email/Notify user about the new state (We already have a Java  https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] which can be extended to handle `OVERDUE_CHANGE` events)
 * Take action to modify the experience (based on the state name): for instance to degrade the service, modify the login flow to prompt for payment, ...
 
-==  FAQs
-
-=== What happens if the payment retry schedule and overdue XML is not configured?
-
-Even if the payment retry schedule is not configured explicitly, there is a default schedule of `8,8,8`. This means that a first retry would happen 8 days after the initial failure, and then if the first retry attempt failed, another attempt would be scheduled 8 days later and then finally a last one 8 days after that. 
-
-If the overdue XML is not configured explicitly, there is a default overdue XML as specified https://github.com/killbill/killbill/blob/29762c013855f7e105861eecd6d5cb393ef98cb8/overdue/src/main/resources/NoOverdueConfig.xml[here]. However, this does not do anything. So, even if a user has unpaid invoices, the user's account will not be overdue.
 
 == Additional Resources
 
