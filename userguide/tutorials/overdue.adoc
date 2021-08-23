@@ -2,7 +2,7 @@
 
 [[intro]]
 
-In this tutorial, we look a little bit deeper into Kill Bill's payment retry system and the overdue system. The main https://docs.killbill.io/latest/userguide_subscription.html[subscription userguide] already explains some basics about these systems. This tutorial will show you how they work in practice.
+In this tutorial, we look a little bit deeper into Kill Bill's payment retry system and overdue system. The main https://docs.killbill.io/latest/userguide_subscription.html[subscription userguide] already explains some basics about these systems. This tutorial will show you how they work in practice.
 
 == Pre-requisites
 
@@ -12,37 +12,41 @@ In this tutorial, we look a little bit deeper into Kill Bill's payment retry sys
 * Ensure that you have gone through the https://docs.killbill.io/latest/userguide_subscription.html[Subscription UserGuide] and are familiar with catalogs, invoices, payments and other concepts.
 * Ensure that you have https://curl.haxx.se/[cURL] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[Git Bash] to run the `cURL` commands.
 
-=== Scenario
-
-Let's assume you want to build a website where your customers can subscribe to movies (similar to Netflix). For simplicity's sake, we will assume you only provide one $10/month plan for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access.
-
-We now want to configure the overdue system (dunning) to take some actions when users don't pay:
-
-1. The system should be configured to retry failed payments 4 times: the first two payment retries should happen 1 day after the last attempt, the third one should happen 8 days after previous attempt and the last one should happen 6 days after the previous attempt
-2. The system should notify the user when an invoice has not been paid after 10 days (during which time the system already automatically retried 3 times)
-3. The system should block the entitlements associated with the account after 14 days
-4. The system should automatically cancel the subscriptions after 21 days
-
-Additionally, we want to prevent users from changing plans (e.g. upgrade) until they clear their balance.
-
 == Overdue and Payment Retry System Overview
 
-Before we understand how to implement the above scenario, let us understand some high-level concepts.
+Before we dive into the details, let us understand some high-level concepts.
 
-Kill Bill has two distinct built-in mechanisms that come into play here, these are the *Payment Retry System* and the *Overdue System*. Though separate, these two systems work in close conjunction with each other.
+Kill Bill has two distinct built-in mechanisms. These are the *Payment Retry System* and the *Overdue System*. Though separate, these two systems work in close conjunction with each other.
 
-The *Payment Retry System* is a system that retries failed payments as per a defined schedule. The schedule can be defined via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The scenario above states that the system should be configured to retry failed payments 4 times. So, the Payment Retry System needs to be configured accordingly. 
+The *Payment Retry System* is a system that retries failed payments as per a defined schedule. The schedule can be defined via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis.
 
-The *Overdue System* defines the flow that the system must follow when an account is overdue (that is, has an unpaid balance). It can be configured via an XML file. The XML file can be specified via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The XML file defines the various _states_ that the account must go through, the _change in the user's entitlements_ when the account is transitioned from one state to the other and the _period_ after which the state is re-evaluated. The scenario above states that the entitlements should be blocked after 14 days and the subscription should be cancelled after 21 days. So, this needs to be configured in the overdue XML file.
+The *Overdue System* defines the flow that the system must follow when an account is overdue (that is, has an unpaid balance). It can be configured via an XML file. The XML file can be specified via a property in the Kill Bill configuration file or can be uploaded on a per-tenant basis. The XML file defines the various _states_ that the account must go through, the _change in the user's entitlements_ when the account is transitioned from one state to the other and the _period_ after which the state is re-evaluated. 
 
 It is important to understand that the *Payment Retry System* and the *Overdue system* are *independent* of each other. So, the *Payment Retry System* attempts payments as per its retry schedule while the *overdue system* moves the account from one state to the other as per its configuration.
 
-Having said that, most business cases would require using both the systems in conjunction with one another. Even the scenario defined above requires attempting the payment 4 times as well as blocking the entitlements and changing the user's access when the balance is unpaid. Thus, both the systems come into play.
+Having said that, most business cases would require to retry payments several times before blocking the user's access and thus would require using both systems in conjunction with one another. 
 
-Although the payment retry system and overdue systems need to be configured independently of each other, it makes sense to *align payment retries with overdue states*. This allows retrying the payment on the boundary of each overdue state and thus prevents transitioning from one state to the next if the payment gets retried successfully. In the scenario defined above, the 3rd payment attempt is after 10 days (just before the first overdue state) and the final payment attempt is after 16 days ( before the last overdue state).  Ideally, it would make sense to configure another payment retry just before the second overdue state as well.
+Although the payment retry system and overdue systems need to be configured independently of each other, it makes sense to *align payment retries with overdue states*. This allows retrying the payment on the boundary of each overdue state and thus prevents transitioning from one state to the next if the payment gets retried successfully. Further, to ensure that the payment is always retried before the overdue system, it makes sense to configure a payment retry 1 day before each overdue state. 
+
+== Scenario
+
+Let us now define a test scenario and understand how to configure the payment retry system and overdue system.
+
+Let's assume you want to build a website where your customers can subscribe to movies (similar to Netflix). For simplicity's sake, we will assume you only provide one $10/month plan for unlimited streaming. The plan will contain a 10 days trial period during which customers have unlimited access. After the trial period, the customer should be invoiced with $10. We would also want to take some actions if the user fails to pay:
+
+1. The system should be configured to retry failed payments 4 times: the first payment retry should happen 1 day after the payment failure, the next attempt should happen 8 days after previous attempt, the third attempt should happen 4 days after the previous attempt and the last one should happen 7 days after the previous attempt
+2. The system should notify the user when an invoice has not been paid after 10 days (during which time the system already automatically retried 2 times)
+3. The system should block the entitlements associated with the account after 14 days
+4. The system should automatically cancel the subscriptions after 21 days
+
+
+Additionally, we want to prevent users from changing plans (e.g. upgrade) until they clear their balance.
+
+So, the scenario specified above requires configuring 3 overdue states. The account should be moved to the first overdue state 10 days after an unpaid invoice, it should move to the second overdue state 14 days after the unpaid invoice and it should be moved to the final overdue state 21 days after the unpaid invoice. 
+
+Further, the scenario above also specifies the payment retries in such a way that they align with the overdue states. So, it requires the second payment attempt to be made after 9 days (just before the first overdue state), the third payment attempt after 13 days (before the second overdue state) and the final payment attempt after 20 days (before the last overdue state). Thus, we are configuring the system to retry payments 1 day before each overdue state.
 
 Let us now understand how to to configure both the *Payment Retry System* and the *Overdue system* in order to implement this scenario.
-
 
 == Configuration of the System
 
@@ -234,13 +238,13 @@ curl -v \
 
 === Payment Retries System Configuration
 
-The scenario defined above also requires the payments to be attempted 4 times with a gap of 1,1,8 and 6 days between attempts. Thus, the payment retry system needs to be configured as per this schedule. 
+The scenario defined above also requires the payments to be attempted 4 times with a gap of 1,8, 4 and 7 days between attempts. Thus, the payment retry system needs to be configured as per this schedule. 
 
 
 The payment retry schedule can be configured as a property in the Kill Bill configuration file as follows:
 [source,bash]
 ----
-org.killbill.payment.retry.days=1,1,8,6
+org.killbill.payment.retry.days=1,8,4,7
 ----
 
 Alternately, you can upload the payment retry schedule on a per-tenant basis by hitting the following endpoint:
@@ -254,7 +258,7 @@ curl -v \
 -H "Content-Type: text/plain" \
 -H 'X-Killbill-CreatedBy: stephane' \
 -X POST \
---data-binary '{"org.killbill.payment.retry.days":"1,1,8,6"}' \
+--data-binary '{"org.killbill.payment.retry.days":"1,8,4,7"}' \
 "http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig"
 ----
 
@@ -282,7 +286,7 @@ Next, suppose the customer's credit card does not have enough funds to cover the
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/overdue/overdue-flow2.png[align=center]
 
-As before, the system attempts a payment after the trial period. Since this payment fails, the payment retry system is activated. It first retries a payment *1* day later (on `2021-08-07`) and again retries a payment another day later( on `2021-08-08`). The customer then fixes his/her credit card issue on `2021-08-15`. The payment retry system which is scheduled to run again *8* days later runs on `2021-08-16`. At this point, the payment is successful, so no more payments are attempted.
+As before, the system attempts a payment after the trial period. Since this payment fails, the payment retry system is activated. It retries a payment *1* day later (on `2021-08-07`). The customer then fixes his/her credit card issue on `2021-08-09`. The payment retry system which is scheduled to run again *8* days later runs on `2021-08-15`. At this point, the payment is successful, so no more payments are attempted.
 
 === Flow 3 - Good Customer, fixes payment issue during overdue flow
 
@@ -290,7 +294,7 @@ In the next scenario, let us see what happens when the customer fixes his/her cr
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/overdue/overdue-flow3.png[align=center]
 
-As before, the system attempts a payment after the trial period which fails. The payment retry system then attempts the payment after *1* day(on `2021-08-07`), again after *1* day(`2021-08-08`) and again after *8* days(on `2021-08-16`). At this point, 10 days have elapsed since the first unpaid invoice. So, the overdue system is activated which moves the account to the `WARNING` state.  After 4 days (that is on `2021-08-20`), the Overdue system runs again and moves the account to the `BLOCKED` state. The customer then fixes his/her credit card issue on `2021-08-21`. The payment retry system (which has already made *3* payment attempts), is scheduled to make one last payment attempt *6* days after the previous payment attempt. The previous payment attempt was on `2021-08-16` so the payment retry system attempts a payment on `2021-08-22`. Since the payment issue is now fixed, the payment is successful. So, the account is moved back to the `CLEAR` state.
+As before, the system attempts a payment after the trial period which fails. The payment retry system then attempts the payment after *1* day(on `2021-08-07`) and again after *8* days(on `2021-08-15`). On `2021-08-16`, 10 days have elapsed since the first unpaid invoice. So, the overdue system is activated which moves the account to the `WARNING` state. The customer then fixes his/her credit card issue on `2021-08-18`.The payment retry system (which has already made *2* payment attempts), is scheduled to make the third payment attempt *4* days after the previous payment attempt. The previous payment attempt was on `2021-08-15` so the payment retry system attempts a payment on `2021-08-19`. Since the payment issue is now fixed, the payment is successful. So, the account is moved back to the `CLEAR` state.
 
 === Flow 4 - Bad Customer, does not fix payment issue
 
@@ -298,7 +302,7 @@ Let us now consider what happens when the customer is a bad customer and does no
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/overdue/overdue-flow4.png[align=center]
 
-This flow is quite similar to the previous flow. The Overdue System has already moved the account to the `BLOCKED` state on `2021-08-20`. Since the customer does not fix the payment issue, the payment fails when the payment retry system attempt it the fourth time on `2021-08-22`. The Overdue system is configured to run one more time after *7* day after the previous run. Since the Overdue system was previously run on `2021-08-20`, it runs on `2021-08-27` and moves the account to the `CANCELLATION` state. 
+As in the case of the previous flow, the payment retry system retries the payment two times on `2021-08-07` and on `2021-08-15` after which the Overdue flow then kicks in and moves the account to the `WARNING` state on `2021-08-16`. The payment retry system makes the the third payment attempt on `2021-08-19` which fails. The Overdue system (which is configured to run *4* days after the previous run) runs on `2021-08-20` and moves the account to the `BLOCKED` state. Since the customer does not fix the payment issue, the payment fails when the payment retry system attempt it the fourth time on `2021-08-26`. The Overdue system is configured to run one more time after *7* day after the previous run. Since the Overdue system was previously run on `2021-08-20`, it runs on `2021-08-27` and moves the account to the `CANCELLATION` state. 
 
 [[testing]]
 == Configuring the Payment Test Plugin
@@ -329,13 +333,18 @@ So, we will be doing the following:
 * Configure payment plugin to fail payments
 * Move the clock a month later and observe first failed payment
 * Move clock +1 day and observe first payment retry
-* Move clock +1 day and observe second payment retry
-* Move clock +8 day and observe third payment retry and first overdue state `WARNING`
-* Move clock +4 day and observe second overdue state `BLOCKED`
+* Move clock +8 day and observe second payment retry
+* Move clock +1 day and first overdue state `WARNING`
+* Move clock +3 day and observe third payment retry
+* Move clock +1 day and observe second overdue state `BLOCKED`
 * Move clock +1 day and configure payment plugin to succeed
-* Move clock +1 day (6 days from last payment attempt) and observe fourth payment retry which is successful
+* Move clock +5 day (7 days from last payment attempt) and observe fourth payment retry which is successful
 
-Notes: For simplicity, we are using dates (e.g `2021-01-10`) when manipulating the Kill Bill clock instead of fully qualified datetimes (`2021-01-10T01:43:23.000Z`). Passing such a date will end up moving the Kill Bill clock to a given point in time and that point in time may end up before the exact time of the event we are trying to trigger. In such case, retry moving the clock by one day and that should trigger it. An alternative is to specify the exact datetime when moving the clock. This would require retrieving the account object and obtaining the `reference_time` field from it to know the exact date time.
+*Notes:*
+
+. For simplicity, we are using dates (e.g `2021-01-10`) when manipulating the Kill Bill clock instead of fully qualified datetimes (`2021-01-10T01:43:23.000Z`). Passing such a date will end up moving the Kill Bill clock to a given point in time and that point in time may end up before the exact time of the event we are trying to trigger. In such a case, retry moving the clock by one day and that should trigger it. An alternative is to specify the exact datetime when moving the clock. This would require retrieving the account object and obtaining the `reference_time` field from it to know the exact date time.
+
+. As you proceed with the steps below, you can verify each step by viewing the account in Kaui. The main account screen includes an `OVERDUE STATUS` field in the `Billing Info` section. The `payment` and `invoices` tab include information about payments and invoices. The `Timeline` tab within the account screen includes information about payment retries.  
 
 [start = 1]
 . Start Kill Bill Ensure either on https://docs.killbill.io/latest/getting_started.html#_aws_one_click[AWS], https://docs.killbill.io/latest/getting_started.html#_docker[Docker], https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat] or  https://docs.killbill.io/latest/development.html#_running_the_application[standalone] mode.
@@ -385,7 +394,7 @@ curl -v \
 
 
 [start = 5]
-. Create a subscription to trigger some invoices and (failed) payment. 
+. Create a subscription and verify that a $0 invoice is generated:
 
 [source,bash]
 ----
@@ -401,7 +410,7 @@ curl -v \
 ----
  
 [start = 6]
-. Move the clock to reach end of trial (`2021-08-06`) and see first payment
+. Move the clock to reach end of trial (`2021-08-06`) and see first payment:
 
 [source,bash]
 ----
@@ -432,7 +441,7 @@ curl -v \
 ----
 
 [start = 8]
-. Move the clock to the next month (`2021-09-06`) and observe first failed payment
+. Move the clock to the next month (`2021-09-06`) and observe first failed payment:
 
 
 [source,bash]
@@ -448,7 +457,7 @@ curl -v \
 ----
 
 [start = 9]
-. Move clock +1 day (`2021-09-07`) and observe first payment retry
+. Move clock +1 day (`2021-09-07`) and observe first payment retry:
 
 [source,bash]
 ----
@@ -463,13 +472,15 @@ curl -v \
 ----
 
 [start = 10]
-. Move clock +1 day (`2021-09-08`) and observe second payment retry
+. Move clock +8 day (`2021-09-15`) and observe second payment retry. 
 
-. Move clock +8 day (`2021-09-16`) and observe third payment retry. Also verify that the account is in `WARNING` status
+. Move clock +1 day (`2021-09-16`) and verify that the account is in `WARNING` status.
 
-. Move clock +4 day (`2021-09-20`) and verify that the account is in `BLOCKED` status
+. Move clock +3 day (`2021-09-19`) and observe third payment retry. 
 
-. Move clock +1 day (`2021-09-21`) and configure the payment plugin to suceed:
+. Move clock +1 day (`2021-09-20`) and verify that the account is in `BLOCKED` status.
+
+. Move clock +1 day (`2021-09-21`) and configure the payment plugin to succeed:
 [source,bash]
 ----
 curl -v \
@@ -483,8 +494,15 @@ curl -v \
  -v 'http://127.0.0.1:8080/plugins/killbill-payment-test/configure'
 ----
 
-[start = 14]
-. Move clock +1 day (`2021-09-22`) and observe the final payment retry. Verify that the payment is successful and the account is moved to the `CLEAR` status
+[start = 15]
+. Move clock +5 day (`2021-09-26`) and observe the final payment retry. Verify that the payment is successful and the account is moved to the `GOOD` status.
+
+==  Default Payment Retry Schedule and Overdue Configuration
+
+Even if the payment retry schedule is not configured explicitly, there is a default schedule of `8,8,8`. This means that a first retry would happen 8 days after the initial failure, and then if the first retry attempt failed, another attempt would be scheduled 8 days later and then finally a last one 8 days after that. 
+
+If the overdue XML is not configured explicitly, there is a default overdue XML as specified https://github.com/killbill/killbill/blob/29762c013855f7e105861eecd6d5cb393ef98cb8/overdue/src/main/resources/NoOverdueConfig.xml[here]. However, this does not do anything. So, even if a user has unpaid invoices, the user's account will not be overdue.
+
 
 [[platform_use]]
 == Use of the Platform
@@ -517,14 +535,15 @@ Note that retrieving subscriptions through the `GET /1.0/kb/subscriptions/{subsc
 
 When retrieving entitlement/overdue status, the web site could be implemented to take all kinds of actions such as displaying warning message, degrading experience, emailing customer, ...
 
-
 === Custom Plugins
 
-In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs-in for instance). Another pattern is to create a custom notification plugin that will listen to `Overdue` events. In order to create a Java plugin, you can refer to this https://docs.killbill.io/latest/notification_plugin.html[tutorial]. If you would like to create a Ruby plugin, you can refer to the https://github.com/killbill/killbill-hello-world-ruby-plugin/blob/master/lib/helloworld/user_listener.rb[Hello World Ruby Example]. The plugin would need to filter for `OVERDUE_CHANGE` https://github.com/killbill/killbill-plugin-api/blob/master/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[events].
+In the previous section, we discussed a possible implementation where the web site queries the billing system to figure out the entitlement story attached to a customer (when he logs-in for instance). Another pattern is to create a custom notification plugin that will listen to `Overdue` events and take appropriate action. The plugin would need to handle the `OVERDUE_CHANGE` event. 
+
+We have a https://docs.killbill.io/latest/notification_plugin.html[tutorial] that demonstrates how to create a notification plugin in Java. We also have a sample https://github.com/killbill/killbill-hello-world-ruby-plugin/blob/master/lib/helloworld/user_listener.rb[Ruby notification plugin] that can be used to create a notification plugin in Ruby.
 
 Such plugins can be used for the following purpose:
 
-* Email/Notify user about the new state (We already have an https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] which can also be extended to handle `OVERDUE_CHANGE` events)
+* Email/Notify user about the new state (We already have a Java  https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] which can be extended to handle `OVERDUE_CHANGE` events)
 * Take action to modify the experience (based on the state name): for instance to degrade the service, modify the login flow to prompt for payment, ...
 
 
