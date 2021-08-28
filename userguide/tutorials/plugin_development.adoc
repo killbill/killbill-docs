@@ -189,6 +189,10 @@ When you start developing your own plugin, it would be useful to be able to set 
 
 . This runs the application in debug mode. You can also set additional breakpoints as required.
 
+=== Further Debugging 
+
+The https://docs.killbill.io/latest/debugging.html[Debugging Tips] document includes some additional debugging tips for Kill Bill in general. You may also reach out to the Kill Bill https://groups.google.com/forum/#!forum/killbilling-users[mailing list], with the `kpm diagnostic` output as explained in the https://docs.killbill.io/latest/debugging.html#_seeking_help[Seeking Help] section.
+
 
 === Additional Configuration
 
@@ -278,6 +282,9 @@ To *export* a package from a plugin, you need to follow the steps given below.
 
 This causes the specified packages to be added to the `Export-Package` header of the plugin jar. Other plugins can then use the classes in these packages by importing them as explained above.
 
+In order to see an example of a plugin exporting packages, you can refer to the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin]. It https://github.com/killbill/killbill-email-notifications-plugin/blob/819f4659825684131cf9a5f77b818d56dd86d163/pom.xml#L46[exports] packages required for creating a custom invoice formatter. The https://github.com/killbill/killbill-custom-invoice-formatter-example[custom invoice formatter] plugin (which is a sample plugin) then https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/79e2f63cb536263f0272fdc9182e961f2616c5e3/pom.xml#L43[imports] these packages to customize the email invoice.
+
+
 === Examples of Plugins
 
 The Kill Bill team already provides many open source plugins. Some of these are are follows:
@@ -345,18 +352,24 @@ Each entry in that repository is identified by a key, and that key is the `plugi
 
 == Plugin Installation
 
-As explained earlier, Kill Bill looks for plugins at the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file. So, installing the plugin simply means placing the plugin artifact at this path. This can either be done manually or via kpm as explained below.
+As explained earlier, Kill Bill looks for plugins at the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file. So, installing the plugin simply means placing the plugin artifact at this path. This can either be done in several ways as explained below.
 
-=== Deploying by Hand
+=== Deploying via Kaui
 
-Deploying by hand consists of building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
+In order to deploy a plugin via Kaui, you need to do the following:
 
-```
-java
-|_adyen-plugin
-  |_ 0.3.2
-    |_ adyen-plugin-0.3.2.jar
-```
+* Open Kaui
+
+* Click on the *Plug* Icon at the top and click on kpm
+
+* Click on *Install New Plugin*
+
+* Click on the *Download* icon next to the plugin that you wish to install
+
+* Refresh the page after a while.
+
+* Once the plugin download is complete, it will appear in _Stopped_ status. Click on the *Start* button next to it to start the plugin
+
 
 === Deployment Through KPM
 
@@ -410,6 +423,44 @@ kpm install_java_plugin '<plugin-key>'
 
 * Replace `plugin-key` with the plugin name.
 * Replace `<group id>`, `<artifact_id>`, `<version>` with appropriate values from the binary repository.
+
+=== Deploying via Plugin Management APIs
+
+Kill Bill provides several plugin management APIs which can be used to install/start/stop and take other actions on plugins. This is explained in detail in the https://docs.killbill.io/latest/plugin_management.html[Plugin Management APIs] document. 
+
+A plugin can be installed via the plugin management API as follows:
+
+[source,bash]
+curl -v \
+-u admin:password \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"isSystemCommandType":"true","nodeCommandType":"INSTALL_PLUGIN","nodeCommandProperties":[{"key":"pluginKey", "value":"payment-test"},{"key":"pluginArtifactId", "value": "payment-test-plugin"},{"key":"pluginGroupId", "value": "org.kill-bill.billing.plugin.java"}, {"key": "pluginType", "value": "java"} ]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+
+Note that this also requires starting the plugin explicitly using the following command:
+
+[source,bash]
+curl -v \
+-u admin:password \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"isSystemCommandType":true,"nodeCommandType":"RESTART_PLUGIN","nodeCommandProperties":[{"key":"pluginKey","value":"payment-test"}]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+
+
+=== Deploying by Hand
+
+Deploying by hand consists of building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
+
+```
+java
+|_adyen-plugin
+  |_ 0.3.2
+    |_ adyen-plugin-0.3.2.jar
+```
 
 == Plugin Configuration
 

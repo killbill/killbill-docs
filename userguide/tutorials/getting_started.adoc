@@ -19,7 +19,9 @@ If you prefer to run Kill Bill on a cloud server, and are familiar with AWS, thi
 
 === Docker
 
-You can run Kill Bill locally or in the cloud using our official Docker images. These require the installation of Docker and Docker Compose. Docker Compose is used to setup and manage the three separate Docker containers required by Kill Bill: One each for Kill Bill itself, for Kaui, and for the shared SQL database engine.
+==== Overview
+
+You can run Kill Bill locally or in the cloud using our official Docker images. These require the installation of Docker and Docker Compose. Docker Compose is used to set up and manage the three separate Docker containers required by Kill Bill: One each for Kill Bill itself, for Kaui, and for the shared SQL database engine.
 
 The principal steps in the installation are:
 
@@ -27,18 +29,24 @@ The principal steps in the installation are:
 2. Prepare a YAML file to control the loading of KillBill and the other necessary packages using Docker Compose.
 3. Run Docker Compose to launch the packages in the web server.
 
-If you are working with Mac or Windows, take a look at the https://docs.docker.com/get-started/[Get Started with Docker] guide. This will describe the procedures for setting up and testing Docker in a Mac or Windows environment using https://docs.docker.com/desktop/[Docker Desktop]. Note that https://docs.docker.com/docker-for-windows/install/[Docker Desktop for Windows] requires installing https://docs.microsoft.com/en-us/windows/wsl/install-win10[WSL] if you are on *Windows 10 home* as explained in the https://docs.docker.com/docker-for-windows/install/[Windows installation document].
+==== Docker Installation
+
+We recommend installing Docker Desktop for your operating system as explained https://docs.docker.com/get-docker/[here]. Docker Desktop includes a GUI dashboard, a command line tool and other required components and makes it very easy to manage Docker containers.  
+
+Note that https://docs.docker.com/docker-for-windows/install/[Docker Desktop for Windows] requires installing https://docs.microsoft.com/en-us/windows/wsl/install-win10[WSL] if you are on *Windows 10 home* as explained in the https://docs.docker.com/docker-for-windows/install/[Windows installation document]. If you are using a Linux environment, read the appropriate sections of the https://docs.docker.com/install/[Docker Engine Overview]. 
+
 Once Docker is set up,it greatly simplifies the Kill Bill stack setup, as Tomcat and MySQL configuration will be done for you.
 
+The rest of the discussion assumes you have Docker installed. We will be using the Docker CLI on Mac, Windows, or Linux. Your Linux flavor is assumed to be Ubuntu, either on a local machine or on an AWS instance. Our https://killbill.io/blog/tag/docker/[blog] has tips on how to deploy to other popular cloud providers. If you are using a different Linux flavor, you may have to adapt some of the commands. 
 
-If you are using a Linux environment, read the appropriate sections of the https://docs.docker.com/install/[Docker Engine Overview].
 
-If you are not using Docker Desktop, proceed with the steps below. The rest of the discussion assumes you are working with a command line interface (CLI) on Mac, Windows, or Linux. On Mac open the Terminal application, or on Windows use the Command window.
+==== Kill Bill Installation
 
-Your Linux flavor is assumed to be Ubuntu, either on a local machine or on an AWS instance. Our http://killbill.io/blog/tag/docker/[blog] has tips on how to deploy to other popular cloud providers. If you are using a different Linux flavor, you may have to adapt some of the commands. 
+*Step 1 - Verify the Docker and Docker Compose versions.*
 
 To check whether Docker and Docker Compose are already installed, and what versions you have, open a command (or terminal) window and type the following commands:
 
+[source,bash]
    docker --version
    docker-compose --version
    
@@ -48,31 +56,7 @@ The versions that we are expecting for this discussion are:
 * Docker: 19.03.6 or higher
 * Docker Compose: 1.25.4 or higher
 
-
-If Docker or Docker Compose are not installed, on a Mac, one option is to try to install them using Homebrew:
-
-[source,bash]
-----
-brew install docker docker-compose
-----
-
-This may require that the free package Homebrew be installed first. See https://osxdaily.com/2018/03/07/how-install-homebrew-mac-os/[How to install Homebrew on Mac].
-
-On Ubuntu we can use the following commands to install Docker:
-
-[source,bash]
-----
-sudo apt-get update
-sudo apt-get install docker virtualbox
-----
-We have *not* installed Docker Compose in these commands, because the Ubuntu archive is not guaranteed to provide the latest version. Instead you should use the command
-
-[source,bash]
-----
-sudo curl -L https://github.com/docker/compose/releases/download/1.25.4/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-----
-
-This command should be set to load the latest stable release. For information on releases see the https://github.com/docker/compose/releases[releases page].
+*Step 2 - Create the docker-compose.yml file.*
 
 The next step is to create a YAML file called docker-compose.yml, similar to the one below. The version of the file shown is 3.2, which works with Docker 17.04.0 or higher. For information on compose file formats see https://docs.docker.com/compose/compose-file/compose-versioning/[compose file formats]
 
@@ -112,6 +96,8 @@ services:
       - MYSQL_ROOT_PASSWORD=killbill
 ----
 
+*Step 3 - Run docker compose*
+
 Now place this file in your current directory and run:
 
 [source,bash]
@@ -135,6 +121,58 @@ You will be presented with a login page. Default credentials are:
 * password: password
 
 You can also go to \http://<IP>:8080/api.html to explore the KillBill APIs.
+
+==== FAQ
+
+*ERROR: unauthorized: authentication required*
+
+Sometimes, after running the `docker-compose up` command, you may see the following error:
+[source,bash]
+ERROR: unauthorized: authentication required
+
+In such cases, you can logout of docker and login again using the following commands:
+[source,bash]
+docker logout 
+docker login # Specify your DockerHub credentials when prompted
+
+*Viewing Logs*
+
+The Kill Bill/Kaui startup logs can be viewed by running the following command:
+[source,bash]
+docker logs <containerid> 
+
+In addition, the `logs` directory of both the Kill Bill and the Kaui containers contain individual log files. These can be viewed using the following commands: 
+[source,bash]
+docker exec <Kill Bill Container Id> tail -f logs/killbill.out #displays Kill Bill logs
+docker exec <Kaui Container Id> tail -f logs/kaui.out #displays Kaui logs
+ 
+
+*Installing Docker on Mac and Ubuntu*
+
+If Docker or Docker Compose are not installed, on a Mac, one option is to try to install them using Homebrew:
+
+[source,bash]
+----
+brew install docker docker-compose
+----
+
+This may require that the free package Homebrew be installed first. See https://osxdaily.com/2018/03/07/how-install-homebrew-mac-os/[How to install Homebrew on Mac].
+
+On Ubuntu we can use the following commands to install Docker:
+
+[source,bash]
+----
+sudo apt-get update
+sudo apt-get install docker virtualbox
+----
+We have *not* installed Docker Compose in these commands, because the Ubuntu archive is not guaranteed to provide the latest version. Instead you should use the command
+
+[source,bash]
+----
+sudo curl -L https://github.com/docker/compose/releases/download/1.25.4/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+----
+
+This command should be set to load the latest stable release. For information on releases see the https://github.com/docker/compose/releases[releases page].
 
 === Tomcat
 
@@ -160,7 +198,7 @@ The first step in installing Kill Bill in Tomcat is to download and install Tomc
  
 
 
-. Ensure that you have *JDK 8* or higher installed (It can be downloaded from https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
+. Ensure that you have *JDK 8* installed (Oracle's JDK 8 is required as Kill Bill uses JAXB. It can be downloaded from https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
 
 . Set the *JAVA_HOME* environment variable to the path of your JDK installation (For example, if JDK is installed at `C:\Software\jdk1.8.0_102`, you need to set *JAVA_HOME* to `C:\Software\jdk1.8.0_102`)
 
@@ -182,7 +220,7 @@ As mentioned above, you need to configure the Kill Bill database manually. For t
 
 .. Create a Kill Bill user as follows:
 [source,sql]
-  create user killbilluser identified by 'password';
+  create user killbill identified by 'killbill';
 
 
 .. Create a Kill Bill database as follows:
@@ -426,13 +464,13 @@ The steps above configure the application so that the Kill Bill and Kaui logs ar
 
 ==== Setting up KPM in Kaui
 
-KPM stands for *Kill Bill Plugin Manager*. It can be used to manage https://docs.killbill.io/latest/plugin_development.html[plugins]. You can read https://github.com/killbill/killbill-cloud/tree/master/kpm[this] article to know more about kpm.
+KPM stands for *Kill Bill Package Manager*. It can be used to manage https://docs.killbill.io/latest/plugin_development.html[plugins]. You can read https://github.com/killbill/killbill-cloud/tree/master/kpm[this] article to know more about kpm.
 
-KPM can be setup in Kaui. When you do this, you can easily perform actions like install, uninstall, restart plugins directly via Kaui without having to run the KPM commands on the command line.
+Setting up `kpm` in Kaui is an optional step. It is required only for performing plugin-related actions like install, uninstall, restart plugins directly via Kaui.
 
 In order to set up KPM in Kaui, you need to do the following:
 
-. Ensure that you have kpm installed as per the instructions https://github.com/killbill/killbill-cloud/tree/master/kpm[here]
+. Ensure that you have kpm installed as per the instructions https://github.com/killbill/killbill-cloud/tree/master/kpm[here].
 
 . Open a command prompt/terminal window and run the following command (Replace `<kpm_bundles_path>` with the actual path where you would like to install the kpm bundles):
 [source,bash]
@@ -450,14 +488,15 @@ $kpm_bundles_path
 . Add the following properties to the `TOMCAT_HOME/conf/catalina.properties` file:
 [source,properties]
 org.killbill.osgi.bundle.install.dir=<kpm_bundles_path>
+org.killbill.billing.plugin.kpm.bundlesPath=<kpm_bundles_path>
 org.killbill.billing.plugin.kpm.kpmPath=<kpm_path>
 
 . Replace `<kpm_bundles_path>` with the actual path where the kpm bundles are installed in Step 2 above. Replace `<kpm_path>` with the path of the kpm script (either *.bat* or *.sh* file depending on your OS. For example, if you have installed kpm on Windows at `C:/kpm`, `kpm_path` should refer to `c:/kpm/bin/kpm.bat`)
 
 
-. Restart Tomcat
+. Restart Tomcat.
 
-. Verify that there are no errors in the Kill Bill logs
+. Verify that there are no errors in the Kill Bill logs.
 
 . Open a browser and type `http://localhost:8080/kaui. Sign in using *admin/password*. This should now display a plug icon in Kaui as follows:
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_with_kpm_plug.png[align=center]
@@ -468,7 +507,7 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/gett
 . On clicking *Install New Plugin* you should see the following screen:
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kpm_kaui_install_plugins.png[align=center]
 
-In order to know more about how to use kpm in kaui, you can refer to our https://docs.killbill.io/latest/userguide_kaui.html#_kpm[Kaui tutorial]
+In order to know more about how to use kpm in kaui, you can refer to our https://docs.killbill.io/latest/userguide_kaui.html#_kpm[Kaui tutorial].
 
 ==== Other Notes
 We recommend installing the *Apache Tomcat Native Library*. In order to do this, you need to follow the steps given below: 
@@ -479,7 +518,9 @@ We recommend installing the *Apache Tomcat Native Library*. In order to do this,
 
 If you are unable to install the Tomcat Native Library on Windows, you may skip this step.
 
+==== Further Debugging 
 
+The https://docs.killbill.io/latest/debugging.html[Debugging Tips] document includes some additional debugging tips for Kill Bill in general. You may also reach out to the Kill Bill https://groups.google.com/forum/#!forum/killbilling-users[mailing list], with the `kpm diagnostic` output as explained in the https://docs.killbill.io/latest/debugging.html#_seeking_help[Seeking Help] section.
 
 ==== FAQ
 
