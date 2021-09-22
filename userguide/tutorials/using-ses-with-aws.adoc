@@ -1,0 +1,51 @@
+# Using SES with AWS
+
+## Overview
+
+The email plugin for Kill Bill requires an SMTP server. For implementations using AWS the best choice may be Amazon's *Simple Email Service (SES)*. Amazon offers this service at little or no cost for AWS users who send moderate volumes of outgoing mail, and this is the common use case for Kill Bill clients. To prevent improper use, though, AWS may require verification of email addresses, and may require you to certify that the account will not be used to send bulk unsolicited emails.
+
+A full description of SES is available in the https://docs.aws.amazon.com/ses/latest/dg/Welcome.html[AWS documentation]. To setup an implementation suitable for Kill Bill, you will have two main steps. First, you must obtain a set of SES SMTP credentials (username and password). These are *not* the same as your AWS credentials. Second, you must verify the identities of both your default sending address ("From" address) and of each address you will be sending email to (this requirement can be removed later).
+
+## Obtaining SMTP Credentials
+
+SES requires a special set of credentials. Normally you will create a new set. To create your SMTP credentials, follow these steps:
+ 
+ 1. Sign in to AWS.
+ 2. Go to the https://console.aws.amazon.com/sesv2/[SMTP dashboard]. You will see information about the SMTP server you are creating, including the fact that your server will be in the sandbox for your region. A sandbox server is easier to setup and suitable for development, but it places limits on how you can use the server. You can exit the sandbox later.
+ 3. Scroll to the bottom and click on *Create SMTP Credentials*.
+ 4. A brief form will appear. Accept the username and click *Create* at the bottom of the page.
+ 5. You will see a message that your user has been created successfully. Click on *show user SMTP security credentials* to display the generated username and password. These must be saved, as they will be required to be copied to the plugin configuration in a later step.
+ 6. Click *Download Credentials* to save your credentials in a comma-separated text file.
+ 
+## Verifying Email Identities
+
+SES requires that any email address to be used as the MAIL FROM or REPLY TO address in your messages should be verified. This is similar to the identity verification process performed for an SSL certificate. While you are in the sandbox, all destination email addresses must be verified as well.
+
+It is possible to verify individual email addresses or complete domains. We recommend that you verify the domain that is used by the individual email addresses you will be using. This requires setting up several CNAMEs in the DNS settings of a domain that you own. If you would prefer to verify individual emails, which avoids this need, see https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html#verify-email-addresses-procedure[Verifying an email Address].
+
+A CNAME is an identifier that links a resource to be identified to your own domain. Your domain provider should have instructions for setting this up.
+
+General instructions for verifying a domain are given in https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html#verify-domain-procedure[creating and verifying a domain identity]. You can follow these instructions in a simplified way:
+
+- Do not assign a default configuration
+- Do not use a custom MAIL FROM address
+- Accept the default Domain Keys Identified Mail (DKIM) tokwn
+- No tags are required
+
+The authentication tab will provide you with three CNAME records. Each of these must be added to your domain's DNS settings.
+
+WHen these changes are detected by SES, the identity status for your domain will appear as *verified*. this can take up to 48 hours although often it will take a lot less.
+
+image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/SES-verified-identities.jpg[align=center]
+
+
+## Preliminary Testing
+
+Your Verified Identities page contains a button to send a test email. Select your verified domain and click on *Send Test Email*. Select the option to send the mail successfully. This mail will be sent to a simulator. If you want to see the actual output, add a (verified) destination address as a `cc` field.
+
+## Exiting the Sandbox
+
+Since your account is initially placed in the AWS sandbox, every email address you use, including destination addresses, needs to be verified. This will be very difficult unless most of your email is sent to only one or a very few domains.
+
+To remove the restriction on verifying all your destination email address, you may request that your account be switched from sandbox to production status. This also reduces restrictions on the volume of email that can be sent, although large volumes do incur a cost. This is a manual process requiring human approval. AWS must be sure that your account will not be used for sending spam. For more information see https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html[Moving out of the Sandbox].
+ 
