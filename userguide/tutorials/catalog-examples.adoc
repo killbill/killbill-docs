@@ -59,7 +59,7 @@ This example uses the https://github.com/killbill/killbill-docs/tree/4671dcd9da1
 
 == Plan Phases
 
-Each plan can consist of multiple phases as explained in the https://docs.killbill.io/latest/userguide_subscription.html#_plans[_Subscription Billing_] document. 
+Each plan can consist of multiple phases as explained in the https://docs.killbill.io/latest/userguide_subscription.html#$$_$$plans[_Subscription Billing_] document. 
 
 A quick summary of plan phases:
 
@@ -307,8 +307,8 @@ It has only one product (`Standard`). However, it has multiple plans correspondi
 |===
 |Plan Name   |Product|Plan Description
 //----------------------
-|standard_monthly   |Standard   |Single EVERGREEN phase with a monthly recurring charge of $24.95   
-|standard-annual  |Standard   |Single EVERGREEN phase with an annual recurring charge of $275  
+|standard-monthly   |Standard   |Single `EVERGREEN` phase with a monthly recurring charge of `$24.95`   
+|standard-annual  |Standard   |Single `EVERGREEN` phase with an annual recurring charge of `$275`  
 |===
 
 
@@ -354,7 +354,7 @@ It has two plans corresponding to both products as follows:
 |===
 |Plan Name   |Product|Plan Description
 //----------------------
-|standard_monthly   |Standard   |Single `EVERGREEN` phase with a monthly recurring charge of `$24.95`   
+|standard-monthly   |Standard   |Single `EVERGREEN` phase with a monthly recurring charge of `$24.95`   
 |remotecontrol-monthly   |RemoteControl   |Single `EVERGREEN` phase with a monthly recurring charge of `$17.95`    
 |===
 
@@ -370,6 +370,293 @@ The following table lists the actions and their results:
 |Add the `remotecontrol-monthly` add-on to the existing subscription with date of `2021-09-30` (future date)   |No invoice is generated as a future date is specified
 |Trigger invoice dry run with target date `2021-09-30`   |Invoice generated for `$11.97` for `2021-09-30` to `2021-10-20` corresponding to the `remotecontrol-monthly` plan (Prorated since `BUNDLE` billing alignment is used) 
 |Trigger invoice dry run with target date `2021-10-20`   |Invoice generated for `$42.90` for `2021-10-20` to `2021-11-20` corresponding to both plans
+|===
+
+== Subscription Alignment Rules
+
+The https://docs.killbill.io/latest/userguide_subscription.html#$$_$$subscription_alignment_rules[_Subscription Alignment Rules_] section in the catalog can be used to specify rules that are useful for advanced use cases. This section explains some of these rules. 
+
+=== Plan Creation Addon Phase Alignment
+
+The https://docs.killbill.io/latest/userguide_subscription.html#$$_$$subscription_alignment_rules[plan creation addon phase alignment] rules specify how the phases of an addon subscription _align_ with the phases of the base subscription. 
+
+A quick summary of plan creation phase alignment rules:
+
+* A rule specifies the name of an addon product and how its phases should align with the phases of the base product.
+* There are two possible values for phase alignment, `START_OF_BUNDLE` and `START_OF_SUBSCRIPTION`.
+
+* `START_OF_BUNDLE` causes the phases of the add-on to start on the date when the base plan was first created. This causes the phases of add-on subscription to align with the phases of the base subscription (provided the phases are of the same length)
+
+* `START_OF_SUBSCRIPTION` causes the phases of the add-on subscription to start with the add-on subscription irrespective of the base subscription.
+
+This example uses the  https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/plan-creation-addon-phase-alignment.xml[Plan Creation Addon Phase Alignment] catalog. 
+
+It has a `BASE` product and two `ADD_ON` products as follows:
+
+[options="header",cols="1,1"]
+|===
+|Product   |Category   
+//-------------
+|Standard   |Base   
+|RemoteControl   |Add_on   
+|OilSlick   |Add_on 
+|===
+
+It has the following plans corresponding to the products:
+
+[options="header",cols="1,1,1"]
+|===
+|Plan Name   |Product|Plan Description
+//----------------------
+|standard-monthly   |Standard   |`TRIAL` phase of `10` days followed by an `EVERGREEN` phase with a monthly recurring charge of `$25`   
+|remotecontrol-monthly   |RemoteControl   |`TRIAL` phase of `10` days followed by an `EVERGREEN` phase with a monthly recurring charge of `$15`   
+|oilslick-monthly   |OilSlick   |`TRIAL` phase of `10` days followed by an `EVERGREEN` phase with a monthly recurring charge of `$10`  
+|===
+
+It specifies the following add-on phase alignment rules:
+
+[options="header",cols="1,1"]
+|===
+|Predicate   |Alignment   
+//-------------
+|product=RemoteControl   |START_OF_SUBSCRIPTION   
+|product=OilSlick   |START_OF_BUNDLE   
+|; (Anything else)  |START_OF_BUNDLE    
+|===
+
+==== Rule 1: If product=RemoteControl, alignment=START_OF_SUBSCRIPTION
+
+This rule specifies that if the `RemoteControl` add-on is added to a base subscription, its phases should start on the date that the the add-on subscription is added irrespective of the base subscription.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription corresponding to the `standard-monthly` plan on `2021-09-23` (current date)  |Invoice generated for `$0` (since subscription is in trial phase)
+|Trigger invoice dry run with target date `2021-10-03`   |Invoice generated for `$25` for `2021-10-03` to `2021-11-03` (Trial phase ends)
+|Add the `remotecontrol-monthly` add-on to the existing subscription with date `2021-09-30` (future date)   |No invoice is generated as a future date is specified
+|Trigger invoice dry run with target date `2021-09-30`   |Invoice generated for `$0` corresponding to the `remotecontrol-monthly` plan (since the subscription is in trial phase)
+|Trigger invoice dry run with target date `2021-10-03`   |Invoice generated with only one invoice item corresponding to  `standard-monthly` plan. Since `RemoteControl` uses `START_OF_SUBSCRIPTION` alignment rule, its phases start on the day the subscription starts (`2021-09-30`). So, `remotecontrol-monthly` is still in `TRIAL` phase and does not have an invoice entry.
+|===
+
+==== Rule 2: If product=OilSlick, alignment=START_OF_BUNDLE
+
+This rule specifies that if the `OilSlick` add-on is added to a base subscription, its phases should start on the date of the base subscription. 
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription corresponding to the `standard-monthly` plan on `2021-09-23` (current date)  |Invoice generated for `$0` (since subscription is in trial phase)
+|Trigger invoice dry run with target date `2021-10-03`   |Invoice generated for `$25` for `2021-10-03` to `2021-11-03` (Trial phase ends)
+|Add the `oilslick-monthly` add-on to the existing subscription with date `2021-09-30` (future date)  |No invoice is generated as a future date is specified
+|Trigger invoice dry run with target date `2021-09-30`   |Invoice generated for `$0` corresponding to the `oilslick-monthly` plan (since subscription is in trial phase)
+|Trigger invoice dry run with target date `2021-10-03`   |Invoice generated with two invoice items corresponding to `standard-monthly` and `oilslick-monthly` plans. Since 
+ `OilSlick` uses `START_OF_BUNDLE` alignment rule, its phases start on the day the base subscription starts (`2021-09-23`). So, `TRIAL` phase ends on `2021-10-03` and an invoice item is created.
+|===
+
+=== Plan Cancellation Timing
+
+The https://docs.killbill.io/latest/userguide_subscription.html#$$_$$plan_cancellation_timing[plan cancellation timing] rules specify how the billing policy is affected when a plan is canceled. 
+
+A quick summary of plan cancellation rules:
+
+* A rule specifies one of `productCategory`, `billingPeriod`,`priceList`, `phaseType` and its cancellation `policy`.
+
+* There are two possible values for cancellation policy, `END_OF_TERM` and `IMMEDIATE`.
+
+* `END_OF_TERM` causes the cancellation to be applied at the end of the billing period. This type of cancellation rule avoids generating credits.
+
+* `IMMEDIATE` causess the cancellation to be applied immediately. This type of cancellation rule results in a credit being generated corresponding to the balance of the subscription that has been paid for but not used.
+
+* The cancellation policy specified here is the *default* cancellation policy. This is applicable only in the case when an explicit cancellation policy is not specified (via Kaui or API call).
+
+[NOTE]
+*Note:* 
+The cancellation policy specified in this section applies only to _billing_. The cancellation policy for entitlements can be specified explicitly via Kaui or an API call. It defaults to _immediate_ as explained in the https://docs.killbill.io/latest/userguide_subscription.html#components-entitlement[_Subscription Billing_] document.
+
+This example uses the  https://github.com/killbill/killbill-docs/blob/1a945188c0ef53a3c7f797b4890514d35c09c46f/catalogs/plan-cancellation-timing.xml[Plan Cancellation Timing] catalog. 
+
+It has the following products/plans: 
+
+==== Products
+
+[options="header",cols="1,1"]
+|===
+|Product   |Category   
+//-------------
+|Standard   |Base   
+|RemoteControl   |Add_on   
+|===
+
+==== Plans
+
+[options="header",cols="1,1,1"]
+|===
+|Plan Name   |Product|Plan Description
+//----------------------
+|standard-monthly   |Standard   |Single `EVERGREEN` phase with a monthly recurring charge of `$25`  
+|remotecontrol-monthly   |RemoteControl   |Single `EVERGREEN` phase with a monthly recurring charge of `$15`
+|===
+
+It specifies the following plan cancellation rules:
+
+[options="header",cols="1,1"]
+|===
+|Predicate   |Cancellation Policy   
+//-------------
+|productCategory=BASE   |END_OF_TERM   
+|productCategory=ADD_ON   |IMMEDIATE   
+|; (anything else)   |END_OF_TERM   
+|===
+
+
+==== Rule 1: If productCategory=BASE, cancellation policy=END_OF_TERM
+
+This rule specifies that if the category of a product is `BASE`  product, cancellation should should occur at the end of the billing period.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `standard-monthly` plan on `2021-09-29` (current date)  |Invoice generated for `$25` for `2021-09-29` to `2021-10-29`
+|Cancel subscription (specify default policy)| Invoice with credit is NOT generated (Since `BASE` product category uses `END_OF_TERM` cancellation policy)
+|===
+
+==== Rule 2: If productCategory=ADD_ON, cancellation policy=IMMEDIATE
+
+This rule specifies that if the category of a product is `ADD_ON`  product, cancellation should should occur immediately.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `standard-monthly` plan on `2021-09-29` (current date)  |Invoice generated for `$25` for `2021-09-29` to `2021-10-29` 
+|Add the `remotecontrol-monthly` add-on to the existing subscription on `2021-09-29` (current date) | Invoice generated for `$15` for `2021-09-29` to `2021-10-29` corresponding to  `remotecontrol-monthly` plan 
+|Cancel add-on subscription (specify default policy)| An invoice is generated with a credit of `$15`(Since `ADDON` product uses `IMMEDIATE` cancellation policy)
+|Cancel base subscription (specify default policy)| Invoice with credit is NOT generated  (Since `BASE` product  uses `END_OF_TERM` cancellation policy)
+|===
+
+=== Plan Change Timing
+
+The https://docs.killbill.io/latest/userguide_subscription.html#$$_$$plan_change_timing[plan change timing] rules specify how the system should behave when a subscription plan is changed.
+
+A quick summary of plan change rules:
+
+* A rule specifies one of `phaseType`,  `fromProduct`/`toProduct`, `fromProductCategory`/ `toProductCategory`, `fromBillingPeriod`/ `toBillingPeriod`, `fromPriceList`/`toPriceList` and its change `policy`.
+
+* There are three possible values for change policy, `END_OF_TERM`,  `IMMEDIATE` and `ILLEGAL`.
+
+* `END_OF_TERM` specifies that the plan change should happen at the end of the current billing period.
+
+* `IMMEDIATE` specifies that the plan change should happen immediately.
+
+* `ILLEGAL` specifies that the plan change is not allowed.
+
+This example uses the  https://github.com/killbill/killbill-docs/blob/1a945188c0ef53a3c7f797b4890514d35c09c46f/catalogs/plan-change-timing.xml[Plan Change Timing] catalog. 
+
+It has the following products/plans: 
+
+==== Products
+
+[options="header",cols="1,1"]
+|===
+|Product   |Category   
+//-------------
+|Standard   |Base   
+|Sports   |Base   
+|Super   |Base
+|Premium   |Base
+|===
+
+==== Plans
+
+[options="header",cols="1,1,1"]
+|===
+|Plan Name   |Product|Plan Description
+//----------------------
+|standard-monthly   |Standard   |`TRIAL` phase of `30` days followed by an `EVERGREEN` phase with a monthly recurring charge of `$100`   
+|sports-monthly   |Sports   |Single `EVERGREEN` phase with a monthly recurring charge of `$500`
+|super-monthly   |Super   |Single `EVERGREEN` phase with a monthly recurring charge of `$1000`
+|premium-monthly   |Premium   |Single `EVERGREEN` phase with a monthly recurring charge of `$2000`
+|===
+
+
+It specifies the following plan cancellation rules:
+
+[options="header",cols="1,1"]
+|===
+|Predicate   |Change Policy   
+//-------------
+|phaseType=TRIAL   |IMMEDIATE   
+|fromProduct=Sports and toProduct=Super   |IMMEDIATE   
+|fromProduct=; and toProduct=Super (any fromProduct)  |IMMEDIATE   
+|fromProduct=Premium and toProduct=Standard   |ILLEGAL   
+|; (anything else)   |END_OF_TERM   
+|===
+
+==== Rule 1: If phaseType=TRIAL, change policy=IMMEDIATE
+
+This rule specifies that if a product is in `TRIAL` phase, plan change should take effect immediately.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `standard-monthly` plan on `2021-09-29` (current date)  |Invoice generated for `$0` (since subscription is in trial phase)
+|Change subscription to use the `sports-monthly` plan (specify default policy)| Plan change takes effect immediately (Invoice generated for `$500` for `2021-09-29` to `2021-10-29` corresponding to the `sports-monthly` plan) 
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$500` for `2021-10-29` to `2021-11-29` corresponding to the `sports-monthly` plan
+|===
+
+==== Rule 2: If fromProduct=Sports and toProduct=Super, change policy=IMMEDIATE
+
+This rule specifies that if the plan change involves upgrading a product from `Sports` to `Super`, it should take effect immediately.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `sports-monthly` plan on `2021-09-29` (current date)  |Invoice generated for `$500` for `2021-09-29` to `2021-10-29` 
+|Change subscription to use the `super-monthly` plan (specify default policy) | Plan change takes effect immediately (Since the monthly price for `super-monthly` is `$1000`, an invoice is generated for `$500` for `2021-09-29` to `2021-10-29` corresponding to the balance amount)
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$1000` for `2021-10-29` to `2021-11-29` corresponding to the `super-monthly` plan
+|===
+
+==== Rule 3: If toProduct=Premium, change policy=IMMEDIATE (any fromProduct value)
+
+This rule specifies that if the plan change involves upgrading to `Premium`, it should take effect immediately.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `sports-monthly` plan on `2021-09-29` (current date)  |Invoice generated for `$500` for `2021-09-29` to `2021-10-29` 
+|Change subscription to use the `premium-monthly` plan (specify default policy)| Plan change takes effect immediately (Since the monthly price for `premium-monthly` is `$2000`, an invoice is generated for `$1500` for `2021-09-29` to `2021-10-29` corresponding to the balance amount)
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$2000` for `2021-10-29` to `2021-11-29` corresponding to the `premium-monthly` plan
+|===
+
+==== Rule 4: If fromProduct=Premium and toProduct=Standard, change policy=ILLEGAL
+
+This rule specifies that if the plan change involves upgrading from `Standard` to `Premium`, it should not be allowed.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `premium-monthly` plan on `2021-09-29` (current date)  |Invoice generated for `$2000` for `2021-09-29` to `2021-10-29` 
+|Change subscription to use the `standard-monthly` plan (specify default policy) | Plan change not allowed
+|===
+
+==== Rule 5: For anything else, change policy=END_OF_TERM
+
+This is the default rule. It specifies that any other plan changes should occur at the end of the billing period.
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `sports-monthly` plan on `2021-09-29` (current date)  |Invoice generated for `$500` for `2021-09-29` to `2021-10-29` 
+|Change subscription to use the `standard-monthly` plan (specify default policy) | Plan change takes effect end of term ( Invoice item corresponding to a credit is not generated) 
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$100` for `2021-10-29` to `2021-11-29` corresponding to the `standard-monthly` plan
 |===
 
 == Additional Information
