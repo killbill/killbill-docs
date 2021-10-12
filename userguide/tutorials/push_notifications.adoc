@@ -1,10 +1,16 @@
 = Push notifications
 
-Applications can subscribe to Kill Bill events via HTTP.
+Applications can subscribe to Kill Bill events via HTTP. This feature is known as push notifications. This document provides information about the push notifications feature.
+
+== Overview
+
+Push notifications are a convenient way to get notified about events from the system. One can register a callback, i.e, a valid URL that will be called whenever there is an event dispatched for a tenant. 
+
+The https://killbill.github.io/slate/#tenant-push-notifications[slate documentation] provides an overview of the API methods related to push notifications. This document provides further details.
 
 == Configuration
 
-To do so, subscribe your handler (e.g. `http://listener-app.acme:8080/callmeback`) as such:
+To configure a push notification, you need to register a handler (e.g. `http://listener-app.acme:8080/callmeback`). You can use the https://killbill.github.io/slate/#tenant-register-a-push-notification[Register a Push Notification] API method as follows:
 
 [source,bash]
 ----
@@ -21,18 +27,33 @@ curl -v \
      "http://127.0.0.1:8081/1.0/kb/tenants/registerNotificationCallback?cb=http://listener-app.acme:8080/callmeback"
 ----
 
-Each event will then be POST'ed to that url. If a non-2xx response code is returned, notifications will be retried at a later time as configured by the per-tenant configuration parameter `org.killbill.billing.server.notifications.retries` (e.g. `15m,30m,2h,12h,1d`).
+This registers `http://listener-app.acme:8080/callmeback` as the callback URL for this tenant. Each event will then be POST'ed to this url. 
+
+If a non-2xx response code is returned, notifications will be retried at a later time as configured by the per-tenant configuration parameter `org.killbill.billing.server.notifications.retries` (e.g. `15m,30m,2h,12h,1d`).
+
+== Other Operations
+
+Kill Bill provides some more API endpoints related to push notifications as follows:
+
+* https://killbill.github.io/slate/#tenant-retrieve-a-registered-push-notification[Retrieve a registered push notification] endpoint - Can be used to retrieve a registered push notification handler.
+
+* https://killbill.github.io/slate/#tenant-delete-a-registered-push-notification[Delete registered push notification] endpoint - Can be used to delete a registered push notification handler.
 
 == Events format
 
-Each event is serialized as JSON and contains the following fields:
+As explained earlier, once a handler is registered, each event is POST'ed to that url. An event is an object of the type https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEvent.java[ExtBusEvent]. Each `event` object is serialized as a JSON string and contains the following fields:
 
-* `eventType`: type of event (as defined by the `ExtBusEventType` enum)
+* `eventType`: type of event (as defined by the https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.jav[ExtBusEventType] enum)
 * `objectType`: type of object being updated (as defined by the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/ObjectType.java[ObjectType] enum)
 * `accountId`: account id being updated
 * `objectId`: object id being updated
-* `metaData`: event-specific metadata, serialize as JSON
+* `metaData`: event-specific metadata, serialize as JSON.
 
-By design, events are generic and contain very limited information: it is expected that your handler calls back the Kill Bill APIs to retrieve the latest state of the objects before acting upon it.
+You can also read the https://docs.killbill.io/latest/kill_bill_events.html[Kill Bill Events] document to know more about events 
 
-In some cases however, specific events may contain further information, which are serialized as JSON in the `metaData` field (you can find metadata objects https://github.com/killbill/killbill-plugin-api/tree/master/notification/src/main/java/org/killbill/billing/notification/plugin/api[here]).
+== Further Information
+
+* https://killbill.github.io/slate/#tenant-push-notifications[_Tenant Push Notifications_]
+
+* https://docs.killbill.io/latest/kill_bill_events.html[_Kill Bill Events_]
+

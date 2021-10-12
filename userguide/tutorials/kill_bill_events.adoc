@@ -1,0 +1,130 @@
+= Kill Bill Events
+
+This document provides information about Kill Bill events and their metadata.
+
+== Overview
+
+Kill Bill generates some events when certain actions occur within the system. For example, an event is generated when a new account is created, when a new subscription is created and so on. Such events can be used to build https://docs.killbill.io/latest/notification_plugin.html[notification plugins]. Applications can also use the https://docs.killbill.io/latest/push_notifications.html[push notifications] feature to subscribe to such events via HTTP.
+
+== Pre-requisites
+
+Ensure that you have gone through the https://docs.killbill.io/latest/what_is_kill_bill.html[What is Kill Bill] guide and have a fair idea about what Kill Bill is and how it works.
+
+== Events Overview
+
+As explained earlier, Kill Bill generates different events when different actions occur within the system. An event is actually an object of the type https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEvent.java[ExtBusEvent]. 
+
+An `event` object has the following fields:
+
+* `eventType`: type of event (as defined by the https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[ExtBusEventType] enum)
+
+* `objectType`: type of object being updated/modified (as defined by the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/ObjectType.java[ObjectType] enum)
+
+* `accountId`: account id associated with the object
+
+* `objectId`: id of the object being created/modified
+
+* `metaData`: event-specific metadata. By design, events are generic and contain very limited information. In some cases however, specific events may contain further information in the `metaData` field. (`metaData` can either be a simple String value or a JSON representation of a https://github.com/killbill/killbill-plugin-api/tree/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api[metadata object]).
+
+* `tenantId`: tenant id associated with the object
+
+* `userToken`: user token in the API request
+
+== Events Table
+
+The following table provides details of all the events and their metadata.
+
+|===
+|Event Name | Event Generation Condition |Object   |Metadata 
+
+|ACCOUNT_CREATION
+|A new customer account is created|ACCOUNT   |None  
+|ACCOUNT_CHANGE
+|A customer account is modified|ACCOUNT   |None  
+|BLOCKING_STATE
+|There is a change in the state of an entitlement or billing. See https://killbill.github.io/slate/#account-blocking-state[Blocking States] to know more|ACCOUNT/BUNDLE/SUBSCRIPTION  |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/BlockingStateMetadata.java[BlockingStateMetadata]  
+|BROADCAST_SERVICE
+|Used to broadcast an event to other Kill Bill nodes (Typically used for plugin related events like plugin installation, plugin uninstallation, plugin start, plugin stop, etc.)|SERVICE_BROADCAST   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/BroadcastMetadata.java[BroadcastMetadata]
+|SUBSCRIPTION_CREATION
+|A new subscription is created|SUBSCRIPTION   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/SubscriptionMetadata.java[SubscriptionMetadata]  
+|SUBSCRIPTION_PHASE
+|A subscription transitions into a different phase|SUBSCRIPTION   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/SubscriptionMetadata.java[SubscriptionMetadata]    
+|SUBSCRIPTION_CHANGE
+|A subscription is modified|SUBSCRIPTION   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/SubscriptionMetadata.java[SubscriptionMetadata]
+|SUBSCRIPTION_CANCEL
+|A subscription is cancelled|SUBSCRIPTION   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/SubscriptionMetadata.java[SubscriptionMetadata] 
+|SUBSCRIPTION_UNCANCEL
+|A subscription cancellation is undone (Note that subscription cancellation cannot be undone once the cancellation becomes effective)|SUBSCRIPTION   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/SubscriptionMetadata.java[SubscriptionMetadata]
+|SUBSCRIPTION_BCD_CHANGE
+|The subscription BCD is changed|SUBSCRIPTION   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/SubscriptionMetadata.java[SubscriptionMetadata]
+|ENTITLEMENT_CREATION
+|A new entitlement is created|SUBSCRIPTION   |None  
+|ENTITLEMENT_CANCEL
+|An entitlement is cancelled|SUBSCRIPTION   |None  
+|BUNDLE_PAUSE
+|A subscription bundle is paused|BUNDLE   |None  
+|BUNDLE_RESUME
+|A subscription bundle is resumed|BUNDLE  |None  
+|OVERDUE_CHANGE
+|There is a change is an overdue state|ACCOUNT   |None  
+|INVOICE_CREATION
+|A new invoice is generated|INVOICE   |None  
+|INVOICE_ADJUSTMENT
+|An invoice is adjusted|INVOICE   |None  
+|INVOICE_NOTIFICATION
+|An invoice is going to be generated for an account in the future (Can be used to notify customers about upcoming bills)|INVOICE   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/InvoiceNotificationMetadata.java[InvoiceNotificationMetadata]  
+|INVOICE_PAYMENT_SUCCESS
+|An invoice payment is successful|INVOICE   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/InvoicePaymentMetadata.java[InvoicePaymentMetadata]  
+|INVOICE_PAYMENT_FAILED
+|An invoice payment fails|INVOICE   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/InvoicePaymentMetadata.java[InvoicePaymentMetadata]    
+|PAYMENT_SUCCESS
+|Payment is successful|PAYMENT   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/PaymentMetadata.java[PaymentMetadata]  
+|PAYMENT_FAILED
+|Payment fails|PAYMENT   |https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/PaymentMetadata.java[PaymentMetadata]
+|TAG_CREATION
+|A new tag is associated with a Kill Bill resource (account, invoice, etc.)|TAG   |Tag name  
+|TAG_DELETION
+|A tag associated with a Kill Bill resource (account, invoice, etc.) is deleted|TAG   |Tag name  
+|CUSTOM_FIELD_CREATION
+|A custom field is created|CUSTOM_FIELD   |None  
+|CUSTOM_FIELD_DELETION
+|A custom field is deleted|CUSTOM_FIELD   |None  
+|TENANT_CONFIG_CHANGE
+|A Tenant configuration is modified (So, any changes to a catalog, overdue config, etc. within a tenant triggers this event)|TENANT_KVS   |Tenant key  
+|TENANT_CONFIG_DELETION
+|A Tenant configuration is deleted|TENANT_KVS   |Tenant key
+|===
+
+== Metadata Objects
+
+Let us now take a quick look at some of the metadata objects.
+
+=== SubscriptionMetadata
+
+The https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/SubscriptionMetadata.java[SubscriptionMetadata] object is used to specify the metadata in case of the `SUBSCRIPTION_CREATION`, `SUBSCRIPTION_PHASE`, `SUBSCRIPTION_CHANGE`, `SUBSCRIPTION_CANCEL`, `SUBSCRIPTION_UNCANCEL` and `SUBSCRIPTION_BCD_CHANGE` events.
+
+It has the following fields:
+
+* `actionType` : Specifies whether the event is effective right away (`EFFECTIVE`) or is scheduled for the future (`REQUESTED`). 
+
+* `bundleExternalKey`: Specifies the subscription bundle external key   
+
+=== PaymentMetadata
+
+The https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/PaymentMetadata.java[PaymentMetadata] object is used to specify the metadata in case of the `PAYMENT_SUCCESS` and `PAYMENT_FAILED` events. 
+
+It has the following fields:
+
+* `paymentTransactionId`: Specifies the id of the payment transaction
+* `amount` : Specifies the amount in this payment object
+* `currency`:  Specifies the currency used for payment
+* `status` : Specifies the payment transaction status (`SUCCESS`, `UNKNOWN`, `PENDING`, `PAYMENT_FAILURE`, `PLUGIN_FAILURE`, `PAYMENT_SYSTEM_OFF`)
+* `transactionType` : Specifies the payment transaction type (`AUTHORIZE`,`CAPTURE`,`CHARGEBACK`,`CREDIT`,    `PURCHASE`,`REFUND`,`VOID`)
+* `effectiveDate`:Specifies the date when the payment becomes effective.
+
+== Further Information
+
+* https://docs.killbill.io/latest/notification_plugin.html[_Notification Plugin_]
+
+* https://docs.killbill.io/latest/push_notifications.html[_Push Notifications_]
+
