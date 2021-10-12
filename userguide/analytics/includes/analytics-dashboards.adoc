@@ -223,7 +223,7 @@ You can specify as many dimensions and metrics as you want (each one of them sho
 
 Aggregate functions are supported for metrics: report1=payments_per_day\^dimension:currency^dimension:state\^metric:sum(amount)^metric:count(distinct fee)^metric:100*sum(fee)/amount
 
-You can also use the *filter* keywork to narrow down your dataset, for example: report1=payments_per_day\^dimension:currency^dimension:state\^metric:amount^metric:fee^filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)
+You can also use the *filter* keyword to narrow down your dataset, for example: report1=payments_per_day\^dimension:currency^dimension:state\^metric:amount^metric:fee^filter:(currency=USD%26state!=ERRORED)|(currency=EUR%26state=PROCESSED)
 
 Note that *&* is represented as *%26*, to avoid making the server interpret it as a standalone query parameter.
 
@@ -244,3 +244,22 @@ curl -u admin:password \
 ----
 
 To continue with our example above, you can see the report by going to http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day[http://127.0.0.1:8080/plugins/killbill-analytics/static/analytics.html?report1=new_accounts_per_day].
+
+===== SQL template variables
+
+If the option `enableTemplateVariables` is set to true in the Analytics plugin configuration, template variables can be set in the SQL queries. This allows users to dynamically replace values in the queries via widgets exposed in Kaui or when using the API directly.
+
+For example, given the following Trino query:
+
+[source,sql]
+----
+select
+  created_date
+, id
+from killbill.public.accounts
+where cast(created_date as timestamp) < coalesce(from_iso8601_timestamp(:as_of), current_timestamp(0))
+order by created_date desc
+limit 10
+----
+
+returns the last 10 created accounts by default or as of a certain date if the variable `as_of` is set. The value can be set using a similar syntax as described previously: `name=latest_accounts^variable:as_of=2021-06-10`.
