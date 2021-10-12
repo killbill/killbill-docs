@@ -37,27 +37,33 @@ Here are a few common scenarii:
 * the HPP provider doesn't provide an API to retrieve the state of the payment, nor sends notifications: the only way to record the payment is when the user is redirected to the Merchants Site. In that case, *buildFormDescriptor* can simply return the data to create the form and/or redirect the user without creating any payment. When the user completes the payment and is redirected back to the site, the Merchants Site will need to record the payment explicitely by calling the *createPurchase* API. Alternatively, if you want to keep track of abandoned purchases, the plugin could create a payment in a *PENDING* state during the *buildFormDescriptor* call. After the redirect, the Merchants Site will still call the *createPurchase* API to complete the payment, but will pass the paymentId returned by the previous *buildFormDescriptor* call.
 
 .Payment created during the redirect
+
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/catalog/hpp_purchase_on_redirect.png[width=960,align="center"]
 
 .Pending payment created during the *buildFormDescriptor* call, completed during the redirect
+
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/catalog/hpp_purchase_on_redirect_with_pending_payment.png[width=960,align="center"]
 
 * the HPP provider provides an API to retrieve the state of the payment but does not send notifications. In this case, the URL constructed during the *buildFormDescriptor* call is most likely unique, and contains enough information for the plugin to poll the provider for the payment status. During the  *buildFormDescriptor* call, the plugin will need to create a *PENDING* payment. Kill Bill will automatically poll the plugin calling the *getPaymentInfo* API, which should query the provider for the latest payment status. Example: Boleto with PayU Latam.
 
 .Pending payment created during the *buildFormDescriptor* call, completed by polling *getPaymentInfo*
+
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/catalog/hpp_poll.png[width=960,align="center"]
 
 * the HPP provider doesn't provide an API to retrieve the state of the payment but does send notifications. In this case, *buildFormDescriptor* can simply return the redirect URL without creating a payment, which will be created when the notification is received. Similarly to the first case above, you could create a *PENDING* payment if you want to track abandoned purchases, just make sure that the plugin has enough metadata to reconcile the notification with the payment. When the notification is received, either use the *notifyPendingTransactionOfStateChanged* Kill Bill API to transition the payment, or wait for Kill Bill to poll the plugin via  the *getPaymentInfo* API. Example: any HPP provided by Adyen.
 
 .Payment created when receiving a notification from the provider
+
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/catalog/hpp_notifications.png[width=960,align="center"]
 
 .Pending payment created during the *buildFormDescriptor* call, completed when receiving a notification from the provider
+
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/catalog/hpp_notifications_with_pending_payment.png[width=960,align="center"]
 
 The conceptual flow below shows a 3D-Secure variation of the previous flows. The main difference is that prior redirecting the browser to the landing page, it is first redirected to the access control server where the user can enter custom information.
 
 .Hosted Payment Page 3D-Secure variation
+
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/catalog/payments_hostedpages_3ds.png[width=960,align="center"]
 
 === Gateway Integration flow
@@ -71,6 +77,7 @@ Before any payment operation can occur, the user must first enter his payment in
 Note that the creation of the Kill Bill payment method is not represented in the flows below: it can happen either in a prior step or during the payment using one of our combo payment call. Usually, the user is prompted with a form to enter his payment method information, and then the payment is initiated using one of the *createAuthorization* or *createPurchase* APIs. Kill Bill will connect to its payment plugin which in turn will contact the gateway to perform the required operation. Upon success/failure, the user is redirected to a landing page.
 
 .Gateway integration (direct payment API)
+
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/catalog/payments_gateway.png[width=960,align="center"]
 
 If 3D-Secure is enabled, the payment (e.g. authorization) is split into two phases:
