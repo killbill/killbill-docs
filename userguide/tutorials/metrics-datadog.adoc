@@ -1,0 +1,162 @@
+== Kill Bill on AWS: Managing Metrics with Datadog
+
+== Part I: Single Tier and Multitier Implementations
+
+_(opening image here?)_
+
+Measurements and metrics are an important part of managing your Kill
+Bill system to be sure that performance is optimized and any problems
+can be detected early. Kill Bill collects over 1300 metrics to show you
+every conceivable view of your system's behavior.
+
+Several third party tools are available to manage and display metrics of
+this type. One popular tool is https://www.datadoghq.com/[datadog]. This
+package offers a low-cost option to monitor and display whatever metrics
+you may find useful from the Kill Bill collection, including metrics
+that show the performance and resource use of Kill Bill and Kaui
+themselves, and metrics describing the infrastructure on which these
+systems run.
+
+In this article we discuss the use of datadog to manage metrics produced
+by two types of Kill Bill implementations on Amazon Web Services (AWS):
+Single Tier and Multitier. With the latest Amazon Machine Image (AMI)
+for Kill Bill, it is very easy to direct the Kill Bill metrics to
+datadog and work with them in the way that suits your needs.
+
+== Your Kill Bill System
+
+We assume that you have a working Kill Bill implementation running on
+AWS, using either the
+https://docs.killbill.io/latest/aws-singletier.html[Single Tier] or
+https://docs.killbill.io/latest/aws-multitier.html[Multitier]
+installation options. The single tier option runs Kill Bill, Kaui, the
+MariaDB database and the nginx load balancer on a single AWS EC2
+instance. This is suitable for quick deployment and for testing and
+development. The multitier option runs Kill Bill and Kaui on two or more
+separate EC2 instances, and uses an AWS RDS database manager along with
+an AWS load balancer. This is an attractive option for many production
+uses.
+
+You should be running Kill Bill version 2021.9 or later. This version
+can be configured to provide its full collection of Kill Bill metrics to
+datadog (and several other analysis tools). If you open the Kill Bill
+admin page (not Kaui) in your browser, it should show that you are
+running the "Kill Bill Premium edition":
+
+image:media/image1.png[Graphical user interface, application, chat or
+text message, website Description automatically
+generated,width=624,height=208]
+
+If you see this page you are ready to go. If not, you should upgrade
+your installation.
+
+While you are on this page, if you want to see all the metrics that Kill
+Bill has to offer, just add the path /1.0/metrics to the URL. Have fun!
+If you find these hard to understand, though, maybe datadog can help.
+
+== Setting up Datadog
+
+You may already be familiar with datadog. If not, this section will
+explain how to get started.
+
+First, go to the https://www.datadoghq.com/[datadog website]. Datadog
+offers a free trial to get started. After the trial, you will be charged
+monthly depending on what types of information you want them to manage.
+To sign up for the free trial, select "GET STARTED FREE" at the top of
+the page.
+
+When you login to datadog you will be taken to the Welcome page. Note
+the series of menu options on the left hand side.
+
+To setup datadog to manage the metrics available from Kill Bill, there
+are just two steps: (1) install the datadog agent in Kill Bill, and (2)
+authorize the transfer of the complete Kill Bill metrics.
+
+== Installing the Agent
+
+The first step in integrating an analysis tool, like datadog, and a
+source of data to analyze, like Kill Bill, is to setup a means to get
+the source to send its data to the analyzer. Datadog does this by
+installing the *datadog agent* in the system producing the data.
+
+In the main datadog menu, select *Integrations*, then scroll down in the
+submenu to select *Agent*. This will show you a page listing all of the
+platforms on which the datadog agent can be installed. Choose *Ubuntu*.
+The next page will show you the single step required for this platform
+to install the agent:
+
+image:media/image2.png[Graphical user interface Description
+automatically generated with low confidence,width=624,height=182]
+
+To install the agent, login to your EC2 instance, then copy the line
+shown by datadog to the Ubuntu command line. Press Enter. The agent
+should be installed automatically.
+
+Note that this command already includes the Api Key assigned to you by
+datadog. This will authorize the agent to do its job.
+
+If you are using the Multitier installation, you will have multiple EC2
+instances. The agent should be installed separately for each one.
+
+To test the installation, return to datadog and choose *Infrastructure*,
+then *Infrastructure List* from the left menu. The table that appears
+should list all of your hosts and indicate their status as *ACTIVE*. You
+may need to wait a few minutes for the table to appear.
+
+Now select *Metrics*, then *Summary* from the menu. You should see a
+long list of metrics! These are coming from your instances, but they
+only describe the Ubuntu environment itself. You do not yet have the
+Kill Bill metrics. To fix this, proceed to the next step.
+
+== Setting up the Authorization
+
+To authorize the sending of the Kill Bill metrics, it is necessary to
+edit two lines in the file /var/lib/tomcat/bin/setenv2.sh. This file
+contains configuration information for tomcat, which manages the
+KillBill web applications.
+
+This is a small file. The two lines to be edited are:
+
+-Dcom.killbill.datadog.enable=false
+
+-Dcom.killbill.datadog.apiKey=
+
+These should be changed to
+
+-Dcom.killbill.datadog.enable=true
+
+-Dcom.killbill.datadog.apiKey=__Your-API-Key__
+
+The API Key to be added is the same one contained in the command you
+used to install the agent.
+
+After editing the file, go to your AWS EC2 dashboard and *reboot the
+instance* so the new configuration file will be read. If you have more
+than one instance, follow the same procedure for each one.
+
+Now return to the *Metrics/Summary* page. After a short delay, you
+should see a lot more metrics -- well over 1000 in your list.
+
+Congratulations. Your datadog integration is complete!
+
+== Using Datadog
+
+The datadog site has lots of documentation, and we will not try to
+repeat any of that here. We will just suggest a few quick steps to get
+started:
+
+[arabic]
+. Go to *Metrics* in the menu and *Explorer* in the submenu. Click on
+the field labeled *Graph:* to get a dropdown list of all available
+metrics.
+. Select some metrics to see the graph they produce. Identify the ones
+you would like to see together in a dashboard.
+. Gather the names of the metrics you want in the *Graph:* field
+together.
+. Under *Export these graphs to:* select *New Dashboard*. Give your
+dashboard a name.
+
+Your dashboard will appear in the *Dashboard List* under the
+*Dashboards* menu item. You can create and modify multiple dashboards.
+You can also adjust the graphs in many ways, and do lots of other things
+like setting alarms. Have fun and good luck!
