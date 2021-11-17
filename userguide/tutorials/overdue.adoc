@@ -512,6 +512,124 @@ Even if the payment retry schedule is not configured explicitly, there is a defa
 
 If the overdue XML is not configured explicitly, there is a default overdue XML as specified https://github.com/killbill/killbill/blob/29762c013855f7e105861eecd6d5cb393ef98cb8/overdue/src/main/resources/NoOverdueConfig.xml[here]. However, this does not do anything. So, even if a user has unpaid invoices, the user's account will not be overdue.
 
+== More about overdue.xml
+
+Earlier, we have taken a look at a basic overdue configuration file. This section provides more details about the contents of this file.
+
+=== Overdue state Information
+
+At its core, the overdue configuration file contains a list of the various states that a customer's account may go through if the customer does not pay. Each state includes the information listed in the table below.
+
+[cols="a,a,a,a"]
+|===
+|*Information*   |*Type*   |*Description* |*Example*  
+//----------------------
+|name   |Attribute on `state` tag   |Name given to the state | 
+[source, xml]
+<state name="WARNING">  
+|condition     |Tag within `state` |Specifies the condition to be evaluated. The account will enter this overdue state only if the condition evaluates to true.  | See <<Overdue Conditions>>
+|externalMessage   |Tag within `state`    |Optional message which can be retrieved by plugins listening to overdue events, and displayed to the user. Any String value can be specified  |
+[source, xml]
+<externalMessage>
+Reached WARNING
+</externalMessage>
+|subscriptionCancellationPolicy   |Tag within `state`|Specifies whether or not to cancel the subscriptions associated with the account (and the cancellation policy that should be used) when this overdue state is reached. Possible values are `NONE`, `IMMEDIATE`, `END_OF_TERM`)     |
+[source, xml]
+<subscriptionCancellationPolicy>
+END_OF_TERM
+</subscriptionCancellationPolicy>`
+|blockChanges   |Tag within `state`|Specifies whether the customer is allowed to make any plan change on the subscriptions when this overdue state is reached. A true/false value needs to be specified. |
+[source, xml]
+<blockChanges>
+true
+</blockChanges>
+|disableEntitlementAndChangesBlocked  |Tag within `state`|Specifies whether the subscriptions should be paused (which means entitlement and billing will be disabled and changes will be blocked) when this overdue state is reached. A true/false value needs to be specified.    |
+[source, xml]
+<disableEntitlementAndChangesBlocked>
+true
+</disableEntitlementAndChangesBlocked>
+|autoReevaluationInterval   |Tag within `state`   |Specifies the duration after which the overdue state should be reevaluated. The duration needs to be specified with a `unit` (one of `DAYS`, `WEEKS`, `MONTHS`, `YEARS`, `UNLIMITED`) and an integer value. |  [source, xml]
+                <autoReevaluationInterval>
+                 <unit>DAYS</unit>
+                 <number>4</number>
+                </autoReevaluationInterval>
+|isClearState   |Tag within `state`   |Specifies whether the current state is a clear state. A true/false value needs to be specified. |
+[source, xml]
+ <isClearState>true</isClearState>
+|===
+
+=== Overdue Conditions
+
+The following table lists the various overdue conditions. Note that it is also possible to combine multiple conditions in which case _ALL_ the specified conditions need to evaluate to true for the account to enter the particular overdue state.
+
+[cols="a,a,a"]
+|===
+|*Condition*   |*Description* |*Example*
+//-------------
+|numberOfUnpaidInvoicesEqualsOrExceeds   |Specifies that the overdue flow should kick in when the number of unpaid invoices equals or exceeds the specified value. An integer value needs to be specified.|  
+[source, xml]
+<condition>
+<numberOfUnpaidInvoicesEqualsOrExceeds>2
+</numberOfUnpaidInvoicesEqualsOrExceeds>
+</condition>
+|totalUnpaidInvoiceBalanceEqualsOrExceeds   | Specifies that the overdue flow should kick in when the total unpaid invoice balance equals or exceeds the specified value. A decimal value needs to be specified.  |
+[source, xml]
+<condition> 
+  <totalUnpaidInvoiceBalanceEqualsOrExceeds>1.00
+   </totalUnpaidInvoiceBalanceEqualsOrExceeds>
+</condition> 
+|timeSinceEarliestUnpaidInvoiceEqualsOrExceeds   |Specifies that the overdue flow should kick in when the specified duration has elapsed since the last unpaid invoice. The duration needs to be specified with a `unit` (one of `DAYS`, `WEEKS`, `MONTHS`, `YEARS`, `UNLIMITED`) and an integer value  | 
+[source, xml]
+<condition>
+  <timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+    <unit>DAYS</unit>
+    <number>10</number>
+  </timeSinceEarliestUnpaidInvoiceEqualsOrExceeds>
+</condition>
+|controlTagInclusion   |Specifies that the overdue flow should kick in when the account is tagged with the specified control tag. | 
+[source, xml]
+<condition>
+  <controlTagInclusion>TEST
+  </controlTagInclusion>
+</condition>
+|controlTagExclusion   |Specifies that the overdue flow should kick in when the account is NOT tagged with the specified control tag. |
+[source, xml]
+<condition>
+  <controlTagExclusion>TEST
+  </controlTagExclusion>
+</condition>
+|===
+
+=== Other Important Tags
+
+* `initialReevaluationInterval` - Top level tag. Specifies the duration after which the overdue system should first kick in. The duration needs to be specified with a `unit` (one of `DAYS`, `WEEKS`, `MONTHS`, `YEARS`, `UNLIMITED`) and an integer value. 
+
+Example:
+
+[source,xml]
+<initialReevaluationInterval>
+  <unit>DAYS</unit>
+  <number>5</number>
+</initialReevaluationInterval>
+
+=== Some Sample Overdue Configurations
+
+The following are some sample `overdue.xml` files:
+
+* https://github.com/killbill/killbill-docs/blob/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/overdue-configurations/overdueWithNumberOfUnpaidInvoicesCondition.xml[overdueWithNumberOfUnpaidInvoicesCondition.xml]
+
+* https://github.com/killbill/killbill-docs/blob/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/overdue-configurations/overdueWithTotalUnpaidInvoiceBalanceCondition.xml[overdueWithTotalUnpaidInvoiceBalanceCondition.xml]
+
+* https://github.com/killbill/killbill-docs/blob/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/overdue-configurations/overdueWithControlTag.xml[overdueWithControlTag.xml]
+
+* https://github.com/killbill/killbill-docs/blob/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/overdue-configurations/overdueWithExclusionControlTag.xml[overdueWithExclusionControlTag.xml]
+
+* https://github.com/killbill/killbill-docs/blob/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/overdue-configurations/overdueWithMultipleConditions.xml[overdueWithMultipleConditions.xml]
+
+=== Overdue.xml validation
+
+The `overdue.xml` file can be validated using the `overdue.xsd` file available https://docs.killbill.io/latest/overdue.xsd[here].
+
 
 [[platform_use]]
 == Use of the Platform
@@ -554,7 +672,6 @@ Such plugins can be used for the following purpose:
 
 * Email/Notify user about the new state (We already have a Java  https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] which can be extended to handle `OVERDUE_CHANGE` events)
 * Take action to modify the experience (based on the state name): for instance to degrade the service, modify the login flow to prompt for payment, ...
-
 
 == Additional Resources
 
