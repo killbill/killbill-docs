@@ -1,14 +1,16 @@
-= Kill Bill Configuration Guide
+= Kill Bill and Kaui Configuration Guide
 
 Kill Bill supports configuring the system by specifying external properties. This document explains how such properties can be configured.
 
-== Overview
+== Kill Bill Configuration
+
+=== Overview
 
 At a high level, Kill Bill configuration can be done in one of the following ways:
 
 * *Per-tenant configuration* - Used to define tenant-specific configuration properties (such as Catalog/Overdue XML files, Invoice, Payment properties, etc.).
 * *Properties file* - Used to define properties global to the system. 
-* *Java System Properties* - Can be used in rare cases to define configuration properties. 
+* *Java System Properties* - Used to define certain "special" configuration properties. 
 * *Third Party Configuration Files* -  Can be used to specify third-party configuration (e.g. EhCache configuration file, logback configuration file, etc. 
 * *Environment variables* - Can also be used to define configuration properties. 
 
@@ -57,7 +59,6 @@ The following table lists all the config classes:
 |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/java/org/killbill/billing/util/config/definition/EventConfig.java[EventConfig]  |Includes event related configuration properties   
 |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/java/org/killbill/billing/util/config/definition/InvoiceConfig.java[InvoiceConfig]   |Includes invoice related configuration properties   
 |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/java/org/killbill/billing/util/config/definition/JaxrsConfig.java[JaxrsConfig.java]   |Includes Jaxrs related configuration properties      
-|https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/java/org/killbill/billing/util/config/definition/MultiTenantEventConfig.java[MultiTenantEventConfig] |   
 |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/java/org/killbill/billing/util/config/definition/NotificationConfig.java[NotificationConfig]|Includes push notifications related configuration properties
 |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/java/org/killbill/billing/util/config/definition/PaymentConfig.java[PaymentConfig]|Includes payment related configuration properties
 |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/java/org/killbill/billing/util/config/definition/RbacConfig.java[RbacConfig]| Includes Rbac related configuration properties
@@ -103,283 +104,142 @@ This sets `org.killbill.invoice.dryRunNotificationSchedule=48h` for the `boblaza
 * These properties can also be specified in the killbill properties file in which case they become global properties applicable to all tenants. 
 * If a property is specified in properties file as well as at a per-tenant level, the per-tenant configuration takes precedence.
 
-The following table lists some of the important per-tenant properties:
-
-[options="header",cols="1,1,1"]
-|===
-|Property Name   |Description|Default Value
-//----------------------
-|org.killbill.payment.retry.days   |Specifies the number of payment retries along with the interval in days between payment retries when payment failures occur   |8,8,8   
-|org.killbill.payment.failure.retry.start.sec   |Specifies the interval of time in seconds before retrying a payment that failed due to a plugin failure    |300   
-|org.killbill.payment.failure.retry.max.attempts   |Specifies the max number of attempts before retrying a payment that failed due to a plugin failure    |8
-|org.killbill.invoice.maxNumberOfMonthsInFuture|Maximum target date to consider when generating an invoice| 36
-|org.killbill.invoice.maxDailyNumberOfItemsSafetyBound|Maximum daily number of invoice items to generate for a subscription id|15
-|org.killbill.invoice.dryRunNotificationSchedule|DryRun invoice notification time before targetDate (ignored if set to 0s)|0s
-|org.killbill.billing.server.notifications.retries|Delay before which unresolved push notifications should be retried|15m,30m,2h,12h,1d
-|===
+Some of the important per-tenant properties are listed in the <<Configuration Properties Table>> below.
 
 For a complete list of all the per-tenant properties, you can check the <<config_classes, config classes>> specified above. Note that the per-tenant properties have `InternalTenantContext` in the signature of the method.
 
+[[global_configuration_properties]]
 === Properties File
 
-Using an explicit `.properties` file is the most common and frequently used way of defining configuration properties. Properties defined within this file are global and are applicable across all tenants. Typically, a default `killbill.properties` exists as explained in the <<Setup Specific Notes>> section. You can add new properties/modify property values in this file as required. 
+Kill Bill configuration properties can also be defined within an explicit `.properties` file. Properties defined within this file are global and are applicable across all tenants. Typically, a default `killbill.properties` exists as explained in the <<Setup Specific Notes>> section. You can add new properties/modify property values in this file as required. 
 
-The following table lists some of the important global properties:
-
-
-[options="header",cols="1,1,1,1"]
-|===
-|Category   |Property Name|Description|Default Value
-//-------------------------------
-|Database   |org.killbill.dao.url   |The jdbc url for the Kill Bill database   |jdbc:h2:file:/var/tmp/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE   
-|Database   |org.killbill.dao.user   |The jdbc user name for the Kill Bill database   |killbill   
-|Database   |org.killbill.dao.password   |The jdbc password for the Kill Bill database   |killbill   
-|Plugin Database   |org.killbill.billing.osgi.dao.url   |The jdbc url for the plugin database   |jdbc:h2:file:/var/tmp/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE   
-|Plugin Database    |org.killbill.billing.osgi.dao.user   |The jdbc user name for the plugin database   |killbill   
-|Plugin Database    |org.killbill.billing.osgi.dao.password   |The jdbc password for the plugin database   |killbill   
-|Catalog |  org.killbill.catalog.uri   |Default Catalog location in case a per-tenant catalog is not specified   |SpyCarAdvanced.xml   
-|Overdue   |org.killbill.overdue.uri   |Default overdue configuration location in case a per-tenant configuration is not specified    |NoOverdueConfig.xml  
-|Notification Queue   |org.killbill.notificationq.<instancename>.sleep + 
-
-(Replace `<instancename>` with the notification queue instance name (typically, `main` as specified <<notification_queue,above>>)   |Time in milliseconds to sleep between runs. |3000   
-|Notification Queue   |org.killbill.notificationq.<instancename>.queue.mode + 
-
-(Replace `<instancename>` with the notification queue instance name (typically, `main` as specified <<notification_queue,above>>)   |How entries are put in the queue. Possible values are  `STICKY_EVENTS`, `STICKY_POLLING` ,`POLLING` as specified in https://github.com/killbill/killbill-commons/blob/4b8d8e647b8028076b5e74cdc27170bda50ca029/queue/src/main/java/org/killbill/queue/api/PersistentQueueConfig.java[PersistentQueueMode] |STICKY_POLLING   
-|Notification Queue   |org.killbill.notificationq.${instanceName}.notification.nbThreads + 
-
-(Replace `<instancename>` with the notification queue instance name (typically, `main` as specified <<notification_queue,above>>)  |Number of threads to use   |10   
-|Notification Queue   |org.killbill.notificationq.${instanceName}.claimed + 
-
-(Replace `<instancename>` with the notification queue instance name (typically, `main` as specified <<notification_queue,above>>)  |Number of notifications to fetch at once   |10   
-|Persistent Bus   |org.killbill.persistent.bus.${instanceName}.sleep + 
-
-(Replace `<instancename>` with the persistent bus instance name (typically, `main` or `external` as specified <<persistent_bus,above>>)  |Time in milliseconds to sleep between runs (only valid in STICKY_POLLING, POLLING).   |3000   
-|Persistent Bus   |org.killbill.persistent.bus.${instanceName}.queue.mode + 
-
-(Replace `<instancename>` with the persistent bus instance name (typically, `main` or `external` as specified <<persistent_bus,above>>)  |How entries are put in the queue. Possible values are  `STICKY_EVENTS`, `STICKY_POLLING` ,`POLLING` as specified in https://github.com/killbill/killbill-commons/blob/4b8d8e647b8028076b5e74cdc27170bda50ca029/queue/src/main/java/org/killbill/queue/api/PersistentQueueConfig.java[PersistentQueueMode]    |STICKY_EVENTS   
-|Persistent Bus   |org.killbill.persistent.bus.${instanceName}.nbThreads  + 
-
-(Replace `<instancename>` with the persistent bus instance name (typically, `main` or `external` as specified <<persistent_bus,above>>)  |Max number of dispatch threads to use |30   
-|Persistent Bus   |org.killbill.persistent.bus.${instanceName}.claimed + 
-
-(Replace `<instancename>` with the persistent bus instance name (typically, `main` or `external` as specified <<persistent_bus,above>>)   |Number of bus events to fetch from the database at once (only valid in 'polling mode')   |10   
-|Persistent Bus   |org.killbill.persistent.bus.${instanceName}.queue.capacity + 
-
-(Replace `<instancename>` with the persistent bus instance name (typically, `main` or `external` as specified <<persistent_bus,above>>)   |Size of the inflight queue (only valid in STICKY_EVENTS mode)   |30000   
-|Kill Bill Web Application   |org.killbill.server.multitenant   |Whether multi-tenancy is enabled   |true   
-|Kill Bill Web Application   |org.killbill.server.test.mode   |Whether to start in test mode   |false   
-|Kill Bill Web Application    |org.killbill.server.http.gzip   |Allow Kill Bill to return gzip json when Content-Encoding is set with gzip   |false   
-|Payment   |org.killbill.payment.plugin.timeout   |Timeout for each payment attempt   |30s   
-|===
+Some of the important global properties are listed in the <<Configuration Properties Table>> below.
 
 For a complete list of all the global properties, you can check the <<config_classes, config classes>> specified above.
 
-
+[[system_properties]]
 === Java System Properties 
 
-It is also possible to specify the Kill Bill configuration properties as Java system properties. For example, the `org.killbill.dao.url` can be specified as a system property via `-Dorg.killbill.dao.url=<url>`.
+Some of the Kill Bill configuration properties need to be specified as Java system properties. 
 
-*Important Notes:*
-
-* System properties are typically used to specify the location of third party configuration files.
-* They should generally not be used to specify regular properties. 
-* If a `killbill.properties` file is specified, the system properties are ignored and the properties specified in the properties file are used. 
-
+These system properties are listed in the <<Configuration Properties Table>> below.
 
 === Third Party Configuration Files
 
-Third party configuration files can be used to specify configuration related to third party libraries like ehcache, logback, etc. The path of a third party configuration file needs to be specified either as a system property or in the Kill Bill properties file.
+Third party configuration files can be used to specify configuration related to third party libraries like ehcache, logback, etc. The path of a third party configuration file in turn needs to be specified as a configuration property.
 
-The following table lists the third party configuration files supported by Kill Bill and the corresponding system properties that need to be specified.
+The following table lists the third party configuration files supported by Kill Bill and their corresponding configuration properties.
 
 [options="header",cols="1,1,1"]
 |===
-|Third-Party Configuration   |System Property   |Default Location
+|Third-Party Configuration   |Configuration Property   |Default Location
 //----------------------
 |ehcache   |org.killbill.cache.config.location   |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/util/src/main/resources/ehcache.xml[ehcache.xml]   
 |logback   |logback.configurationFile|https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/profiles/killbill/src/main/resources/logback.xml[logback.xml]   
 |shiro |org.killbill.security.shiroResourcePath |https://github.com/killbill/killbill/blob/2b80b0445c7baf1f613425bb236a8cb36f1f377a/profiles/killbill/src/main/resources/shiro.ini[shiro.ini]   
 |===
 
-
 === Environment Variables
 
-Kill Bill also allows defining configuration properties via environment variables. In such a case, the value specified via the environment variable overrides the value defined in the `killbill.properties` file.
+Kill Bill also allows setting configuration properties via environment variables. In such a case, the value specified via the environment variable overrides the value defined in the `killbill.properties` file.
 
 In order to specify a property via an environment variable, you need to define an environment variable corresponding to the underlying property and prefixed with *KB_*. For example, you can define an environment variable corresponding to the `org.killbill.dao.url` property as follows:
 [source,bash]
 ----
-KB_org.killbill.dao.url = <jdbc URL here>
+KB_org_killbill_dao_url = <jdbc URL here>
 ----
 
+The environment variables corresponding to the configuration properties are listed in the <<Configuration Properties Table>> below.
 
-== Setup Specific Notes
+== Configuration Properties Table
+
+The following table lists some of the Kill Bill configuration properties.
+
+[options="header",cols="1,1,1,1,1,1"]
+|===
+|Category   |Property Name   |Environment Variable   |Description   |Default Value | Configuration Method   
+//-------------------------------------------------
+|Payment   |org.killbill.payment.retry.days   |KB_org_killbill_payment_retry_days   |Specify the number of payment retries along with the interval in days between payment retries when payment failures occur   |8,8,8   |Per-Tenant/Config File/Environment Variable   
+|Payment   |org.killbill.payment.failure.retry.start.sec   |KB_org_killbill_payment_failure_retry_start_sec   |Specify the interval of time in seconds before retrying a payment that failed due to a plugin failure (gateway is down, transient error, ...)   |300   |Per-Tenant/Config File/Environment Variable   
+|Payment   |org.killbill.payment.failure.retry.multiplier   |KB_org_killbill_payment_failure_retry_multiplier   |Specify the multiplier to apply between in retry before retrying a payment that failed due to a plugin failure (gateway is down, transient error, ...)   |2   |Per-Tenant/Config File/Environment Variable   
+|Payment   |org.killbill.payment.janitor.unknown.retries   |KB_org_killbill_payment_janitor_unknown_retries   |Delay before which unresolved transactions should be retried   |5m,1h,1d,1d,1d,1d,1d   |Per-Tenant/Config File/Environment Variable   
+|Payment   |org.killbill.payment.janitor.pending.retries   |KB_org_killbill_payment_janitor_pending_retries   |Delay before which unresolved transactions should be retried   |1h, 1d   |Per-Tenant/Config File/Environment Variable   
+|Payment   |org.killbill.payment.failure.retry.max.attempts   |KB_org_killbill_payment_failure_retry_max_attempts   |Specify the max number of attempts before retrying a payment that failed due to a plugin failure (gateway is down, transient error, ...)   |8   |Per-Tenant/Config File/Environment Variable   
+|Payment   |org.killbill.payment.invoice.plugin   |KB_org_killbill_payment_invoice_plugin   |Default payment control plugin names   |-   |Per-Tenant/Config File/Environment Variable   
+|Payment   |org.killbill.payment.janitor.rate   |KB_org_killbill_payment_janitor_rate   |Rate at which janitor tasks are scheduled   |1h   |Config File/Environment Variable   
+|Payment   |org.killbill.payment.janitor.attempts.delay   |KB_org_killbill_payment_janitor_attempts_delay   |Delay before which unresolved attempt should be retried   |12h   |Config File/Environment Variable   
+|Payment   |org.killbill.payment.provider.default   |KB_org_killbill_payment_provider_default   |Default payment provider to use   |\\__external_payment__   |Config File/Environment Variable   
+|Payment   |org.killbill.payment.plugin.timeout   |KB_org_killbill_payment_plugin_timeout   |Timeout for each payment attempt   |30s   |Config File/Environment Variable   
+|Payment   |org.killbill.payment.plugin.threads.nb   |KB_org_killbill_payment_plugin_threads_nb   |Number of threads for plugin executor dispatcher   |10   |Config File/Environment Variable   
+|Payment   |org.killbill.payment.globalLock.retries   |KB_org_killbill_payment_globalLock_retries   |Maximum number of times the system will retry to grab global lock (with a 100ms wait each time)   |50   |Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.maxNumberOfMonthsInFuture   |KB_org_killbill_invoice_maxNumberOfMonthsInFuture   |Maximum target date to consider when generating an invoice   |36   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.sanitySafetyBoundEnabled   |KB_org_killbill_invoice_sanitySafetyBoundEnabled   |Whether internal sanity checks to prevent mis- and double-billing are enabled   |true   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.disable.usage.zero.amount   |KB_org_killbill_invoice_disable_usage_zero_amount   |Whether we disable writing $0 usage amounts   |false   |Per-Tenant/Config File/Environment Variable    
+|Invoice   |org.killbill.invoice.maxDailyNumberOfItemsSafetyBound   |KB_org_killbill_invoice_maxDailyNumberOfItemsSafetyBound   |Maximum daily number of invoice items to generate for a subscription id   |15   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.dryRunNotificationSchedule   |KB_org_killbill_invoice_dryRunNotificationSchedule   |DryRun invoice notification time before targetDate (ignored if set to 0s)   |0s   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.readMaxRawUsagePreviousPeriod   |KB_org_killbill_invoice_readMaxRawUsagePreviousPeriod   |Maximum number of past billing periods we use to fetch raw usage data (usage optimization)   |2   |Per-Tenant/Config File/Environment Variable    
+|Invoice   |org.killbill.invoice.globalLock.retries   |KB_org_killbill_invoice_globalLock_retries   |Maximum number of times the system will retry to grab global lock (with a 100ms wait each time)   |50   |Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.plugin   |KB_org_killbill_invoice_plugin   |Default invoice plugin names   |-   |Per-Tenant/Config File/Environment Variable    
+|Invoice   |org.killbill.invoice.emailNotificationsEnabled   |KB_org_killbill_invoice_emailNotificationsEnabled   |Whether to send email notifications on invoice creation (for configured accounts)   |false   |Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.enabled   |KB_org_killbill_invoice_enabled   |Whether the invoicing system is enabled   |true   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.parent.commit.local.utc.time   |KB_org_killbill_invoice_parent_commit_local_utc_time   |UTC Time when parent invoice gets committed   |23:59:59.999   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.item.result.behavior.mode   |KB_org_killbill_invoice_item_result_behavior_mode   |How the result for an item will be reported (aggregate mode or detail mode).    |AGGREGATE   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.parkAccountsWithUnknownUsage   |KB_org_killbill_invoice_parkAccountsWithUnknownUsage   |Whether to park accounts when usage data is recorded but not defined in the catalog   |false   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.rescheduleIntervalOnLock   |KB_org_killbill_invoice_rescheduleIntervalOnLock   |Time delay to reschedule an invoice run when lock is held   |0s   |Per-Tenant/Config File/Environment Variable   
+|Invoice   |org.killbill.invoice.maxInvoiceLimit   |KB_org_killbill_invoice_maxInvoiceLimit   |How far back in time should invoice generation look at   |P200Y   |Per-Tenant/Config File/Environment Variable   
+|Database   |org.killbill.dao.url   |KB_org_killbill_dao_url   |The jdbc url for the database   |jdbc:h2:file:/var/tmp/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE   | Config File/Environment Variable
+|Database   |org.killbill.dao.user   |KB_org_killbill_dao_user   |The jdbc user name for the database   |killbill   |Config File/Environment Variable   
+|Database   |org.killbill.dao.password   |KB_org_killbill_dao_password   |The jdbc password for the database   |killbill   |Config File/Environment Variable   
+|Database   |org.killbill.dao.minIdle   |KB_org_killbill_dao_minIdle   |The minimum allowed number of idle connections to the database   |1   |Config File/Environment Variable   
+|Database   |org.killbill.dao.maxActive   |KB_org_killbill_dao_maxActive   |The maximum allowed number of active connections to the database   |100   |Config File/Environment Variable   
+|Database   |org.killbill.dao.leakDetectionThreshold   |KB_org_killbill_dao_leakDetectionThreshold   |Amount of time that a connection can be out of the pool before a message is logged indicating a possible connection leak   |60s   |Config File/Environment Variable   
+|Database   |org.killbill.dao.connectionTimeout   |KB_org_killbill_dao_connectionTimeout   |How long to wait before a connection attempt to the database is considered timed out   |10s   |Config File/Environment Variable   
+|Database   |org.killbill.dao.idleMaxAge   |KB_org_killbill_dao_idleMaxAge   |The time for a connection to remain unused before it is closed off   |60m   |Config File/Environment Variable   
+|Database   |org.killbill.dao.maxConnectionAge   |KB_org_killbill_dao_maxConnectionAge   |Any connections older than this setting will be closed off whether it is idle or not. Connections currently in use will not be affected until they are returned to the pool   |0m   |Config File/Environment Variable   
+|Database   |org.killbill.dao.idleConnectionTestPeriod   |KB_org_killbill_dao_idleConnectionTestPeriod   |Time for a connection to remain idle before sending a test query to the DB   |5m   |Config File/Environment Variable   
+|Database   |org.killbill.dao.connectionInitSql   |KB_org_killbill_dao_connectionInitSql   |Sets a SQL statement executed after every new connection creation before adding it to the pool   |null   |Config File/Environment Variable   
+|Database   |org.killbill.dao.prepStmtCacheSize   |KB_org_killbill_dao_prepStmtCacheSize   |Number of prepared statements that the driver will cache per connection   |500   |Config File/Environment Variable   
+|Database   |org.killbill.dao.prepStmtCacheSqlLimit   |KB_org_killbill_dao_prepStmtCacheSqlLimit   |Maximum length of a prepared SQL statement that the driver will cache   |2048   |Config File/Environment Variable   
+|Database   |org.killbill.dao.cachePrepStmts   |KB_org_killbill_dao_cachePrepStmts   |Enable prepared statements cache   |true   |Config File/Environment Variable   
+|Database   |org.killbill.dao.useServerPrepStmts   |KB_org_killbill_dao+useServerPrepStmts   |Enable server-side prepared statements   |true   |Config File/Environment Variable   
+|Database   |org.killbill.dao.dataSourceClassName   |KB_org_killbill_dao_dataSourceClassName   |DataSource class name provided by the JDBC driver, leave null for autodetection   |null   |Config File/Environment Variable   
+|Database   |org.killbill.dao.driverClassName   |KB_org_killbill_dao_driverClassName   |JDBC driver to use (when dataSourceClassName is null)   |null   |Config File/Environment Variable    
+|Database   |org.killbill.dao.mysqlServerVersion   |KB_org_killbill_dao_mysqlServerVersion   |MySQL server version   |5.1   |Config File/Environment Variable     
+|Database   |org.killbill.dao.logLevel   |KB_org_killbill_dao_logLevel   |Log level for SQL queries   |DEBUG   |Config File/Environment Variable   
+|Database   |org.killbill.dao.poolingType   |KB_org_killbill_dao_poolingType   |Connection pooling type   |HIKARICP   |Config File/Environment Variable    
+|Database   |org.killbill.dao.healthCheckConnectionTimeout   |KB_org_killbill_dao_healthCheckConnectionTimeout   |How long to wait before a connection attempt to the database is considered timed out (healthcheck only)   |10s   |Config File/Environment Variable   
+|Database   |org.killbill.dao.healthCheckExpected99thPercentile   |KB_org_killbill_dao_healthCheckExpected99thPercentile   |Expected 99th percentile calculation to obtain a connection (healthcheck only)   |50ms   |Config File/Environment Variable    
+|Database   |org.killbill.dao.initializationFailFast   |KB_org_killbill_dao_initializationFailFast   |Whether or not initialization should fail on error immediately   |false   |Config File/Environment Variable    
+|Database   |org.killbill.dao.transactionIsolationLevel   |KB_org_killbill_dao_transactionIsolationLevel   |Set the default transaction isolation level   |TRANSACTION_READ_COMMITTED   |Config File/Environment Variable   
+|Database   |org.killbill.dao.readOnly   |KB_org_killbill_dao_readOnly   |Whether to put connections in read-only mode   |false   |Config File/Environment Variable   
+|Cache   |org.killbill.catalog.frequentValuesCacheSize   |-   |Coming Soon   |1000   |System property 
+|Security   |killbill.server.ldap   |-   |Coming Soon   |false   |System property   
+|Security   |killbill.server.okta   |-   |Coming Soon   |false   |System property    
+|Security   |killbill.server.auth0   |-   |Coming Soon   |false   |System Property   
+|Security   |killbill.server.rbac   |-   |Coming Soon    |true   |System Property   
+|===
+
+=== Setup Specific Notes
 
 As explained in the https://docs.killbill.io/latest/getting_started.html[Getting Started] guide,  there are several ways to install Kill Bill such as https://docs.killbill.io/latest/getting_started.html#_aws_one_click[AWS], https://docs.killbill.io/latest/getting_started.html#_docker[Docker] or https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat]. In addition, you may also be using Kill Bill for development/debugging using a https://docs.killbill.io/latest/development.html[standalone] setup.  
 
 This section provides some setup specific instructions such as location of the default `killbill.properties` and so forth.
 
-=== AWS
+==== AWS
 
 In case of an AWS installation, the `killbill.properties` is present at the  `/var/lib/killbill/config/killbill.properties` location. 
 
-=== Docker
+==== Docker
 
 In case Kill Bill is installed via Docker, the `killbill.properties` file is present at the `/var/lib/killbill/killbill.properties` path within the Docker container.  You can modify the properties defined here. 
 
 Alternatively, you can bind mount your own file, by specifying `-v /path/to/killbill.properties:/var/lib/killbill/killbill.properties` when starting your container.
 
-You can also specify configuration properties using individual environment variables.The following table lists all the environment variables and their default values:
+You can also specify configuration properties using individual environment variables as specified in the <<Configuration Properties Table>> above.
 
-[options="header",cols="1,1"]
-|===
-|Variable Name   |Default   
-//-------------
-| `KILLBILL_ANALYTICS_NOTIFICATION_NB_THREADS` | `5`
-| `KILLBILL_ANALYTICS_QUEUE_CAPACITY` | `30000`
-| `KILLBILL_BUNDLE_CACHE_NAME` | `osgi-cache`
-| `KILLBILL_BUNDLE_INSTALL_DIR` | `/var/lib/killbill/bundles`
-| `KILLBILL_BUNDLE_PROPERTY_NAME` | `killbill.properties`
-| `KILLBILL_BUS_EXTERNAL_HISTORY_TABLE_NAME` | `bus_ext_events_history`
-| `KILLBILL_BUS_EXTERNAL_IN_MEMORY` | `true`
-| `KILLBILL_BUS_EXTERNAL_NB_THREADS` | `50`
-| `KILLBILL_BUS_EXTERNAL_SLEEP` | `0`
-| `KILLBILL_BUS_EXTERNAL_TABLE_NAME` | `bus_ext_events`
-| `KILLBILL_BUS_EXTERNAL_USE_INFLIGHT_Q` | `true`
-| `KILLBILL_BUS_MAIN_CLAIMED` | `10`
-| `KILLBILL_BUS_MAIN_HISTORY_TABLE_NAME` | `bus_events_history`
-| `KILLBILL_BUS_MAIN_IN_MEMORY` | `false`
-| `KILLBILL_BUS_MAIN_NB_THREADS` | `50`
-| `KILLBILL_BUS_MAIN_OFF` | `false`
-| `KILLBILL_BUS_MAIN_SLEEP` | `0`
-| `KILLBILL_BUS_MAIN_TABLE_NAME` | `bus_events`
-| `KILLBILL_CACHE_CONFIG_LOCATION` | `ehcache.xml`
-| `KILLBILL_CATALOG_BUNDLE_PATH` | `org/killbill/billing/util/template/translation/CatalogTranslation`
-| `KILLBILL_CATALOG_URI` | `SpyCarBasic.xml`
-| `KILLBILL_CURRENCY_PROVIDER_DEFAULT` | `killbill-currency-plugin`
-| `KILLBILL_DAO_CACHE_PREP_STMTS` | `true`
-| `KILLBILL_DAO_CONNECTION_TIMEOUT` | `100s`
-| `KILLBILL_DAO_HEALTH_CHECK_CONNECTION_TIMEOUT` | `10s`
-| `KILLBILL_DAO_HEALTH_CHECK_EXPECTED99TH_PERCENTILE` | `50ms`
-| `KILLBILL_DAO_IDLE_CONNECTION_TEST_PERIOD` | `5m`
-| `KILLBILL_DAO_IDLE_MAX_AGE` | `2m`
-| `KILLBILL_DAO_LOG_LEVEL` | `DEBUG`
-| `KILLBILL_DAO_MAX_ACTIVE` | `150`
-| `KILLBILL_DAO_MAX_CONNECTION_AGE` | `0m`
-| `KILLBILL_DAO_MIN_IDLE` | `5`
-| `KILLBILL_DAO_MYSQL_SERVER_VERSION` | `4.0`
-| `KILLBILL_DAO_PASSWORD` | `killkill`
-| `KILLBILL_DAO_POOLING_TYPE` | `HIKARICP`
-| `KILLBILL_DAO_PREP_STMT_CACHE_SIZE` | `500`
-| `KILLBILL_DAO_PREP_STMT_CACHE_SQL_LIMIT` | `2048`
-| `KILLBILL_DAO_URL` | `jdbc:h2:file:/var/lib/killbill/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;MVCC=true;DB_CLOSE_ON_EXIT=FALSE`
-| `KILLBILL_DAO_USER` | `killbill`
-| `KILLBILL_DAO_USE_SERVER_PREP_STMTS` | `true`
-| `KILLBILL_DEFAULT_LOCALE` | `en_US`
-| `KILLBILL_EXPORT_PACKAGES_API` | `org.killbill.billing.account.api,org.killbill.billing.analytics.api.sanity,org.killbill.billing.analytics.api.user,org.killbill.billing.beatrix.bus.api,org.killbill.billing.catalog.api,org.killbill.billing.catalog.api.rules,org.killbill.billing.invoice.plugin.api,org.killbill.billing.invoice.api,org.killbill.billing.invoice.api.formatters,org.killbill.billing.entitlement.api,org.killbill.billing,org.killbill.clock,org.killbill.billing.notification.api,org.killbill.billing.notification.plugin.api,org.killbill.billing.notification.plugin,org.killbill.billing.osgi.api,org.killbill.billing.osgi.api.config,org.killbill.billing.overdue,org.killbill.billing.payment.api,org.killbill.billing.payment.plugin.api,org.killbill.billing.control.plugin.api,org.killbill.billing.tenant.api,org.killbill.billing.usage.api,org.killbill.billing.util.api,org.killbill.billing.util.nodes,org.killbill.billing.util.audit,org.killbill.billing.util.callcontext,org.killbill.billing.util.customfield,org.killbill.billing.util.email,org.killbill.billing.util.entity,org.killbill.billing.util.tag,org.killbill.billing.util.template,org.killbill.billing.util.template.translation,org.killbill.billing.currency.plugin.api,org.killbill.billing.catalog.plugin.api,org.killbill.billing.entitlement.plugin.api,org.killbill.billing.currency.api,org.killbill.billing.security.api,org.killbill.billing.osgi.libs.killbill,org.joda.time;org.joda.time.format;version=2.9,org.slf4j;version=1.7.2,org.osgi.service.log;version=1.3,org.osgi.service.http;version=1.2.0,org.osgi.service.deploymentadmin;version=1.1.0,org.osgi.service.event;version=1.2.0`
-| `KILLBILL_EXPORT_PACKAGES_EXTRA` | ``
-| `KILLBILL_EXPORT_PACKAGES_JAVA` | `com.sun.xml.internal.ws,com.sun.xml.internal.ws.addressing,com.sun.xml.internal.ws.addressing.model,com.sun.xml.internal.ws.addressing.policy,com.sun.xml.internal.ws.addressing.v200408,com.sun.xml.internal.ws.api,com.sun.xml.internal.ws.api.addressing,com.sun.xml.internal.ws.api.client,com.sun.xml.internal.ws.api.config.management,com.sun.xml.internal.ws.api.config.management.policy,com.sun.xml.internal.ws.api.fastinfoset,com.sun.xml.internal.ws.api.ha,com.sun.xml.internal.ws.api.handler,com.sun.xml.internal.ws.api.message,com.sun.xml.internal.ws.api.message.stream,com.sun.xml.internal.ws.api.model,com.sun.xml.internal.ws.api.model.soap,com.sun.xml.internal.ws.api.model.wsdl,com.sun.xml.internal.ws.api.pipe,com.sun.xml.internal.ws.api.pipe.helper,com.sun.xml.internal.ws.api.policy,com.sun.xml.internal.ws.api.server,com.sun.xml.internal.ws.api.streaming,com.sun.xml.internal.ws.api.wsdl.parser,com.sun.xml.internal.ws.api.wsdl.writer,com.sun.xml.internal.ws.binding,com.sun.xml.internal.ws.client,com.sun.xml.internal.ws.client.dispatch,com.sun.xml.internal.ws.client.sei,com.sun.xml.internal.ws.config.management.policy,com.sun.xml.internal.ws.developer,com.sun.xml.internal.ws.encoding,com.sun.xml.internal.ws.encoding.fastinfoset,com.sun.xml.internal.ws.encoding.policy,com.sun.xml.internal.ws.encoding.soap,com.sun.xml.internal.ws.encoding.soap.streaming,com.sun.xml.internal.ws.encoding.xml,com.sun.xml.internal.ws.fault,com.sun.xml.internal.ws.handler,com.sun.xml.internal.ws.message,com.sun.xml.internal.ws.message.jaxb,com.sun.xml.internal.ws.message.saaj,com.sun.xml.internal.ws.message.source,com.sun.xml.internal.ws.message.stream,com.sun.xml.internal.ws.model,com.sun.xml.internal.ws.model.soap,com.sun.xml.internal.ws.model.wsdl,com.sun.xml.internal.ws.org.objectweb.asm,com.sun.xml.internal.ws.policy,com.sun.xml.internal.ws.policy.jaxws,com.sun.xml.internal.ws.policy.jaxws.spi,com.sun.xml.internal.ws.policy.privateutil,com.sun.xml.internal.ws.policy.sourcemodel,com.sun.xml.internal.ws.policy.sourcemodel.attach,com.sun.xml.internal.ws.policy.sourcemodel.wspolicy,com.sun.xml.internal.ws.policy.spi,com.sun.xml.internal.ws.policy.subject,com.sun.xml.internal.ws.protocol.soap,com.sun.xml.internal.ws.protocol.xml,com.sun.xml.internal.ws.resources,com.sun.xml.internal.ws.server,com.sun.xml.internal.ws.server.provider,com.sun.xml.internal.ws.server.sei,com.sun.xml.internal.ws.spi,com.sun.xml.internal.ws.streaming,com.sun.xml.internal.ws.transport,com.sun.xml.internal.ws.transport.http,com.sun.xml.internal.ws.transport.http.client,com.sun.xml.internal.ws.transport.http.server,com.sun.xml.internal.ws.util,com.sun.xml.internal.ws.util.exception,com.sun.xml.internal.ws.util.localization,com.sun.xml.internal.ws.util.pipe,com.sun.xml.internal.ws.util.xml,com.sun.xml.internal.ws.wsdl,com.sun.xml.internal.ws.wsdl.parser,com.sun.xml.internal.ws.wsdl.writer,com.sun.xml.internal.ws.wsdl.writer.document,com.sun.xml.internal.ws.wsdl.writer.document.http,com.sun.xml.internal.ws.wsdl.writer.document.soap,com.sun.xml.internal.ws.wsdl.writer.document.soap12,com.sun.xml.internal.ws.wsdl.writer.document.xsd,javax.annotation,javax.management,javax.naming,javax.naming.ldap,javax.net,javax.net.ssl,javax.crypto,javax.crypto.spec,javax.sql,javax.sql.rowset,javax.sql.rowset.serial,javax.transaction,javax.transaction.xa,javax.xml,javax.xml.bind,javax.xml.validation,javax.xml.namespace,javax.xml.parsers,javax.xml.validation,javax.xml.stream,javax.xml.stream.events,javax.xml.stream.util,javax.xml.transform,javax.xml.transform.dom,javax.xml.transform.sax,javax.xml.transform.stax,javax.xml.transform.stream,javax.xml.xpath,javax.jws.soap,com.sun.org,com.sun.org.apache,com.sun.org.apache.xml,com.sun.org.apache.xml.internal,com.sun.org.apache.xml.internal.utils,com.sun.org.apache.xpath,com.sun.org.apache.xpath.internal,com.sun.org.apache.xpath.internal.jaxp,com.sun.org.apache.xpath.internal.objects,org.w3c.dom,org.w3c.dom.bootstrap,org.w3c.dom.events,org.w3c.dom.ls,org.w3c.dom.css,org.w3c.dom.html,org.w3c.dom.ranges,org.w3c.dom.stylesheets,org.w3c.dom.traversal,org.w3c.dom.views,org.xml.sax,org.xml.sax.ext,org.xml.sax.helpers,sun.misc,sun.misc.unsafe,sun.security,sun.security.util,javax.servlet;version=3.1,javax.servlet.http;version=3.1`
-| `KILLBILL_EXTERNAL_CLAIM_TIME` | `5m`
-| `KILLBILL_EXTERNAL_INFLIGHT_CLAIMED` | `500`
-| `KILLBILL_EXTERNAL_QUEUE_CAPACITY` | `1000000`
-| `KILLBILL_FAILURE_RETRY_MULTIPLIER` | `2`
-| `KILLBILL_INVOICE_DRY_RUN_NOTIFICATION_SCHEDULE` | `0s`
-| `KILLBILL_INVOICE_ENABLED` | `true`
-| `KILLBILL_INVOICE_GLOBAL_LOCK_RETRIES` | `50`
-| `KILLBILL_INVOICE_MAX_DAILY_NUMBER_OF_ITEMS_SAFETY_BOUND` | `15`
-| `KILLBILL_INVOICE_MAX_NUMBER_OF_MONTHS_IN_FUTURE` | `36`
-| `KILLBILL_INVOICE_READ_MAX_RAW_USAGE_PREVIOUS_PERIOD` | `2`
-| `KILLBILL_INVOICE_SANITY_SAFETY_BOUND_ENABLED` | `true`
-| `KILLBILL_JANITOR_ATTEMPTS_DELAY` | `12h`
-| `KILLBILL_JANITOR_PENDING_RETRIES` | `65m,3h,3h,5h,1d,1d,1d,1d`
-| `KILLBILL_JANITOR_UNKNOWN_RETRIES` | `1h,6h,17h`
-| `KILLBILL_JAXRS_LOCATION_HOST` | ``
-| `KILLBILL_JAXRS_LOCATION_USE_FORWARD_HEADERS` | `true`
-| `KILLBILL_JAXRS_TIMEOUT` | `30s`
-| `KILLBILL_JRUBY_CONF_DIR` | `/var/lib/killbill/config`
-| `KILLBILL_JRUBY_CONTEXT_SCOPE` | `THREADSAFE`
-| `KILLBILL_LOCATION_FULL_URL` | `true`
-| `KILLBILL_MAIN_CLAIM_TIME` | `5m`
-| `KILLBILL_MAIN_NOTIFICATION_NB_THREADS` | `10`
-| `KILLBILL_MAIN_NOTIFICATION_OFF` | `false`
-| `KILLBILL_MAIN_QUEUE_CAPACITY` | `1000000`
-| `KILLBILL_MAIN_QUEUE_CAPACITY` | `100`
-| `KILLBILL_MAIN_QUEUE_MODE` | `STICKY_POLLING`
-| `KILLBILL_MANUAL_PAY_TEMPLATE_NAME` | `org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache`
-| `KILLBILL_MAX_FAILURE_RETRY` | `3`
-| `KILLBILL_METRICS_GRAPHITE_HOST` | `localhost`
-| `KILLBILL_METRICS_GRAPHITE_INTERVAL` | `30`
-| `KILLBILL_METRICS_GRAPHITE_PORT` | `2003`
-| `KILLBILL_METRICS_GRAPHITE_PREFIX` | `killbill`
-| `KILLBILL_METRICS_GRAPHITE` | `false`
-| `KILLBILL_METRICS_INFLUXDB_DATABASE` | `30`
-| `KILLBILL_METRICS_INFLUXDB_HOST` | `localhost`
-| `KILLBILL_METRICS_INFLUXDB_INTERVAL` | `30`
-| `KILLBILL_METRICS_INFLUXDB_PORT` | `2003`
-| `KILLBILL_METRICS_INFLUXDB_PREFIX` | `killbill`
-| `KILLBILL_METRICS_INFLUXDB_SENDER_TYPE` | `killbill`
-| `KILLBILL_METRICS_INFLUXDB_SOCKET_TIMEOUT` | `30`
-| `KILLBILL_METRICS_INFLUXDB` | `false`
-| `KILLBILL_NOTIFICATIONQ_ANALYTICS_CLAIMED` | `100`
-| `KILLBILL_NOTIFICATIONQ_ANALYTICS_HISTORY_TABLE_NAME` | `analytics_notifications_history`
-| `KILLBILL_NOTIFICATIONQ_ANALYTICS_IN_MEMORY` | `false`
-| `KILLBILL_NOTIFICATIONQ_ANALYTICS_SLEEP` | `3000`
-| `KILLBILL_NOTIFICATIONQ_ANALYTICS_TABLE_NAME` | `analytics_notifications`
-| `KILLBILL_NOTIFICATIONQ_MAIN_CLAIMED` | `100`
-| `KILLBILL_NOTIFICATIONQ_MAIN_HISTORY_TABLE_NAME` | `notifications_history`
-| `KILLBILL_NOTIFICATIONQ_MAIN_IN_MEMORY` | `false`
-| `KILLBILL_NOTIFICATIONQ_MAIN_SLEEP` | `70000`
-| `KILLBILL_NOTIFICATIONQ_MAIN_TABLE_NAME` | `notifications`
-| `KILLBILL_OSGI_DAO_CACHE_PREP_STMTS` | `true`
-| `KILLBILL_OSGI_DAO_CONNECTION_TIMEOUT` | `100s`
-| `KILLBILL_OSGI_DAO_IDLE_CONNECTION_TEST_PERIOD` | `5m`
-| `KILLBILL_OSGI_DAO_IDLE_MAX_AGE` | `2m`
-| `KILLBILL_OSGI_DAO_LOG_LEVEL` | `DEBUG`
-| `KILLBILL_OSGI_DAO_MAX_ACTIVE` | `150`
-| `KILLBILL_OSGI_DAO_MAX_CONNECTION_AGE` | `0m`
-| `KILLBILL_OSGI_DAO_MIN_IDLE` | `5`
-| `KILLBILL_OSGI_DAO_MYSQL_SERVER_VERSION` | `4.0`
-| `KILLBILL_OSGI_DAO_PASSWORD` | `killbill`
-| `KILLBILL_OSGI_DAO_POOLING_TYPE` | `HIKARICP`
-| `KILLBILL_OSGI_DAO_PREP_STMT_CACHE_SIZE` | `500`
-| `KILLBILL_OSGI_DAO_PREP_STMT_CACHE_SQL_LIMIT` | `2048`
-| `KILLBILL_OSGI_DAO_URL` | `jdbc:h2:file:/var/lib/killbill/killbill;MODE=MYSQL;DB_CLOSE_DELAY=-1;MVCC=true;DB_CLOSE_ON_EXIT=FALSE`
-| `KILLBILL_OSGI_DAO_USER` | `killbill`
-| `KILLBILL_OSGI_DAO_USE_SERVER_PREP_STMTS` | `true`
-| `KILLBILL_OSGI_ROOT_DIR` | `/var/tmp/felix`
-| `KILLBILL_OVERDUE_URI` | `NoOverdueConfig.xml`
-| `KILLBILL_PAYMENT_GLOBAL_LOCK_RETRIES` | `50`
-| `KILLBILL_PAYMENT_INVOICE_PLUGIN` | ``
-| `KILLBILL_PAYMENT_JANITOR_RATE` | `5m`
-| `KILLBILL_PAYMENT_PLUGIN_TIMEOUT` | `64s`
-| `KILLBILL_PAYMENT_PROVIDER_DEFAULT` | `__EXTERNAL_PAYMENT__`
-| `KILLBILL_PAYMENT_RETRY_DAYS` | `8,8,8`
-| `KILLBILL_PLUGIN_THREADS_NB` | `100`
-| `KILLBILL_RBAC_GLOBAL_SESSION_TIMEOUT` | `1h`
-| `KILLBILL_RETRY_MAX_ATTEMPTS` | `8`
-| `KILLBILL_RETRY_START_SEC` | `300`
-| `KILLBILL_SECURITY_SHIRO_NB_HASH_ITERATIONS` | `200000`
-| `KILLBILL_SECURITY_SHIRO_RESOURCE_PATH` | `classpath:shiro.ini`
-| `KILLBILL_SERVER_BASE_URL` | `http://127.0.0.1:8080`
-| `KILLBILL_SERVER_HTTP_GZIP` | `false`
-| `KILLBILL_SERVER_MULTITENANT` | `true`
-| `KILLBILL_SERVER_NOTIFICATIONS_RETRIES` | `15m,30m,2h,12h,1d`
-| `KILLBILL_SERVER_REGION` | `local`
-| `KILLBILL_SERVER_SHUTDOWN_DELAY` | `0s`
-| `KILLBILL_SERVER_TEST_MODE` | `true`
-| `KILLBILL_TEMPLATE_BUNDLE_PATH` | `org/killbill/billing/util/template/translation/InvoiceTranslation`
-| `KILLBILL_TEMPLATE_INVOICE_FORMATTER_FACTORY_CLASS` | `org.killbill.billing.invoice.template.formatters.DefaultInvoiceFormatterFactory`
-| `KILLBILL_TEMPLATE_NAME` | `org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache`
-| `KILLBILL_TENANT_BROADCAST_RATE` | `5s`
-| `KILLBILL_THREADS_POOL_NB` | `30`
-| `KILLBILL_UTIL_BROADCAST_RATE` | `5s`
+==== Tomcat/Jetty
 
-|===
-
-
-=== Tomcat/Jetty
-
-In case of a https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat installation], configuration properties need to be specified within the `TOMCAT_HOME/conf/catalina.properties` file. 
+In case of a https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat installation], <<global_configuration_properties, global configuration properties>>  and <<system_properties, system properties>> need to be specified within the `TOMCAT_HOME/conf/catalina.properties` file. 
 
 In case of a https://docs.killbill.io/latest/development.html#_running_the_application[Standalone Jetty setup], configuration properties need to be specified within an explicit  `killbill.properties` file. Its path needs to be specified via the `org.killbill.server.properties` Java system property while starting the application as follows:
 
@@ -388,3 +248,39 @@ In case of a https://docs.killbill.io/latest/development.html#_running_the_appli
 mvn -Dorg.killbill.server.properties=file:///PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties
 ----
 
+== Kaui Configuration
+
+In addition to Kill Bill, Kaui can also be configured via some configuration properties. These can either be set as system properties or environment variables. Note that in case of a Tomcat installation, system properties can be specified in the `catalina.properties` file.
+
+The following table lists the Kaui Configuration properties. 
+
+[options="header",cols="1,1,1,1,1"]
+|===
+|Category   |Property Name   |Environment Variable   |Description   |Default Value   
+//----------------------------------------
+|Database   |kaui.db.adapter   |KAUI_DB_ADAPTER   |Specifies the Kaui Database Adapter   |mysql2   
+|Database   |kaui.db.encoding   |KAUI_DB_ENCODING   |Specifies the Kaui Database Encoding   |utf8   
+|Database   |kaui.db.database   |KAUI_DB_DATABASE   |Specifies the Kaui Database Encoding (only applicable if `kaui.db.adapter=sqlite3`)   |/var/tmp/kaui.sqlite3   
+|Database   |kaui.db.url   |KAUI_DB_URL   |Specifies the Kaui Database URL   |jdbc:mysql://localhost:3306/kaui?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC   
+|Database   |kaui.db.username   |KAUI_DB_USERNAME   |Specifies the Kaui Database Username   |root   
+|Database   | kaui.db.password  |KAUI_DB_PASSWORD   |Specifies the Kaui Database Password   |root   
+|Database   |kaui.db.host   |KAUI_DB_HOST   |Specifies the Kaui Database Host   |None   
+|Database   |kaui.db.port   |KAUI_DB_PORT   |Specifies the Kaui Database Port   |None   
+|Database   |kaui.db.pool   |KAUI_DB_POOL   |Coming Soon   |50   
+|Database   |kaui.db.timeout   |KAUI_DB_TIMEOUT   |Coming Soon   |5000   
+|Kill Bill Client   |kaui.url   |KILLBILL_URL/KAUI_KILLBILL_URL   |Specifies the Kill Bill URL   |http://127.0.0.1:8080   
+|Kill Bill Client|kaui.disable_ssl_verification   |KILLBILL_DISABLE_SSL_VERIFICATION/KAUI_KILLBILL_DISABLE_SSL_VERIFICATION   |Coming Soon   |Coming Soon   
+|Kill Bill Client   |kaui.read_timeout   |KILLBILL_READ_TIMEOUT/KAUI_KILLBILL_READ_TIMEOUT   |Coming Soon   |60000   
+|Kill Bill Client   |kaui.connection_timeout   |KILLBILL_CONNECTION_TIMEOUT/KAUI_KILLBILL_CONNECTION_TIMEOUT   |Coming Soon   |60000   
+|Kaui   |kaui.demo   |KAUI_DEMO_MODE   |Coming Soon   |Coming Soon   
+|Kaui   |kaui.plugins_whitelist   |KAUI_PLUGINS_WHITELIST   |Coming Soon   |None   
+|Kaui   |kaui.root_username   |KAUI_ROOT_USERNAME   |Coming Soon   |admin   
+|Kaui   |kaui.disable_sign_up_link   |KAUI_DISABLE_SIGN_UP_LINK   |Coming Soon   |Coming Soon   
+|Kaui   |kaui.chargeback_reason_codes   |KAUI_CHARGEBACK_REASON_CODES   |Coming Soon   |None   
+|Kaui   |kaui.credit_reason_codes   |KAUI_CREDIT_REASON_CODES   |Coming Soon   |None   
+|Kaui   |kaui.invoice_item_reason_codes   |KAUI_INVOICE_ITEM_REASON_CODES   |Coming Soon   |None 
+|Kaui   |kaui.invoice_payment_reason_codes   |KAUI_INVOICE_PAYMENT_REASON_CODES   |Coming Soon   |None 
+|Kaui   |kaui.payment_reason_codes | KAUI_PAYMENT_REASON_CODES  |Coming Soon   |None   
+|Kaui   |kaui.refund_reason_codes   |KAUI_REFUND_REASON_CODES   |Coming Soon   |None 
+|Encryption   |kaui.encryption.filename   |KAUI_ENCRYPTION_FILENAME   |Coming Soon   |config/symmetric-encryption.yml 
+|===
