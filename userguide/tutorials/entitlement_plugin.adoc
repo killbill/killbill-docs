@@ -1,0 +1,38 @@
+= Developing an Entitlement Plugin
+
+[[overview]]
+== Overview
+
+=== EntitlementPluginApi
+
+The https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[EntitlementPluginApi] exists to develop `entitlement plugins`. Those plugins are called from the core entitlement system to provide a way for the plugins to intercept any of the subscription operations (e.g., intercept creation/cancellation, etc. for subscriptions). This is similar to the https://docs.killbill.io/latest/payment_control_plugin.html[PaymentControlPluginApi], but instead of intercepting payment calls, this intercepts subscription-related calls.
+
+
+Each of the individual APIs take the following parameters:
+
+* `context`: Provides the full `EntitlementContext` associated with the (set of) subscription(s) (account, operation type, etc.)
+* `properties`: A list of `PluginProperty` that are passed all the way from the client making the API call to the plugin. The properties can control a plugin in order to achieve the desired result as well as provide additional state (in addition to the basic subscription state) to other plugins.
+
+Implementers of such plugins need to implement the following APIs:
+
+* `priorCall`: This is the method that will be invoked prior doing any subscription operation. This method will return a `EntitlementContext` that will allow to:
+** abort the call if desired 
+** adjust the parameters for the call (e.g use a different `Plan` to create a subscription, or creates a price override, ...)
+* `onSuccessCall`: This is invoked after the subscription operation was executed successfully. This method will return a `OnSuccessEntitlementResult` which is currently set to an empty result
+* `onFailureCall`: This is invoked after the subscription operation failed to execute successfully. This method will return `OnFailureEntitlementResult`, which is also set to an empty result.
+
+
+=== Plugin Ordering
+
+If registering multiple entitlement plugins, there is no guarantee on the ordering of which one will be invoked first; therefore it is not recommended to have multiple plugins implement the `EntitlementPluginApi` and active on the same deployement.
+
+== Use Cases
+
+There are many use cases that can benefit from this API:
+
+* Any logic that requires changing price information on the fly (i.e., right before the subscription is created. A demo https://github.com/killbill/killbill-coupon-plugin-demo[coupon plugin] that highlights such a mechanism.
+* Any logic that requires creating state associated with the subscriptions (e.g., adding custom fields to such subscriptions).
+* Any logic that requires dynamically creating a (catalog) `Plan` and using such plans for the subscription calls. In this case, this would also require a catalog plugin, but this is also where things can become powerful and interesting.
+
+
+
