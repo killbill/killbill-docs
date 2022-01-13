@@ -1,130 +1,167 @@
 = Invoice Examples
 
-This document provides examples of different invoice scenarios. 
+Whenever there is a change in the system (a recurring subscription billing, an external charge, a change in plan, and so on), Kill Bill generates an invoice. An invoice consists of one or more invoice items of different types. In addition, an invoice has the `balance` and `chargedAmount` attributes which are computed each time an invoice is generated. This document aims to explain these computations in different invoicing scenarios.
 
 == Prerequisites
 
-Ensure that you have gone through the https://docs.killbill.io/latest/userguide_subscription.html#components-invoicing[_Subscription User Guide_] and are familiar with the basic invoicing concepts.
+* Ensure that you have gone through the https://docs.killbill.io/latest/userguide_subscription.html#components-invoicing[_Subscription User Guide_] and are familiar with the basic invoicing concepts. 
+
+* Ensure that you are familiar with the invoice related terminology explained in the https://docs.killbill.io/latest/Kill-Bill-Glossary.html[_Kill Bill Glossary_].  
+
+== More about Charged Amount and Balance
+
+Before we look at each scenario, let us understand how `charged amount` and `balance` are calculated. 
+
+=== Charged Amount/Invoice Amount/Amount
+
+The `charged amount` (also known as `invoice amount` or simply `amount`) specifies the amount that the customer is charged as part of an invoice. It is computed by adding up the amounts on invoice items of type `FIXED`, `RECURRING`, `EXTERNAL_CHARGE`, `USAGE`, `TAX`, `ITEM_ADJ`, `REPAIR_ADJ`, `PARENT_SUMMARY` and `CREDIT_ADJ`. Note that `PARENT_SUMMARY` invoice items are only applicable in the case of https://docs.killbill.io/latest/ha.html[hierarchical accounts] and will be skipped in the rest of this document.
+
+So, `charged amount` can be expressed as follows:
+
+[source,java]
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ + CREDIT_ADJ
+
+[NOTE]
+*Note:* In the case of an invoice credit, the `CREDIT_ADJ` invoice items are not taken into account while calculating the charged amount. This is to prevent getting a negative amount as explained in the invoice credit scenario below.
+
+=== Invoice Balance
+
+`Invoice balance` specifies the amount that the customer owes as part of an invoice. It is positive if the customer owes something or zero otherwise. It is calculated by subtracting paid amount, refunded amount and internal credit adjustment (`CBA_ADJ` items) amount from the charged amount. 
+
+So, `Invoice Balance` can be expressed as follows:
+
+[source,java]
+INVOICE BALANCE = CHARGED AMOUNT - AMOUNT PAID - AMOUNT REFUNDED - SUM(CBA_ADJ)
+
+[NOTE]
+*Note:* In the case of an invoice credit, the sum of the `CREDIT_ADJ` items is also added. This is done to keep the invoice balance `0` as explained in the invoice credit scenario below.
 
 
-== Invoice Terminology - work in progress
+The invoice balance is *always* 0 if:
 
-Whenever there is a change in the system (a recurring subscription billing, an external charge, a change in plan, and so on), the system generates an invoice. An invoice consists of one or more invoice items of different types. In addition, an invoice consists of several components like `balance`, `chargedAmount`, `paidAmount` and so on. Let us first understand some of these terms. 
+* The invoice is in a `DRAFT` or `VOID` status
+* The invoice is tagged as `WRITTEN_OFF` specifying that its balance should be `0`
+* The invoice is a migration invoice (imported from a different billing system into Kill Bill)
+* The invoice corresponds to a child account and has a zero parent invoice balance
 
+Let us now understand how the `charged amount` and `invoice balance` are computed in various scenarios.
 
-* *Invoice Item*: Represents an amount corresponding to a type of charge, credit or adjustment. The different types of invoice items are `RECURRING`, `FIXED`, `EXTERNAL_CHARGE`, `USAGE`, `TAX`, `ITEM_ADJ`, `CREDIT_ADJ`, `REPAIR_ADJ` and `CBA_ADJ` as  explained in the https://docs.killbill.io/latest/userguide_subscription.html#components-invoicing[subscription billing] document. 
+== Creating a recurring subscription
 
-* *Invoice Payment*: Represents a payment corresponding to an invoice. It has a `type` and an `amount`. The different types of invoice payments are `ATTEMPT` (represents successful payment), `CHARGED_BACK` (represents a chargeback) and `REFUND` (represents a refund) 
+When a recurring subscription is billed, the system generates an invoice corresponding to it. For example, consider the https://github.com/killbill/killbill-docs/blob/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/monthly-with-trial.xml[monthly-with-trial] catalog. It has a `standard-monthly` plan with a `TRIAL` phase of `10` days followed by an `EVERGREEN` phase with a monthly recurring charge of `$24.95`. Let us understand what happens in this scenario. 
 
+. As soon as a subscription is created, it is in `TRIAL` phase. An invoice is generated with one invoice item of type `FIXED` and amount `0`. 
 
-* *chargedAmount*: The amount that the customer is charged. It is computed by adding up the amounts on invoice items of type `FIXED`, `RECURRING`, `EXTERNAL_CHARGE`, `REPAIR_ADJ`, `ITEM_ADJ`, `USAGE` and `TAX`. So, `chargedAmount=FIXED + RECURRING + EXTERNAL_CHARGE + REPAIR_ADJ + ITEM_ADJ + USAGE + TAX`  
-//TODO, add about including CREDIT_ADJ in case of DRAFT invoice?
+So, `CHARGED AMOUNT` and `BALANCE` are calculated as follows:
 
-* *amountPaid*: The amount that the customer has paid. Is calculated by subtracting invoice payments of type `REFUND` and `CHARGEBACK` from invoice payments of type `ATTEMPT`. In other words, `amountPaid=attempt - (refund + chargeback)`
+[source,java]
+----
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ + CREDIT_ADJ
+               = 0 + 0 + 0 + 0 + 0 + 0 + 0
+               = 0
+               
+INVOICE BALANCE = CHARGED AMOUNT - AMOUNT PAID - AMOUNT REFUNDED - SUM(CBA_ADJ)
+                = 0 - 0 - 0 - 0
+                = 0                
+----
 
-* *invoiceBalance*: The amount that the customer owes or zero (in case the invoice corresponds to a credit).  It is calculated by subtracting credits, adjustments and the `amountPaid` from the `chargedAmount`. In other words, invoiceBalance = chargedAmount - amountPaid -amountRefunded - SUM(CBA_ADJ)  - SUM(ITEM_ADJ). The invoice balance is always 0 if the invoice is in a `DRAFT` or `VOID` status or if it is writtenoff, is a migration invoice or has a zero parent invoice balance (in case the invoice corresponds to a child account). 
+[start=2]
+. Once the `TRIAL` phase ends, the subscription moves to the `EVERGREEN` phase. An invoice is generated with one invoice item of type `RECURRING` and amount `24.95`.
 
-* *creditAdj*: The credit amount on an invoice. It is calculated as the sum of all the CBA_ADJ items on an invoice.
+So, `CHARGED AMOUNT` and `BALANCE` are calculated as follows:
 
-* *refundAdj*: The amount refunded on the payments corresponding to the invoice. It is the sum of invoice payments of type `REFUND` and `CHARGEBACK`. In other words,  refundAdj = refund + chargeback
+[source,java]
+----
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ + CREDIT_ADJ
+               = 0 + 24.95 + 0 + 0 + 0 + 0 + 0 + 0
+               = 24.95
+               
+INVOICE BALANCE = CHARGED AMOUNT - AMOUNT PAID - AMOUNT REFUNDED - SUM(CBA_ADJ)  
+                = 24.95 - 24.95 - 0 - 0   // assuming the account has a valid default payment method, AMOUNT PAID=24.95
+                = 0
+----
+             
+== Adding an invoice credit
 
-* *status* : Status of the invoice. Can be one of `DRAFT`, `COMMITTED` or `VOID` 
+Whenever a https://killbill.github.io/slate/#credit-create-credits[credit is added], the system generates an invoice credit. An invoice credit is nothing but an invoice with a `CREDIT_ADJ` and a `CBA_ADJ` item. When such a credit is added, it is adjusted against the amount/balance in other unpaid invoices (if any). 
 
-Let us take a look at the various invoice scenarios. 
+Let us understand what happens in this scenario:
 
+. When a credit is added (let's say for $20), an invoice is generated with two invoice items: `Type=CREDIT_ADJ, Amount=-20`, and `Type=CBA_ADJ, Amount=20`. The `CREDIT_ADJ` invoice item corresponds to the credit and is negative while the `CBA_ADJ` item is positive and is automatically inserted by the system to bring the invoice balance to `0`.
 
-== Create subscription with Trial and Recurring Phase
+So, `CHARGED AMOUNT` and `BALANCE` are calculated as follows:
 
-This scenario explains what happens when a recurring subscription is created.
+[source,java]
+----
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ // CREDIT_ADJ not taken into account for invoice credit
+               = 0 + 0 + 0 + 0 + 0 + 0 + 0 
+               = 0
+               
+INVOICE BALANCE = CHARGED AMOUNT - AMOUNT PAID - AMOUNT REFUNDED - SUM(CBA_ADJ)  + SUM(CREDIT_ADJ) //CREDIT_ADJ taken into account for invoice credit
+                = 0 - 0 - 0 + 20 + (-20)
+                = 0               
+----             
 
-. Upload the https://github.com/killbill/killbill-docs/blob/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/monthly-with-trial.xml[monthly-with-trial] catalog. It has a `standard-monthly` plan with a `TRIAL` phase of `10` days followed by an `EVERGREEN` phase with a monthly recurring charge of `$24.95`.
+[start=2]
+. When the account is charged (either due to a recurring subscription or an external charge), the credit added is adjusted. So, for example, if an external charge is created for `$100`, it will have an invoice item of type `EXTERNAL_CHARGE` and amount `100`. In addition, it will also have an invoice item of type `CBA_ADJ` and amount `20` automatically generated by the system corresponding to the credit adjustment.
 
-. Create an account with a payment method that works (You can use __EXTERNAL_PAYMENT__ for testing). Set this payment method as the default payment method.
+So, `CHARGED AMOUNT` and `BALANCE` are calculated as follows:
 
-. Perform actions as explained in the table below:
+[source,java]
+----
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ + CREDIT_ADJ
+               = 0 + 0 + 100 + 0 + 0 + 0 + 0 + 0
+               = 100
+               
+INVOICE BALANCE = CHARGED AMOUNT - AMOUNT PAID - AMOUNT REFUNDED - SUM(CBA_ADJ)  
+                = 100 - 0 - 0 - 20 // assuming the account DOES NOT have a valid default payment method, AMOUNT PAID=0
+                = 80               
+----
 
-[options="header",cols="1,1,1,1,1"]
-|===
-|Action   |System Behavior |Invoice Amount/Balance |Invoice Item Type/Amount  |Explanation    
-//----------------------------------------
-|Create a subscription to the `standard-monthly` plan   |Invoice generated   |`amount=0`,`balance=0`   |`Type=FIXED`, `Amount=`0`   |Subscription is in `TRIAL` phase so `balance` is `0`  
-|Move clock by `10` days (end of the `TRIAL` phase)    |Invoice generated    |`amount=24.95`,`balance=0`   |`Type=RECURRING`, `Amount=24.95`   |Trial period ends, so invoice is generated for `24.95`. Since we have a working payment method, this invoice gets paid and so `balance` is `0`  
-|Delete payment method and move clock by 1 month    |Invoice generated   |`amount=24.95,balance=24.95`   |`Type=RECURRING, Amount=24.95`   |Since a payment method is not present, invoice is not paid, so balance is `24.95`   
-|===
+== Invoice Adjustment
 
-== Add Credit
+An invoice can also be adjusted by adding a credit to it.  (Note that the invoice needs to be in `DRAFT` status for this). In such a case, an invoice item of type `CREDIT_ADJ` is created and the `charged amount` is adjusted against it.
 
-This scenario explains what happens when a credit is added.
+Let us understand what happens in this scenario:
 
-. Create an account without a payment method. 
+. Let us assume that a DRAFT invoice is created corresponding to an `EXTERNAL CHARGE` of `$100`. It will have a single invoice item of type `EXTERNAL_CHARGE` and amount `100`. 
 
-. Perform actions as explained in the table below:
+So, `CHARGED AMOUNT` and `BALANCE` are calculated as follows:
 
+[source,java]
+----
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ + CREDIT_ADJ
+               = 0 + 0 + 100 + 0 + 0 + 0 + 0 + 0
+               = 100   
+               
+INVOICE BALANCE = 0  // since invoice is in DRAFT status               
+----
+                
+[start=2]
+. Next, when a CREDIT is added to the invoice (say $20), the invoice is modified.  A new invoice item is added of type `CREDIT_ADJ` and amount `-20`.
 
-[options="header",cols="1,1,1,1,1,1"]
-|===
-|Number|Action   |System Behavior |Invoice Amount/Balance |Invoice Item Type/Amount  |Explanation      
-//----------------------------------------
-|1|Create an external charge of `$100`   |Invoice generated   |`amount=100,balance=100`    |`Type=EXTERNAL_CHARGE, Amount=100`   |Since a payment method is not present, invoice is not paid, so balance is `100`     
-|2|Add credit of `$20`   |Invoice generated   |`amount=0,balance=0`    |
-`Type=CREDIT_ADJ, Amount=-20`, 
+So, `CHARGED AMOUNT` and `BALANCE` are calculated as follows:
 
-`Type=CBA_ADJ, Amount=20` |Whenever a credit is added, the system automatically inserts an invoice item of type `CBA_ADJ` to bring the invoice balance to `0`   
-||   |Invoice generated at step 1 modified  |`amount=100,balance=80`   |`Type=EXTERNAL_CHARGE, Amount=100` (Generated at step 1), 
+[source,java]
+----
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ + CREDIT_ADJ
+               = 0 + 0 + 100 + 0 + 0 + 0 + 0 + (-20)
+               = 80   
+               
+INVOICE BALANCE = 0  //since invoice is still in DRAFT status               
+----
 
-`Type=CBA_ADJ, Amount=20` (new)    |Invoice is modified by creating a new item of type `CBA_ADJ` to adjust credit. Since a credit of `20` is added, the balance is `80`  
-|3|Add Credit of `$50`   |Invoice generated   |`amount=0,balance=0`   |`Type=CREDIT_ADJ, Amount=-50`, 
+[start=3]
+. Finally, when the invoice is committed, the balance is updated:
 
-`Type=CBA_ADJ, Amount=50`   |Whenever a credit is added, the system automatically inserts an invoice item of type `CBA_ADJ` to bring the invoice balance to 0.    
-||   |Invoice generated at step 1 modified    |`amount=100,balance=30`   |`Type=EXTERNAL_CHARGE, Amount=100` (Generated at step1), 
-
-`Type=CBA_ADJ, Amount=20` (Generated at step 2), 
-
-`Type=CBA_ADJ, Amount=50` (new)   |Invoice is modified by creating a new item of type `CBA_ADJ` to adjust credit. Since a credit of `50` is added, the balance is now `30`  
-|4|Add Credit of `$60`   |Invoice generated   |`amount=0,balance=0`   |`Type=CREDIT_ADJ, Amount=-60`, 
-
-`Type=CBA_ADJ, Amount=60`   |Whenever a credit is added, the system automatically inserts an invoice item of type `CBA_ADJ` to bring the invoice balance to `0`   
-| |  |Invoice generated at step 1 modified     |`amount=100,balance=0`   |`Type=EXTERNAL_CHARGE, Amount=100` (Generated at step 1), 
-
-`Type=CBA_ADJ, Amount=20` (Generated at step 2), 
-
-`Type=CBA_ADJ, Amount=50` (Generated at step 3),  
-
-`Type=CBA_ADJ, Amount=30` (new) |Invoice is modified by creating a new item of type `CBA_ADJ` to adjust credit. Only `$30` of the credit is used since the balance was only `$30`      
-|===
-
-== Adjust Invoice Item
-
-This scenario explains what happens when an invoice item is adjusted.
-
-. Create an account without a payment method. 
-
-. Perform actions as explained in the table below:
-
-[options="header",cols="1,1,1,1,1"]
-|===
-|Action   |System Behavior |Invoice Amount/Balance |Invoice Item Type/Amount  |Explanation   
-//----------------------------------------
-|Create an external charge of `$100`   |Invoice generated   |`Amount=100, Balance=100`   | `Type=EXTERNAL_CHARGE, Amount=100`  |   Since a payment method is not present, invoice is not paid, so balance is `100`  
-|Adjust invoice item (Amount=60)   |Invoice modified   |`Amount=40, Balance=40`    |`Type=EXTERNAL_CHARGE, Amount=100` (existing), 
-
-`Type=ITEM_ADJ, Amount=60` (new)   |The adjustment amount is adjusted in the invoice   
-|===
-
-
-== Cancel Subscription
-
-== Change subscription plan
-
-== Usage Billing
-
-== Overdue flow 
-
-
+[source,java]
+----
+INVOICE BALANCE = CHARGED AMOUNT - AMOUNT PAID - AMOUNT REFUNDED - SUM(CBA_ADJ)  
+                = 80 - 0 - 0 - 0  // assuming the account DOES NOT have a valid default payment method, AMOUNT PAID=0
+                = 80
+----
 
 == Additional Information
-
-https://docs.killbill.io/latest/userguide_subscription.html#components-invoicing[_Subscription Billing User Guide_]
 
 https://docs.killbill.io/latest/invoice_subsystem.html[_Invoice Subsystem_]
 
