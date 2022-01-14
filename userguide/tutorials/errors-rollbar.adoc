@@ -1,0 +1,115 @@
+= Error Tracking with Rollbar
+
+:imagesdir: https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws
+
+
+== Single-Tier and Multi-Tier Implementations
+
+Error Tracking is an important part of managing your Kill
+Bill system. When errors occur, whether due to system bugs or user mistakes, error tracking enables you to analyze what went wrong and develop ways to avoid similar errors in the future.
+
+Your application may log errors along with many other events, but log files are often huge and it is not easy to extract the information needed for error analysis. Several third-party tools are available to help with this task. One popular tool is https://rollbar.com/[Rollbar]. This
+package offers error extraction and analysis at low cost for your Kill Bill implementation.
+
+Rollbar can be integrated with several types of Kill Bill installations. In this guide we discuss the use of Rollbar to track errors produced
+by two types of implementations on Amazon Web Services (AWS):
+single-tier and multi-tier. With the latest Amazon Machine Image (AMI)
+for Kill Bill, it is very easy to process the Kill Bill logs using
+Rollbar and work with them in the way that best suits your needs.
+
+== Check Your Kill Bill Version
+
+We assume that you have a working Kill Bill implementation running on
+AWS, using either the
+https://docs.killbill.io/latest/aws-singletier.html[single-tier] or
+https://docs.killbill.io/latest/aws-multitier.html[multi-tier]
+installation options. The single-tier option runs Kill Bill, Kaui, the
+MariaDB database, and the nginx load balancer on a single AWS EC2
+instance. This is suitable for quick deployment and for testing and
+development. The multi-tier option runs Kill Bill and Kaui on two or more
+separate EC2 instances, and uses an AWS RDS database manager along with
+an AWS load balancer. This is an attractive option for many production
+uses.
+
+You should be running Kill Bill version 2021.9 or later. This version
+can be configured to provide its collection of Kill Bill logs to
+Rollbar (and several other error tracking tools). If you open the Kill Bill
+admin page in your browser, it should show that you are
+running the "Kill Bill Premium edition":
+
+image::metrics-kb-admin.png[align=center]
+
+
+If you see this page you are ready to go. If not, you should upgrade
+your installation.
+
+== Set Up Rollbar
+
+You may already be familiar with Rollbar. If not, this section will
+explain how to get started.
+
+First, go to the https://rollbar.com/[Rollbar website]. Rollbar
+offers a 30-day free trial, then continues free as long as your usage does not exceed certain limits. Provide a name and email address to sign up.
+Once you create an account, you should see the Rollbar main page.
+
+Kill Bill is preconfigured to send its error logs to Rollbar. All that has to be done is to enable the transfer by providing an access token. The access token is installed by editing a simple configuration file.  
+
+== Get the Access Token
+
+To get the access token you will need, follow these steps:
+
+1. From the Rollbar main page, click *Settings* at the bottom of the left menu.
+2. In the submenu that appears, select *Account Access Tokens*.
+3. Choose the token marked *Write* and click *Copy*.
+
+The token is copied to your clipboard.
+
+
+== Edit the Configuration File
+
+To authorize the sending of the Kill Bill metrics, it is necessary to
+edit two lines in this file:
+
+```
+/var/lib/tomcat/bin/setenv2.sh
+```
+
+This file contains configuration information for `tomcat`, which manages the
+KillBill web applications.
+
+This is a small file. The two lines to be edited are:
+
+```
+-Dcom.killbill.rollbar.enable=false
+-Dcom.killbill.rollbar.accessToken=
+```
+
+These should be changed to:
+
+```
+-Dcom.killbill.rollbar.enable=true
+-Dcom.killbill.rollbar.accessToken=YourAccessToken
+```
+where `YourAccessToken` is copied from your clipboard.
+
+After editing the file, go to your AWS EC2 dashboard and *reboot the
+instance* so the new configuration file will be read. If you have more
+than one instance, follow the same procedure for each one.
+
+Now return to the Rollbar main page and choose *Items*. You should see a list of items like the following, representing significant log entries:
+
+image::errors-rollbar-items.png[align=center]
+
+
+Congratulations. Your Rollbar integration is complete!
+
+== Using Rollbar
+
+The Rollbar site has lots of documentation, so we won't
+repeat any of that here. We will just suggest a few quick steps to get
+started:
+
+
+
+
+
