@@ -13,10 +13,13 @@ themselves, and metrics describing the infrastructure on which these
 systems run.
 
 New Relic can be integrated with several types of Kill Bill installations. In this guide we discuss the use of New Relic to manage metrics produced
-by single-tier and multi-tier implementations on Amazon Web Services. With the latest Amazon Machine Image (AMI)
-for Kill Bill, it is very easy to direct the Kill Bill metrics to
-New Relic and work with them in the way that best suits your needs.
+by single-tier and multi-tier implementations on Amazon Web Services (AWS). The latest Amazon Machine Image (AMI)
+for Kill Bill is preconfigured to direct the Kill Bill metrics to
+New Relic and work with them in the way that best suits your needs. These instructions apply to the Kill Bill AMI version 2021.9 or later.
 
+To set up New Relic to manage the metrics available from Kill Bill, there
+are just two steps: (1) setup a New Relic account, and (2)
+edit a configuration file to enable the transfer of the complete Kill Bill metrics.
 
 == Set Up New Relic
 
@@ -28,82 +31,15 @@ offers a free account as long as your usage does not exceed certain limits. Prov
 
 You should see the New Relic main page. To get back to this page at a future time you can click the words *New Relic One* in the upper left corner.
 
-To set up New Relic to manage the metrics available from Kill Bill, there
-are just two steps: (1) install the New Relic agent in Kill Bill, and (2)
-edit a configuration file to enable the transfer of the complete Kill Bill metrics.
-
-== Install the Agent
-
-The first step in integrating an analysis tool (like New Relic) and a
-source of data to analyze (like Kill Bill) is to set up a means to get
-the source to send its data to the analyzer. New Relic does this by
-installing the *New Relic Agent* in the system producing the data.
-
-1. In the main New Relic page, select the button labeled *Add Some Data*. If this button does not appear, select *+ Add More Data* in the upper right corner. 
-2. An overlay pane should appear. At the top of this pane select *Guided Install*.
-3. The next pane is headed *Installation Plan*. Make sure the *Auto-Discovery* tab is selected, then choose *Linux*.
-4. The next pane summarizes what you have selected. Click on *Begin Installation*. You will see the following page:
-
-image::metrics-newrelic-installation.png[align=center]
-
-[start=5]
-. In the box containing the install command, click *Copy Command*. The command will be copied to your clipboard.
-
-[NOTE]
-This command includes the API key assigned to you by
-New Relic. This authorizes the agent to do its job. This is your *user* API Key, and should not be confused with the key you will use in the next step.
-
-[start=6]
-. To install the agent: 
-
-.. Login to your EC2 instance. 
-.. Paste the saved install command to the Ubuntu command line. 
-.. Press Enter. The installation should begin.
-
-You will be presented with a list of options to install, as shown below. An additional option, Infrastructure Agent, is always installed.
-
-[start=7]
-. Press Enter to select all of the options.
-
-image::metrics-newrelic-options.png[align=center]
-
-
-You will be presented with several questions including default answers.
-
-[start=8]
-. Press Enter after each question to select the defaults.
-
-Finally, you will be asked for the MySQL password.
-
-[start=9]
-. Type `root`.
-
-If all goes well, each installation should report `success`.
-
-
-[NOTE]
-*Note:* If you are using the multi-tier installation, you will have multiple EC2
-instances. The agent should be installed separately for each one.
-
-== Test the Installation
-
-. Return to the New Relic main page. 
-. Select *Browse Data* from the top menu. 
-. Select *Metrics* from the dropdown.
-
-You should see a
-long list of metrics! These are coming from your instances, but they
-only describe the Ubuntu environment itself. You do not yet have the
-Kill Bill metrics. To fix this, proceed to the next section.
 
 == Set Up the Authorization
 
 To authorize the sending of the Kill Bill metrics, it is necessary to
 edit two lines in this file:
 
- ```
- /var/lib/tomcat/bin/setenv2.sh
- ```
+```
+/var/lib/tomcat/bin/setenv2.sh
+```
 
 This file contains configuration information for `tomcat`, which manages the
 KillBill web applications.
@@ -122,23 +58,29 @@ These should be changed to:
 -Dcom.killbill.newrelic.apiKey=Your-API-Key
 ```
 
-The API key to be added is called the *Insights Insert Key.* This is *not* the same as the user API Key contained in the command you
-used to install the agent.
-
+New Relic provides several types of keys. The API key to be added is called the *Insights Insert Key.*
 To find the Insights Insert Key:
 
-1. Close any overlay panes on the New Relic page by clicking on the `X` in the upper right corner.
-2. Click the symbol at the far upper right to open your account menu, then select *API keys*.
-3. On the page that appears, select *Insights Insert keys* at the lower right.
-4. In the *Insert Keys* column on the left, under the word *key* at the bottom, click *Show*.
-5. Manually copy the key to your clipboard, then paste it to the configuration file.
+. Close any overlay panes on the New Relic page by clicking on the `X` in the upper right corner.
+. Click the symbol at the far upper right to open your account menu, then select *API keys*.
+. On the page that appears, select *Insights Insert keys* at the lower right.
+. In the *Insert Keys* column on the left, under the word *key* at the bottom, click *Show*.
+. Manually copy the key to your clipboard, then paste it to the configuration file.
 
 After editing the file, go to your AWS EC2 dashboard and *reboot the
 instance* so the new configuration file will be read. If you have more
 than one instance, follow the same procedure for each one.
 
-Now return to the *Metrics/Summary* page. After a short delay, you
-should see a lot more metrics; well over 1,000 in your list.
+== Test the Installation
+
+To test your installation, follow these simple steps:
+
+. Go to the New Relic main page
+. Select *Browse Data* from the top menu
+. Select *Metrics* from the dropdown
+
+After a short delay, you
+should see a long list of metrics; well over 1,000 in your list.
 
 Congratulations. Your New Relic integration is complete!
 
