@@ -2,26 +2,30 @@
 
 == Introduction
 
-Kill Bill is a mature open-source platform which powers the billing and payment infrastructure of some of the largest e-commerce websites.
+Kill Bill is an open-source, programmable platform that enables you to build custom billing solutions. Think of it as building blocks to implement your own billing workflows.
 
-The *subscription billing* features let you create recurring or usage based subscriptions (e.g. "gold plan subscription at $9.99/month") and manage upgrades and downgrades. The system will take care of generating invoices, managing credits and triggering payments. Netflix, Dropbox and The New York Times are examples of websites which sell such subscriptions.
+Similar to the Unix philosophy of composability over monolithic design, Kill Bill provides APIs to create various pricing models, manage subscriptions, generate invoices, integrate with various payment gateways, etc. Whether you are selling access to a digital service for $10 a month or selling a multi-tier cell-phone data plan, Kill Bill provides the primitives to do it so you don't have to start from scratch.
 
-The *payment* features let you connect with virtually any payment gateway and processor (Stripe, Braintree, PayPal, Adyen, CyberSource, etc.) to charge your customers (using credit or debit cards, ACH, wire transfers, Bitcoin, etc.) for their subscriptions or one-off payments (e.g. shopping cart-type websites like Amazon or Zappos).
+_Does Kill Bill support per CPU-hour billing?_ is the wrong kind of question to ask when evaluating Kill Bill. This would be similar to asking _Does Spring Boot offer endpoints to store user data?_: Spring Boot gives you all the tools you need to create endpoints which can take in user data and let you persist that data in a database, without having to worry about parsing HTTP headers or setting up database connection pooling, but it doesn't offer a user data endpoint. This is similar in the case of Kill Bill: while it doesn't understand _CPU hour billing_, you can create a usage-based plan in the catalog, which is billed based on the number of consumed _CPU-hour_ units.
 
+While Kill Bill is used for various cases (B2B, B2C, offline, etc.), to get a better sense of what Kill Bill offers out of the box, let's look at how it is used in a typical B2C e-commerce environment.
 
-== Overview
+Kill Bill's *subscription billing* features allow an online store to create recurring or usage-based subscriptions (e.g., "Gold plan subscription at $9.99/month") and manage upgrades and downgrades. Kill Bill takes care of generating invoices, managing credits and triggering payments. Netflix, Dropbox, and _The New York Times_ are examples of websites which sell such subscriptions.
+
+Kill Bill's *payment* features let the online store connect with virtually any payment gateway and processor (Stripe, Braintree, PayPal, Adyen, etc.) to charge customers (using credit or debit cards, ACH, wire transfers, Bitcoin, etc.) for their subscriptions or one-off payments (e.g., shopping cart-type websites like Amazon or Zappos).
 
 Check this video for a quick tour:
 
-https://www.youtube.com/watch?v=f2IHcz3OLYo[image:http://img.youtube.com/vi/f2IHcz3OLYo/0.jpg[align=center]]
+https://youtu.be/OUPk38URfP0[image:http://img.youtube.com/vi/OUPk38URfP0/0.jpg[align=center]]
+
+== Overview
 
 === Big Picture
 
-At a high level we provide 2 pieces of software that **you will have to deploy and manage** in your own data center or in any public cloud.
-//TODO For convenience we also offer a managed version running in AWS that you can use for free to get started very quickly.
+At a high level, we provide two pieces of software that **you will have to deploy and manage** in your own data center, in your private cloud, or in any public cloud.
 
-* Kill Bill, or Kill Bill server is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, but instead your website (it could be a custom e-commerce website, a Drupal or WordPress deployment, etc.) will trigger REST API calls (over HTTP) to process subscriptions or orders.
-* KAUI, our Back-office UI, which provides an interface to interact with Kill Bill for your support and finance teams (to manage refunds, invoice adjustments, etc.).
+* Kill Bill, or Kill Bill server, is a standalone Java server that runs in your back-end. Your customers will never interact with it directly, but instead your website (it could be a custom website, a Drupal or WordPress deployment, etc.) and potentially your internal tools (CRM, CPQ, etc.) will trigger REST API calls (over HTTP) to create subscriptions, retrieve invoices, give credits, etc.
+* Kaui, our back-office user interface, lets your teams (customer support, product, finance, etc.) interact with Kill Bill to manage refunds, invoice adjustments, reporting, and so forth.
 {empty} +
 {empty} +
 
@@ -32,23 +36,32 @@ image::../assets/what_is_killbill/KillBill_High_level.png[format=png,align=cente
 
 So, in the diagram above, we can see that:
 
-* Customers interact with your website, which then issues REST API calls to Kill Bill. **You are responsible for designing and building that piece**.
+* As mentioned earlier, customers interact with your website, which then issues REST API calls to Kill Bill. **You are responsible for designing and building that piece**.
 * Kill Bill, with its database, **manages all the state associated with the subscriptions, invoices, payments, etc.**
-* KAUI is the **Back-office UI for your teams**, and it includes role based access control to provide different priviledges for different teams/users:
-  ** Your customer support team will use to access/modify consumer accounts data
-  ** Your product team  will use to configure catalog information, billing rules, ...
-  ** You finance/accounting team will access it for different types of reports
-  ** Your engineering team will access it for running quick dev scenarios
+* Kaui, the **back-office UI for your teams**, includes role-based access control to provide different privileges for the various teams/users:
+  ** Your customer support team uses Kaui to access/modify consumer accounts data.
+  ** Your product team uses Kaui to configure catalog information, billing rules, etc.
+  ** Your finance/accounting team access Kaui for different types of reports.
+  ** Your engineering team access Kaui for running quick scenarios for development and testing purposes.
 
 
 === Deployment
 
-Kill Bill is packaged as a WAR and is therefore executed within a web container (typically Tomcat). While you can deploy Kill Bill directly as a WAR inside a container, we also provide easier deployment options:
+Kill Bill is packaged as a self-contained WAR and is therefore executed within a web container (typically Tomcat). While you can deploy Kill Bill directly as a WAR inside a container, we also provide additional deployment options, such as Docker containers or AWS AMIs with _1-click deployments_.
 
-* Docker containers
-* 1-click button AWS instances
-* Hosted cloud deployment
+Here is a typical Kill Bill deployment architecture:
 
+[caption=""]
+//.Kill Bill: Physical View Of The Deployment
+image::../assets/what_is_killbill/KillBill_Mid_level.png[format=png,align=center,title-align=center]
+
+* There are two sets of _servers_, one for Kill Bill, one for Kaui. Each _server_ can either be a physical server, a VM, or a container. Either way, it will run a Tomcat Java process where Kill Bill or Kaui are deployed. Typically, two instances of Kaui and three of Kill Bill should be plenty.
+* Two (physical or virtual) load-balancers route traffic to the servers (in a _least number of connections_ or _round robin_ configuration). Assuming the network can be trusted, these load-balancers terminate SSL traffic.
+* The Kill Bill and Kaui instances are stateless, but need a relational database. The database server can be shared (but the applications should always use two different schemas) or not.
+
+In a nutshell, a Kill Bill deployment follows a typical microservices deployment. Common DevOps techniques, such as rolling updates, Blue-Green deployments, and Canary deployments, are applicable as well.
+
+To know more, follow our https://docs.killbill.io/latest/userguide_deployment.html[deployment guide].
 
 === Kill Bill Platform
 
