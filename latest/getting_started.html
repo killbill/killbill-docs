@@ -922,13 +922,39 @@ sudo apt-get install docker virtualbox</code></pre></div></div>
  <span class="tok-n">kaui_allowed_users</span>
  <span class="tok-n">kaui_allowed_user_tenants</span></code></pre></div></div></li></ol></div></div>
 <div class="sect3"><h4 id="_kaui_configuration">Kaui Configuration</h4><div class="paragraph"><p>Finally, Kaui needs to be configured. For this, you need to follow the steps given below:</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>Download the current version of the Kaui war from <a href="https://search.maven.org/search?q=a:kaui-standalone">Maven Central</a>.</p></li><li><p>Rename the war file downloaded above to <code>kaui.war</code></p></li><li><p>Ensure that Tomcat server is stopped.</p></li><li><p>Place the downloaded war file at <strong>TOMCAT_HOME/webapps</strong>. So, <strong>webapps</strong> folder should look like this:</p><div class="literalblock"><div class="content"><pre>$TOMCAT_HOME/webapps
-    --ROOT.war
-    --kaui.war</pre></div></div></li><li><p>Open <strong>TOMCAT_HOME/conf/catalina.properties file</strong>. Add the following database properties  related to Kaui at the end of this file (Use appropriate values as per your database):</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="properties"><span></span><span class="tok-na"> kaui.url</span><span class="tok-o">=</span><span class="tok-s">http://127.0.0.1:8080</span>
+<div class="olist arabic"><ol class="arabic"><li><p>Download the current stable version of the Kaui war from <a href="https://search.maven.org/search?q=a:kaui-standalone">Maven Central</a>.</p></li><li><p>Rename the downloaded <code>war</code> to <code>ROOT.war</code> (Ensure that <strong>ROOT</strong> is in uppercase)</p></li><li><p>Ensure that Tomcat server is stopped</p></li><li><p>Create a folder called <strong>TOMCAT_HOME/webapps2</strong></p></li><li><p>Place <code>ROOT.war</code> at <strong>TOMCAT_HOME/webapps2</strong>. So, <strong>webapps2</strong> folder should look like this:</p><div class="literalblock"><div class="content"><pre>$TOMCAT_HOME/webapps2
+    --ROOT.war</pre></div></div></li><li><p>Open <strong>TOMCAT_HOME/conf/server.xml</strong>. Add the following section below <code>&lt;/Service&gt;</code> (specify a port other than <code>8080</code>. The snippet below specifies <code>9090</code>):</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="xml"><span></span> <span class="tok-c">&lt;!-- KAUI --&gt;</span>
+  <span class="tok-nt">&lt;Service</span> <span class="tok-na">name=</span><span class="tok-s">&quot;Catalina&quot;</span><span class="tok-nt">&gt;</span>
+
+
+    <span class="tok-nt">&lt;Connector</span> <span class="tok-na">port=</span><span class="tok-s">&quot;9090&quot;</span>
+               <span class="tok-na">protocol=</span><span class="tok-s">&quot;HTTP/1.1&quot;</span>
+               <span class="tok-na">connectionTimeout=</span><span class="tok-s">&quot;20000&quot;</span> <span class="tok-nt">/&gt;</span>
+
+    <span class="tok-nt">&lt;Engine</span> <span class="tok-na">name=</span><span class="tok-s">&quot;Catalina&quot;</span> <span class="tok-na">defaultHost=</span><span class="tok-s">&quot;localhost&quot;</span><span class="tok-nt">&gt;</span>
+      <span class="tok-nt">&lt;Host</span> <span class="tok-na">name=</span><span class="tok-s">&quot;localhost&quot;</span>
+            <span class="tok-na">appBase=</span><span class="tok-s">&quot;webapps2&quot;</span>
+            <span class="tok-na">unpackWARs=</span><span class="tok-s">&quot;true&quot;</span>
+            <span class="tok-na">autoDeploy=</span><span class="tok-s">&quot;false&quot;</span><span class="tok-nt">&gt;</span><span class="tok-c">&lt;!-- Disable autoDeploy to avoid restarts when running KPM install --&gt;</span>
+
+        <span class="tok-nt">&lt;Valve</span> <span class="tok-na">className=</span><span class="tok-s">&quot;org.apache.catalina.valves.RemoteIpValve&quot;</span>
+               <span class="tok-na">protocolHeader=</span><span class="tok-s">&quot;x-forwarded-proto&quot;</span>
+               <span class="tok-na">portHeader=</span><span class="tok-s">&quot;x-forwarded-port&quot;</span> <span class="tok-nt">/&gt;</span>
+
+        <span class="tok-nt">&lt;Valve</span> <span class="tok-na">className=</span><span class="tok-s">&quot;org.apache.catalina.valves.AccessLogValve&quot;</span>
+               <span class="tok-na">directory=</span><span class="tok-s">&quot;logs&quot;</span>
+               <span class="tok-na">prefix=</span><span class="tok-s">&quot;localhost_kaui_log.&quot;</span>
+               <span class="tok-na">suffix=</span><span class="tok-s">&quot;.txt&quot;</span>
+               <span class="tok-na">pattern=</span><span class="tok-s">&quot;%h %l %u %t &amp;quot;%m %U&amp;quot; %s %b %D %{X-Request-id}i&quot;</span> <span class="tok-nt">/&gt;</span>
+
+        <span class="tok-nt">&lt;Valve</span> <span class="tok-na">className=</span><span class="tok-s">&quot;org.apache.catalina.valves.rewrite.RewriteValve&quot;</span> <span class="tok-nt">/&gt;</span>
+      <span class="tok-nt">&lt;/Host&gt;</span>
+    <span class="tok-nt">&lt;/Engine&gt;</span>
+  <span class="tok-nt">&lt;/Service&gt;</span></code></pre></div></div></li><li><p>Open <strong>TOMCAT_HOME/conf/catalina.properties file</strong>. Add the following database properties  related to Kaui at the end of this file (Use appropriate values as per your database):</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="properties"><span></span><span class="tok-na"> kaui.url</span><span class="tok-o">=</span><span class="tok-s">http://127.0.0.1:9090</span>
 <span class="tok-na"> kaui.db.url</span><span class="tok-o">=</span><span class="tok-s">jdbc:mysql://127.0.0.1:3306/kaui</span>
 <span class="tok-na"> kaui.db.username</span><span class="tok-o">=</span><span class="tok-s">killbill</span>
 <span class="tok-na"> kaui.db.password</span><span class="tok-o">=</span><span class="tok-s">killbill</span></code></pre></div></div></li><li><p>Start Tomcat using the script <strong>TOMCAT_HOME/bin/startup.sh</strong> or <strong>TOMCAT_HOME/bin/startup.bat</strong>
-(Depending on your operating system)</p></li><li><p>Verify that there are no errors in the Tomcat logs at  <strong>TOMCAT_HOME/logs/catalina.log</strong></p></li><li><p>Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  <strong>Kill Bill server has started</strong></p></li><li><p>Open a browser and type http://localhost:8080/kaui This should display the following sign in page: <span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_sign_in.png" alt="kaui sign in"></span></p></li><li><p>Sign in with <code>admin/password</code>. This should display the following page:</p></li></ol></div>
+(Depending on your operating system)</p></li><li><p>Verify that there are no errors in the Tomcat logs at  <strong>TOMCAT_HOME/logs/catalina.log</strong></p></li><li><p>Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  <strong>Kill Bill server has started</strong></p></li><li><p>Open a browser and type http://localhost:9090 This should display the following sign in page: <span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_sign_in.png" alt="kaui sign in"></span></p></li><li><p>Sign in with <code>admin/password</code>. This should display the following page:</p></li></ol></div>
 <div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_after_sign_in.png" alt="kaui after sign in"></span></p></div></div>
 <div class="sect3"><h4 id="_customizing_log_file_path">Customizing Log File Path</h4><div class="paragraph"><p>The steps above configure the application so that the Kill Bill and Kaui logs are displayed on the console. You can however customise this to save the logs in a separate log file. In order to set this up, you need to follow the steps given below:</p></div>
 <div class="olist arabic"><ol class="arabic"><li><p>Create a file called <code>logback.xml</code> as follows:</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="xml"><span></span> <span class="tok-cp">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;</span>
