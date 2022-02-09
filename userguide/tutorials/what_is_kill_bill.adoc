@@ -65,55 +65,58 @@ To know more, follow our https://docs.killbill.io/latest/userguide_deployment.ht
 
 === Kill Bill Platform
 
-We refer to Kill Bill as a *platform* because of its extensibility: You can write plugins to **modify the behavior of the system** or to **integrate with third-party vendors**, such as fraud detection solutions (Accertify, Feedzai, etc.) or Tax providers (Avalara AvaTax, etc.). We offer some open-source plugins on our http://github.com/killbill/killbill[GitHub organization], but in order to match your exact business requirements you may need to write your own.
+We refer to Kill Bill as a *platform* because of its extensibility: You can write plugins to **modify the behavior of the system** or to **integrate with third-party vendors**, such as fraud detection solutions (Accertify, Feedzai, etc.) or tax providers (Avalara AvaTax, Vertex, etc.). We offer some open-source plugins on our http://github.com/killbill/killbill[GitHub organization], but in order to match your exact business requirements, you may need to write your own.
 
-
-As an example, let's imagine a Kill Bill deployment with two plugins, the first one a tax plugin that will interact with a 3rd party tax provider, and the second one, a payment plugin that will interact with a payment gateway.
+As an example, let's imagine a Kill Bill deployment with two plugins, the first one a tax plugin that will interact with a 3rd party tax provider, and the second one, a payment plugin, that will interact with a payment gateway.
 
 {empty} +
 
 [caption=""]
-//.Kill Bill: Big Picture
+//.Kill Bill: Deployment With Two Plugins
 image::../assets/what_is_killbill/KillBill_Plugins.png[format=png,align=center,title-align=center]
+
+These plugins are bundled as JAR files and deployed in the same Tomcat environment as Kill Bill. They can access the full spectrum of Kill Bill APIs, expose custom HTTP endpoints, or even access the database if they need to persist custom state.
+
+Any customization of Kill Bill will often require such plugins to be written. As such, it is not uncommon for deployments with custom business processes to have a couple of these, in addition to _connector_ plugins, which integrate with third-party systems.
 
 === Kill Bill Model
 
-Most billing systems out there have been designed to be batch oriented, i.e invoice generation and payments are made in batches at specific points in time. We have taken a different approach, and have built a system that is **event driven**, and where operations will happen in sequence.
+Most current billing systems have been designed to be batch-oriented, (i.e., invoice generation and payments are made in batches at specific points in time). We have taken a different approach and have built a system that is **event driven**, and where operations will happen in sequence.
 
-A typical scenario is one where a _subscription_ gets created, eventually leading to the creation of an _invoice_ and a _payment_. Reusing our example from above, i.e a deployment with the 2 plugins, the following would occur:
+A typical scenario is one where a _subscription_ gets created (e.g., a customer signs up for a product), which leads to the creation of an _invoice_, which in turns triggers _payment_. Reusing our example from above (a deployment with the two plugins), the following would occur:
 
 {empty} +
 
 [caption=""]
-//.Kill Bill: Big Picture
+//.Kill Bill: Subscription Flow
 image::../assets/what_is_killbill/KillBill_Subscription_Flow.png[format=png,align=center,title-align=center]
-
 
 The flow diagram above highlights a couple of important aspects of the system:
 
-1. The creation of the subscription will generate a series of internal events that will lead to the generation of the _invoice_ and its associated _payment_. If needed such behavior can also be configured.
-2. Because of its plugin architecture, it is easy to extend the system by writing plugins. The diagrams above assumes the plugins interact with 3rd party systems, but of course all the tax logic could for instance be implemented in the plugin itself.
+1. The creation of the subscription will generate a series of internal events that will lead to the generation of the _invoice_ and its associated _payment_. If needed, this default behavior can also be adjusted (e.g., to generate invoices in batches).
+2. Because of its plugin architecture, it is easy to extend the system by writing plugins. The diagrams above assumes the plugins interact with third-party systems, but of course all the tax logic could, for instance, be implemented in the plugin itself.
 3. Kill Bill offers well defined extension points for these plugins to be highly effective and modify the behavior of the system as needed.
 
 
 == Features
 
 * Core Foundations
-** High level of integrity and *robustness*
-** Authentication and role-based access control (*RBAC*) support integrating with your LDAP, Okta, etc.
-** A *plugin framework* where open-source and proprietary plugins can be added to modify the behavior of the system, and/or to interact with third party systems
+** High level of integrity and *robustness* (battle-tested for the past 12+ years in the world's largest companies)
+** Authentication and role-based access control (*RBAC*) support integrating with your LDAP, cloud-based identity (Okta and Auth0), etc.
+** A *plugin framework* where open-source and proprietary plugins can be added to tailor the behavior of the system for your needs and/or to interact with third party systems (CPQ, Tax, ERP, etc.)
 ** A robust persistent *event bus*, that is used both internally and externally (events are visible to plugins and to other services via HTTP push notifications)
 ** An *auditing* framework that keeps track of all the changes that occurred (who?, when?, what?)
 * Core services, each of which exposing its own APIs and publishing bus events, which are consumed by other core services or
 plugins:
-** Account
-** Catalog
-** Subscription and entitlement
-** Usage: units recording from metering system
-** Invoice: invoice generation and management (e.g. ability to adjust invoice items) for subscriptions and one-off charges
-** Payment: payment gateways integration for recurring and one-off payments
-** Overdue: dunning management (in case of unpaid invoices for instance)
-* Multi-tenancy: Kill Bill has been designed as a multi-tenant system, meaning **you can run multiple logical instances of Kill Bill with a single server and database** (see this http://killbill.io/blog/subscription-service-using-kill-bill[blog post] which illustrates some of the use cases).
+** _Account:_ Represents the customer (individual or company) subscribing to services and being billed (potentially responsible for other account charges, in the case of hierarchical accounts). An account can have a set of payments methods (credit card, bank account for wire transfers, etc.), a preferred billing day in the month, a preferred local and time zone for localization of communication, etc.
+** _Catalog_: Captures the definition of products being billed, along with their pricing models (in advance or in arrear, recurring or usage-based, etc.) and bundles (e.g., available add-ons).
+** _Entitlement_: Captures which services the account has access to.
+** _Subscription_: Captures which services the account is being billed for.
+** _Usage_: Records usage units from an external metering system.
+** _Invoice:_ Invoice generation (e.g., based on subscriptions), management (e.g., ability to adjust invoice items or add credits), and presentment (e.g., branded HTML template) for all charges (subscriptions but also one-off charges).
+** _Payment_: Payment gateways integration for recurring and one-off payments.
+** _Overdue_: Dunning management (in case of unpaid invoices, for instance).
+* _Multi-tenancy_: Kill Bill has been designed as a multi-tenant system, meaning **you can run multiple logical instances of Kill Bill with a single server and database**. (See this http://killbill.io/blog/subscription-service-using-kill-bill[blog post], which illustrates some of the use cases.)
 * Plugins
 ** Ability to easily connect to third party services
 ** Ability to modify behavior of the system to match custom business logic
