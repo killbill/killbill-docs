@@ -362,17 +362,52 @@ In addition to the Kill Bill database, you will also need to configure the Kaui 
 
 Finally, Kaui needs to be configured. For this, you need to follow the steps given below:
 
-. Download the current version of the Kaui war from https://search.maven.org/search?q=a:kaui-standalone[Maven Central].
+. Download the current stable version of the Kaui war from https://search.maven.org/search?q=a:kaui-standalone[Maven Central]. 
 
-. Rename the war file downloaded above to `kaui.war` 
+. Rename the downloaded `war` to `ROOT.war` (Ensure that *ROOT* is in uppercase)
 
-. Ensure that Tomcat server is stopped.
+. Ensure that Tomcat server is stopped
 
-. Place the downloaded war file at *TOMCAT_HOME/webapps*. So, *webapps* folder should look like this:
+. Create a folder called *TOMCAT_HOME/webapps2*
 
- $TOMCAT_HOME/webapps
+. Place `ROOT.war` at *TOMCAT_HOME/webapps2*. So, *webapps2* folder should look like this:
+
+ $TOMCAT_HOME/webapps2
      --ROOT.war
-     --kaui.war
+
+. Open *TOMCAT_HOME/conf/server.xml*. Add the following section below `</Service>` (specify a port other than `8080`. The snippet below specifies `9090`):
++
+[source,xml]
+----
+ <!-- KAUI -->
+  <Service name="Catalina">
+    
+
+    <Connector port="9090"
+               protocol="HTTP/1.1"
+               connectionTimeout="20000" />
+
+    <Engine name="Catalina" defaultHost="localhost">
+      <Host name="localhost"
+            appBase="webapps2"
+            unpackWARs="true"
+            autoDeploy="false"><!-- Disable autoDeploy to avoid restarts when running KPM install -->
+
+        <Valve className="org.apache.catalina.valves.RemoteIpValve"
+               protocolHeader="x-forwarded-proto"
+               portHeader="x-forwarded-port" />
+
+        <Valve className="org.apache.catalina.valves.AccessLogValve"
+               directory="logs"
+               prefix="localhost_kaui_log."
+               suffix=".txt"
+               pattern="%h %l %u %t &quot;%m %U&quot; %s %b %D %{X-Request-id}i" />
+
+        <Valve className="org.apache.catalina.valves.rewrite.RewriteValve" />
+      </Host>
+    </Engine>
+  </Service>  
+----
 
 . Open *TOMCAT_HOME/conf/catalina.properties file*. Add the following database properties  related to Kaui at the end of this file (Use appropriate values as per your database):
 [source,properties]
@@ -388,10 +423,9 @@ Finally, Kaui needs to be configured. For this, you need to follow the steps giv
 
 . Verify that there are no errors in the Kill Bill logs on the console and that the logs display a line which states that  *Kill Bill server has started*
 
-. Open a browser and type \http://localhost:8080/kaui This should display the following sign in page: image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_sign_in.png[align=center]
+. Open a browser and type \http://localhost:9090 This should display the following sign in page: image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_sign_in.png[align=center]
 
 . Sign in with `admin/password`. This should display the following page:
-
 
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/getting-started/kaui_after_sign_in.png[align=center]
 
