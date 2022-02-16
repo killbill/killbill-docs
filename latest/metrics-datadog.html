@@ -745,45 +745,20 @@ pre.pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style
 </svg>
 <svg class="absolute-figure abstract-figure" width="703" height="174" viewBox="0 0 703 174" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M25.5 246C-96 87.7673 245.949 67.3215 475.548 64.1799C705.146 61.0384 565.01 -188.501 629.653 -188.741C694.297 -188.982 766.062 221.014 766.062 221.014L297.072 460.733C297.072 460.733 147 404.233 25.5 246Z" fill="white" fill-opacity="0.2"/>
-</svg></div><h1>Managing Metrics with Datadog</h1></div><div id="content"><div class="sect1"><h2 id="_single_tier_and_multitier_implementations">Single Tier and Multitier Implementations</h2><div class="sectionbody"><div class="paragraph"><p>Measurements and metrics are an important part of managing your Kill
-Bill system to be sure that performance is optimized and any problems
-can be detected early. Kill Bill collects over 1,300 metrics to show you
-every conceivable view of your system&#8217;s behavior.</p></div>
-<div class="paragraph"><p>Several third party tools are available to manage and display metrics of
-this type. One popular tool is <a href="https://www.datadoghq.com/">Datadog</a>. This
+</svg></div><h1>Managing Metrics with Datadog</h1></div><div id="content"><div class="sect1"><h2 id="_overview">Overview</h2><div class="sectionbody"><div class="paragraph"><p>Several third party tools are available to manage and display Kill Bill&#8217;s metrics. One popular tool is <a href="https://www.datadoghq.com/">Datadog</a>. This
 package offers a low-cost option to monitor and display whatever metrics
 you may find useful from the Kill Bill collection, including metrics
 that show the performance and resource use of Kill Bill and Kaui
 themselves, and metrics describing the infrastructure on which these
 systems run.</p></div>
-<div class="paragraph"><p>Datadog can be integrated with several types of Kill Bill installations. In this guide we discuss the use of datadog to manage metrics produced
-by two types of implementations on Amazon Web Services (AWS):
-Single Tier and Multitier. With the latest Amazon Machine Image (AMI)
-for Kill Bill, it is very easy to direct the Kill Bill metrics to
-Datadog and work with them in the way that best suits your needs.</p></div></div></div>
-<div class="sect1"><h2 id="_check_your_kill_bill_version">Check Your Kill Bill Version</h2><div class="sectionbody"><div class="paragraph"><p>We assume that you have a working Kill Bill implementation running on
-AWS, using either the
-<a href="https://docs.killbill.io/latest/aws-singletier.html">Single Tier</a> or
-<a href="https://docs.killbill.io/latest/aws-multitier.html">Multitier</a>
-installation options. The single tier option runs Kill Bill, Kaui, the
-MariaDB database and the nginx load balancer on a single AWS EC2
-instance. This is suitable for quick deployment and for testing and
-development. The multitier option runs Kill Bill and Kaui on two or more
-separate EC2 instances, and uses an AWS RDS database manager along with
-an AWS load balancer. This is an attractive option for many production
-uses.</p></div>
-<div class="paragraph"><p>You should be running Kill Bill version 2021.9 or later. This version
-can be configured to provide its full collection of Kill Bill metrics to
-Datadog (and several other analysis tools). If you open the Kill Bill
-admin page in your browser, it should show that you are
-running the "Kill Bill Premium edition":</p></div>
-<div style="text-align: center;" class="imageblock"><div class="content"><img src="data:image/png;base64," alt="metrics kb admin"></div></div>
-<div class="paragraph"><p>If you see this page you are ready to go. If not, you should upgrade
-your installation.</p></div>
-<div class="paragraph"><p>While you are on this page, if you want to see all the metrics that Kill
-Bill has to offer, just add the path <code>/1.0/metrics</code> to the URL. Have fun!
-If you find these hard to understand, though, maybe datadog can help.</p></div></div></div>
-<div class="sect1"><h2 id="_set_up_datadog">Set Up Datadog</h2><div class="sectionbody"><div class="paragraph"><p>You may already be familiar with datadog. If not, this section will
+<div class="paragraph"><p>Datadog can be integrated with several types of Kill Bill installations. In this document we discuss the use of Datadog to manage metrics produced
+by single-tier and multi-tier implementations on Amazon Web Services (AWS).
+With the latest Amazon Machine Image (AMI)
+for Kill Bill, the application is preconfigured to collect these metrics and to direct them to Datadog once authorization is provided. These instructions apply to the Kill Bill AMI version 2021.9 or later.</p></div>
+<div class="paragraph"><p>To set up Datadog to manage the metrics available from Kill Bill, there
+are just two steps:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>setup a Datadog account</p></li><li><p>Edit a configuration file to enable the transfer of the complete Kill Bill metrics.</p></li></ol></div></div></div>
+<div class="sect1"><h2 id="_set_up_datadog">Set Up Datadog</h2><div class="sectionbody"><div class="paragraph"><p>You may already be familiar with Datadog. If not, this section will
 explain how to get started.</p></div>
 <div class="paragraph"><p>First, go to the <a href="https://www.datadoghq.com/">Datadog website</a>. Datadog
 offers a free trial to get started. After the trial, you will be charged
@@ -791,51 +766,30 @@ monthly depending on what types of information you want them to manage.
 To sign up for the free trial, select "GET STARTED FREE" at the top of
 the page.</p></div>
 <div class="paragraph"><p>When you login to Datadog you will be taken to the Welcome page. Note
-the series of menu options on the left hand side.</p></div>
-<div class="paragraph"><p>To set up Datadog to manage the metrics available from Kill Bill, there
-are just two steps: (1) install the Datadog agent in Kill Bill, and (2)
-authorize the transfer of the complete Kill Bill metrics.</p></div></div></div>
-<div class="sect1"><h2 id="_install_the_agent">Install the Agent</h2><div class="sectionbody"><div class="paragraph"><p>The first step in integrating an analysis tool (like Datadog) and a
-source of data to analyze (like Kill Bill) is to set up a means to get
-the source to send its data to the analyzer. Datadog does this by
-installing the <strong>Datadog Agent</strong> in the system producing the data.</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>In the main Datadog menu, select <strong>Integrations</strong>.</p></li><li><p>Scroll down in the submenu to select <strong>Agent</strong>. This shows you a page listing all of the
-platforms on which the Datadog Agent can be installed.</p></li><li><p>Choose <strong>Ubuntu</strong>. The next page shows you the single step required for this platform
-to install the agent:</p></li></ol></div>
-<div style="text-align: center;" class="imageblock"><div class="content"><img src="data:image/png;base64," alt="metrics datadog install"></div></div>
-<div class="paragraph"><p>To install the agent:</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>Login to your EC2 instance.</p></li><li><p>Copy the line shown by Datadog to the Ubuntu command line.</p></li><li><p>Press Enter. The agent should be installed automatically.</p></li></ol></div>
-<div class="admonitionblock note"><table><tr><td class="icon"><div class="title">Note</div></td><td class="content">This command already includes the API key assigned to you by
-Datadog. This authorizes the agent to do its job.</td></tr></table></div>
-<div class="paragraph"><p>If you are using the Multitier installation, you will have multiple EC2
-instances. The agent should be installed separately for each one.</p></div>
-<div class="paragraph"><p>To test the installation, return to datadog and choose <strong>Infrastructure</strong>,
-then <strong>Infrastructure List</strong> from the left menu. The table that appears
-should list all of your hosts and indicate their status as <strong>ACTIVE</strong>. You
-may need to wait a few minutes for the table to appear.</p></div>
-<div class="paragraph"><p>Now select <strong>Metrics</strong>, then <strong>Summary</strong> from the menu. You should see a
-long list of metrics! These are coming from your instances, but they
-only describe the Ubuntu environment itself. You do not yet have the
-Kill Bill metrics. To fix this, proceed to the next step.</p></div></div></div>
+the series of menu options on the left hand side.</p></div></div></div>
 <div class="sect1"><h2 id="_set_up_the_authorization">Set Up the Authorization</h2><div class="sectionbody"><div class="paragraph"><p>To authorize the sending of the Kill Bill metrics, it is necessary to
 edit two lines in this file:</p></div>
-<div class="literalblock"><div class="content"><pre>`/var/lib/tomcat/bin/setenv2.sh`.</pre></div></div>
-<div class="literalblock"><div class="content"><pre>   This file contains configuration information for `tomcat`, which manages the
-KillBill web applications.</pre></div></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>/var/lib/tomcat/bin/setenv2.sh</code></pre></div></div>
+<div class="paragraph"><p>This file contains configuration information for <code>tomcat</code>, which manages the
+KillBill web applications.</p></div>
 <div class="paragraph"><p>This is a small file. The two lines to be edited are:</p></div>
 <div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>-Dcom.killbill.datadog.enable=false
 -Dcom.killbill.datadog.apiKey=</code></pre></div></div>
 <div class="paragraph"><p>These should be changed to:</p></div>
 <div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>-Dcom.killbill.datadog.enable=true
--Dcom.killbill.datadog.apiKey=__Your-API-Key__</code></pre></div></div>
-<div class="paragraph"><p>The API key to be added is the same one contained in the command you
-used to install the agent.</p></div>
+-Dcom.killbill.datadog.apiKey=Your-API-Key</code></pre></div></div>
+<div class="paragraph"><p>To find your API key:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>Go to the Datadog Welcome page</p></li><li><p>Scroll down to your email address in the left menu</p></li><li><p>Select <strong>Organization Settings</strong> from the popup menu</p></li><li><p>Select <strong>API Keys</strong> from the Organization Settings menu</p></li></ol></div>
 <div class="paragraph"><p>After editing the file, go to your AWS EC2 dashboard and <strong>reboot the
 instance</strong> so the new configuration file will be read. If you have more
-than one instance, follow the same procedure for each one.</p></div>
-<div class="paragraph"><p>Now return to the <strong>Metrics/Summary</strong> page. After a short delay, you
-should see a lot more metrics—well over 1,000 in your list.</p></div>
-<div class="paragraph"><p>Congratulations. Your datadog integration is complete!</p></div></div></div>
+than one instance, follow the same procedure for each one.</p></div></div></div>
+<div class="sect1"><h2 id="_test_the_installation">Test the Installation</h2><div class="sectionbody"><div class="paragraph"><p>To test the installation, return to datadog and choose <strong>Infrastructure</strong>,
+then <strong>Infrastructure List</strong> from the left menu. The table that appears
+should list all of your hosts and indicate their status as <strong>ACTIVE</strong>. You
+may need to wait a few minutes for the table to appear.</p></div>
+<div class="paragraph"><p>Now select <strong>Metrics</strong>, then <strong>Summary</strong> from the menu. After a short delay, you should see a
+long list of metrics&#8201;&#8212;&#8201;well over 1,000.</p></div>
+<div class="paragraph"><p>Congratulations. Your Datadog integration is complete!</p></div></div></div>
 <div class="sect1"><h2 id="_using_datadog">Using Datadog</h2><div class="sectionbody"><div class="paragraph"><p>The Datadog site has lots of <a href="https://docs.datadoghq.com/">documentation</a>, so we won&#8217;t
 repeat any of that here. We will just suggest a few quick steps to get
 started:</p></div>
