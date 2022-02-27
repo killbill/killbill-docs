@@ -519,25 +519,33 @@ merged = properties_to_hash(properties, options)
 
 == Seeking help
 
-If all else fail, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] for help (*do not open a Github issue*).
+If all else fail, reach out to our https://groups.google.com/forum/#!forum/killbilling-users[mailing-list] for help (*do not open a GitHub issue*).
 
 In your message, specify:
 
 * What you are seeing and what you are expecting
 * How to reproduce your scenario (cURL commands, code snippet, ...)
-* https://github.com/killbill/killbill-cloud/tree/9305e1abb8840f22a03d2c36269710bff3dc1996/kpm[KPM] diagnostic output, e.g.
+* https://github.com/killbill/killbill-cloud/tree/9305e1abb8840f22a03d2c36269710bff3dc1996/kpm#kpm-diagnostic[KPM diagnostic] output (see notes below)
+
+=== KPM Diagnostics Notes
+
+The `kpm diagnostic` command gathers information about your Kill Bill installation (Kill Bill/Kaui versions, Java version, plugins that you use, etc), Kill Bill logs, tenant configuration data and account data. It generates a zip file with this data. When this file is shared with us, it allows us to replicate your Kill Bill environment and diagnose the issue.
+
+In case of a https://docs.killbill.io/latest/getting_started.html#_tomcat[Tomcat installation], the `kpm diagnostic` command can be run as follows:
 
 [source,bash]
 ----
-kpm diagnostic --killbill-api-credentials=bob lazar \
-               --killbill-credentials=admin password \
-               --killbill-url=http://127.0.0.1:8080 \
-               --killbill-web-path=/var/lib/tomcat/webapps/ROOT.war \
-               --log-dir=/var/lib/tomcat/logs \
-               --account-export=ACCOUNT_ID
+kpm diagnostic --killbill-api-credentials=bob lazar --account-export=ACCOUNT_ID
 ----
 
-If you are using our standard Docker images, you can simply run the following command in the Kill Bill container:
+Note that the parameters specified above are optional and refer to the following:
+
+* `killbill-api-credentials` - specifies the *tenant api key* and *tenant api secret* corresponding to the tenant for which you want to export data. If this parameter is skipped, data is exported for the default tenant (`bob/lazar`)
+* `--account-export` specifies the *account id* for which account data (data from the Kill Bill database tables related) needs to be exported. If this parameter is skipped, account data is not exported. 
+
+For a complete list of `kpm diagnostic` options, you can run `kpm help diagnostic`.
+
+If you are using a https://docs.killbill.io/latest/getting_started.html#_docker[Docker installation], you can simply run the following command in the Kill Bill container:
 
 [source,bash]
 ----
@@ -547,3 +555,16 @@ $KPM_DIAGNOSTIC_CMD -e killbill_user=admin \
                     -e killbill_api_secret=lazar \
                     -e killbill_account=ACCOUNT_ID
 ----
+
+If you are using an https://docs.killbill.io/latest/getting_started.html#_aws_one_click[AWS installation], you can run the `kpm diagnostic` command as specified https://docs.killbill.io/latest/aws-singletier.html#_diagnostic_command[here].
+
+
+Once the `kpm diagnostic` command completes, it displays the path of the generated file. 
+For example, with a Tomcat installation on a Windows machine, it displays the following:
+
+[source,bash]
+----
+Diagnostic data exported under C:/Users/<USERNAME>/AppData/Local/Temp/killbill-diagnostics-20220215-10768-1pplgn6/killbill-diagnostics-02-15-22.zip
+----
+
+The zip file named `killbill-diagnostics-02-15-22.zip` can be copied from this path and shared with us.

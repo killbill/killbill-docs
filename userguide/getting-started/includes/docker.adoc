@@ -1,0 +1,154 @@
+=== Overview
+
+You can run Kill Bill locally or in the cloud using our official Docker images. These require the installation of Docker and Docker Compose. Docker Compose is used to set up and manage the three separate Docker containers required by Kill Bill: One each for Kill Bill itself, for Kaui, and for the shared SQL database engine.
+
+The principal steps in the installation are:
+
+1. Make sure that the required versions of Docker and Docker Compose are installed in your chosen environment.
+2. Prepare a YAML file to control the loading of KillBill and the other necessary packages using Docker Compose.
+3. Run Docker Compose to launch the packages in the web server.
+
+=== Docker Installation
+
+We recommend installing Docker Desktop for your operating system as explained https://docs.docker.com/get-docker/[here]. Docker Desktop includes a GUI dashboard, a command line tool and other required components and makes it very easy to manage Docker containers.  
+
+Note that https://docs.docker.com/docker-for-windows/install/[Docker Desktop for Windows] requires installing https://docs.microsoft.com/en-us/windows/wsl/install-win10[WSL] if you are on *Windows 10 home* as explained in the https://docs.docker.com/docker-for-windows/install/[Windows installation document]. If you are using a Linux environment, read the appropriate sections of the https://docs.docker.com/install/[Docker Engine Overview]. 
+
+Once Docker is set up,it greatly simplifies the Kill Bill stack setup, as Tomcat and MySQL configuration will be done for you.
+
+The rest of the discussion assumes you have Docker installed. We will be using the Docker CLI on Mac, Windows, or Linux. Your Linux flavor is assumed to be Ubuntu, either on a local machine or on an AWS instance. Our https://killbill.io/blog/tag/docker/[blog] has tips on how to deploy to other popular cloud providers. If you are using a different Linux flavor, you may have to adapt some of the commands. 
+
+
+=== Kill Bill Installation
+
+*Step 1 - Verify the Docker and Docker Compose versions.*
+
+To check whether Docker and Docker Compose are already installed, and what versions you have, open a command (or terminal) window and type the following commands:
+
+[source,bash]
+   docker --version
+   docker-compose --version
+   
+
+The versions that we are expecting for this discussion are:
+
+* Docker: 19.03.6 or higher
+* Docker Compose: 1.25.4 or higher
+
+*Step 2 - Create the docker-compose.yml file.*
+
+The next step is to create a YAML file called docker-compose.yml, similar to the one below. The version of the file shown is 3.2, which works with Docker 17.04.0 or higher. For information on compose file formats see https://docs.docker.com/compose/compose-file/compose-versioning/[compose file formats]
+
+[source,yaml]
+----
+version: '3.2'
+volumes:
+  db:
+services:
+  killbill:
+    image: killbill/killbill:0.22.26
+    ports:
+      - "8080:8080"
+    environment:
+      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
+      - KILLBILL_DAO_USER=root
+      - KILLBILL_DAO_PASSWORD=killbill
+      - KILLBILL_CATALOG_URI=SpyCarAdvanced.xml
+  kaui:
+    image: killbill/kaui:2.0.9
+    ports:
+      - "9090:8080"
+    environment:
+      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
+      - KAUI_CONFIG_DAO_USER=root
+      - KAUI_CONFIG_DAO_PASSWORD=killbill
+      - KAUI_KILLBILL_URL=http://killbill:8080
+  db:
+    image: killbill/mariadb:0.22
+    volumes:
+      - type: volume
+        source: db
+        target: /var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=killbill
+----
+
+*Step 3 - Run docker compose*
+
+Now place this file in your current directory and run:
+
+[source,bash]
+----
+docker-compose up
+----
+
+If all goes well 3 containers will start:
+
+* one for MariaDB (shared database, used by both Kill Bill and Kaui)
+* one for Kill Bill (accessible on port 8080)
+* one for Kaui (accessible on port 9090)
+
+The startup sequence lasts a couple of minutes. It is ready when you see the message "INFO: Server startup". If it takes a long time or if the container crashes, verify you have enough memory allocated to Docker. On a Mac for instance, go to Docker Desktop Preferences and set the Memory to 4GiB in the Advanced panel. On Ubuntu, be sure you have at least 4GiB of RAM.
+
+You should now be able to log-in to Kaui by going to \http://<IP>:9090. If Docker is running on your local machine, <IP> is 127.0.0.1. Otherwise, it is the IP of your server.
+
+You will be presented with a login page. Default credentials are:
+
+* username: admin
+* password: password
+
+You can also go to \http://<IP>:8080/api.html to explore the KillBill APIs.
+
+=== FAQ
+
+*ERROR: unauthorized: authentication required*
+
+Sometimes, after running the `docker-compose up` command, you may see the following error:
+[source,bash]
+ERROR: unauthorized: authentication required
+
+In such cases, you can logout of docker and login again using the following commands:
+[source,bash]
+docker logout 
+docker login # Specify your DockerHub credentials when prompted
+
+*Viewing Logs*
+
+The Kill Bill/Kaui startup logs can be viewed by running the following command:
+[source,bash]
+docker logs <containerid> 
+
+In addition, the `logs` directory of both the Kill Bill and the Kaui containers contain individual log files. These can be viewed using the following commands: 
+[source,bash]
+docker exec <Kill Bill Container Id> tail -f logs/killbill.out #displays Kill Bill logs
+docker exec <Kaui Container Id> tail -f logs/kaui.out #displays Kaui logs
+ 
+
+*Installing Docker on Mac and Ubuntu*
+
+If Docker or Docker Compose are not installed, on a Mac, one option is to try to install them using Homebrew:
+
+[source,bash]
+----
+brew install docker docker-compose
+----
+
+This may require that the free package Homebrew be installed first. See https://osxdaily.com/2018/03/07/how-install-homebrew-mac-os/[How to install Homebrew on Mac].
+
+On Ubuntu we can use the following commands to install Docker:
+
+[source,bash]
+----
+sudo apt-get update
+sudo apt-get install docker virtualbox
+----
+We have *not* installed Docker Compose in these commands, because the Ubuntu archive is not guaranteed to provide the latest version. Instead you should use the command
+
+[source,bash]
+----
+sudo curl -L https://github.com/docker/compose/releases/download/1.25.4/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+----
+
+This command should be set to load the latest stable release. For information on releases see the https://github.com/docker/compose/releases[releases page].
