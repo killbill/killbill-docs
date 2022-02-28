@@ -52,8 +52,8 @@ You can configure the following properties related to the analytics plugin in th
 //----------------------
 |org.killbill.notificationq.analytics.tableName   |The name of the notification queue table   |notifications (Same as Kill Bill notification queue table)
 |org.killbill.notificationq.analytics.historyTableName   |The name of the notification queue history table    |notifications_history (Same as Kill Bill notification queue history table)
-|org.killbill.analytics.lockSleepMilliSeconds   |How long to sleep between retries to get the lock   |100   
-|org.killbill.billing.plugin.analytics.referenceCurrency   |The reference currency. See  <<currency_conversion,Currency Conversion>>  |USD   
+|org.killbill.analytics.lockSleepMilliSeconds   |How long to sleep between retries to get the lock. See <<lock_notes, lock notes>>.   |100   
+|org.killbill.billing.plugin.analytics.referenceCurrency   |The reference currency. See  <<currency_conversion, Currency Conversion>>  |USD   
 |===
 
 [NOTE]
@@ -104,8 +104,8 @@ This configures the following:
 |Property Name   |Description   |Default Value  
 //----------------------
 |refreshDelaySeconds   |The delay in seconds, before starting to refresh analytics tables after an event is received. For workflows with lots of successive events (e.g. create account, add payment method, create payment), this makes sure that the latest state is available when starting the refresh.   |10   
-|lockAttemptRetries   |The number of retries to get the lock.   |100   
-|rescheduleIntervalOnLockSeconds   |The duration in seconds after which the refresh job should be scheduled in case the lock is not available.   |10   
+|lockAttemptRetries   |The number of retries to get the lock. See <<lock_notes, lock notes>>.   |100   
+|rescheduleIntervalOnLockSeconds   |The duration in seconds after which the refresh job should be scheduled in case the lock is not available. See <<lock_notes, lock notes>>. |10   
 |enablePartialRefreshes   |Whether partial refreshes are allowed. If true, the plugin refreshes only a subset of the analytics tables based on the received event. If false, all the analytics tables are updated.   |true   
 |enableTemplateVariables   |Whether template variables should be allowed in raw SQL queries while creating reports based on SQL queries. Note that this could be prone to SQL injection and should only be enabled in trusted environments.   |false   
 |blacklist   |A list of account IDs to ignore.   |-
@@ -115,6 +115,9 @@ This configures the following:
                                                                                   2:avsResultCode,                                                                                                3:cvvResultCode,                                                                                               4:payment_processor_account_id                                                                                                 5:paymentMethod   
 |databases[[remote_database_configuration]]   |Specifies the database configuration for external (remote) databases against which reports can be created. The database `type` and `url` needs to be specified as part of the database configuration. The analytics plugin currently only supports `trino` databases. See the <<advanced_report_creation_options, "Advanced Report Creation Options">> section.|-   
 |===
+
+[[lock_notes]]
+*Lock Notes*: Some critical operations in Kill Bill use a https://github.com/killbill/killbill-commons/tree/master/locker[database-based global lock] to ensure a single Kill Bill node performs a given operation at a time. Bumping the `lockSleepMilliSeconds` parameter could help if these critical operations (refresh) take a long time. By default, if a refresh is in progress (i.e. lock is taken) and another node tries to refresh the same account, it will attempt `lockAttemptRetries` times to grab the lock, sleeping `lockSleepMilliSeconds` in between retries, before giving up. If the lock is taken and `rescheduleIntervalOnLockSeconds` is configured, it will reschedule itself `rescheduleIntervalOnLockSeconds` in the future, before trying the above algorithm.
 
 == Reports
 
