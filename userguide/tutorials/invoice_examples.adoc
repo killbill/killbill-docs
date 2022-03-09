@@ -26,7 +26,7 @@ So, `charged amount` can be expressed as follows:
 CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ + CREDIT_ADJ
 
 [NOTE]
-*Note:* In the case of an invoice credit, the `CREDIT_ADJ` invoice items are not taken into account while calculating the charged amount. This is to prevent getting a negative amount as explained in the invoice credit scenario below.
+*Note:* In the case of a credit invoice (invoice corresponding to a credit), the `CREDIT_ADJ` invoice items are not taken into account while calculating the charged amount. This is to prevent getting a negative amount as explained in the <<account_credit, account credit>> scenario below.
 
 === Invoice Balance
 
@@ -38,12 +38,8 @@ So, `Invoice Balance` can be expressed as follows:
 INVOICE BALANCE = CHARGED AMOUNT + SUM(CBA_ADJ) - (AMOUNT PAID + AMOUNT REFUNDED) 
 
 [NOTE]
-*Note:* In the case of an invoice credit, the sum of the `CREDIT_ADJ` items is also added. This is done to keep the invoice balance `0` as explained in the invoice credit scenario below. 
+*Note:* In the case of a credit invoice (invoice corresponding to a credit), the sum of the `CREDIT_ADJ` items is also added. This is done to keep the invoice balance `0` as explained in the <<account_credit, account credit>> scenario below. 
 
-So, in the case of an invoice credit, the `invoice balance` is calculated as follows:
-
-[source,java]
-INVOICE BALANCE = CHARGED AMOUNT + SUM(CBA_ADJ) + SUM(CREDIT_ADJ) - (AMOUNT PAID + AMOUNT REFUNDED) 
 
 The invoice balance is *always* `0` if:
 
@@ -88,9 +84,10 @@ It is possible to https://killbill.github.io/slate/#credit-create-credits[add a 
 
 Let us understand what happens in each of these cases.
 
+[[account_credit]]
 === Case 1: Add Account Credit
 
-Whenever a https://killbill.github.io/slate/#credit-create-credits[credit is added] but not on a particular invoice item, it is treated as account credit. In this case, the system generates a new invoice that has a `CREDIT_ADJ` and a `CBA_ADJ` item. The credit is then adjusted against the amount/balance in other unpaid invoices (if any). 
+Whenever a https://killbill.github.io/slate/#credit-create-credits[credit is added] but not on a particular invoice, it is treated as account credit. In this case, the system generates a new invoice that has a `CREDIT_ADJ` and a `CBA_ADJ` item. The credit is then adjusted against the amount/balance in other unpaid invoices (if any). 
 
 Let us understand what happens in this scenario:
 
@@ -104,11 +101,11 @@ So, `CHARGED AMOUNT` and `BALANCE` are calculated as follows:
 
 [source,java]
 ----
-CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ // CREDIT_ADJ not taken into account for invoice credit
+CHARGED AMOUNT = FIXED + RECURRING + EXTERNAL_CHARGE + USAGE + TAX + ITEM_ADJ + REPAIR_ADJ // CREDIT_ADJ not taken into account for credit invoice
                = 0 + 0 + 0 + 0 + 0 + 0 + 0 
                = 0
 
-INVOICE BALANCE = CHARGED AMOUNT + SUM(CBA_ADJ) + SUM(CREDIT_ADJ) - (AMOUNT PAID + AMOUNT REFUNDED)  //CREDIT_ADJ taken into account for invoice credit
+INVOICE BALANCE = CHARGED AMOUNT + SUM(CBA_ADJ) + SUM(CREDIT_ADJ) - (AMOUNT PAID + AMOUNT REFUNDED)  //CREDIT_ADJ taken into account for credit invoice
                 = 0 + 20 + (-20) - (0 + 0)
                 = 0
 ----             
