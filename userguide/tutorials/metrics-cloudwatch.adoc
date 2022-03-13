@@ -1,0 +1,134 @@
+= Managing Metrics with Cloudwatch
+
+
+== Overview
+
+Several third-party tools are available to manage and display the metrics produced by Kill Bill. However, one popular tool available directly from AWS is https://docs.aws.amazon.com/cloudwatch/index.html[CloudWatch]. This
+package enables you to monitor and display whatever metrics
+you may find useful from the Kill Bill collection, including metrics
+that show the performance and resource use of Kill Bill and Kaui
+themselves, and metrics describing the infrastructure on which these
+systems run. Cloudwatch is included automatically in the Kill Bill Cloudformation option, but it can be used with the other AWS options as well.
+
+In this guide we discuss the use of Cloudwatch to manage metrics produced
+by single-tier and multi-tier implementations on Amazon Web Services (AWS). The latest Amazon Machine Image (AMI)
+for Kill Bill is preconfigured to direct the Kill Bill metrics to
+CloudWatch and work with them in the way that best suits your needs. These instructions apply to the Kill Bill AMI version 2021.9 or later.
+
+To set up CloudWatch to manage the metrics available from Kill Bill, there
+are three steps:
+
+1. Edit a configuration file to enable the use of CloudWatch.
+2. Install the AWS Xray daemon
+3. Create an AWS role and policy for your EC2 instance(s)
+
+== Enable CloudWatch Use
+
+To authorize the sending of the Kill Bill metrics, it is necessary to
+edit just one line in this file:
+
+```
+/var/lib/tomcat/bin/setenv2.sh
+```
+
+This file contains configuration information for `tomcat`, which manages the
+KillBill web applications.
+
+This is a small file. The line to be edited is:
+
+```
+-Dcom.killbill.cloudwatch.enable=false
+
+```
+
+This should be changed to:
+
+```
+-Dcom.killbill.cloudwatch.enable=true
+```
+
+After editing the file, go to your AWS EC2 dashboard and *reboot the
+instance* so the new configuration file will be read. If you have more
+than one instance, follow the same procedure for each one.
+
+== Install the Xray daemon
+
+The Xray daemon is needed to log your Kill Bill metrics so they can be collected by Cloudwatch. To setup the daemon, log in to your EC2 instance and run the following commands:
+
+```
+curl https://s3.dualstack.us-east-1.amazonaws.com/aws-xray-assets.us-east-1/xray-daemon/aws-xray-daemon-3.x.deb -o /home/ubuntu/xray.deb
+sudo dpkg -i /home/ubuntu/xray.deb
+```
+
+If you have more than one instance, repeat these commands on each one.
+
+== Create a Policy
+
+This step creates a policy, or a set of permissions, that is required to access the Kill Bill metrics.
+
+. From the EC2 Dashboard, Type "IAM" in the search field at the upper left. Select the IAM Dashboard.
+. From the left menu, choose Policies, then select *Create Policy*.
+. On the page that appears, select the JSON tab. You should see:
+
+(image)
+
+. Next. copy the following lines between the square brackets:
+
+```
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeTags",
+                "cloudwatch:PutMetricData",
+                "xray:GetSamplingRules",
+                "xray:GetSamplingTargets",
+                "xray:GetSamplingStatisticSummaries",
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords",
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:DescribeLogGroups",
+                "logs:DescribeLogStreams",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+        }
+```
+
+. Choose *Next:Tags*.  Then on the next page, click *Next:Review*.
+
+. Now give your policy an name, such as "CloudWatch_Policy". Then click *Create Policy*.
+
+Your policy will be created.
+
+== Create a Role
+
+A role is an identity that has specific permissions defined by a policy.
+
+== Attach Role to EC2 Instance
+
+The last step is to associate your role with your instance(s).
+
+. Go to your EC2 Dashboard and select *Instances*.
+
+. Select your instance. If you have more than one select only one.
+
+. Select *Actions*/Security/Modify IAM Role*.
+
+. From the dropdown list choose the role you just created.
+
+. Click *Save*.
+
+== Test the Installation
+
+To test your installation, Go to the Cloudwatch console. After a short delay, you
+should see a set of available metrics. There should be well over 1,000 in your list.
+
+Congratulations. Your CloudWatch integration is complete!
+
+== Using CloudWatch
+
+
+
+
+
