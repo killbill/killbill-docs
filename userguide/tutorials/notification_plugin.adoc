@@ -6,10 +6,10 @@
 Sometimes, you may need to perform some action based on what happens in Kill Bill. For example, you may need to send an email when an invoice is generated, or update SalesForce when an account is created. Creating your own custom notification plugin is the answer to such scenarios. Notification plugins listen to Kill Bill events and can take appropriate action.  This article explains how you can go about creating your custom notification plugin. Such plugins can also be a great alternative to http://docs.killbill.io/latest/push_notifications.html[Push Notifications] in performance demanding environments.
 
 
-== How to develop your custom notification plugin
+== How to Develop a Custom Notification Plugin
 
-We provide a simple https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] that can be used as the starting point to develop your custom notification plugin. 
-You can refer to our https://docs.killbill.io/latest/plugin_development.html#_development[plugin development] document in order to understand how to set it up.
+We provide a simple https://github.com/killbill/killbill-hello-world-java-plugin[_Hello World Plugin_] that can be used as the starting point to develop your custom notification plugin. 
+You can refer to our https://docs.killbill.io/latest/plugin_development.html#_development[__Plugin Development__] document in order to understand how to set it up.
 
 The https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] has a class `HelloWorldListener.java`.  You can create a class similar to this to write your plugin code. 
 Let us take a closer look at the `HelloWorldListener` class:
@@ -50,19 +50,19 @@ public class HelloWorldListener implements OSGIKillbillEventDispatcher.OSGIKillb
 
 * We provide an interface called https://github.com/killbill/killbill-platform/blob/617d4b626ddd7c081d2927355c6f8cfe2cbd4bd5/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIKillbillEventDispatcher.java[OSGIKillbillEventDispatcher.OSGIKillbillEventHandler]. In order to create your own notification plugin, you need to create a class that implements this interface and implement the `public void handleKillbillEvent(final ExtBusEvent killbillEvent)` method as done in the code above
 
-* The `killbillEvent` parameter passed to the `handleKillbillEvent` method can be used to obtain the *event type*. The event type is just an enum constant defined in https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[ExtBusEventType] and defines all the events that can be handled by the notification plugin. These events are explained in detail in the https://docs.killbill.io/latest/kill_bill_events.html[Kill Bill Events] document. Line 15 specifies a switch statement that checks the event type and takes different actions for different events. You can write similar code to handle the desired event.
+* The `killbillEvent` parameter passed to the `handleKillbillEvent` method can be used to obtain the *event type*. The event type is just an enum constant defined in https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java[ExtBusEventType] and defines all the events that can be handled by the notification plugin. These events are explained in detail in the https://docs.killbill.io/latest/kill_bill_events.html[__Kill Bill Events__] document. Line 14 specifies a switch statement that checks the event type and takes different actions for different events. You can write similar code to handle the desired event.
 
 * Kill Bill provides a class called https://github.com/killbill/killbill-platform/blob/617d4b626ddd7c081d2927355c6f8cfe2cbd4bd5/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/OSGIKillbillAPI.java[OSGIKillBillAPI.java]. This class exposes all of Kill Bill's internal APIs. An object of this class will automatically be available in your plugin. Line 3 declares a field corresponding to `osgiKillbillAPI` which is intialized via the constructor at Line 5
 
-* The `osgiKillbillAPI` object can then be used to fetch the appropriate api object. Line 24 uses `osgiKillbillAPI.getAccountUserApi()` to obtain an `AccountUserApi` object
+* The `osgiKillbillAPI` object can then be used to fetch the appropriate api object. Line 22 uses `osgiKillbillAPI.getAccountUserApi()` to obtain an `AccountUserApi` object
 
-* The API object that then be used to retrieve the appropriate information from Kill Bill. For example, the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/account/api/AccountUserApi.java[AccountUserApi] has several methods that can be used to retrieve account related information. Line 24 invokes `AccountUserApi#getAccountById`
+* The API object that then be used to retrieve the appropriate information from Kill Bill. For example, the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/account/api/AccountUserApi.java[AccountUserApi] has several methods that can be used to retrieve account related information. Line 22 invokes `AccountUserApi#getAccountById`
 
 * Note that in order to invoke write API operations like `AccountUserApi#createAccount` , the code must authenticate against Kill Bill first. Otherwise, it will result in an `org.apache.shiro.authz.UnauthenticatedException` as specified in our plugin development document https://docs.killbill.io/latest/plugin_development.html#_faq[here]. In order to authenticate against Kill Bill, the following code needs to be added before invoking any API operation:
 [source, java]
 killbillAPI.getSecurityApi().login(login, password);
 
-* The `AccountUserApi#getAccountById` method requires as parameter a `TenantContext`. So, Line 13 creates a `TenantContext` object with the account id and tenant id. This `TenantContext` object is passed to the `AccountUserApi#getAccountById` method at Line 24
+* The `AccountUserApi#getAccountById` method requires as parameter a `TenantContext`. So, Line 13 creates a `TenantContext` object with the account id and tenant id. This `TenantContext` object is passed to the `AccountUserApi#getAccountById` method at Line 22
 
 * In general, all the API operations require either a `TenantContext` or a `CallContext` object. A `TenantContext` is mandatory for read only operations (operations which retrieve some data from Kill Bill) like the `AccountApi#getAccountById` used above. A `CallContext` is mandatory for read/write operations and contains additional metadata (user doing the change, reason code, etc.). These values are used for auditing purposes.
 
@@ -70,7 +70,7 @@ killbillAPI.getSecurityApi().login(login, password);
 
 
 
-== Some common use cases for notification plugin
+== Some Common Use Cases for Creating a Notification Plugin
 
 This section lists some common use cases where you can use the notification plugin and also specifies how you can use the notification plugin in these scenarios.
 
@@ -93,14 +93,14 @@ You can then use this `account` object to update the necessary information in Sa
 
 We already provide some notification plugins for some common scenarios. The following are some of the existing notification plugins:
 
-. https://github.com/killbill/killbill-email-notifications-plugin/[Email Notification plugin] - This plugin listens to certain events and notifies customers through emails. 
-. http://docs.killbill.io/latest/userguide_analytics.html[Analytics plugin] - Can be used to generate financial reports. 
+. https://github.com/killbill/killbill-email-notifications-plugin/[Email Notification Plugin] - This plugin listens to certain events and notifies customers through emails. See https://docs.killbill.io/latest/notification_plugin.html[_Email Notification Plugin Tutorial_].
+. https://github.com/killbill/killbill-analytics-plugin[Analytics Plugin] - This plugin can be used to generate various reports.  See http://docs.killbill.io/latest/userguide_analytics.html[_Analytics Plugin Tutorial_].
 
 . https://github.com/killbill/killbill-cloud/tree/9e9450b94b130d4a97a264155019c83e69d78251/kpm[Kpm] - Kpm is a special notification plugin which is used for managing other plugins
 
 == Retries
 
-Sometimes an exception might occur in your notification plugin due to which it might not be able to handle the event sent to it by Kill Bill. By default, if a plugin triggers a runtime exception, Kill Bill dispatches the event right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property). However, in some cases, you may want Kill Bill to retry sending the event again at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. The retry schedule should include a Period array, each element in the array should specify the duration after which the retry should be attempted. 
+Sometimes an exception might occur in your notification plugin due to which it might not be able to handle the event sent to it by Kill Bill. By default, if a plugin triggers a runtime exception, Kill Bill dispatches the event right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property which can be configured as explained in the https://docs.killbill.io/latest/userguide_configuration.html[_Configuration Guide_]). However, in some cases, you may want Kill Bill to retry sending the event again at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. The retry schedule should include a Period array, each element in the array should specify the duration after which the retry should be attempted. 
 
 For example, consider the following exception:
 [source,java]
