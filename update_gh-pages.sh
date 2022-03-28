@@ -6,7 +6,7 @@ BUILD=`mktemp -d "${TMPDIR:-/tmp}"/foo.XXXX`
 cp -r build $BUILD
 
 pushd $BUILD
-git clone --depth=5 --branch=gh-pages git://$GH_REF
+git clone --depth=5 --branch=gh-pages https://$GH_REF
 popd
 
 VERSION=$(cat $BUILD/killbill-docs/latest.txt)
