@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]--><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Asciidoctor 2.0.17"><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css"><link rel="stylesheet" href="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.css"><title>Managing Metrics with Cloudwatch</title><style>/*Default CSS*/
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]--><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Asciidoctor 2.0.17"><link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css"><link rel="stylesheet" href="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.css"><title>Plugin Layout, Installation, and Configuration</title><style>/*Default CSS*/
 
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
 
@@ -745,66 +745,105 @@ pre.pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style
 </svg>
 <svg class="absolute-figure abstract-figure" width="703" height="174" viewBox="0 0 703 174" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M25.5 246C-96 87.7673 245.949 67.3215 475.548 64.1799C705.146 61.0384 565.01 -188.501 629.653 -188.741C694.297 -188.982 766.062 221.014 766.062 221.014L297.072 460.733C297.072 460.733 147 404.233 25.5 246Z" fill="white" fill-opacity="0.2"/>
-</svg></div><h1>Managing Metrics with Cloudwatch</h1></div><div id="content"><div class="sect1"><h2 id="_overview">Overview</h2><div class="sectionbody"><div class="paragraph"><p>Several third-party tools are available to manage and display the metrics produced by Kill Bill. However, one popular tool available directly from AWS is <a href="https://docs.aws.amazon.com/cloudwatch/index.html">CloudWatch</a>. This
-package enables you to monitor and display whatever metrics
-you may find useful from the Kill Bill collection, including metrics
-that show the performance and resource use of Kill Bill and Kaui
-themselves, and metrics describing the infrastructure on which these
-systems run. CloudWatch is included automatically in the Kill Bill CloudFormation option, but it can be used with the other AWS options as well.</p></div>
-<div class="paragraph"><p>In this guide we discuss the use of CloudWatch to manage metrics produced
-by single-tier and multi-tier implementations on Amazon Web Services (AWS). The latest Amazon Machine Image (AMI)
-for Kill Bill is preconfigured to direct the Kill Bill metrics to
-CloudWatch and work with them in the way that best suits your needs. These instructions apply to the Kill Bill AMI version 2021.9 or later.</p></div>
-<div class="paragraph"><p>To set up CloudWatch to manage the metrics available from Kill Bill, there
-are five steps:</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>Edit a configuration file to enable the use of CloudWatch.</p></li><li><p>Install the AWS X-Ray daemon</p></li><li><p>Create an IAM policy</p></li><li><p>Create an IAM role</p></li><li><p>Attach the role to your EC2 instance(s)</p></li></ol></div></div></div>
-<div class="sect1"><h2 id="_edit_the_configuration_file">Edit the Configuration File</h2><div class="sectionbody"><div class="paragraph"><p>To authorize the sending of the Kill Bill metrics to CloudWatch, it is necessary to
-edit just one line in this file:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>/var/lib/tomcat/bin/setenv2.sh</code></pre></div></div>
-<div class="paragraph"><p>This file contains configuration information for <code>tomcat</code>, which manages the
-KillBill web applications.</p></div>
-<div class="paragraph"><p>This is a small file. The line to be edited is:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>-Dcom.killbill.cloudwatch.enable=false</code></pre></div></div>
-<div class="paragraph"><p>This should be changed to:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>-Dcom.killbill.cloudwatch.enable=true</code></pre></div></div>
-<div class="paragraph"><p>After editing the file, go to your AWS EC2 dashboard and <strong>reboot the
-instance</strong> so the new configuration file will be read. If you have more
-than one instance, follow the same procedure for each one.</p></div></div></div>
-<div class="sect1"><h2 id="_install_the_x_ray_daemon">Install the X-Ray daemon</h2><div class="sectionbody"><div class="paragraph"><p>AWS X-Ray is a service that collects and analyzes data from your applications. A daemon is a process that runs in the background to do a job whenever it is needed. The X-Ray daemon uploads application metrics to X-Ray in batches to be processed. X-Ray then forwards this data to CloudWatch for display.</p></div>
-<div class="paragraph"><p>To setup the daemon, log in to your EC2 instance and run the following commands:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>curl https://s3.dualstack.us-east-1.amazonaws.com/aws-xray-assets.us-east-1/xray-daemon/aws-xray-daemon-3.x.deb -o /home/ubuntu/xray.deb
-sudo dpkg -i /home/ubuntu/xray.deb</code></pre></div></div>
-<div class="paragraph"><p>If you have more than one instance, repeat these commands on each one.</p></div></div></div>
-<div class="sect1"><h2 id="_create_an_iam_policy">Create an IAM Policy</h2><div class="sectionbody"><div class="paragraph"><p>This step creates a policy, or a set of permissions, that is required to access the Kill Bill metrics.</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>From the EC2 Dashboard, Type "IAM" in the search field at the upper left. Select the IAM Dashboard.</p></li><li><p>From the left menu, choose Policies, then select <strong>Create Policy</strong>.</p></li><li><p>On the page that appears, select the JSON tab. You should see:</p><div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-iam-policy.png" alt="create iam policy"></span></p></div></li><li><p>Next, copy the following lines between the square brackets:</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>        {
-            &quot;Effect&quot;: &quot;Allow&quot;,
-            &quot;Action&quot;: [
-                &quot;ec2:DescribeTags&quot;,
-                &quot;cloudwatch:PutMetricData&quot;,
-                &quot;xray:GetSamplingRules&quot;,
-                &quot;xray:GetSamplingTargets&quot;,
-                &quot;xray:GetSamplingStatisticSummaries&quot;,
-                &quot;xray:PutTraceSegments&quot;,
-                &quot;xray:PutTelemetryRecords&quot;,
-                &quot;logs:CreateLogGroup&quot;,
-                &quot;logs:CreateLogStream&quot;,
-                &quot;logs:DescribeLogGroups&quot;,
-                &quot;logs:DescribeLogStreams&quot;,
-                &quot;logs:PutLogEvents&quot;
-            ],
-            &quot;Resource&quot;: &quot;*&quot;
-        }</code></pre></div></div></li><li><p>Choose <strong>Next:Tags</strong>.  Then on the next page, click <strong>Next:Review</strong>.</p></li><li><p>Now give your policy a name, such as "CloudWatch_Policy". Then click <strong>Create Policy</strong>.</p></li></ol></div>
-<div class="paragraph"><p>Your policy will be created.</p></div></div></div>
-<div class="sect1"><h2 id="_create_an_iam_role">Create an IAM Role</h2><div class="sectionbody"><div class="paragraph"><p>A role is an identity that has specific permissions defined by a policy. A role can be used to define the permissions for an EC2 instance.</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>Return to the IAM Dashboard.</p></li><li><p>From the left menu, choose Roles, then select <strong>Create Role</strong>. You should see:</p><div class="paragraph"><p><span class="image"><img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-iam-role.png" alt="create iam role"></span></p></div></li><li><p>Under <strong>Common Use Cases</strong>, select <strong>EC2</strong>. Then click <strong>Next</strong>.</p></li><li><p>On the next page, select the policy you created. Then click <strong>Next</strong>.</p></li><li><p>Give your role a name, such as "CloudWatch_Role". Then click <strong>Create Role</strong>.</p></li></ol></div>
-<div class="paragraph"><p>Your role will be created.</p></div></div></div>
-<div class="sect1"><h2 id="_attach_role_to_ec2_instance">Attach Role to EC2 Instance</h2><div class="sectionbody"><div class="paragraph"><p>The last step is to associate your role with your instance(s).</p></div>
-<div class="olist arabic"><ol class="arabic"><li><p>Go to your EC2 Dashboard and select <strong>Instances</strong>.</p></li><li><p>Select your instance. If you have more than one select only one.</p></li><li><p>Select <strong>Actions/Security/Modify IAM Role</strong>.</p></li><li><p>From the dropdown list choose the role you just created.</p></li><li><p>Click <strong>Save</strong>.</p></li></ol></div>
-<div class="paragraph"><p>If you have multiple instances, repeat these steps for each one. You may use the same role for all your instances.</p></div></div></div>
-<div class="sect1"><h2 id="_test_the_installation">Test the Installation</h2><div class="sectionbody"><div class="paragraph"><p>To test your installation, Go to the Cloudwatch console. After a short delay, you
-should see a set of available metrics. There should be well over 1,000 in your list.</p></div>
-<div class="paragraph"><p>Congratulations. Your CloudWatch integration is complete!</p></div></div></div>
-<div class="sect1"><h2 id="_using_cloudwatch">Using CloudWatch</h2><div class="sectionbody"><div class="paragraph"><p>CloudWatch is managed from the CloudWatch console. AWS provides full <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html">documentation</a>. If you select <code>All metrics</code> from the left-hand menu, you will see all your available metrics in groups. You can create various types of graphs, collect them into dashboards, set alarms, and perform various other useful actions.</p></div></div></div></div></article></div><div class="col-12 col-md-3 col-xl-2"><nav class="bd-links toc right-side-menu" id="toc" data-toggle="toc"></nav></div></div></div></main><script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script><script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script><script src="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.js"></script><script src="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.js"></script><script>
+</svg></div><h1>Plugin Layout, Installation, and Configuration</h1></div><div id="content"><div id="preamble"><div class="sectionbody"><div class="paragraph"><p>This document explains plugin layout, installation and plugin configuration.</p></div></div></div>
+<div class="sect1"><h2 id="_prerequisites">Prerequisites</h2><div class="sectionbody"><div class="ulist"><ul><li><p>Ensure that you have gone through the <a href="https://docs.killbill.io/latest/what_is_kill_bill.html"><em>What is Kill Bill</em></a> document and are familiar with Kill Bill.</p></li><li><p>Ensure that you have gone through the <a href="https://docs.killbill.io/latest/plugin_introduction"><em>Plugin Introduction</em></a> document and are familiar with Kill Bill plugins.</p></li></ul></div></div></div>
+<div class="sect1"><h2 id="_plugin_layout">Plugin Layout</h2><div class="sectionbody"><div class="sect2"><h3 id="_overview">Overview</h3><div class="paragraph"><p>Kill Bill scans the file system on startup and starts all the plugins that were detected. Kill Bill uses the value of the <code>org.killbill.osgi.bundle.install.dir</code> property to determine the root of the plugin directory structure. (See <a href="https://docs.killbill.io/latest/userguide_configuration.html#configuration_properties_table">Kill Bill Configuration Properties</a>). By default, this value is set to <code>/var/tmp/bundles</code>.</p></div>
+<div class="paragraph"><p>The directory structure looks like the following:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>root (org.killbill.osgi.bundle.install.dir)
+|_sha1.yml
+|_platform
+|_plugins
+  |_java
+  |_plugin_identifiers.json</code></pre></div></div>
+<div class="paragraph"><p>Under <code>root</code>, you will find the following:</p></div>
+<div class="ulist"><ul><li><p>A <code>sha1.yml</code> file which is a used by the <code>KPM</code> tool to keep track of artifacts that were already downloaded to avoid downloading binaries already present on the filesystem. KPM also offers the <code>--force-download</code> to override that behavior.</p></li><li><p>A <code>platform</code> folder which contains a set of <a href="http://felix.apache.org/downloads.cgi">pure OSGI bundles</a> (unrelated to Kill Bill plugins) and required for things like OSGI logging, OSGI console, &#8230;&#8203;</p></li><li><p>A <code>plugins</code> folder which contains:</p><div class="ulist"><ul><li><p>A <code>java</code> folder. Under <code>java</code>, you will find one entry per plugin per version.
+For instance, if we had installed two versions for the <code>stripe</code> plugin, we would see the following (<code>SET_DEFAULT</code> is a symbolic link that point to the default active version):</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span> java
+  <span class="tok-p">|</span>_killbill-stripe
+   <span class="tok-p">|</span>_ <span class="tok-m">3</span>.0.2
+   <span class="tok-p">|</span>_ <span class="tok-m">3</span>.0.1
+   <span class="tok-p">|</span>_ SET_DEFAULT</code></pre></div></div></li><li><p>A <code>plugin_identifiers.json</code> file which is used to keep a mapping between the <code>pluginKey</code> (the user visible plugin identifer), and the <code>pluginName</code> (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.</p></li></ul></div></li></ul></div></div>
+<div class="sect2"><h3 id="_plugin_coordinates_plugin_key_plugin_name">Plugin Coordinates, Plugin Key, Plugin Name, &#8230;&#8203;</h3><div class="paragraph"><p>Today, plugins are released through maven and are therefore identified through their maven coordinates. We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins. Plugin Coordinates are too cumbersome to manipulate though and are unsuitable for non-published plugins (typical use case for a plugin being developed), so we introduced some identifers.</p></div>
+<div class="paragraph"><p>As mentioned earlier, Kill Bill scans the filesystem (path specified by the <code>org.killbill.osgi.bundle.install.dir</code> property in the <a href="https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties"><em>Kill Bill configuration file</em></a>) on start-up to detect and then start all the plugins. The name on the filesystem (e.g. in our previous example <code>killbill-stripe</code>) constitutes what we call the <strong><code>pluginName</code></strong>.</p></div>
+<div class="paragraph"><p>When installing using KPM, the <code>pluginName</code> is dependent on how the plugin was packaged. For well known publicly available Kill Bill plugins, we adopted a (sane) convention, but we have no way to enforce that convention for third party plugins. Also, note that we could change the name of <code>killbill-stripe</code> to <code>foo</code> on the filesystem (<code>mv killbill-stripe foo</code>) and then suddenly Kill Bill would see that plugin as being the <code>foo</code> plugin. Therefore, the <code>pluginName</code> is not a reliable way to identify the plugin, and is used solely by Kill Bill as an runtime identifier.</p></div>
+<div class="paragraph"><p>The <code>pluginKey</code> is the identifier for the plugin and is used for all the user visible operations, whether through the KPM command line tool or whether using the <a href="http://docs.killbill.io/latest/plugin_management.html"><em>Plugin Management APIs</em></a>.
+There is a distinction to be made between publicly released Kill Bill plugins and third party plugins:</p></div>
+<div class="ulist"><ul><li><p>(Publicly Released) Kill Bill Plugins: All the plugins developed by the Kill Bill core team are maintained in a <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml"><em>repository</em></a> (we provide today a simple file-based repository, but this may change in the future as we start accepting certified third-party plugins).
+Each entry in that repository is identified by a key, and that key is the <code>pluginKey</code>.</p></li><li><p>Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form <code>&lt;prefix&gt;::&lt;something&gt;</code> to make sure there is no name collision with Kill Bill plugin keys.</p></li></ul></div></div></div></div>
+<div class="sect1"><h2 id="_plugin_installation">Plugin Installation</h2><div class="sectionbody"><div class="sect2"><h3 id="_installing_via_kaui">Installing via Kaui</h3><div class="paragraph"><p>In order to deploy a plugin via Kaui, you need to do the following:</p></div>
+<div class="ulist"><ul><li><p>Open Kaui.</p></li><li><p>Click on the <strong>Plug</strong> Icon at the top and click on kpm.</p></li><li><p>Click on <strong>Install New Plugin</strong>.</p></li><li><p>Click on the <strong>Download</strong> icon next to the plugin that you wish to install.</p></li><li><p>Refresh the page after a while.</p></li><li><p>Once the plugin download is complete, it will appear in <em>Stopped</em> status. Click on the <strong>Start</strong> button next to it to start the plugin.</p></li></ul></div></div>
+<div class="sect2"><h3 id="_installing_via_kpm">Installing via KPM</h3><div class="paragraph"><p>The standard way to deploy plugins is to use the Kill Bill Package Manager (<a href="https://github.com/killbill/killbill-cloud/blob/master/kpm">KPM</a>).</p></div>
+<div class="paragraph"><p>KPM can be used for:</p></div>
+<div class="ulist"><ul><li><p>Deploying <strong>custom</strong> (plugins developed by you) plugins.</p></li><li><p>Deploying <strong>Kill Bill</strong> (plugins maintained by the Kill Bill team) plugins.</p></li><li><p>Deploying <strong>Third-party</strong> (plugins developed and maintained by a third party and not by the Kill Bill team) plugins.</p></li></ul></div>
+<div class="sect3"><h4 id="_custom_plugins">Custom Plugins</h4><div class="paragraph"><p>If you are a developer and either modifying an existing plugin or creating a new plugin, you can use KPM to install the plugin.</p></div>
+<div class="paragraph"><p>A custom plugin can be installed using the <code>kpm install_java_plugin</code> command as shown below:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>kpm install_java_plugin <span class="tok-s1">&#39;&lt;plugin-key&gt;&#39;</span> --from-source-file<span class="tok-o">=</span><span class="tok-s2">&quot;&lt;jar_path&gt;.jar&quot;</span>
+--destination<span class="tok-o">=</span><span class="tok-s2">&quot;&lt;path_to_install_plugin&gt;&quot;</span></code></pre></div></div>
+<div class="ulist"><ul><li><p>Replace <code>plugin-key</code> with an appropriate value. We suggest that you specify a plugin_key with a namespace <strong>dev:</strong> to make it clear this is not a released version. So, you can use a plugin-key called <code>dev:pluginname</code>.</p></li><li><p>Replace <code>&lt;jar_path&gt;</code> by the full path of the JAR file.</p></li><li><p>Replace <code>&lt;path_to_install_plugin&gt;</code> with the path where you want to install the plugin. This path should match the path specified by the <code>org.killbill.osgi.bundle.install.dir</code> property in the <a href="https://docs.killbill.io/latest/userguide_configuration.html"><em>Kill Bill Configuration File</em></a>.</p></li><li><p>If <code>--destination</code> is not specified, the plugin is installed by default in the <code>var/tmp/bundles</code> directory</p></li></ul></div></div>
+<div class="sect3"><h4 id="_kill_bill_plugins">Kill Bill Plugins</h4><div class="paragraph"><p>A Kill Bill plugin is a plugin that is maintained by the Kill Bill team. Such plugins have a key in the Kill Bill <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml"><em>Plugin Directory</em></a>. So, in order to install such a plugin, its key needs to be specified.</p></div>
+<div class="paragraph"><p>A Kill Bill Java plugin can be installed using the <code>kpm install_java_plugin</code> command as follows:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>kpm install_java_plugin <span class="tok-s1">&#39;&lt;plugin-key&gt;&#39;</span></code></pre></div></div>
+<div class="ulist"><ul><li><p>Replace <code>plugin-key</code> with an appropriate value from the Kill Bill <a href="https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml"><em>Plugin Directory</em></a>.</p></li><li><p>For example, in order to install the stripe plugin, you can replace <code>plugin-key</code> with <code>stripe</code></p></li></ul></div></div>
+<div class="sect3"><h4 id="_third_party_plugins">Third-party Plugins</h4><div class="paragraph"><p>Third-party plugins are plugins developed and maintained by a third party and not by the Kill Bill team.  Such plugins can be installed via KPM from their binary repositories (Maven Central, GitHub Packages and Cloudsmith).</p></div>
+<div class="paragraph"><p>A third party Java plugin can be installed using the <code>kpm install_java_plugin</code> command as follows:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>kpm install_java_plugin <span class="tok-s1">&#39;&lt;plugin-key&gt;&#39;</span>
+--group_id<span class="tok-o">=</span><span class="tok-s2">&quot;&lt;group id&gt;&quot;</span>
+--artifact_id<span class="tok-o">=</span><span class="tok-s2">&quot;&lt;artifact_id&gt;&quot;</span>
+--version<span class="tok-o">=</span><span class="tok-s2">&quot;&lt;version&gt;&quot;</span></code></pre></div></div>
+<div class="ulist"><ul><li><p>Replace <code>plugin-key</code> with the plugin name.</p></li><li><p>Replace <code>&lt;group id&gt;</code>, <code>&lt;artifact_id&gt;</code>, <code>&lt;version&gt;</code> with appropriate values from the binary repository.</p></li></ul></div></div></div>
+<div class="sect2"><h3 id="_installing_via_plugin_management_apis">Installing via Plugin Management APIs</h3><div class="paragraph"><p>Kill Bill provides several plugin management APIs which can be used to install/start/stop and take other actions on plugins. This is explained in detail in the <a href="https://docs.killbill.io/latest/plugin_management.html"><em>Plugin Management APIs</em></a> document.</p></div>
+<div class="paragraph"><p>A plugin can be installed via the plugin management API as follows:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;isSystemCommandType&quot;:&quot;true&quot;,&quot;nodeCommandType&quot;:&quot;INSTALL_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;, &quot;value&quot;:&quot;payment-test&quot;},{&quot;key&quot;:&quot;pluginArtifactId&quot;, &quot;value&quot;: &quot;payment-test-plugin&quot;},{&quot;key&quot;:&quot;pluginGroupId&quot;, &quot;value&quot;: &quot;org.kill-bill.billing.plugin.java&quot;}, {&quot;key&quot;: &quot;pluginType&quot;, &quot;value&quot;: &quot;java&quot;} ]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre></div></div>
+<div class="paragraph"><p>Note that this also requires starting the plugin explicitly using the following command:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>curl -v <span class="tok-se">\</span>
+-u admin:password <span class="tok-se">\</span>
+-H <span class="tok-s2">&quot;Content-Type: application/json&quot;</span> <span class="tok-se">\</span>
+-H <span class="tok-s1">&#39;X-Killbill-CreatedBy: stephane&#39;</span> <span class="tok-se">\</span>
+-X POST <span class="tok-se">\</span>
+--data-binary <span class="tok-s1">&#39;{&quot;isSystemCommandType&quot;:true,&quot;nodeCommandType&quot;:&quot;RESTART_PLUGIN&quot;,&quot;nodeCommandProperties&quot;:[{&quot;key&quot;:&quot;pluginKey&quot;,&quot;value&quot;:&quot;payment-test&quot;}]}&#39;</span> <span class="tok-se">\</span>
+<span class="tok-s2">&quot;http://127.0.0.1:8080/1.0/kb/nodesInfo&quot;</span></code></pre></div></div></div>
+<div class="sect2"><h3 id="_deploying_by_hand">Deploying by Hand</h3><div class="paragraph"><p>Deploying by hand consists of building the self contained OSGI jar, and copying that jar at the right location. For example, the <code>adyen</code> plugin with a version with version <code>0.3.2</code> would show up as the following:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>java
+|_adyen-plugin
+  |_ 0.3.2
+    |_ adyen-plugin-0.3.2.jar</code></pre></div></div></div></div></div>
+<div class="sect1"><h2 id="plugin_configuration">Plugin Configuration</h2><div class="sectionbody"><div class="sect2"><h3 id="_system_properties">System Properties</h3><div class="paragraph"><p>Kill Bill plugins can access Kill Bill properties. Both system properties passed to the JVM and properties from the <a href="https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties"><em>Kill Bill configuration file</em></a> are accessible to the plugins and can be used to tweak the behavior of the plugin as needed.</p></div></div>
+<div class="sect2"><h3 id="_configuration_file">Configuration File</h3><div class="paragraph"><p>A plugin can also specify its own property files which can be used to configure global settings for a plugin. Such property files need to be part of the archive (the OSGI mechanism will make sure these are only visible to the particular plugin):</p></div>
+<div class="ulist"><ul><li><p>The property file needs to be on the classpath (<code>resource</code> directory)</p></li><li><p>There is no restriction on the format of the property file, but typically  plugins will rely on <code>key-value</code> properties, <code>json</code> or <code>xml</code> files.</p></li></ul></div></div>
+<div class="sect2"><h3 id="per-tenant-configuration">Per-tenant Configuration</h3><div class="paragraph"><p>The two previous mechanisms work well for global settings, but are inadequate to configure the plugins on a per-tenant fashion (e.g for a payment plugin interacting with a payment gateway, different credentials might be needed for different tenants). In those situations, Kill Bill provides APIs to upload/retrieve/delete per-tenant plugin configurations.</p></div>
+<div class="paragraph"><p>At a high level, this mechanism works in the following way:</p></div>
+<div class="olist arabic"><ol class="arabic"><li><p>An administrator uses the Kill Bill API (or Kaui) to upload the configuration.</p></li><li><p>Kill Bill stores the config in the <code>tenant_kvs</code> table using a <code>tenant_key</code> of <code>PLUGIN_CONFIG_&lt;pluginName&gt;</code> and sets the <code>tenant_value</code> with the config provided.</p></li><li><p>Kill Bill broadcasts the change across the cluster of nodes and emits a configuration bus event: <code>TENANT_CONFIG_CHANGE</code> or <code>TENANT_CONFIG_DELETION</code>.</p></li><li><p>The plugin code is <strong>responsible to listen to these events</strong> and take appropriate action to reload/delete its configuration for that specific tenant.</p></li></ol></div>
+<div class="paragraph"><p>You can use the following API endpoints to upload, retrieve and delete plugin configuration:</p></div>
+<div class="sect3"><h4 id="upload_per_tenant_config">Upload New Config</h4><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>curl -v <span class="tok-se">\</span>
+     -X POST <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;Content-Type: text/plain&#39;</span> <span class="tok-se">\</span>
+     -d <span class="tok-s1">&#39;&lt;CONFIG&gt;&#39;</span> <span class="tok-se">\</span>
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/&lt;pluginName&gt;</code></pre></div></div>
+<div class="paragraph"><p>The <code>&lt;CONFIG&gt;</code> is treated as a string and it could be the content of an <code>xml</code> or <code>json</code> file, a list of <code>key-value</code> parameters, &#8230;&#8203;</p></div></div>
+<div class="sect3"><h4 id="_retrieve_config">Retrieve Config</h4><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>curl -v <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;Content-Type: application/json&#39;</span> <span class="tok-se">\</span>
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/&lt;pluginName&gt;</code></pre></div></div></div>
+<div class="sect3"><h4 id="_delete_config">Delete Config</h4><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>curl -v <span class="tok-se">\</span>
+     -X DELETE <span class="tok-se">\</span>
+     -u admin:password <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span> <span class="tok-se">\</span>
+     -H <span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span> <span class="tok-se">\</span>
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/&lt;pluginName&gt;</code></pre></div></div></div></div></div></div>
+<div class="sect1"><h2 id="_further_reading">Further Reading</h2><div class="sectionbody"><div class="ulist"><ul><li><p><a href="https://docs.killbill.io/latest/plugin_development"><em>Plugin Development</em></a></p></li><li><p><a href="https://docs.killbill.io/latest/plugin_management.html"><em>Plugin Management</em></a></p></li></ul></div></div></div></div></article></div><div class="col-12 col-md-3 col-xl-2"><nav class="bd-links toc right-side-menu" id="toc" data-toggle="toc"></nav></div></div></div></main><script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script><script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script><script src="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.js"></script><script src="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.js"></script><script>
     setTimeout(function(){
       $('.content-wrapper h2, .content-wrapper h3, .content-wrapper h4').append('<a href=""><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M7.775 3.275a.75.75 0 001.06 1.06l1.25-1.25a2 2 0 112.83 2.83l-2.5 2.5a2 2 0 01-2.83 0 .75.75 0 00-1.06 1.06 3.5 3.5 0 004.95 0l2.5-2.5a3.5 3.5 0 00-4.95-4.95l-1.25 1.25zm-4.69 9.64a2 2 0 010-2.83l2.5-2.5a2 2 0 012.83 0 .75.75 0 001.06-1.06 3.5 3.5 0 00-4.95 0l-2.5 2.5a3.5 3.5 0 004.95 4.95l1.25-1.25a.75.75 0 00-1.06-1.06l-1.25 1.25a2 2 0 01-2.83 0z"></path></svg></a>');
       $('.content-wrapper h2, .content-wrapper h3, .content-wrapper h4').each(function(){
