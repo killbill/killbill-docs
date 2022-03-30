@@ -1,0 +1,69 @@
+= Plugin Introduction
+
+== What is a Kill Bill Plugin
+
+Kill Bill Plugins are based on the https://docs.osgi.org/[_OSGI Standard_]. They provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:
+
+* They can be called from the Kill Bill platform through https://github.com/killbill/killbill-plugin-api[_Plugin APIs_]. This happens when a plugin that implements one of those APIs (or 'SPI' to be more precise) was correctly registered in the system.
+* They can receive https://docs.killbill.io/latest/kill_bill_events.html[__bus events__] from the Kill Bill platform.
+* They can make https://github.com/killbill/killbill-api[_API calls_] to Kill Bill.
+
+== Types of Plugins
+
+A Kill Bill plugin can either listen to Kill Bill bus events to be notified of changes and take appropriate actions and/or implement one (or several) plugin API(s). Thus, there are mainly two main types of plugins as follows:
+
+* https://docs.killbill.io/latest/notification_plugin.html[_Notification Plugin_]: A plugin registered to receive bus events. When a bus event is being delivered to the plugin, the plugin calls back Kill Bill through API calls to retrieve additional state for this event or to change the state in the system.
+* Plugin that is registered as an implementor of a specific https://github.com/killbill/killbill-plugin-api[_Plugin API_]: These can be further classified as follows:
+
+** https://docs.killbill.io/latest/payment_plugin.html[_Payment Plugins_] - Implement the  https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[_PaymentPluginApi_]. So, when a payment plugin registers itself as an implementor of the `PaymentPluginApi`, the payment system invokes the plugin for issuing payment operations. The plugin has the ability to call back Kill Bill using APIs to retrieve more state or create/change state in the system.
+** https://docs.killbill.io/latest/payment_control_plugin.html[_Payment Control Plugins_] - Implement the https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[_PaymentControlPluginApi_].
+** https://docs.killbill.io/latest/invoice_plugin.html[_Invoice Plugins_]: Implement the https://github.com/killbill/killbill-plugin-api/blob/master/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java[_InvoicePluginApi_].
+** https://docs.killbill.io/latest/catalog_plugin.html[_Catalog Plugins_]: Implement the https://github.com/killbill/killbill-plugin-api/blob/master/catalog/src/main/java/org/killbill/billing/catalog/plugin/api/CatalogPluginApi.java[_CatalogPluginApi_].
+** https://docs.killbill.io/latest/entitlement_plugin.html[_Entitlement Plugins_]: Implement the https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[_EntitlementPluginApi_].
+
+It often makes sense to specialize plugins and have them implement only one of the https://github.com/killbill/killbill-plugin-api[_plugin APIs_], but this is a design choice, and there is nothing preventing a plugin from implementing multiple APIs. Although we don't recommend it, a plugin could implement the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[_PaymentPluginApi_] and the https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[_PaymentControlPluginApi_], and that would qualify it as a 'payment and payment control plugin'.
+
+== How can Plugins be Used
+
+Kill Bill Plugins can be used in a variety of ways:
+
+* Extend Kill Bill subsystem: Payment plugins are a good example of such plugins; they extend the core payment functionality by connecting to third party systems.
+* Provide additional business logic: Payment control plugins and invoice plugins allow to intercept the requests so as to modify it, abort it, or change state on the fly.
+* Listen to system events: Notification plugins listen to system events and take appropriate actions. For example, the 
+https://docs.killbill.io/latest/userguide_analytics.html[_analytics plugin_] can be used to build reports while the https://docs.killbill.io/latest/email-notification-plugin.html[_email notification plugin_] can be used to send emails.
+* Expose HTTP endpoints: Plugins can also export their own HTTP endpoints under a `/plugins/<pluginName>` namespace. These can then be invoked via a REST client as required. 
+
+== Examples of Plugins
+
+The Kill Bill team already provides many open source plugins. Some of these are are follows:
+
+[options="header",cols="1,1"]
+|===
+|Plugin Name   |Type   
+//-------------
+|https://github.com/killbill/killbill-analytics-plugin[_Analytics plugin_]   |https://docs.killbill.io/latest/notification_plugin.html[_notification plugin_] 
+|https://github.com/killbill/killbill-email-notifications-plugin[_Email notification plugin_]    |https://docs.killbill.io/latest/notification_plugin.html[_notification plugin_]   
+|https://github.com/killbill/killbill-adyen-plugin[_Adyen plugin_]    |https://docs.killbill.io/latest/payment_plugin.html[_payment plugin_]   
+|https://github.com/killbill/killbill-accertify-plugin[_Accertify plugin_]   |https://docs.killbill.io/latest/payment_control_plugin.html[_payment control plugin_]   
+|https://github.com/killbill/killbill-coupon-plugin-demo[_Coupon plugin_]    |https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[_entitlement plugin_]   
+|https://github.com/killbill/killbill-avatax-plugin[_Avalara plugin_]   |https://docs.killbill.io/latest/invoice_plugin.html[_invoice plugin_]   
+|https://github.com/killbill/killbill-catalog-plugin-test[_Catalog test plugin_]   |https://docs.killbill.io/latest/catalog_plugin.html[_catalog plugin_]   
+|===
+
+You can check the https://github.com/killbill[Kill Bill Github] page for the complete list of plugins maintained by the Kill Bill team.
+
+
+== Some Important Notes
+
+Kill Bill Plugins have full power (and therefore need to be designed and tested carefully):
+
+* They have access to the database so as to maintain their own state. However they **should not interact with the Kill Bill core tables directly** but rely on APIs to retrieve and change state.
+* They have access to system properties.
+* They receive all events in the system.
+* They are isolated from the rest of the code and can use their own libraries (versions) without risk of conflict.
+
+== Further Reading
+
+* https://docs.killbill.io/latest/plugin_development.html[_Plugin Development_]
+
+* https://docs.killbill.io/latest/plugin_installation.html[_Plugin Layout, Installation and Configuration_]
