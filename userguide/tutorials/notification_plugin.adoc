@@ -8,10 +8,10 @@ Sometimes, you may need to perform some action based on what happens in Kill Bil
 
 == How to Develop a Custom Notification Plugin
 
-We provide a simple https://github.com/killbill/killbill-hello-world-java-plugin[_Hello World Plugin_] that can be used as the starting point to develop your custom notification plugin. 
+We provide a simple https://github.com/killbill/killbill-hello-world-java-plugin[_Hello World Plugin_] that can be used as the starting point to develop your custom notification plugin.
 You can refer to our https://docs.killbill.io/latest/plugin_development.html#_development[__Plugin Development__] document in order to understand how to set it up.
 
-The https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] has a class `HelloWorldListener.java`.  You can create a class similar to this to write your plugin code. 
+The https://github.com/killbill/killbill-hello-world-java-plugin[Hello World Plugin] has a class `HelloWorldListener.java`.  You can create a class similar to this to write your plugin code.
 Let us take a closer look at the `HelloWorldListener` class:
 
 [source,java,linenums]
@@ -93,14 +93,14 @@ You can then use this `account` object to update the necessary information in Sa
 
 We already provide some notification plugins for some common scenarios. The following are some of the existing notification plugins:
 
-. https://github.com/killbill/killbill-email-notifications-plugin/[Email Notification Plugin] - This plugin listens to certain events and notifies customers through emails. See https://docs.killbill.io/latest/notification_plugin.html[_Email Notification Plugin Tutorial_].
+. https://github.com/killbill/killbill-email-notifications-plugin/[Email Notification Plugin] - This plugin listens to certain events and notifies customers through emails. See https://docs.killbill.io/latest/email-notification-plugin.html[_Email Notification Plugin_ guide].
 . https://github.com/killbill/killbill-analytics-plugin[Analytics Plugin] - This plugin can be used to generate various reports.  See http://docs.killbill.io/latest/userguide_analytics.html[_Analytics Plugin Tutorial_].
 
 . https://github.com/killbill/killbill-cloud/tree/9e9450b94b130d4a97a264155019c83e69d78251/kpm[Kpm] - Kpm is a special notification plugin which is used for managing other plugins
 
 == Retries
 
-Sometimes an exception might occur in your notification plugin due to which it might not be able to handle the event sent to it by Kill Bill. By default, if a plugin triggers a runtime exception, Kill Bill dispatches the event right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property which can be configured as explained in the https://docs.killbill.io/latest/userguide_configuration.html[_Configuration Guide_]). However, in some cases, you may want Kill Bill to retry sending the event again at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. The retry schedule should include a Period array, each element in the array should specify the duration after which the retry should be attempted. 
+Sometimes an exception might occur in your notification plugin due to which it might not be able to handle the event sent to it by Kill Bill. By default, if a plugin triggers a runtime exception, Kill Bill dispatches the event right away up to 3 times (or as configured by the `org.killbill.notificationq.external.max.failure.retry` global property which can be configured as explained in the https://docs.killbill.io/latest/userguide_configuration.html[_Configuration Guide_]). However, in some cases, you may want Kill Bill to retry sending the event again at a later time (if for example a third-party provider is down). To do so, your plugin can throw a `NotificationPluginApiRetryException` to include its own retry schedule. The retry schedule should include a Period array, each element in the array should specify the duration after which the retry should be attempted.
 
 For example, consider the following exception:
 [source,java]
@@ -110,7 +110,7 @@ throw new NotificationPluginApiRetryException(Arrays.asList(new Period[]{Period.
 This specifies that Kill Bill should retry sending the event two times. The first should be an hour from now, while the second should be 24 hours from now.
 
 
-When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried. 
+When the `NotificationPluginApiRetryException` is caught by Kill Bill, the system computes the next retry date based on the schedule specified in the exception and the number of times that specific event has been retried.
 
 So, in terms of responsibilities:
 
@@ -119,6 +119,3 @@ So, in terms of responsibilities:
 
 It is expected that the plugin will simply pass the same retry schedule for each retry iteration, but this is not enforced and left for the plugin to decide. Kill Bill will look at the most recent retry schedule attached to the exception currently being handled and determine what to do based on that. If for instance a first schedule included 2 retries 10 days apart, and then upon retrying one time, the new schedule now includes only 1 retry, the cycle of retries would end there (as the latest schedule contains only one retry and Kill Bill already retried one time).
 Because of such behavior, any plugin can trigger retries at any time: it is hence important that your listener is idempotent.
-
-
-
