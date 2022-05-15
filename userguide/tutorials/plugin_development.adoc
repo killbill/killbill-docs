@@ -1,46 +1,17 @@
-= Plugin development
+= Plugin Development
+
+This document can be used as a guide to develop custom plugins.
 
 == Scope
 
-This document is intended to provide some information about plugin development:
-
-* What are plugins and what can be achieved through plugins?
-* Where to start the development?
+* How to start plugin development?
 * Tooling and APIs to build and deploy plugins
-
-== Kill Bill Plugins
-
-Kill Bill Plugins are based on the https://docs.osgi.org/[OSGI standard] to provide a way to write isolated code on top of the Kill Bill platform and interact with the system through different ways:
-
-* They can be called from the Kill Bill platform through https://github.com/killbill/killbill-plugin-api[plugin APIs]. This happens when a plugin that implements one of those APIs (or 'SPI' to be more precise) was correctly registered in the system.
-* They can receive notifications (bus events) from the Kill Bill platform
-* They can make https://github.com/killbill/killbill-api[API calls] to Kill Bill
-
-Here are a few examples:
-
-* Notification Plugin: A plugin registered to receive bus events. When a bus event is being delivered to the plugin, the plugin calls back Kill Bill through API calls to retrieve additional state for this event or to change the state in the system
-* Plugin that registered as an implementor of a specific https://github.com/killbill/killbill-plugin-api[plugin API]: A payment plugin for instance would have registered itself as an implementor of the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the payment system would then invoke that plugin for issuing payment operations. The plugin would have the ability to call back Kill Bill using APIs to retrieve more state or create/change state in the system.
-
-A Kill Bill plugin will either implement one (or several) plugin API(s) and/or also listen to Kill Bill bus events to be notified of changes and take appropriate actions. It often makes sense to specialize plugins and have them implement only one of the https://github.com/killbill/killbill-plugin-api[plugin APIs], but this is a design choice, and there is nothing preventing a plugin from implementing multiple of those APIs. Although we don't recommend it, a plugin could implement the https://github.com/killbill/killbill-plugin-api/blob/master/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[PaymentPluginApi] and the https://github.com/killbill/killbill-plugin-api/blob/master/control/src/main/java/org/killbill/billing/control/plugin/api/PaymentControlPluginApi.java[PaymentControlPluginApi], and that would qualify it as a 'payment and payment control plugin'.
-
-Kill Bill Plugins can be used in a variety of ways:
-
-* Extend Kill Bill subsytem: Payment plugins are a good example of such plugins; they extend the core payment functionality by connecting to third party systems
-* Provide additional business logic: Payment control plugins and invoice plugins allow to intercept the requests so as to modify it, abort it, or change state on the fly.
-* Listen to system events: The analytics plugin is a good example of such plugin
-
-Kill Bill Plugins have full power (and therefore need to be designed and tested carefully):
-
-* They have access to the database so as to maintain their own state. However they **should not interact with the Kill Bill core tables directly** but rely on APIs to retrieve and change state,
-* They have access to system properties
-* They have the ability to export their own HTTP endpoints under a `/plugins/<pluginName>` namespace
-* They receive all events in the system
-* They are isolated from the rest of the code and can use their own libraries (versions) without risk of conflict
-
 
 == Where to Start?
 
-A good starting point is to assess what the plugin should do and then based on that, read the various http://docs.killbill.io/[plugin docs in the developer guide section] that describe the different types of plugins offered in Kill Bill:
+We provide a sample https://github.com/killbill/killbill-hello-world-java-plugin[_hello world plugin_] which can be used as the starting point for developing a custom plugin. 
+
+In addition, we have separate docs for different types of plugins. A good starting point would be to assess what the plugin should do and then based on that, read the various docs that describe the different types of plugins offered in Kill Bill:
 
 * http://docs.killbill.io/latest/catalog_plugin.html[Catalog Plugin]
 * http://docs.killbill.io/latest/payment_plugin.html[Payment Plugin]
@@ -51,561 +22,251 @@ A good starting point is to assess what the plugin should do and then based on t
 
 The next stage is to identify existing (similar) plugins which could be used as a starting point to write the code. At this point, this becomes a normal software development cycle, including writing unit tests for that plugin (independent of Kill Bill).
 
-== Development
+The rest of this document will explain how to setup and work with the `hello-world-plugin`. 
 
-This section explains how you can get started with developing your own plugin. It is recommended to clone some of our existing plugins to get started.  The https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] is a good starting point. Once set up, this can be used as the basis for developing your own plugin.
+== Prerequisites
 
-We provide a https://github.com/killbill/killbill-plugin-framework-java[Java plugin framework] that can be used to implement some of the work that plugins need to do - although your plugin does not have to rely on this framework, it is often a good idea to leverage it to avoid boilerplate code.
+* Ensure that you have gone through the https://docs.killbill.io/latest/what_is_kill_bill.html[_What is Kill Bill_] document and are familiar with Kill Bill.
+* Ensure that you have gone through the https://docs.killbill.io/latest/plugin_introduction.html[_Plugin Introduction_] document and are familiar with Kill Bill plugins.
+* Ensure that you have *Maven 3.5.2* or higher (It can be downloaded from http://maven.apache.org/download.cgi[_here_]).
+* Ensure that you have *JDK 8* or higher (It can be downloaded from https://www.oracle.com/in/java/technologies/javase-downloads.html[_here_]).
+* Ensure that *JAVA_HOME* environment variable is set to the path of your JDK installation (For example, if JDK is installed at *C:\Software\jdk1.8.0_102*, you need to set *JAVA_HOME* to *C:\Software\jdk1.8.0_102*).
 
-Also, for internal reference, you might want to take a look at https://github.com/killbill/killbill-platform/blob/killbill-platform-0.36.2/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/KillbillActivatorBase.java#L59[KillbillActivatorBase], which provides all the abstractions that plugins require (access to java APIs, database connections, system properties, logging, ...).
 
-=== Prerequisites
+== Getting Started
 
-. Ensure that you have *Maven 3.5.2* or higher (It can be downloaded from http://maven.apache.org/download.cgi[here])
-
-. Ensure that you have *JDK 8* or higher (It can be downloaded from https://www.oracle.com/in/java/technologies/javase-downloads.html[here])
-
-. Ensure that *JAVA_HOME* environment variable is set to the path of your JDK installation (For example, if JDK is installed at *C:\Software\jdk1.8.0_102*, you need to set *JAVA_HOME* to *C:\Software\jdk1.8.0_102*)
+Let us now take a look at the steps involved in setting up the `hello world plugin`.
 
 === Setting up the Code in an IDE
 
-The first step is to set up the code for the  https://github.com/killbill/killbill-hello-world-java-plugin[hello world plugin] in an IDE. For this, you need to do the following:
+The first step is to set up the plugin code in an IDE. For this, you need to do the following:
 
-. Clone the *hello world plugin* repository from https://github.com/killbill/killbill-hello-world-java-plugin[here]
+. Clone the `hello-world-plugin` repository from https://github.com/killbill/killbill-hello-world-java-plugin[_Github_].
 
-. Set up the code in the IDE of your choice. You can refer to our https://docs.killbill.io/latest/development.html#_setting_up_code_in_an_ide[development document]  for detailed instructions on how to clone a repository and set up the code in Eclipse
+. Set up the code in the IDE of your choice. You can refer to our https://docs.killbill.io/latest/development.html#_setting_up_code_in_an_ide[__Development Document__] for detailed instructions on how to clone a repository and set up the code in Eclipse.
 
 . This path where the repository is cloned will be referred to as *PROJECT_ROOT* from now on. For example, if you choose `C:/MyProjects/killbill-hello-world-java-plugin`, *PROJECT_ROOT* refers to this path. 
 
 . Once the code is set up in Eclipse, your Eclipse workspace should look like this:
++
 image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/plugin_development/eclipse_workspace_with_helloworldplugin.png[align=center]
 
+[[build]]
 === Build
 
-The Hello World plugin is a standard Maven project. So you can build it as follows:
+The `hello-world-plugin` is a standard Maven project. So you can build it as follows:
 
-. Open a command prompt/terminal window and navigate to the *PROJECT_ROOT*  directory
+. Open a command prompt/terminal window and navigate to the *PROJECT_ROOT*  directory.
 
 . Run the following command: 
++
 [source,bash]
- mvn clean install -DskipTests
- 
+----
+mvn clean install -DskipTests
+----
++
 . Verify that a *BUILD SUCCESS* message is displayed on the console and that the plugin jar file 
-is created as `PROJECT_ROOT/target/<artifact_id>-<version>.jar`
+is created as `PROJECT_ROOT/target/<artifact_id>-<version>.jar`.
 
-
+[[deployment]]
 === Deployment
 
-The Hello World plugin can be deployed in a Tomcat or Docker installation of the Kill Bill application. You can also install the Kill Bill application via kpm as specified https://github.com/killbill/killbill-cloud/tree/master/kpm#kill-bill-installation[here] and then install the plugin. However, if you are using the plugin as a basis to develop your own plugin, it would be useful to deploy the plugin in a standalone Jetty set up. This section explains how you can do this. 
+The `hello-world-plugin` can be deployed in an AWS, Docker or Tomcat Kill Bill installation as explained in the https://docs.killbill.io/latest/getting_started.html[_Getting Started_] guide. However, if you are using the plugin as a basis to develop your own plugin, it would be useful to deploy the plugin in a https://docs.killbill.io/latest/development.html#_setting_up_kill_bill_in_your_development_environment[__standalone Kill Bill installation__]. Let us take a look at how to do this.
 
-. Ensure that you have *kpm* installed as per the instructions given https://github.com/killbill/killbill-cloud/tree/master/kpm[here]
+. Ensure that the Kill Bill application is configured and running in a Jetty server as explained https://docs.killbill.io/latest/development.html#_setting_up_kill_bill_in_your_development_environment[here]. 
+
+. Ensure that you have *kpm* installed as per the instructions  https://github.com/killbill/killbill-cloud/tree/master/kpm[here].
 
 . Open a command prompt/terminal window and run the following command to install the plugin (Replace `PROJECT_ROOT` with your actual project root, `<artifact_id>-<version>` with your JAR file name and  `path_to_install_plugin` with the actual path where you would like to install the plugin):
++
 [source,bash]
+----
 kpm install_java_plugin 'dev:hello' --from-source-file=PROJECT_ROOT/target/<artifact_id>-<version>.jar --destination=<path_to_install_plugin>
+----
++
+. Verify that the `<artifact_id>-<version>.jar` is copied at the `path_to_install_plugin` path.
 
-. Verify that the `<artifact_id>-<version>.jar` is copied at the `path_to_install_plugin` path 
-
-. Ensure that the Kill Bill application is configured as per the instructions https://docs.killbill.io/latest/development.html#_setting_up_kill_bill_in_your_development_environment[here]
-
-. Open `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` and specify the following property (Replace `plugin_path` with the actual path where the plugin is installed. Note that if this property is not specified, the application looks for the plugin at the `/var/tmp/bundles/` path):
+. Open `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` and specify the following property (Replace `plugin_path` with the actual path where the plugin is installed. Note that if this property is not specified, Kill Bill looks for the plugin at the `/var/tmp/bundles/` path):
++
 [source,properties]
+----
 org.killbill.osgi.bundle.install.dir=<plugin_path>
-
+----
++
 . Open a command prompt/terminal window and navigate to the *PROJECT_ROOT*  directory. Start Kill Bill by running the following command (Replace `PROJECT_ROOT` with your actual project root):
++
 [source,bash]
+----
  mvn -Dorg.killbill.server.properties=file:///PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties -Dlogback.configurationFile=./profiles/killbill/src/main/resources/logback.xml jetty:run
-
+----
++
 . Verify that the following is displayed in the Kill Bill logs which confirms that the plugin is installed successfully:
++
 [source,bash]
+----
   GET /               [*/*]     [*/*]    (/HelloWorldServlet.hello)
   GET /healthcheck    [*/*]     [*/*]    (/HelloWorldHealthcheckServlet.check)
 listening on:
   http://localhost:8080/plugins/hello-world-plugin/
-
+----
++
 . Open a browser and type \http://localhost:8080/plugins/hello-world-plugin/. If the plugin is installed properly, the following should be displayed in the Kill Bill logs:
++
 [source,bash]
+----
 2020-12-09T04:58:15,750+0000 lvl='INFO', log='HelloWorldServlet', th='http-nio-8080-exec-1', xff='', rId='b79decfb-e809-4c01-9064-cff18722a67c', tok='', aRId='', tRId='', Hello world
+----
 
-=== A closer look at HelloWorldServlet
 
-The `HelloWorldServlet` has a method called `hello` which provides some basic skeleton code. It can be expanded as required. A few pointers about this method:
+== A Closer Look at Plugin Code
+
+Let us now take a look at some of the important classes in the hello world plugin.
+
+=== HelloWorldServlet
+
+Plugins can export their own HTTP endpoints. The https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldServlet.java[_HelloWorldServet_] provides an example of this. It exports the `plugins/hello-world-plugin/` endpoint. You can extend the `HelloWorldServlet` to add other endpoints as required.
+
+A few pointers about the `HelloWorldServlet.hello` method (which provides the code for the `plugins/hello-world-plugin/` endpoint):
 
 [source,java]
-  @GET
+----
+    @GET
     public void hello(@Local @Named("killbill_tenant") final Optional<Tenant> tenant) {
         // Find me on http://127.0.0.1:8080/plugins/hello-world-plugin
         logger.info("Hello world");
         if(tenant != null && tenant.isPresent() ) {
-        	logger.info("tenant is available");
         	Tenant t1 = tenant.get();
         	logger.info("tenant id:"+t1.getId());
+        	login();
         }
         else {
         	logger.info("tenant is not available");
         }
     }
-
+----
 * This method provides the code for the \http://localhost:8080/plugins/hello-world-plugin endpoint.
-
-
 
 * It accepts a parameter corresponding to `Tenant` which is an `Optional`. 
 
 * If the headers *X-Killbill-ApiKey / X-Killbill-ApiSecret* are set while accessing this endpoint as shown below, Kill Bill automatically injects a `Tenant` object into the servlet. 
++
 [source,bash]
+----
 curl -v -u admin:password -H "X-Killbill-ApiKey: bob" -H "X-Killbill-ApiSecret: lazar" "http://127.0.0.1:8080/plugins/hello-world-plugin"
-
+----
++
 * The `Tenant` object can then be used to retrieve tenant information like `tenantId` as demonstrated in the code above.
 
 * If the headers *X-Killbill-ApiKey / X-Killbill-ApiSecret* are NOT set while accessing this endpoint as shown below, Kill Bill injects an empty `Optional` into the servlet.
++
 [source,bash]
+----
 curl -v -u admin:password "http://127.0.0.1:8080/plugins/hello-world-plugin"
+----
 
-=== Setting up a breakpoint and debugging
+=== HelloWorldListener
+
+The https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldListener.java[_HelloWorldListener_] provides sample code for developing a notification plugin.  It listens to https://docs.killbill.io/latest/kill_bill_events.html[_Kill Bill events_] and takes actions. You can extend this class to handle other events as required. See the https://docs.killbill.io/latest/notification_plugin.html[_Notification Plugin Tutorial_] for further information.
+
+=== HelloWorldPaymentPluginApi
+
+The https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldPaymentPluginApi.java[_HelloWorldPaymentPluginApi_] class provides sample code for developing a payment plugin. It implements the https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/payment/src/main/java/org/killbill/billing/payment/plugin/api/PaymentPluginApi.java[_PaymentPluginApi_] interface. You can extend this class as required to develop a payment plugin. See the https://docs.killbill.io/latest/payment_plugin.html[_Payment Plugin Tutorial_] for further information.
+
+=== Other Classes
+
+In addition to the classes listed above, some of the other classes in the `hello-world-plugin` are as follows:
+
+* https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldActivator.java[_HelloWorldActivator_]: While building a plugin, you need to create a class similar to `HelloWorldActivator`. You need to specify your plugin name here.
+* https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldConfigurationHandler.java[_HelloWorldConfigurationHandler_]: Most plugins require custom configuration. A configuration handler similar to the `HelloWorldConfigurationHandler` can be used to read the configuration properties.
+* https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldHealthcheck.java[_HelloWorldHealthcheck_] and https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldHealthcheckServlet.java[_HelloWorldHealthcheckServlet_]: Can be used to provide the health status of the plugin.
+
+== Setting up a Breakpoint and Debugging
 
 When you start developing your own plugin, it would be useful to be able to set up a break point and debug the plugin code. This section explains how you can achieve this. 
 
-. Create a new environment variable *MAVEN_OPTS* and set it to `-Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n`
+. Create a new environment variable *MAVEN_OPTS* and set it to `-Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n`.
 
 
 . Open Eclipse and do the following:
 
-.. Set up a break point in the HelloWorldServlet#L41
+.. Set up a break point in the HelloWorldServlet#L41.
 
-.. Click `Run > Debug Configurations`
+.. Click `Run > Debug Configurations`.
 
-.. Double click  `New Remote Java Application`
+.. Double click  `New Remote Java Application`.
 
-.. Enter the name that you would like to give to this debug configuration in the *Name* field
+.. Enter the name that you would like to give to this debug configuration in the *Name* field.
 
-.. Click *Apply*
+.. Click *Apply*.
 
-.. Click *Close*
+.. Click *Close*.
 
-. Restart the Kill Bill application as explained in <<Deployment>> section above
+. Restart the Kill Bill application as explained in the <<deployment, "Deployment">> section above.
 
-. Click `Run > Debug Configurations` and double click the  the Debug configuration that you created above
+. Click `Run > Debug Configurations` and double click the  the Debug configuration that you created above.
 
 . This runs the application in debug mode. You can also set additional breakpoints as required.
 
-=== Authentication within plugins
+== Authentication Within Plugins
 
 In order to invoke write API operations like `AccountUserApi#createAccount`, plugin code must authenticate against Kill Bill first. Otherwise, it will result in an `org.apache.shiro.authz.UnauthenticatedException`. This section explains how authentication can be done.
 
-==== Authentication steps
+[[authentication_steps]]
+=== Authentication Steps
 
 In order to authenticate against Kill Bill, the following needs to be done:
 
-. Obtain authentication credentials - Although plugins can use the `admin/password` credentials for authentication, it is typically not advisable to do so. This is to limit the scope of operations that plugins can do. It is thus recommended to https://killbill.github.io/slate/#tenant-add-a-per-tenant-configuration-for-a-plugin[configure plugins with custom credentials] and retrieve them in the code. You can see an example of retrieving custom credentials in the https://github.com/killbill/killbill-email-notifications-plugin/blob/8df47156a2e80c65ce574e0ad689afd02b926f59/src/main/java/org/killbill/billing/plugin/notification/setup/EmailNotificationListener.java#L230[Email Notification Listener] code.
-
-. Add the following code before invoking any API operation (use credentials obtained above):
-
+. Configure the plugin with custom credentials - Although plugins can use the `admin/password` credentials for authentication, it is typically not advisable to do so. This is to limit the scope of operations that plugins can execute. It is thus recommended to _configure plugins with custom credentials_. (See https://docs.killbill.io/latest/plugin_installation.html#_per-tenant-configuration[__Per-tenant Plugin Configuration__]). So, you can configure the `hello-world-plugin` with custom credentials as follows:
 +
-
+[source,bash]
+----
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: text/plain" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+   -d 'org.killbill.billing.plugin.hello-world.credentials.username=hello-world-user
+org.killbill.billing.plugin.hello-world.credentials.password=hello-world-password' \
+    "http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/hello-world-plugin"
+----
++
+. Retrieve credentials in the code. For example, you can retrieve the credentials in the `HelloWorldListener` class as follows:
++
 [source,java]
+----
+Properties properties = helloWorldConfigurationHandler.getConfigurable(killbillEvent.getTenantId());
+final String username = properties.getProperty("org.killbill.billing.plugin.hello-world.credentials.username");
+final String password = properties.getProperty("org.killbill.billing.plugin.hello-world.credentials.password");
+----
++
+. Invoke SecurityApi - Use the credentials obtained above to login as follows:
++
+[source,java]
+----
 killbillAPI.getSecurityApi().login(login, password);
-
+----
 +
-
-. Invoke the necessary api method:
-
+. Invoke the necessary write API method (The code below invokes the `accountUserApi.createAccount` method):
 +
-
 [source,java]
-invoiceUserApi.triggerDryRunInvoiceGeneration(accountId, targetDate, dryRunArguments, callContext);
-
+----
+ osgiKillbillAPI.getAccountUserApi().createAccount(accountData, context);
+----
 +
-
-. Invoke the `logout` method (This should typically be done within a `finally` clause):
-
+. Invoke the `logout` method. This should typically be done within a `finally` clause:
 +
-
 [source,java]
+----
 osgiKillbillAPI.getSecurityApi().logout();
-
-==== Skipping Authentication
-
-It is also possible to skip authentication in the plugin code. For this, the following needs to be done:
-
-. Set the following property in the config file:
-
-+
-
-[source,bash]
-org.killbill.security.skipAuthForPlugins=true
-
-+
-
-. Create a `PluginCallContext` class in your code similar to the https://github.com/killbill/killbill-email-notifications-plugin/blob/8df47156a2e80c65ce574e0ad689afd02b926f59/src/main/java/org/killbill/billing/plugin/notification/setup/PluginCallContext.java[PluginCallContext] class in the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] code.
-
-+
-
-. Create a `PluginCallContext` instance with `CallOrigin.INTERNAL` and `UserType.ADMIN` as follows:
-
-+
-
-[source,java]
-final PluginCallContext callContext = new PluginCallContext(UUID.randomUUID(),pluginName, CallOrigin.INTERNAL,UserType.ADMIN,reasonCode,comments, createdDate,updatedDate,accountId, tenantId);
-
-+
-
-. Use the above `callContext` while invoking the desired api method:
-
-+
-
-[source,java]
-invoiceUserApi.triggerDryRunInvoiceGeneration(accountId, targetDate, dryRunArguments, callContext);
-
-=== Further Debugging 
-
-The https://docs.killbill.io/latest/debugging.html[Debugging Tips] document includes some additional debugging tips for Kill Bill in general. You may also reach out to the Kill Bill https://groups.google.com/forum/#!forum/killbilling-users[mailing list], with the `kpm diagnostic` output as explained in the https://docs.killbill.io/latest/debugging.html#_seeking_help[Seeking Help] section.
-
-
-=== Additional Configuration
-
-As explained earlier, Kill Bill plugins are based on the OSGi standard. Let us now take a look at how this works and some additional configuration which may be required in some situations.
-
-==== Brief OSGi overview
-
-Let us first briefly understand how OSGi works. OSGi allows creating modular Java components (known as bundles) that run within an https://felix.apache.org/[OSGi container]. The OSGi container ensures that each bundle is isolated from other bundles. Thus, each bundle can use any external dependencies that it requires without having to worry about conflicts.
-
-A bundle is nothing but a JAR file. However, its `manifest.mf` has some additional OSGi related headers.
-
-Although each bundle is isolated from other bundles, sometimes bundles may need to communicate/share classes with other bundles. A bundle can export a package to make the corresponding classes available for use by other bundles. A bundle can also import a package to use the classes of another bundle.
-
-For example if a bundle `bundle1` requires a class `p1.p2.A` from `bundle2`, `bundle2` needs to export the `p1.p2` package and `bundle1` needs to import this package. The packages imported by a bundle are specified as a `Import-package` header in the `manifest.mf` while packages exported by a bundle are specified as a `Export-package` header in the `manifest.mf`.
-
-The OSGi container ensures that a given bundle's package dependencies can be satisfied before the bundle runs. Thus, if the package dependencies cannot be satisfied, the bundle will not run.
-
-==== Kill Bill OSGi Overview
-
-Before we dive into the details, let us understand at a high-level how the import-export mechanism works in case of the core Kill Bill system and its plugins. 
-
-* The Kill Bill core itself is packaged as an OSGi bundle (referred to as system bundle). It exports several packages. This is explained in the <<Packages exported by Kill Bill>> section. 
-
-* Packages exported by Kill Bill are automatically imported by a plugin. This is explained in the <<Packages Imported by Plugins by Default>> section. 
-
-* However, in some cases, a plugin may need to explicitly import packages exported by Kill Bill. This is explained in the <<Importing Additional Packages in Plugins>> section.
-
-
-==== Packages exported by Kill Bill
-
-As explained earlier, the Kill Bill system bundle exports the packages which it desires to share with plugins. The packages exported by the Kill Bill system bundle are specified in the https://github.com/killbill/killbill-platform/blob/4e735e9c3367cee2272964f16d028795f55592d3/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L49[OSGIConfig.java]. Additionally, Kill Bill also offers a system property, `org.killbill.osgi.system.bundle.export.packages.extra`, to specify additional packages to be exported by the system bundle and that could in turn be imported by a plugin.
-
-==== Packages Imported by Plugins by Default
-
-As explained earlier, Kill Bill plugins are packaged as OSGi bundles. The http://felix.apache.org/documentation/subprojects/apache-felix-maven-bundle-plugin-bnd.html[`maven-bundle-plugin`] specified in the https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/pom.xml[`pom.xml`] is responsible for packaging a plugin as an OSGi bundle. Thus, the `maven-bundle-plugin` takes care of creating the jar with the correct OSGi headers (including adding the required packages to the `Import-Package` header). In addition, the https://github.com/killbill/killbill-oss-parent/blob/f3d9725cc7759a54eb6f978b3d3f763e1d170021/pom.xml[killbill-oss-parent pom] file (which is the parent of the plugin `pom.xml` file) also specifies the packages to be included in the `Import-Package` header.
-
-Thus, when a plugin is built, the `Import-Package` header is automatically computed based on:
-
-* Packages computed by the `maven-bundle-plugin`.
-* Packages specified in the `killbill-oss-parent` pom file.
-
-
-==== Importing Additional Packages in Plugins
-
-Sometimes, a plugin may require to use some additional packages from Kill Bill (other than those automatically imported as specified above). In such cases, you will need to explicitly *export* the package from Kill Bill and *import* it in the plugin as explained below.
-
-. All the packages exported by Kill Bill by default are specified in the  
-https://github.com/killbill/killbill-platform/blob/4e735e9c3367cee2272964f16d028795f55592d3/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L49[OSGIConfig.java]. Check whether the desired package is already present in this list.
-
-. If Kill Bill does not already export the package, add the following property in the Kill Bill configuration file: 
-[source,bash]
-org.killbill.osgi.system.bundle.export.packages.extra=<package1>,<package2>..<packagen>
-
-. Open plugin `pom.xml`
-
-. Specify the following in the `properties` section of the `pom.xml` (Replace `<package>` with the fully qualified name of the package that you would like to export):
-[source,xml]
- <osgi.extra-import>
-            <package1>;
-            <package2>;
-            ....
-            <packagen>
-</osgi.extra-import> 
-
-. <<Build>> the plugin using Maven as specified above.
-
-This causes the package to be added to the `Import-Package` header of the plugin jar. You can see an example of this in the https://github.com/killbill/killbill-adyen-plugin/blob/0c5205d2ee42b543852e7cbd1a6f6f065ad575e5/pom.xml#L44[Kill Bill Adyen Plugin pom file]. 
-
-==== Exporting Additional Packages from a Plugin
-
-A plugin can also export packages corresponding to the classes that it wants to share with other plugins. This mechanism is particularly useful since it allows plugins to share custom functionality with other plugins. 
-
-To *export* a package from a plugin, you need to follow the steps given below.
-
-. Open plugin `pom.xml`.
-
-. Specify the following in the `properties` section of the `pom.xml` (Replace `<package>` with the fully qualified name of the package that you would like to export): 
-[source,xml]
-<osgi.export>
-  <package1>,
-  <package2>
-   ....
-  <packagen>
-</osgi.export>
-
-. <<Build>> the plugin using Maven as specified above.
-
-This causes the specified packages to be added to the `Export-Package` header of the plugin jar. Other plugins can then use the classes in these packages by importing them as explained above.
-
-In order to see an example of a plugin exporting packages, you can refer to the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin]. It https://github.com/killbill/killbill-email-notifications-plugin/blob/819f4659825684131cf9a5f77b818d56dd86d163/pom.xml#L46[exports] packages required for creating a custom invoice formatter. The https://github.com/killbill/killbill-custom-invoice-formatter-example[custom invoice formatter] plugin (which is a sample plugin) then https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/79e2f63cb536263f0272fdc9182e961f2616c5e3/pom.xml#L43[imports] these packages to customize the email invoice.
-
-
-=== Examples of Plugins
-
-The Kill Bill team already provides many open source plugins. Some of these are are follows:
-
-* https://github.com/killbill/killbill-analytics-plugin[Analytics plugin] (https://docs.killbill.io/latest/notification_plugin.html[notification plugin])
-* https://github.com/killbill/killbill-adyen-plugin[Adyen plugin] (https://docs.killbill.io/latest/payment_plugin.html[payment plugin])
-* https://github.com/killbill/killbill-accertify-plugin[Accertify plugin] (https://docs.killbill.io/latest/payment_control_plugin.html[payment control plugin])
-* https://github.com/killbill/killbill-coupon-plugin-demo[Coupon plugin] (https://github.com/killbill/killbill-plugin-api/blob/master/entitlement/src/main/java/org/killbill/billing/entitlement/plugin/api/EntitlementPluginApi.java[entitlement plugin])
-* https://github.com/killbill/killbill-avatax-plugin[Avalara plugin] (https://docs.killbill.io/latest/invoice_plugin.html[invoice plugin])
-* https://github.com/killbill/killbill-catalog-plugin-test[Catalog test plugin] (https://docs.killbill.io/latest/catalog_plugin.html[catalog plugin])
-
-You can check the https://github.com/killbill[Kill Bill Github] page for the complete list of plugins maintained by the Kill Bill team.
-
-== Plugin Layout
-
-=== Overview
-
-Kill Bill will scan the filesystem on startup and will start all the plugins that were detected. Kill Bill will use the value of the system property `org.killbill.osgi.bundle.install.dir` to determine the root of plugin directory structure.
-By default, this value is set to `/var/tmp/bundles`, as indicated by the https://github.com/killbill/killbill-platform/blob/killbill-platform-0.36.2/osgi/src/main/java/org/killbill/billing/osgi/config/OSGIConfig.java#L44[Kill Bill OSGIConfig file].
-
-The directory structure looks like the following:
-
-```
-root (org.killbill.osgi.bundle.install.dir)
-|_sha1.yml
-|_platform
-|_plugins
-  |_java
-  |_plugin_identifiers.json
-```
-
-Under `root`, we will find the following:
-
-* A `sha1.yml` file which is a used by the `KPM` tool to keep track of artifacts that were already downloaded to avoid downloading binaries already present on the filesystem. KPM also offers the `--force-download` to override that behavior.
-
-* A `platform` folder which contains a set of http://felix.apache.org/downloads.cgi[pure OSGI bundles] (unrelated to Kill Bill plugins) and required for things like OSGI logging, OSGI console, ...
-
-* A `plugins` folder which contains: 
-
-** A `java` folder. Under `java`, we will find one entry per plugin per version.
-For instance, if we had installed two versions for the `stripe` plugin, we would see the following (`SET_DEFAULT` is a symbolic link that point to the default active version):
-[source,bash]
- java
-  |_killbill-stripe
-   |_ 3.0.2
-   |_ 3.0.1
-   |_ SET_DEFAULT
-
-** A `plugin_identifiers.json` file which is used to keep a mapping between the `pluginKey` (the user visible plugin identifer), and the `pluginName` (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.
-
-=== Plugin Coordinates, Plugin Key, Plugin Name, ...
-
-Today, plugins are released through maven and are therefore identified through their maven coordinates. We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins. Plugin Coordinates are too cumbersome to manipulate though and are unsuitable for non-published plugins (typical use case for a plugin being developed), so we introduced some identifers.
-
-As mentioned earlier, Kill Bill will scan the filesystem (`org.killbill.osgi.bundle.install.dir`) on start-up to detect and then start all the plugins. The name on the filesystem (e.g. in our previous example `killbill-stripe`) constitutes what we call the **`pluginName`**.
-
-When installing using KPM, the `pluginName` is dependent on how the plugin was packaged. For well known publicly available Kill Bill plugins, we adopted a (sane) convention, but we have no way to enforce that convention for third party plugins. Also, note that we could change the name of `killbill-stripe` to `foo` on the filesystem (`mv killbill-stripe foo`) and then suddenly Kill Bill would see that plugin as being the `foo` plugin. Therefore, the `pluginName` is not a reliable way to identify the plugin, and is used solely by Kill Bill as an runtime identifier.
-
-The `pluginKey` is the identifier for the plugin and is used for all the user visible operations, whether through the KPM command line tool or whether using the http://docs.killbill.io/latest/plugin_management.html[Plugin Management APIs].
-There is a distinction to be made between publicly released Kill Bill plugins and third party plugins:
-
-* (Publicly Released) Kill Bill Plugins: All the plugins developed by the Kill Bill core team are maintained in a https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[repository] (we provide today a simple file-based repository, but this may change in the future as we start accepting certified third-party plugins).
-Each entry in that repository is identified by a key, and that key is the `pluginKey`.
-* Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form `<prefix>::<something>` to make sure there is no name collision with Kill Bill plugin keys.
-
-== Plugin Installation
-
-As explained earlier, Kill Bill looks for plugins at the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file. So, installing the plugin simply means placing the plugin artifact at this path. This can either be done in several ways as explained below.
-
-=== Deploying via Kaui
-
-In order to deploy a plugin via Kaui, you need to do the following:
-
-* Open Kaui
-
-* Click on the *Plug* Icon at the top and click on kpm
-
-* Click on *Install New Plugin*
-
-* Click on the *Download* icon next to the plugin that you wish to install
-
-* Refresh the page after a while.
-
-* Once the plugin download is complete, it will appear in _Stopped_ status. Click on the *Start* button next to it to start the plugin
-
-
-=== Deployment Through KPM
-
-The standard way to deploy plugins is to use the Kill Bill Package Manager (https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM]).
-
-KPM can be used for:
-
-* Deploying *custom* (plugins developed by you) plugins
-* Deploying *Kill Bill* (plugins maintained by the Kill Bill team) plugins
-* Deploying *Third-party* (plugins developed and maintained by a third party and not by the Kill Bill team) plugins
-
-==== Custom plugins
-
-If you are a developer and either modifying an existing plugin or creating a new plugin, you can use KPM to install the plugin. 
-
-A custom Java plugin can be installed using the `kpm install_java_plugin` command as shown below:
-
-[source,bash]
-kpm install_java_plugin '<plugin-key>' --from-source-file="<jar_path>.jar" 
---destination="<path_to_install_plugin>"
-
-* Replace `plugin-key` with an appropriate value. We suggest that you specify a plugin_key with a namespace *dev:* to make it clear this is not a released version. So, you can use a plugin-key called `dev:pluginname`
-* Replace `<jar_path>` by the full path of the JAR file
-* Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path should match the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file.
-* If `--destination` is not specified, the plugin is installed by default in the `var/tmp/bundles` directory
-* For detailed instructions, refer to the https://docs.killbill.io/latest/plugin_development.html#_deployment[deployment] section above.
-
-==== Kill Bill Plugins
-
-A Kill Bill plugin is a plugin that is maintained by the Kill Bill team. Such plugins have a key in the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[Plugin Directory]. So, in order to install such a plugin, its key needs to be specified.
-
-A Kill Bill Java plugin can be installed using the `kpm install_java_plugin` command as follows:
-
-[source,bash]
-kpm install_java_plugin '<plugin-key>'
-
-* Replace `plugin-key` with an appropriate value from the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[Plugin Directory]. 
-* For example, in order to install the stripe plugin, you can replace `plugin-key` with `stripe`
-
-==== Third party plugins
-
-Third-party plugins are plugins developed and maintained by a third party and not by the Kill Bill team.  Such plugins can be installed via KPM from their binary repositories (Maven Central, GitHub Packages and Cloudsmith).
-
-A third party Java plugin can be installed using the `kpm install_java_plugin` command as follows: 
-
-[source,bash]
-kpm install_java_plugin '<plugin-key>' 
---group_id="<group id>"
---artifact_id="<artifact_id>"
---version="<version>"  
-
-* Replace `plugin-key` with the plugin name.
-* Replace `<group id>`, `<artifact_id>`, `<version>` with appropriate values from the binary repository.
-
-=== Deploying via Plugin Management APIs
-
-Kill Bill provides several plugin management APIs which can be used to install/start/stop and take other actions on plugins. This is explained in detail in the https://docs.killbill.io/latest/plugin_management.html[Plugin Management APIs] document. 
-
-A plugin can be installed via the plugin management API as follows:
-
-[source,bash]
-curl -v \
--u admin:password \
--H "Content-Type: application/json" \
--H 'X-Killbill-CreatedBy: stephane' \
--X POST \
---data-binary '{"isSystemCommandType":"true","nodeCommandType":"INSTALL_PLUGIN","nodeCommandProperties":[{"key":"pluginKey", "value":"payment-test"},{"key":"pluginArtifactId", "value": "payment-test-plugin"},{"key":"pluginGroupId", "value": "org.kill-bill.billing.plugin.java"}, {"key": "pluginType", "value": "java"} ]}' \
-"http://127.0.0.1:8080/1.0/kb/nodesInfo"
-
-Note that this also requires starting the plugin explicitly using the following command:
-
-[source,bash]
-curl -v \
--u admin:password \
--H "Content-Type: application/json" \
--H 'X-Killbill-CreatedBy: stephane' \
--X POST \
---data-binary '{"isSystemCommandType":true,"nodeCommandType":"RESTART_PLUGIN","nodeCommandProperties":[{"key":"pluginKey","value":"payment-test"}]}' \
-"http://127.0.0.1:8080/1.0/kb/nodesInfo"
-
-
-=== Deploying by Hand
-
-Deploying by hand consists of building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
-
-```
-java
-|_adyen-plugin
-  |_ 0.3.2
-    |_ adyen-plugin-0.3.2.jar
-```
-
-== Plugin Configuration
-
-=== System Properties
-
-Kill Bill plugins can access Kill Bill properties through the use of a special interface https://github.com/killbill/killbill-platform/blob/master/osgi-api/src/main/java/org/killbill/billing/osgi/api/OSGIConfigProperties.java[OSGIConfigProperties]. System properties passed to the JVM and properties from the `killbill.properties` configuration file are then accessible to the plugins and can be used to tweak the behavior of the plugin as needed.
-
-=== Configuration File
-
-Property files can be used to configure global settings for a plugin. Those property files need to be part of the archive (the OSGI mechanism will make sure these are only visible to the particular plugin):
-
-* The property file needs to be on the classpath (`resource` directory)
-* There is no restriction on the format of the property file, but typically  plugins will rely on `key-value` properties, `json` or `xml` files.
-
-=== Per-tenant Configuration
-
-The two previous mechanisms work well for global settings, but are inadequate to configure the plugins on a per-tenant fashion (e.g for a payment plugin interacting with a payment gateway, different credentials might be needed for different tenants). In those situations, Kill Bill provides APIs to upload/retrieve/delete per-tenant plugin configurations:
-
-[source,bash]
-----
-# Upload new config
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H 'X-Killbill-CreatedBy: admin' \
-     -H 'Content-Type: text/plain' \
-     -d '<CONFIG>' \
-     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
 ----
 
-The `<CONFIG>` is treaded as a string and it could be the content of an `xml` or `json` file, a list of `key-value` parameters, ...
-
-[source,bash]
-----
-# Retrieve config
-curl -v \
-     -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H 'X-Killbill-CreatedBy: admin' \
-     -H 'Content-Type: application/json' \
-     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
-----
-
-[source,bash]
-----
-# Delete config
-curl -v \
-     -X DELETE \
-     -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H 'X-Killbill-CreatedBy: admin' \
-     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
-----
-
-At a high level, the mechanism works in the following way:
-
-1. The administrator uses the kill bill API (or Kaui) to upload the configuration
-2. Kill Bill stores the config in the `tenant_kvs` table using a `tenant_key` of `PLUGIN_CONFIG_<pluginName>` and sets the `tenant_value` with the config provided
-3. Kill Bill broadcasts the change across the cluster of nodes and emits a configuration bus event: `TENANT_CONFIG_CHANGE` or `TENANT_CONFIG_DELETION`
-4. The plugin code is *responsible to listen to these events* and take appropriate action to reload/delete its configuration for that specific tenant.
-
-Note that if the https://github.com/killbill/killbill-plugin-framework-java[plugin framework] is used, some amount of work is already provided as can be seen from this https://github.com/killbill/killbill-plugin-framework-java/blob/killbill-base-plugin-1.1.0/src/main/java/org/killbill/billing/plugin/api/notification/PluginConfigurationEventHandler.java#L37[listener]
-
-== FAQ
-
-This section lists some common errors that are encountered while https://docs.killbill.io/latest/plugin_development.html#_development[developing] plugins and how you can fix them.
-
-=== Authentication Error
-
-Sometimes, you may see the `org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous`. This occurs when your plugin code invokes any of the read/write Kill Bill operations without authenticating against Kill Bill. So, you first need to invoke `SecurityApi#login` API.
-
-Here is how it can be used in a Servlet for instance:
-
+. You can also perform authentication within the `HelloWorldPaymentPluginApi` as well as `HelloWorldServlet`. Within the servlet, you will need to write code similar to the following:
++
 [source,java]
 ----
 private void login(final HttpServletRequest req) {
@@ -634,19 +295,161 @@ private void login(final HttpServletRequest req) {
 }
 ----
 
+=== Skipping Authentication
+
+It is also possible to skip authentication in the plugin code. For this, the following needs to be done:
+
+. Set the following property in the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill config file]:
+
++
+[source,bash]
+----
+org.killbill.security.skipAuthForPlugins=true
+----
++
+. Create a `PluginCallContext` class in your code similar to the https://github.com/killbill/killbill-email-notifications-plugin/blob/8df47156a2e80c65ce574e0ad689afd02b926f59/src/main/java/org/killbill/billing/plugin/notification/setup/PluginCallContext.java[email notification plugin PluginCallContext] class.
+
++
+
+. Create a `PluginCallContext` instance with `CallOrigin.INTERNAL` and `UserType.ADMIN` as follows:
+
++
+
+[source,java]
+----
+final PluginCallContext callContext = new PluginCallContext(UUID.randomUUID(),pluginName, CallOrigin.INTERNAL,UserType.ADMIN,reasonCode,comments, createdDate,updatedDate,accountId, tenantId);
+----
++
+. Use the above `callContext` while invoking the desired api method:
++
+[source,java]
+----
+accountUserApi.createAccount(accountData, callContext);
+----
+
+== Additional Notes
+
+* We provide a https://github.com/killbill/killbill-plugin-framework-java[Java plugin framework] that can be used to implement some of the work that plugins need to do - although your plugin does not have to rely on this framework, it is often a good idea to leverage it to avoid boilerplate code.
+
+* Also, for internal reference, you might want to take a look at https://github.com/killbill/killbill-platform/blob/killbill-platform-0.36.2/osgi-bundles/libs/killbill/src/main/java/org/killbill/billing/osgi/libs/killbill/KillbillActivatorBase.java#L59[KillbillActivatorBase], which provides all the abstractions that plugins require (access to java APIs, database connections, system properties, logging, ...).
+
+== OSGi Configuration
+
+As explained earlier, Kill Bill plugins are based on the OSGi standard. Let us now take a look at how this works and some additional OSGi configuration which may be required in some situations.
+
+[NOTE]
+*Note*: OSGi configuration is an advanced configuration option and may be required only in rare situations. So, feel free to skip this section.
+
+=== Brief OSGi Overview
+
+Let us first briefly understand how OSGi works. OSGi allows creating modular Java components (known as bundles) that run within an https://felix.apache.org/[_OSGi container_]. The OSGi container ensures that each bundle is isolated from other bundles. Thus, each bundle can use any external dependencies that it requires without having to worry about conflicts.
+
+A bundle is nothing but a JAR file. However, its `manifest.mf` has some additional OSGi related headers.
+
+Although each bundle is isolated from other bundles, sometimes bundles may need to communicate/share classes with other bundles. A bundle can export a package to make the corresponding classes available for use by other bundles. A bundle can also import a package to use the classes of another bundle.
+
+For example if a bundle `bundle1` requires a class `p1.p2.A` from `bundle2`, `bundle2` needs to export the `p1.p2` package and `bundle1` needs to import this package. The packages imported by a bundle are specified as a `Import-package` header in the `manifest.mf` while packages exported by a bundle are specified as a `Export-package` header in the `manifest.mf`.
+
+The OSGi container ensures that a given bundle's package dependencies can be satisfied before the bundle runs. Thus, if the package dependencies cannot be satisfied, the bundle will not run.
+
+=== Kill Bill OSGi Overview
+
+Before we dive into the details, let us understand at a high-level how the import-export mechanism works in case of the core Kill Bill system and its plugins. 
+
+* The Kill Bill core itself is packaged as an OSGi bundle (referred to as system bundle). It exports several packages. This is explained in the <<packages_exported_by_killbill, "Packages exported by Kill Bill">> section. 
+
+* Packages exported by Kill Bill are automatically imported by a plugin. This is explained in the <<packages_imported_by_plugins_by_default, "Packages Imported by Plugins by Default">> section. 
+
+* However, in some cases, a plugin may need to explicitly import packages exported by Kill Bill. This is explained in the <<importing_additional_packages_in_plugins, "Importing Additional Packages in Plugins">> section.
+
+
+[[packages_exported_by_killbill]]
+=== Packages Exported by Kill Bill
+
+As explained earlier, the Kill Bill system bundle exports the packages which it desires to share with plugins. Refer to the value of the `org.killbill.osgi.system.bundle.export.packages.api` property in the https://docs.killbill.io/latest/userguide_configuration.html#configuration_properties_table[__Kill Bill Configuration Properties Table__] to see the complete list of packages exported by default.
+
+Additionally, Kill Bill also offers the `org.killbill.osgi.system.bundle.export.packages.extra` property which can be used to specify additional packages to be exported by the system bundle and that could in turn be imported by a plugin.  This property can be configured as explained in the https://docs.killbill.io/latest/userguide_configuration.html[_Kill Bill configuration document_].
+
+[[packages_imported_by_plugins_by_default]]
+=== Packages Imported by Plugins by Default
+
+As explained earlier, Kill Bill plugins are packaged as OSGi bundles. The http://felix.apache.org/documentation/subprojects/apache-felix-maven-bundle-plugin-bnd.html[_maven-bundle-plugin_] specified in the https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/pom.xml[_pom.xml_] is responsible for packaging a plugin as an OSGi bundle. Thus, the `maven-bundle-plugin` takes care of creating the jar with the correct OSGi headers (including adding the required packages to the `Import-Package` header). In addition, the https://github.com/killbill/killbill-oss-parent/blob/f3d9725cc7759a54eb6f978b3d3f763e1d170021/pom.xml[_killbill-oss-parent pom_] file (which is the parent of the plugin `pom.xml` file) also specifies the packages to be included in the `Import-Package` header.
+
+Thus, when a plugin is built, the `Import-Package` header is automatically computed based on:
+
+* Packages computed by the `maven-bundle-plugin`.
+* Packages specified in the `killbill-oss-parent` pom file.
+
+[[importing_additional_packages_in_plugins]]
+=== Importing Additional Packages in Plugins
+
+Sometimes, a plugin may require to use some additional packages from Kill Bill (other than those automatically imported as specified above). In such cases, you will need to explicitly *export* the package from Kill Bill and *import* it in the plugin as explained below.
+
+. All the packages exported by Kill Bill by default are specified as the value of the `org.killbill.osgi.system.bundle.export.packages.api` property in the https://docs.killbill.io/latest/userguide_configuration.html[__Kill Bill Configuration Properties Table__]. Check whether the desired package is already present in this list.
+
+. If Kill Bill does not already export the package, add the following property in the https://docs.killbill.io/latest/userguide_configuration.html[__Kill Bill configuration file__]: 
+[source,bash]
+org.killbill.osgi.system.bundle.export.packages.extra=<package1>,<package2>..<packagen>
+
+. Open plugin `pom.xml` and specify the following in the `properties` section (Replace `<package>` with the fully qualified name of the package that you would like to export):
+[source,xml]
+ <osgi.extra-import>
+            <package1>;
+            <package2>;
+            ....
+            <packagen>
+</osgi.extra-import> 
+
+. <<build, Build>> the plugin using Maven as specified above.
+
+This causes the package to be added to the `Import-Package` header of the plugin jar. You can see an example of this in the https://github.com/killbill/killbill-adyen-plugin/blob/0c5205d2ee42b543852e7cbd1a6f6f065ad575e5/pom.xml#L44[_Kill Bill Adyen Plugin pom file_]. 
+
+=== Exporting Additional Packages from a Plugin
+
+A plugin can also export packages corresponding to the classes that it wants to share with other plugins. This mechanism is particularly useful since it allows plugins to share custom functionality with other plugins. 
+
+To *export* a package from a plugin, you need to follow the steps given below.
+
+. Open plugin `pom.xml`. Specify the following in the `properties` section (Replace `<package>` with the fully qualified name of the package that you would like to export): 
+[source,xml]
+<osgi.export>
+  <package1>,
+  <package2>
+   ....
+  <packagen>
+</osgi.export>
+
+. <<build, Build>> the plugin using Maven as specified above.
+
+This causes the specified packages to be added to the `Export-Package` header of the plugin jar. Other plugins can then use the classes in these packages by importing them as explained above.
+
+In order to see an example of a plugin exporting packages, you can refer to the https://github.com/killbill/killbill-email-notifications-plugin[_email notification plugin_]. It https://github.com/killbill/killbill-email-notifications-plugin/blob/819f4659825684131cf9a5f77b818d56dd86d163/pom.xml#L46[_exports_] packages required for creating a custom invoice formatter. The https://github.com/killbill/killbill-custom-invoice-formatter-example[_custom invoice formatter_] plugin (which is a sample plugin) then https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/79e2f63cb536263f0272fdc9182e961f2616c5e3/pom.xml#L43[_imports_] these packages to customize the email invoice.
+
+
+== FAQ
+
+This section lists some common errors that are encountered while developing plugins and how you can fix them.
+
+=== Authentication Error
+
+Sometimes, you may see the `org.apache.shiro.authz.UnauthenticatedException: This subject is anonymous`. This occurs when your plugin code invokes any of the read/write Kill Bill operations without authenticating against Kill Bill. So, you first need to invoke `SecurityApi#login` API. See <<authentication_steps, "Authentication Steps">> section.
+
 === Maven Build Error
 
-Sometimes, when you run `mvn clean install` on the plugin code, you may see the following maven error:
+Sometimes, when you run `mvn clean install` on the plugin code, you may see the following Maven error:
 
 [source,bash]
+----
 Failed to execute goal org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M3:enforce (default) on project killbill-plugin-momo: Some Enforcer rules have failed.
+----
 
 This generally occurs when your `pom.xml` contains dependencies that are not recommended. The maven build has lots of checks in place to make sure the right dependencies are pulled in, there are no duplicate dependencies, there are no obvious bugs, etc.
 If you'd like to ignore all these checks and still proceed with the build, you can run the following command:
 
 [source,bash]
+----
 mvn clean install -Dcheck.fail-enforcer=false -Dcheck.fail-dependency=false -Dcheck.fail-dependency-scope=false -Dcheck.fail-dependency-versions=false -Dcheck.fail-duplicate-finder=false -Dcheck.fail-enforcer=false -Dcheck.fail-spotbugs=false -Dcheck.ignore-rat=true
-
+----
 
 However, this is *not recommended*, we recommend that you fix the POM file and run the build with all the checks in place.
 
@@ -654,4 +457,11 @@ However, this is *not recommended*, we recommend that you fix the POM file and r
 
 Sometimes, when you develop a custom plugin, a `java.lang.NoClassDefFoundError` or a `java.lang.ClassNotFoundException` exception may occur on starting Kill Bill. This is most probably because the class in question is not present on the classpath. 
 
-For a plugin to work, any classes used by the plugin must be present on the classpath. So, the class needs to be present in the *plugin jar* itself or it must be *imported* from Kill Bill. Refer to the <<Importing Additional Packages in Plugins>> section above for further details.
+For a plugin to work, any classes used by the plugin must be present on the classpath. So, the class needs to be present in the *plugin jar* itself or it must be *imported* from Kill Bill. Refer to the <<importing_additional_packages_in_plugins, "Importing Additional Packages in Plugins">> section above for further details.
+
+== Further Reading
+
+* https://docs.killbill.io/latest/plugin_installation.html[_Plugin Layout, Installation, and Configuration_]
+* https://docs.killbill.io/latest/plugin_management.html[_Plugin Management_]
+
+

@@ -1,0 +1,259 @@
+= Plugin Layout, Installation, and Configuration
+
+This document explains plugin layout, installation and plugin configuration.
+
+== Prerequisites
+
+* Ensure that you have gone through the https://docs.killbill.io/latest/what_is_kill_bill.html[_What is Kill Bill_] document and are familiar with Kill Bill.
+* Ensure that you have gone through the https://docs.killbill.io/latest/plugin_introduction[_Plugin Introduction_] document and are familiar with Kill Bill plugins.
+
+== Plugin Layout 
+
+=== Overview
+
+Kill Bill scans the file system on startup and starts all the plugins that were detected. Kill Bill uses the value of the `org.killbill.osgi.bundle.install.dir` property to determine the root of the plugin directory structure. (See https://docs.killbill.io/latest/userguide_configuration.html#configuration_properties_table[Kill Bill Configuration Properties]). By default, this value is set to `/var/tmp/bundles`.
+
+The directory structure looks like the following:
+
+```
+root (org.killbill.osgi.bundle.install.dir)
+|_sha1.yml
+|_platform
+|_plugins
+  |_java
+  |_plugin_identifiers.json
+```
+
+Under `root`, you will find the following:
+
+* A `sha1.yml` file which is a used by the `KPM` tool to keep track of artifacts that were already downloaded to avoid downloading binaries already present on the filesystem. KPM also offers the `--force-download` to override that behavior.
+
+* A `platform` folder which contains the `kpm` OSGi bundle as well as a set of other OSGI bundles required for things like OSGI logging, OSGI console, ....
+
+* A `plugins` folder which contains: 
+
+** A `java` folder. Under `java`, you will find one entry per plugin per version.
+For instance, if we had installed two versions for the `stripe` plugin, we would see the following (`SET_DEFAULT` is a symbolic link that point to the default active version):
+[source,bash]
+ java
+  |_killbill-stripe
+   |_ 3.0.2
+   |_ 3.0.1
+   |_ SET_DEFAULT
+
+** A `plugin_identifiers.json` file which is used to keep a mapping between the `pluginKey` (the user visible plugin identifer), and the `pluginName` (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.
+
+=== Plugin Coordinates, Plugin Key, Plugin Name, ...
+
+Today, plugins are released through maven and are therefore identified through their maven coordinates. We might support other schemes in the future but today this is the only way we offer to download and install publicly released plugins. Plugin Coordinates are too cumbersome to manipulate though and are unsuitable for non-published plugins (typical use case for a plugin being developed), so we introduced some identifers.
+
+As mentioned earlier, Kill Bill scans the filesystem (path specified by the `org.killbill.osgi.bundle.install.dir` property in the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[_Kill Bill configuration file_]) on start-up to detect and then start all the plugins. The name on the filesystem (e.g. in our previous example `killbill-stripe`) constitutes what we call the **`pluginName`**.
+
+When installing using KPM, the `pluginName` is dependent on how the plugin was packaged. For well known publicly available Kill Bill plugins, we adopted a (sane) convention, but we have no way to enforce that convention for third party plugins. Also, note that we could change the name of `killbill-stripe` to `foo` on the filesystem (`mv killbill-stripe foo`) and then suddenly Kill Bill would see that plugin as being the `foo` plugin. Therefore, the `pluginName` is not a reliable way to identify the plugin, and is used solely by Kill Bill as an runtime identifier.
+
+The `pluginKey` is the identifier for the plugin and is used for all the user visible operations, whether through the KPM command line tool or whether using the http://docs.killbill.io/latest/plugin_management.html[_Plugin Management APIs_].
+There is a distinction to be made between publicly released Kill Bill plugins and third party plugins:
+
+* (Publicly Released) Kill Bill Plugins: All the plugins developed by the Kill Bill core team are maintained in a https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_repository_] (we provide today a simple file-based repository, but this may change in the future as we start accepting certified third-party plugins).
+Each entry in that repository is identified by a key, and that key is the `pluginKey`.
+* Third party plugins: For third party plugins, the key is specified at the time the plugin gets installed. The key must be of the form `<prefix>::<something>` to make sure there is no name collision with Kill Bill plugin keys.
+
+== Plugin Installation
+
+=== Installing via Kaui
+
+In order to deploy a plugin via Kaui, you need to do the following:
+
+* Open Kaui.
+
+* Click on the *Plug* Icon at the top and click on kpm.
+
+* Click on *Install New Plugin*.
+
+* Click on the *Download* icon next to the plugin that you wish to install.
+
+* Refresh the page after a while.
+
+* Once the plugin download is complete, it will appear in _Stopped_ status. Click on the *Start* button next to it to start the plugin.
+
+
+=== Installing via KPM
+
+The standard way to deploy plugins is to use the Kill Bill Package Manager (https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM]).
+
+KPM can be used for:
+
+* Deploying *custom* (plugins developed by you) plugins.
+* Deploying *Kill Bill* (plugins maintained by the Kill Bill team) plugins.
+* Deploying *Third-party* (plugins developed and maintained by a third party and not by the Kill Bill team) plugins.
+
+==== Custom Plugins
+
+If you are a developer and either modifying an existing plugin or creating a new plugin, you can use KPM to install the plugin. 
+
+A custom plugin can be installed using the `kpm install_java_plugin` command as shown below:
+
+[source,bash]
+----
+kpm install_java_plugin '<plugin-key>' --from-source-file="<jar_path>.jar" 
+--destination="<path_to_install_plugin>"
+----
+
+* Replace `plugin-key` with an appropriate value. We suggest that you specify a plugin_key with a namespace *dev:* to make it clear this is not a released version. So, you can use a plugin-key called `dev:pluginname`.
+* Replace `<jar_path>` by the full path of the JAR file.
+* Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path should match the path specified by the `org.killbill.osgi.bundle.install.dir` property in the https://docs.killbill.io/latest/userguide_configuration.html[_Kill Bill Configuration File_].
+* If `--destination` is not specified, the plugin is installed by default in the `/var/tmp/bundles` directory
+
+==== Kill Bill Plugins
+
+A Kill Bill plugin is a plugin that is maintained by the Kill Bill team. Such plugins have a key in the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_Plugin Directory_]. So, in order to install such a plugin, its key needs to be specified.
+
+A Kill Bill Java plugin can be installed using the `kpm install_java_plugin` command as follows:
+
+[source,bash]
+----
+kpm install_java_plugin '<plugin-key>'
+----
+
+* Replace `plugin-key` with an appropriate value from the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_Plugin Directory_]. 
+* For example, in order to install the stripe plugin, you can replace `plugin-key` with `stripe`
+
+==== Third-party Plugins
+
+Third-party plugins are plugins developed and maintained by a third party and not by the Kill Bill team.  Such plugins can be installed via KPM from their binary repositories (Maven Central, GitHub Packages and Cloudsmith).
+
+A third party Java plugin can be installed using the `kpm install_java_plugin` command as follows: 
+
+[source,bash]
+----
+kpm install_java_plugin '<plugin-key>' 
+--group_id="<group id>"
+--artifact_id="<artifact_id>"
+--version="<version>"  
+----
+
+* Replace `plugin-key` with the plugin name.
+* Replace `<group id>`, `<artifact_id>`, `<version>` with appropriate values from the binary repository.
+
+=== Installing via Plugin Management APIs
+
+Kill Bill provides several plugin management APIs which can be used to install/start/stop and take other actions on plugins. This is explained in detail in the https://docs.killbill.io/latest/plugin_management.html[_Plugin Management APIs_] document. 
+
+A plugin can be installed via the plugin management API as follows:
+
+[source, bash]
+----
+curl -v \
+-u admin:password \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"isSystemCommandType":"true","nodeCommandType":"INSTALL_PLUGIN","nodeCommandProperties":[{"key":"pluginKey", "value":"payment-test"},{"key":"pluginArtifactId", "value": "payment-test-plugin"},{"key":"pluginGroupId", "value": "org.kill-bill.billing.plugin.java"}, {"key": "pluginType", "value": "java"} ]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+Note that this also requires starting the plugin explicitly using the following command:
+
+[source,bash]
+----
+curl -v \
+-u admin:password \
+-H "Content-Type: application/json" \
+-H 'X-Killbill-CreatedBy: stephane' \
+-X POST \
+--data-binary '{"isSystemCommandType":true,"nodeCommandType":"RESTART_PLUGIN","nodeCommandProperties":[{"key":"pluginKey","value":"payment-test"}]}' \
+"http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+=== Deploying by Hand
+
+Deploying by hand consists of building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
+
+```
+java
+|_adyen-plugin
+  |_ 0.3.2
+    |_ adyen-plugin-0.3.2.jar
+```
+
+[[plugin_configuration]]
+== Plugin Configuration
+
+=== System Properties
+
+Kill Bill plugins can access Kill Bill properties. Both system properties passed to the JVM and properties from the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[_Kill Bill configuration file_] are accessible to the plugins and can be used to tweak the behavior of the plugin as needed.
+
+=== Configuration File
+
+A plugin can also specify its own property files which can be used to configure global settings for a plugin. Such property files need to be part of the archive (the OSGI mechanism will make sure these are only visible to the particular plugin):
+
+* The property file needs to be on the classpath (`resource` directory)
+* There is no restriction on the format of the property file, but typically  plugins will rely on `key-value` properties, `json` or `xml` files.
+
+[[per-tenant-configuration]]
+=== Per-tenant Configuration
+
+The two previous mechanisms work well for global settings, but are inadequate to configure the plugins on a per-tenant fashion (e.g for a payment plugin interacting with a payment gateway, different credentials might be needed for different tenants). In those situations, Kill Bill provides APIs to upload/retrieve/delete per-tenant plugin configurations.
+
+At a high level, this mechanism works in the following way:
+
+1. An administrator uses the Kill Bill API (or Kaui) to upload the configuration.
+1. Kill Bill stores the config in the `tenant_kvs` table using a `tenant_key` of `PLUGIN_CONFIG_<pluginName>` and sets the `tenant_value` with the config provided.
+1. Kill Bill broadcasts the change across the cluster of nodes and emits a configuration bus event: `TENANT_CONFIG_CHANGE` or `TENANT_CONFIG_DELETION`.
+4. The plugin code is *responsible to listen to these events* and take appropriate action to reload/delete its configuration for that specific tenant.
+
+You can use the following API endpoints to upload, retrieve and delete plugin configuration:
+
+
+[[upload_per_tenant_config]]
+==== Upload New Config
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: text/plain' \
+     -d '<CONFIG>' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
+----
+
+The `<CONFIG>` is treated as a string and it could be the content of an `xml` or `json` file, a list of `key-value` parameters, ...
+
+==== Retrieve Config
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: application/json' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
+----
+
+==== Delete Config
+
+[source,bash]
+----
+curl -v \
+     -X DELETE \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/<pluginName>
+----
+
+== Further Reading
+
+* https://docs.killbill.io/latest/plugin_development[_Plugin Development_]
+* https://docs.killbill.io/latest/plugin_management.html[_Plugin Management_]
+
+
+
+
