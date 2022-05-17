@@ -659,6 +659,88 @@ This is the default rule. It specifies that any other plan changes should occur 
 |Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$100` for `2021-10-29` to `2021-11-29` corresponding to the `standard-monthly` plan
 |===
 
+== Usage Billing
+
+Kill Bill supports usage based billing as explained in the https://docs.killbill.io/latest/userguide_subscription.html#components-catalog-usage[_Subscription Billing_] document. A quick summary about usage billing:
+
+* Users are billed based on their usage data as defined in the catalog. The `Plan` section in the catalog can contain one or more usage section(s) in addition to other non usage based sections.
+
+* Kill Bill supports two types of usage billing: `CONSUMABLE` and `CAPACITY`
+
+* In `CONSUMABLE` billing, users are billed based on the number of units consumed. Two `TierBlockPolicy` policies are supported: `ALL_TIER` and `TOP_TIER`. The `ALL_TIER` policy charges users across each tier while the `TOP_TIER` policy charges users at the top tier.
+
+* In `CAPACITY` billing users are charged a flat rate based on the units consumed.
+
+Let us take a look at a few catalog examples. 
+
+=== Consumable Billing with ALL_TIERS policy
+
+This example uses the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog. It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CONSUMABLE`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
+
+[options="header",cols="1,1,1,1,1"]
+|===
+|Unit   |Size   |Price   |Max   |Explanation
+//----------------------------------------
+|liter   |1   |$1.50   |1000   |Users will be charged at $1.50 per liter for the first 1000 liters   
+|liter   |1|$2.0   |-1   |Users will be charged at $2.0 per liter for any units consumed above `1000` 
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `water-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$630` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + (400 x 1.5) = 630` (Since `400` units are consumed, user is charged `$1.5` per liter as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` with date `2021-11-01`. Trigger invoice dry run with target date `2021-11-29` | Invoice generated for  `$1930` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + (1000 x 1.5) + (200 X 2.0) = 1930` (Since `1200` units are consumed, the first `1000` units are charged at `$1.5` per liter as per the first tier and the next `200` units are charged at at `$2.0` per liter as per the second tier)
+|===
+
+See https://docs.killbill.io/latest/consumable_in_arrear.html[_Consumable In Arrear Tutorial_] for additional information.
+
+=== Consumable Billing with TOP_TIER policy
+
+This example uses the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/consumable-billing-top-tier.xml[Consumable Billing Top Tier] catalog. This catalog is exactly the same as the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog explained above. The only difference is that it uses  `tierBlockPolicy=TOP_TIER`.
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `water-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$630` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + (400 x 1.5) = 630` (Since `400` units are consumed, user is charged `$1.5` per liter as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` with date `2021-11-01`. Trigger invoice dry run with target date `2021-11-29` | Invoice generated for  `$2430` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + (1200 x 2.0) = 2430`  (Since `1200` units are consumed, user is charged `$2.0` per liter as per the second tier)
+|===
+
+=== Capacity Billing
+
+This example uses the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/capacity-billing.xml[Capacity Billing] catalog.  It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CAPACITY`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
+
+[options="header",cols="1,1,1"]
+|===
+|Max Limit   |Price   |Explanation
+//----------------------------------------
+|1000   |$750.0   |Users will be charged a flat charge of $750 if their units are less than or equal to 1000  
+|10000   |$500.0 |Users will be charged a flat charge of $500 if their units exceed 1000.
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `water-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$780` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + 750 = 780` (Since `400` units are consumed, user is charged `$750` as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` with date `2021-11-01` . Trigger invoice dry run with target date `2021-11-29`  | Invoice generated for  `$530` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + 500 = 530` (Since `1200` units are consumed, user is charged `$500` as per the second tier)
+|===
+
+
+
 == Additional Information
 
 https://docs.killbill.io/latest/userguide_subscription.html#components-catalog[_Subscription Billing User Guide_]
