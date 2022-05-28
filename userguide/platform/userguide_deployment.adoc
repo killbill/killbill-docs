@@ -20,6 +20,7 @@ Kill Bill is fundamentally a backend system, so the following considerations sho
 * Test, test, test: we work hard to make the core of the platform solid. But your deployment, with your own combination of plugins and configuration (catalog, overdue, etc.) is unique. Write business-level regression tests that you can run before each upgrade.
 * Timezone of your servers and databases has to be UTC and ensure NTP is properly configured to avoid any drift between instances.
 * Consider encrypting sensitive configuration properties, like database passwords, with Jasypt. See http://www.jasypt.org/cli.html for details on how to generate encrypted values. Example configuration:
+
 [source,properties]
 ----
 -Dorg.killbill.server.enableJasypt=true
@@ -27,6 +28,7 @@ Kill Bill is fundamentally a backend system, so the following considerations sho
 -Djasypt.encryptor.algorithm=PBeWithshA1andDeSede
 -Dorg.killbill.billing.osgi.dao.password=ENC(+PeDGcp3DTonUpB3lPuoegack9kb0hJi)
 ----
+
 * Make sure the servers have enough entropy: `/proc/sys/kernel/random/entropy_avail` should be > 3k (otherwise install `haveged` / `rng-tools`). Kill Bill should also be started with `-Djava.security.egd=file:/dev/./urandom`.
 * Adjust `org.killbill.security.shiroNbHashIterations` as needed. This setting configures the number of iterations run to hash API secrets and user passwords. The default value is high for security reasons, but can be adjusted down if required (e.g. for Docker `-e KILLBILL_SECURITY_SHIRO_NB_HASH_ITERATIONS=1`) as this can have a significant performance impact. Note that changing the value requires re-hashing manually all tenants secrets and user passwords.
 * Make sure your database and queues configuration are adequate: the `bus_events` table should almost always be empty and the `notifications` table should never have any `AVAILABLE` entry with an effective date in the past. Otherwise, in both cases, the system will be late (invoices not generated, etc.). These two metrics should always be monitored in production (potentially a paging event).
@@ -77,7 +79,7 @@ You can find the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/mas
 
 === Failover
 
-We've tested various failover scenarii (Aurora RDS, master/slave MariaDB Docker setup and master/slave Percona Server on real hardware) and could confirm that Kill Bill is behaving as expected, i.e. queries in-flight will fail during a failover, but reconnection is automatic.
+We've tested various failover scenarios (Aurora RDS, master/slave MariaDB Docker setup and master/slave Percona Server on real hardware) and could confirm that Kill Bill is behaving as expected, i.e. queries in-flight will fail during a failover, but reconnection is automatic.
 
 Specifically for Aurora though, we did notice that:
 
@@ -330,7 +332,7 @@ Finally, make sure port 8443 is open (and exported from the Docker containers).
 
 == SSL termination and X-Forwarded headers support
 
-When `org.killbill.jaxrs.location.full.url=true` (default), Kill Bill will build location headers using a full URL. In a typical load balancer scneario, which receives traffic on port 8443 and forwards it to port 8080 on the Kill Bill instances (i.e. SSL terminated at the load balancer), you probably want the headers to return something like https://killbill-vip.mycompany.net:8443 instead of http://10.1.2.3:8080.
+When `org.killbill.jaxrs.location.full.url=true` (default), Kill Bill will build location headers using a full URL. In a typical load balancer scenario, which receives traffic on port 8443 and forwards it to port 8080 on the Kill Bill instances (i.e. SSL terminated at the load balancer), you probably want the headers to return something like https://killbill-vip.mycompany.net:8443 instead of http://10.1.2.3:8080.
 
 To do so, `RemoteIpValve` should be enabled in your Tomcat configuration (done by default in our Docker images, see `/var/lib/tomcat/conf/server.xml`). This will make Kill Bill build the right location headers using `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Port` sent by your load balancer or reverse proxy.
 
