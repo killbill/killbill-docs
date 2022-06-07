@@ -675,7 +675,7 @@ Let us take a look at a few catalog examples.
 
 === Consumable Billing with ALL_TIERS policy
 
-This example uses the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog. It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CONSUMABLE`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
+This example uses the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog. It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CONSUMABLE`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
 
 [options="header",cols="1,1,1,1,1"]
 |===
@@ -701,7 +701,7 @@ See https://docs.killbill.io/latest/consumable_in_arrear.html[_Consumable In Arr
 
 === Consumable Billing with TOP_TIER policy
 
-This example uses the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/consumable-billing-top-tier.xml[Consumable Billing Top Tier] catalog. This catalog is exactly the same as the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog explained above. The only difference is that it uses  `tierBlockPolicy=TOP_TIER`.
+This example uses the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/consumable-billing-top-tier.xml[Consumable Billing Top Tier] catalog. This catalog is exactly the same as the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog explained above. The only difference is that it uses  `tierBlockPolicy=TOP_TIER`.
 
 The following table lists the actions and their results:
 
@@ -717,7 +717,7 @@ The following table lists the actions and their results:
 
 === Capacity Billing
 
-This example uses the https://github.com/killbill/killbill-docs/tree/4671dcd9da1cf021e85629ab67e3ffb6fb553bb1/catalogs/capacity-billing.xml[Capacity Billing] catalog.  It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CAPACITY`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
+This example uses the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/capacity-billing.xml[Capacity Billing] catalog.  It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CAPACITY`, and the following `tier` sections:
 
 [options="header",cols="1,1,1"]
 |===
@@ -737,6 +737,46 @@ The following table lists the actions and their results:
 | https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
 |Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$780` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + 750 = 780` (Since `400` units are consumed, user is charged `$750` as per the first tier)
 | https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` with date `2021-11-01` . Trigger invoice dry run with target date `2021-11-29`  | Invoice generated for  `$530` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + 500 = 530` (Since `1200` units are consumed, user is charged `$500` as per the second tier)
+|===
+
+=== Multiple Usage Sections
+
+This example uses the https://github.com/killbill/killbill-docs/tree/a6339c9dd4bb75da375f4755e45aa5c5c07ebe01/catalogs/consumable-billing-multiple-usage-sections.xml[Consumable Billing Multiple Usage Sections] catalog. It has a `cell-phone-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it  has two usage sections: `cell-phone-minutes-monthly-usage` and `mbytes-monthly-usage`. The `cell-phone-minutes-monthly-usage` usage section specifies the `ALL_TIERS` policy while the `mbytes-monthly-usage` usage section specifies the `TOP_TIER` policy. 
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `cell-phone-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` for the `cell-phone-minutes` unitType with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$280` for `2021-09-29` to `2021-10-29`. It has 3 invoice items : `cell-phone-monthly-evergreen:$30`, `mbytes-monthly-usage:$0` and `cell-phone-minutes-monthly-usage:$250` (calculated as: `(100 x 1.0) + (300 x 0.5) = 250` as per the `ALL_TIERS` policy). 
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` for the `Mbytes` unitType with date `2021-11-01` . Trigger invoice dry run with target date `2021-11-29`  | Invoice generated for  `$630` for `2021-10-29` to `2021-11-29`. It has 3 invoice items : `cell-phone-monthly-evergreen:$30`, `cell-phone-minutes-monthly-usage:$0` and `mbytes-monthly-usage:$630` (calculated as: `(1200 x 0.5) = 600` as per the `TOP_TIER` policy). 
+|===
+
+=== Block Size Greater Than One
+
+This example uses the https://github.com/killbill/killbill-docs/tree/a6339c9dd4bb75da375f4755e45aa5c5c07ebe01/catalogs/consumable-billing-block-size-more-than-one.xml[Consumable Billing Block Size More Than One] catalog. It has a `cell-phone-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CONSUMABLE`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
+
+[options="header",cols="1,1,1,1,1"]
+|===
+|Unit   |Size   |Price   |Max   |Explanation
+//----------------------------------------
+|cell-phone-minutes   |10   |$1.00   |100   |A block size `10` is specified. So, users will be charged at $1.0 per 10 minutes. This is applicable for the for the first `100` blocks    
+|cell-phone-minutes   |10  |$0.5  |-1   |Users will be charged at $2.0 per block for any blocks consumed above `100` 
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `cell-phone-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$70` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + ((400/100) x 1.0) = 70` (Since `400` minutes (`40` blocks) are recorded, user is charged `$1.0` per block as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `110` with date `2021-11-01`. Trigger invoice dry run with target date `2021-11-29` | Invoice generated for  `$140` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + ((1000/100) x 1.0) + ((200/100) X 0.5) = 140` (Since `1200` minutes (`120` blocks) are recorded, the first `100` blocked are charged at `$1.0` per block as per the first tier and the next `20` blocks are charged at at `$0.5` per block as per the second tier)
 |===
 
 

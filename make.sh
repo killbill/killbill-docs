@@ -9,13 +9,10 @@ COMMON_OPTS="-a sourcedir=$USERGUIDE_INPUT_DIR -a imagesdir=$USERGUIDE_INPUT_DIR
 # Selfcontained options
 SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -T html5 -a stylesheet=kb.css -a stylesdir=../stylesheets -a source-highlighter=pygments -a pygments-style=monokai"
 
-# Google analytics
-GOOGLE_ANALYTICS="-r ./lib/google-analytics-docinfoprocessor.rb -a google-analytics-account=UA-32705710-3"
-
 BUILD_DIR=$DIR/build
 SELFCONTAINED_BUILD_DIR=$BUILD_DIR/selfcontained
 
-SELFCONTAINED_BUILD="asciidoctor $SELFCONTAINED_EXTRA_OPTS -B $USERGUIDE_INPUT_DIR -D $SELFCONTAINED_BUILD_DIR -r asciidoctor-diagram $GOOGLE_ANALYTICS -a doctype=book -a data-uri -a linkcss! -a homepage=http://killbill.io"
+SELFCONTAINED_BUILD="bundle exec asciidoctor --trace $SELFCONTAINED_EXTRA_OPTS -B $USERGUIDE_INPUT_DIR -D $SELFCONTAINED_BUILD_DIR -r asciidoctor-diagram -a doctype=book -a data-uri -a linkcss! -a homepage=http://killbill.io"
 
 # Setup
 rm -rf $BUILD_DIR && mkdir -p $BUILD_DIR
