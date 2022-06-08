@@ -168,7 +168,9 @@ image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/gett
 
 === Database Configuration (Kaui)
 
-In addition to the Kill Bill database, you will also need to configure the Kaui database. For this, you need to follow the steps given below:
+In addition to the Kill Bill database, you will also need to configure the Kaui database. For this, you need to follow the steps given below. By default Kill Bill expects *MySQL*, but you can also use *PostgreSQL*.
+
+==== MySQL Configuration
 
 . Create a database. In MySQL, you can run the following commands to create a database called *kaui*: 
 [source,sql]
@@ -177,7 +179,38 @@ In addition to the Kill Bill database, you will also need to configure the Kaui 
 
 . Run the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[here].
 
-. You should have a database called *kaui* (Or whatever name you have specified in step 1) with the following tables:
+==== PostgreSQL Configuration
+
+In order to configure PostgreSQL, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
+
+.  Create a database corresponding to kaui. You can run the following command:
+[source,sql]
+ CREATE DATABASE kaui WITH OWNER = killbilluser;
+
+.  Connect to the kaui database created above. In psql, you can run the following:
+[source,sql]
+  \connect kaui;
+
+.  Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL.
+
+.  Run the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[here].
+
+.  Grant privileges to the schema using the following command:
+[source,sql]
+  GRANT ALL ON SCHEMA public TO killbilluser;
+
+.  Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` OR `TOMCAT_HOME\conf\catalina.properties` as the case may be. Add the following properties :
+[source,properties]
+ #KAUI postgresql section
+  kaui.db.url=jdbc:postgresql://127.0.0.1:5432/kaui
+  kaui.db.username=killbilluser
+  kaui.db.password=killbill
+
+.  Modify the `TOMCAT_HOME\webapps2\ROOT\WEB-INF\config\database.yml` adapter on line 3 as :
+[source,properties]
+  <% adapter = java.lang.System.getProperty('kaui.db.adapter', ENV['KAUI_DB_ADAPTER'] || 'postgresql') %>
+
+You should have a database called *kaui* (Or whatever name you have specified in step 1) with the following tables:
 [source,sql]
  kaui_users
  kaui_tenants
