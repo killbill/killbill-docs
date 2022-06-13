@@ -1,4 +1,7 @@
-==== PostgreSQL Configuration
+== PostgreSQL Configuration
+
+PostgreSQL is an open-source *Object-relational database system* and provides good performance with low maintenance efforts because of its high stability. The Kill Bill core team uses *MySQL*, but we also run regression tests against *MariaDB 10* and *PostgreSQL 12*. This document has detailed instructions to setup PostgreSQL with Kill Bill and Kaui.
+
 
 In order to configure PostgreSQL, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
 
@@ -34,7 +37,7 @@ In order to configure PostgreSQL, you need to follow the steps given below (Thes
 [source,sql]
   GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA killbillschema TO killbilluser;
 
-==== PostgreSQL kaui Configuration
+=== PostgreSQL kaui Configuration
 
 In order to configure PostgreSQL, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
 
@@ -46,21 +49,30 @@ In order to configure PostgreSQL, you need to follow the steps given below (Thes
 [source,sql]
   \connect kaui;
 
+. Create the Kill Bill schema. Run the following command:
+[source,sql]
+  CREATE SCHEMA killbillschema authorization killbilluser;
+
+. Connect to the schema created above using the following command:
+[source,sql]
+  set schema 'killbillschema';
+
 .  Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL.
 
 .  Run the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[here].
 
 .  Grant privileges to the schema using the following command:
 [source,sql]
-  GRANT ALL ON SCHEMA public TO killbilluser;
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA killbillschema TO killbilluser;
+  GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA killbillschema TO killbilluser;
 
-.  Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` OR `TOMCAT_HOME\conf\catalina.properties` as the case may be. Add the following properties :
+.  Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` OR `TOMCAT_HOME/conf/catalina.properties` as the case may be. Add the following properties :
 [source,properties]
  #KAUI postgresql section
   kaui.db.url=jdbc:postgresql://127.0.0.1:5432/kaui
   kaui.db.username=killbilluser
   kaui.db.password=killbill
 
-.  Modify the `TOMCAT_HOME\webapps2\ROOT\WEB-INF\config\database.yml` adapter on line 3 as :
+.  Modify the `TOMCAT_HOME/webapps2/ROOT/WEB-INF/config/database.yml` adapter on line 3 as :
 [source,properties]
   <% adapter = java.lang.System.getProperty('kaui.db.adapter', ENV['KAUI_DB_ADAPTER'] || 'postgresql') %>
