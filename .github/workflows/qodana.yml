@@ -1,0 +1,53 @@
+name: Qodana Documentation validation
+
+on:
+  push:
+    branches:
+      - v3
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  qodana-docs:
+    name: Qodana Docs
+    runs-on: ubuntu-latest
+    permissions:
+      # necessary for the runs of push to store security events in the repo
+      # GitHub code scanning will treat any grammar error like any security event.
+      security-events: write
+    steps:
+      - name: Fetch Sources
+        uses: actions/checkout@v3
+      - name: Download AsciiDoc plugin for AsciiDoc checks
+        run: |
+          curl -L -o asciidoctor-intellij-plugin.zip https://github.com/asciidoctor/asciidoctor-intellij-plugin/releases/download/0.37.13/asciidoctor-intellij-plugin-0.37.13.zip
+          unzip asciidoctor-intellij-plugin.zip
+      - name: Download Grazie plugin for grammar checks
+        # https://plugins.jetbrains.com/plugin/12175-grazie/versions
+        run: |
+          curl -L -o grazie.zip 'https://plugins.jetbrains.com/plugin/download?rel=true&updateId=160382'
+          unzip grazie.zip
+      - name: Download Grazie Professional plugin for grammar checks
+        # https://plugins.jetbrains.com/plugin/16136-grazie-professional/versions
+        run: |
+          curl -L -o grazie-pro.zip 'https://plugins.jetbrains.com/plugin/download?rel=true&updateId=168105'
+          unzip grazie-pro.zip
+      - name: 'Qodana for Docs'
+        uses: JetBrains/qodana-action@v5.0.4
+        with:
+          # https://hub.docker.com/r/jetbrains/qodana-jvm-community/tags
+          args: >
+            --linter,jetbrains/qodana-jvm-community:2021.3,
+            --project-dir,${{ github.workspace }},
+            -v,${{ github.workspace }}/grazie:/opt/idea/plugins/grazie,
+            -v,${{ github.workspace }}/grazie-pro:/opt/idea/plugins/grazie-pro,
+            -v,${{ github.workspace }}/asciidoctor-intellij-plugin:/opt/idea/plugins/asciidoctor-intellij-plugin,
+            --baseline,qodana-baseline.sarif.json
+          use-annotations: false
+      # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/uploading-a-sarif-file-to-github#example-workflow-that-runs-the-eslint-analysis-tool
+      - name: Upload SARIF report to GitHub
+        # so that it is present on all pull requests and GitHub shows the comparison results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          # Path to SARIF file relative to the root of the repository
+          sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
