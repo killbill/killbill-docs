@@ -779,7 +779,130 @@ The following table lists the actions and their results:
 | https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `110` with date `2021-11-01`. Trigger invoice dry run with target date `2021-11-29` | Invoice generated for  `$140` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + ((1000/100) x 1.0) + ((200/100) X 0.5) = 140` (Since `1200` minutes (`120` blocks) are recorded, the first `100` blocked are charged at `$1.0` per block as per the first tier and the next `20` blocks are charged at at `$0.5` per block as per the second tier)
 |===
 
+== Versioned Catalogs
 
+Kill Bill allows modifying the catalog over time. You can do this by creating a set of catalogs, one XML file for each version. Note that all the versions of a catalog need to have the same `catalogName` but different values for `effectiveDate`. The system will then rank such files based on their `effectiveDate` to create the various versions. 
+
+You can do the following using versioned catalogs:
+
+* Add new plans 
+* Modify the price for an existing plan 
+* Delete plans 
+
+Kill Bill uses the following rules to determine the active catalog version:
+
+* When there are multiple versions of a catalog, the catalog with an `effectiveDate` not later than the current date is treated as the active catalog. So any catalog version with a future `effectiveDate` is not treated as active until that date is reached.
+* If there are multiple catalog versions with effective dates before the current date, the newest one is considered active.
+* If all the catalog versions have effective dates after the current date, the oldest one is considered active.
+* If there are multiple catalog versions, with the same date component but different time components in the `effectiveDate`, the one with the earliest time component is considered as active. 
+* When there is only one catalog version, the `effectiveDate` does not matter. So, irrespective of whether it is in the past or in the future, the catalog is treated as the active catalog.
+
+The subsequent sections provide some examples of versioned catalogs.
+
+=== Add New Plan
+
+It is possible to add a new plan in a newer version of a catalog. The new plan is available only when the current date surpasses the `effectiveDate` in the new catalog version.
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|add-new-plan-v1.xml  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge
+|add-new-plan-v2.xml  |2020-01-15T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge, `standard-yearly` plan with `$540` recurring charge.
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Create a subscription to the `standard-yearly` plan  |Subscription creation fails (Since the `standard-yearly` plan is not yet active)
+|Move the clock to `2021-02-01`.   | Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan
+|Create a subscription to the `standard-yearly` plan   | Invoice is generated for `$540` for `2021-02-01` to `2022-02-01` (Since `v2` is now active, subscription creation is successful)
+|===
+
+=== Modify Plan Price Without Affecting Existing Subscriptions
+
+It is possible to change the price of a plan in a newer version of a catalog. In such cases, the price change applies only to new subscriptions (subscriptions created after the catalog with the price change is effective). Older subscriptions continue to be billed as per the original price plan. 
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|modify-plan-price-without-effective-date-for-existing-sub-v1.xml  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge
+|modify-plan-price-without-effective-date-for-existing-sub-v2.xml  |2020-01-15T00:00:00+00:00 | `standard-monthly` plan with `$60` recurring charge
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Move the clock to `2021-02-01`   | Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Although v2 is effective, invoice is generated as per the old price since this is an existing subscription)
+|Create another subscription to the `standard-monthly` plan   | Invoice is generated for `$60` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Invoice is generated as per the new price since this is a new subscription)
+|===
+
+=== Modify Plan Price And Use New Price for Existing Subscriptions
+
+As mentioned earlier, when a plan price is changed, it applies only to new subscriptions. If you do need to apply the price change to existing subscriptions, the `effectiveDateForExistingSubscriptions` attribute needs to be specified corresponding to the plan. 
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|modify-plan-price-with-effective-date-existing-sub-v1.xml  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge
+|modify-plan-price-with-effective-date-existing-sub-v2.xml  |2021-01-15T00:00:00+00:00 | `standard-monthly` plan with `$60` recurring charge. The `standard-monthly` plan has `effectiveDateForExistingSubscriptions=2021-03-01T00:00:00+00:00`
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload both the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Move the clock to `2021-02-01`   |Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Although v2 is effective, invoice is generated as per the old price since this is an existing subscription and `effectiveDateForExistingSubscriptions` is not reached)
+|Move the clock to  `2021-03-01`   |Invoice generated for `$60` for `2021-03-01` to `2021-04-01` corresponding to the `standard-monthly` plan (Invoice is generated as per the new price since `effectiveDateForExistingSubscriptions` is reached)
+|===
+
+=== Retire Plan
+
+It is possible to delete a plan in a newer version of a catalog. In such cases, no new subscriptions can be created corresponding to the plan. However, existing subscriptions continue to be billed as per the original price plan. 
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|retire-plan-v1.xml  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge, `standard-weekly` plan with `$15` recurring charge
+|retire-plan-v2.xml  |2021-01-15T00:00:00+00:00 | `standard-weekly` plan with `$15` recurring charge
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Move the clock to `2021-02-01`.   | Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Although v2 is effective and `standard-monthly` is not present in v2, invoice is generated since this is an existing subscription)
+|Create another subscription to the `standard-monthly` plan   | Subscription creation fails since v2 is now active and the `standard-monthly` plan is not present in v2.
+|===
 
 == Additional Information
 
