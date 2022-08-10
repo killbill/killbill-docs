@@ -1,5 +1,47 @@
 = Debugging tips
 
+== Finding the current Kill Bill version
+
+You can find the current Kill Bill version by invoking the following endpoint:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     http://127.0.0.1:8080/1.0/kb/nodesInfo
+----
+
+This displays a response similar to the following:
+
+[source,bash]
+----
+[
+  {
+    "nodeName": "DESKTOP-NCUS49R",
+    "bootTime": "2022-08-10T06:30:52.000Z",
+    "lastUpdatedDate": "2022-08-10T06:30:52.000Z",
+    "kbVersion": "0.22.18",
+    "apiVersion": "0.53.17",
+    "pluginApiVersion": "0.26.4",
+    "commonVersion": "0.24.9",
+    "platformVersion": "0.40.4",
+    "pluginsInfo": [
+      {
+        "bundleSymbolicName": "org.kill-bill.billing.plugin.java.analytics-plugin",
+        "pluginKey": "analytics",
+        "pluginName": "analytics-plugin",
+        "version": "7.3.0-SNAPSHOT",
+        "state": "STOPPED",
+        "isSelectedForStart": true,
+        "services": []
+      }
+    ]
+  }
+]
+----
+
+Alternatively, you can also find the Kill Bill version via Kaui by accessing \http://<KAUI_HOME>/kpm.
+
 == Healthchecks and metrics
 
 Kill Bill exposes both healthchecks and metrics. These can be accessed via:
@@ -453,19 +495,25 @@ until RubyMine is connected.
 While RubyMine offers a nice GUI, it can quickly lose its context or have a hard time stepping through gems dependencies. `ruby-debug` is much more reliable.
 
 * Add the following dependency to your Gemfile:
++
 [source,ruby]
 ----
 gem 'ruby-debug', '~> 0.10'
 ----
++
 * Add the following snippet at the entry point of your plugin, e.g. top of `lib/cybersource.rb` for CyberSource:
++
 [source,ruby]
 ----
 require 'ruby-debug'
 Debugger.wait_connection = true
 Debugger.start_remote(nil, 1234)
 ----
++
 * Set a breakpoint in the source code using `debugger`
++
 * Rebuild and redeploy the plugin:
++
 [source,bash]
 ----
 bundle install && \
@@ -474,6 +522,7 @@ rake build && \
 rake killbill:package && \
 rake killbill:deploy[true]
 ----
++
 * Restart Kill Bill with the Java property `-X+O`
 
 The Kill Bill startup sequence will stop until `ruby-debug` is connected. To launch it:
