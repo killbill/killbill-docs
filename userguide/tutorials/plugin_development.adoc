@@ -180,7 +180,24 @@ In addition to the classes listed above, some of the other classes in the `hello
 * https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldConfigurationHandler.java[_HelloWorldConfigurationHandler_]: Most plugins require custom configuration. A configuration handler similar to the `HelloWorldConfigurationHandler` can be used to read the configuration properties.
 * https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldHealthcheck.java[_HelloWorldHealthcheck_] and https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldHealthcheckServlet.java[_HelloWorldHealthcheckServlet_]: Can be used to provide the health status of the plugin.
 
-== Setting up a Breakpoint and Debugging
+== Enabling Per-tenant Configuration
+
+As explained https://docs.killbill.io/latest/plugin_installation.html#per-tenant-configuration[_here_], Kill Bill supports per tenant configuration for plugins. In order enable per tenant configuration, the following needs to be done:
+
+. Create a custom configuration handler similar to https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldConfigurationHandler.java[_HelloWorldConfigurationHandler_]
+
+. Initialize it in the `start` method of your activator class as follows (see https://github.com/killbill/killbill-hello-world-java-plugin/blob/3aa938d19fdfba81c7c035b45c3f17cac74db177/src/main/java/org/killbill/billing/plugin/helloworld/HelloWorldActivator.java#L57[HelloWorldActivator.start]):
++
+[source, java]
+----
+helloWorldConfigurationHandler = new HelloWorldConfigurationHandler(region, PLUGIN_NAME, killbillAPI);
+final Properties globalConfiguration = helloWorldConfigurationHandler.createConfigurable(configProperties.getProperties());
+helloWorldConfigurationHandler.setDefaultConfigurable(globalConfiguration);
+----
+
+Now, you can use the `ConfigurationHandler` to retrieve per-tenant properties. You can see an example of this in the <<retrieve_configuration_example, Authentication Steps>> section below.
+
+== Setting Up a Breakpoint and Debugging
 
 When you start developing your own plugin, it would be useful to be able to set up a break point and debug the plugin code. This section explains how you can achieve this. 
 
@@ -191,9 +208,9 @@ When you start developing your own plugin, it would be useful to be able to set 
 
 .. Set up a break point in the HelloWorldServlet#L41.
 
-.. Click `Run > Debug Configurations`.
+.. Click *Run > Debug Configurations*.
 
-.. Double click  `New Remote Java Application`.
+.. Double-click  *New Remote Java Application*.
 
 .. Enter the name that you would like to give to this debug configuration in the *Name* field.
 
@@ -235,6 +252,7 @@ org.killbill.billing.plugin.hello-world.credentials.password=hello-world-passwor
     "http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/hello-world-plugin"
 ----
 +
+[[retrieve_configuration_example]]
 . Retrieve credentials in the code. For example, you can retrieve the credentials in the `HelloWorldListener` class as follows:
 +
 [source,java]
