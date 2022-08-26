@@ -12,11 +12,11 @@ The purpose of this document is to explain how to  customize an invoice sent via
 
 == Overview
 
-The https://github.com/killbill/killbill-email-notifications-plugin/[Email Notification Plugin] can be used to send emails to customers when certain https://docs.killbill.io/latest/email-notification-plugin.html#_overview[predefined events] occur. The plugin defines some https://github.com/killbill/killbill-email-notifications-plugin/tree/4d653e0d6ad6cd637716737d25f854f16652aaee/src/main/resources/org/killbill/billing/plugin/notification/templates[email templates] which determine the body of the email. Users can also upload their own https://docs.killbill.io/latest/email-notification-plugin.html#_uploading_a_custom_template[custom templates]. Sometimes users may wish to customize the invoice sent in the email by including additional fields. This can be achieved by creating a custom plugin as explained in this document.
+The https://github.com/killbill/killbill-email-notifications-plugin/[email notification plugin] can be used to send emails to customers when certain https://docs.killbill.io/latest/email-notification-plugin.html#_overview[predefined events] occur. The plugin defines some https://github.com/killbill/killbill-email-notifications-plugin/tree/4d653e0d6ad6cd637716737d25f854f16652aaee/src/main/resources/org/killbill/billing/plugin/notification/templates[email templates] which determine the body of the email. Users can also upload their own https://docs.killbill.io/latest/email-notification-plugin.html#_uploading_a_custom_template[custom templates]. Sometimes users may wish to customize the invoice sent in the email by including additional fields. This can be achieved by creating a custom plugin as explained in this document.
 
 == Plugin Tutorial
 
-We have created https://github.com/killbill/killbill-custom-invoice-formatter-example[sample plugin] that demonstrates a custom invoice formatter. You can use this as a starting point for developing your plugin. Let us now take a closer look at how you can create a similar custom plugin.
+We have created a https://github.com/killbill/killbill-custom-invoice-formatter-example[sample plugin] that demonstrates a custom invoice formatter. You can use this as a starting point for developing your plugin. Let us now take a closer look at how you can create a similar custom plugin.
 
 === Initial Setup
 
@@ -28,7 +28,8 @@ We have created https://github.com/killbill/killbill-custom-invoice-formatter-ex
 
 First, you need to create an `InvoiceFormatter` class similar to  https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/26d6e27baa3ab2849187899ce499e3a63360fc91/src/main/java/org/killbill/billing/plugin/custominvoiceformatter/CustomInvoiceFormatter.java[CustomInvoiceFormatter] as follows:
 
-```java
+[source, java]
+----
 public class CustomInvoiceFormatter extends DefaultInvoiceFormatter{
 
 	public CustomInvoiceFormatter(Map<String, String> translator, Invoice invoice, Locale locale) {
@@ -45,7 +46,8 @@ public class CustomInvoiceFormatter extends DefaultInvoiceFormatter{
 	}
 
 }
-```
+----
+
 * The `CustomInvoiceFormatter` class extends `org.killbill.billing.plugin.notification.generator.formatters.DefaultInvoiceFormatter`.
 
 * A field called `newInvoiceMessage` is defined. This is a custom field. It has a corresponding `getNewInvoiceMessage` method.
@@ -57,7 +59,8 @@ public class CustomInvoiceFormatter extends DefaultInvoiceFormatter{
 Next, you need to create an `InvoiceFormatterFactory` class similar to the 
 https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/26d6e27baa3ab2849187899ce499e3a63360fc91/src/main/java/org/killbill/billing/plugin/custominvoiceformatter/CustomInvoiceFormatterFactory.java[CustomInvoiceFormatterFactory] class. This is responsible for creating an `InvoiceFormatter`. 
 
-```java
+[source, java]
+----
 public class CustomInvoiceFormatterFactory implements InvoiceFormatterFactory{
 	
 	private static final Logger logger = LoggerFactory.getLogger(CustomInvoiceFormatterFactory.class);
@@ -74,7 +77,7 @@ public class CustomInvoiceFormatterFactory implements InvoiceFormatterFactory{
 	}
 
 }
-```
+----
 
 * The `CustomInvoiceFormatterFactory` implements the `org.killbill.billing.plugin.notification.api.InvoiceFormatterFactory` interface. 
 
@@ -86,7 +89,8 @@ public class CustomInvoiceFormatterFactory implements InvoiceFormatterFactory{
 Finally, you need to create an `Activator` class similar to the https://github.com/killbill/killbill-custom-invoice-formatter-example/blob/26d6e27baa3ab2849187899ce499e3a63360fc91/src/main/java/org/killbill/billing/plugin/custominvoiceformatter/CustomInvoiceFormatterActivator.java[CustomInvoiceFormatterActivator]. As with other plugins, the `Activator` class is responsible for registering the plugin with Kill Bill.
 
 
-```java
+[source, java]
+----
 public class CustomInvoiceFormatterActivator extends KillbillActivatorBase{
 
 	public static final String PLUGIN_NAME = "custom-invoice-formatter-plugin";
@@ -117,7 +121,7 @@ public class CustomInvoiceFormatterActivator extends KillbillActivatorBase{
 	}
 
 }
-```
+----
 
 * The `CustomInvoiceFormatterActivator` extends the `org.killbill.billing.osgi.libs.killbill.KillbillActivatorBase` class. 
 
@@ -130,12 +134,18 @@ public class CustomInvoiceFormatterActivator extends KillbillActivatorBase{
 Once the code changes as done, the custom plugin can be built and deployed as explained below.
 
 . Build the code using the following Maven command:
++
 [source,bash]
+----
 mvn clean install -DskipTests=true
-
+----
++
 . Install the plugin using the following https://github.com/killbill/killbill-cloud/blob/master/kpm[kpm] command (Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path should match the path specified by the `org.killbill.osgi.bundle.install.dir` property in the Kill Bill configuration file):
++
 [source,bash]
+----
 kpm install_java_plugin 'dev-custom-invoice-formatter' --from-source-file=target/custom-invoice-formatter-plugin*-SNAPSHOT.jar --destination=<path_to_install_plugin>
+----
 
 == Test
 
@@ -144,9 +154,12 @@ In order to test the plugin,you need to *upload an email template* with the new 
 For example, in order to include the `newInvoiceMessage` field created earlier  in the invoice creation email, you will need to do the following:
 
 * Create an email template with the  `invoice.newInvoiceMessage` field as shown below and upload the new template as explained https://docs.killbill.io/latest/email-notification-plugin.html#_uploading_a_custom_template[here].
++
 [source,bash]
+----
 {{invoice.newInvoiceMessage}}
-
+----
++
 * Trigger the invoice creation email as explained https://docs.killbill.io/latest/email-notification-plugin.html#_testing_the_plugin[here].
 
 * Verify that the email includes the `newInvoiceMessage` field.
