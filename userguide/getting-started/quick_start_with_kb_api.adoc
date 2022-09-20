@@ -27,6 +27,8 @@ Make sure you have installed Kill Bill and Kaui and launched them per the https:
 
 Kill Bill supports multi-tenancy, where each https://docs.killbill.io/latest/Kill-Bill-Glossary.html#tenant[tenant^] has its own data, configuration, and so forth. This section explains how to create a tenant via the Kill Bill API.
 
+[[All the code in this section is from the Tenants section in the API docs.]]
+
 ++++
 <ul class="nav nav-tabs" id="tutorial-step1" role="tablist">
   <li class="nav-item">
@@ -130,23 +132,25 @@ For this tutorial, instead of starting with the XML catalog, you'll learn how to
 [NOTE]
 *Note* The simple catalog supports a _subset_ of the regular XML catalog features and isn't intended to serve as a catalog in production. For more details on the simple catalog, see the https://killbill.github.io/slate/#catalog-simple-plan["Simple Plan"] section in the _API Reference_.
 
+//All the code in this section is from the Simple Plan section in the API docs.
+
 ++++
 <ul class="nav nav-tabs" id="tutorial-step1" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="curl-tab-step1" data-toggle="tab" href="#curl-step1" role="tab" aria-controls="curl-step1" aria-selected="true">cURL</a>
+    <a class="nav-link active" id="curl-tab-step1" data-toggle="tab" href="#curl-step2" role="tab" aria-controls="curl-step2" aria-selected="true">cURL</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="java-tab-step1" data-toggle="tab" href="#java-step1" role="tab" aria-controls="java-step1" aria-selected="false">Java</a>
+    <a class="nav-link" id="java-tab-step2" data-toggle="tab" href="#java-step2" role="tab" aria-controls="java-step2" aria-selected="false">Java</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="ruby-tab-step1" data-toggle="tab" href="#ruby-step1" role="tab" aria-controls="ruby-step1" aria-selected="false">Ruby</a>
+    <a class="nav-link" id="ruby-tab-step2" data-toggle="tab" href="#ruby-step2" role="tab" aria-controls="ruby-step2" aria-selected="false">Ruby</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="python-tab-step1" data-toggle="tab" href="#python-step1" role="tab" aria-controls="python-step1" aria-selected="false">Python</a>
+    <a class="nav-link" id="python-tab-step2" data-toggle="tab" href="#python-step2" role="tab" aria-controls="python-step2" aria-selected="false">Python</a>
   </li>
 </ul>
 <div class="tab-content" id="tutorial-content-step1">
-  <div class="tutorial-tab tab-pane fade show active" id="curl-step1" role="tabpanel" aria-labelledby="curl-tab-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step2" role="tabpanel" aria-labelledby="curl-tab-step2">
 ++++
 [source,bash]
 ----
@@ -165,10 +169,12 @@ curl -v \
 ----
 ++++
 </div>
-<div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
+<div class="tutorial-tab tab-pane fade" id="java-step2" role="tabpanel" aria-labelledby="java-tab-step2">
 ++++
 [source,java]
 ----
+//I'm not sure if I declared BigDecimal amount correctly.
+
 import org.killbill.billing.client.api.gen.CatalogApi;
 protected CatalogApi catalogApi;
 
@@ -180,7 +186,7 @@ SimplePlan body = new SimplePlan(planId,
                                  productName, 
                                  ProductCategory.BASE, 
                                  Currency.USD, 
-                                 BigDecimal.TEN, 
+                                 BigDecimal.("24.95"), 
                                  BillingPeriod.MONTHLY, 
                                  trialLength, 
                                  TimeUnit.UNLIMITED, 
@@ -190,9 +196,31 @@ catalogApi.addSimplePlan(body, requestOptions);
 ----
 ++++
 </div>
-<div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
+<div class="tutorial-tab tab-pane fade" id="ruby-step2" role="tabpanel" aria-labelledby="ruby-tab-step2">
 ++++
 [source,ruby]
+----
+simple_plan                  = KillBillClient::Model::SimplePlanAttributes.new
+simple_plan.plan_id          = 'standard-monthly'
+simple_plan.product_name     = 'Standard'
+simple_plan.product_category = 'BASE'
+simple_plan.currency         = 'USD'
+simple_plan.amount           = 24.95
+simple_plan.billing_period   = 'MONTHLY'
+simple_plan.trial_length     = 0
+simple_plan.trial_time_unit  = 'UNLIMITED'
+
+KillBillClient::Model::Catalog.add_tenant_catalog_simple_plan(simple_plan,
+                                                              user,
+                                                              reason,
+                                                              comment,
+                                                              options)
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="python-step2" role="tabpanel" aria-labelledby="python-tab-step2">
+++++
+[source,python]
 ----
 catalogApi = killbill.api.CatalogApi()
 body = SimplePlan(plan_id='standard-monthly',
@@ -203,20 +231,12 @@ body = SimplePlan(plan_id='standard-monthly',
                   billing_period='MONTHLY',
                   trial_length=0,
                   trial_time_unit='UNLIMITED')
-
 catalogApi.add_simple_plan(body, created_by, api_key, api_secret)
 ----
 ++++
+  </div>
 </div>
-<div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
 ++++
-[source,python]
-----
-
-----
-++++
-</div>
-<div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
 
 [NOTE]
 *Note:* You can repeat this API call to create another plan. For more information, see https://killbill.github.io/slate/#catalog-simple-plan[Simple Plan] in the API.
@@ -227,28 +247,28 @@ catalogApi.add_simple_plan(body, created_by, api_key, api_secret)
 In this section, we will create an https://docs.killbill.io/latest/Kill-Bill-Glossary.html#account[account^] for a customer, which stores the data your organization uses to transact business with a customer. To keep things simple, we will create an account with a minimum of information.
 
 ++++
-<ul class="nav nav-tabs" id="tutorial-step1" role="tablist">
+<ul class="nav nav-tabs" id="tutorial-step3" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="curl-tab-step1" data-toggle="tab" href="#curl-step1" role="tab" aria-controls="curl-step1" aria-selected="true">cURL</a>
+    <a class="nav-link active" id="curl-tab-step3" data-toggle="tab" href="#curl-step3" role="tab" aria-controls="curl-step3" aria-selected="true">cURL</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="java-tab-step1" data-toggle="tab" href="#java-step1" role="tab" aria-controls="java-step1" aria-selected="false">Java</a>
+    <a class="nav-link" id="java-tab-step3" data-toggle="tab" href="#java-step3" role="tab" aria-controls="java-step3" aria-selected="false">Java</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="ruby-tab-step1" data-toggle="tab" href="#ruby-step1" role="tab" aria-controls="ruby-step1" aria-selected="false">Ruby</a>
+    <a class="nav-link" id="ruby-tab-step3" data-toggle="tab" href="#ruby-step3" role="tab" aria-controls="ruby-step3" aria-selected="false">Ruby</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="python-tab-step1" data-toggle="tab" href="#python-step1" role="tab" aria-controls="python-step1" aria-selected="false">Python</a>
+    <a class="nav-link" id="python-tab-step3" data-toggle="tab" href="#python-step3" role="tab" aria-controls="python-step3" aria-selected="false">Python</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="go-tab-step1" data-toggle="tab" href="#go-step1" role="tab" aria-controls="go-step1" aria-selected="false">Go</a>
+    <a class="nav-link" id="go-tab-step3" data-toggle="tab" href="#go-step3" role="tab" aria-controls="go-step3" aria-selected="false">Go</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="php-tab-step1" data-toggle="tab" href="#php-step1" role="tab" aria-controls="php-step1" aria-selected="false">PHP</a>
+    <a class="nav-link" id="php-tab-step3" data-toggle="tab" href="#php-step3" role="tab" aria-controls="php-step3" aria-selected="false">PHP</a>
   </li>
 </ul>
 <div class="tab-content" id="tutorial-content-step1">
-  <div class="tutorial-tab tab-pane fade show active" id="curl-step1" role="tabpanel" aria-labelledby="curl-tab-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step3" role="tabpanel" aria-labelledby="curl-tab-step3">
 ++++
 [source,bash]
 ----
@@ -265,7 +285,7 @@ curl -v \
 ++++
     <p>The cURL output should return a <code>Location</code> header which contains the unique identifier (ID) of this account: <code>Location: http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8</code></p>
   </div>
-  <div class="tutorial-tab tab-pane fade" id="java-step1" role="tabpanel" aria-labelledby="java-tab-step1">
+  <div class="tutorial-tab tab-pane fade" id="java-step3" role="tabpanel" aria-labelledby="java-tab-step3">
 ++++
 [source,java]
 ----
@@ -294,7 +314,7 @@ Account account = accountApi.createAccount(body, requestOptions);
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
+  <div class="tutorial-tab tab-pane fade" id="ruby-step3" role="tabpanel" aria-labelledby="ruby-tab-step3">
 ++++
 [source,ruby]
 ----
@@ -317,7 +337,7 @@ account = body.create('tutorial', nil, nil, options)
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="python-step1" role="tabpanel" aria-labelledby="python-tab-step1">
+  <div class="tutorial-tab tab-pane fade" id="python-step3" role="tabpanel" aria-labelledby="python-tab-step3">
 ++++
 [source,python]
 ----
@@ -333,7 +353,7 @@ account = account_api.create_account(body, 'tutorial', 'bob', 'lazar')
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="go-step1" role="tabpanel" aria-labelledby="go-tab-step1">
+  <div class="tutorial-tab tab-pane fade" id="go-step3" role="tabpanel" aria-labelledby="go-tab-step3">
 ++++
 [source,go]
 ----
@@ -389,7 +409,7 @@ if err == nil {
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="php-step1" role="tabpanel" aria-labelledby="php-tab-step1">
+  <div class="tutorial-tab tab-pane fade" id="php-step3" role="tabpanel" aria-labelledby="php-tab-step3">
 ++++
 [source,php]
 ----
@@ -426,28 +446,28 @@ For simplicity, we will create an offline payment method—checks—for the acco
 *Note:* Replace `1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8` below with the ID of your account.
 
 ++++
-<ul class="nav nav-tabs" id="tutorial-step2" role="tablist">
+<ul class="nav nav-tabs" id="tutorial-step4" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="curl-tab-step2" data-toggle="tab" href="#curl-step2" role="tab" aria-controls="curl-step2" aria-selected="true">cURL</a>
+    <a class="nav-link active" id="curl-tab-step4" data-toggle="tab" href="#curl-step4" role="tab" aria-controls="curl-step4" aria-selected="true">cURL</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="java-tab-step2" data-toggle="tab" href="#java-step2" role="tab" aria-controls="java-step2" aria-selected="false">Java</a>
+    <a class="nav-link" id="java-tab-step4" data-toggle="tab" href="#java-step4" role="tab" aria-controls="java-step4" aria-selected="false">Java</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="ruby-tab-step2" data-toggle="tab" href="#ruby-step2" role="tab" aria-controls="ruby-step2" aria-selected="false">Ruby</a>
+    <a class="nav-link" id="ruby-tab-step4" data-toggle="tab" href="#ruby-step4" role="tab" aria-controls="ruby-step4" aria-selected="false">Ruby</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="python-tab-step2" data-toggle="tab" href="#python-step2" role="tab" aria-controls="python-step2" aria-selected="false">Python</a>
+    <a class="nav-link" id="python-tab-step4" data-toggle="tab" href="#python-step4" role="tab" aria-controls="python-step4" aria-selected="false">Python</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="go-tab-step2" data-toggle="tab" href="#go-step2" role="tab" aria-controls="go-step2" aria-selected="false">Go</a>
+    <a class="nav-link" id="go-tab-step4" data-toggle="tab" href="#go-step4" role="tab" aria-controls="go-step4" aria-selected="false">Go</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="php-tab-step2" data-toggle="tab" href="#php-step2" role="tab" aria-controls="php-step2" aria-selected="false">PHP</a>
+    <a class="nav-link" id="php-tab-step4" data-toggle="tab" href="#php-step4" role="tab" aria-controls="php-step4" aria-selected="false">PHP</a>
   </li>
 </ul>
 <div class="tab-content" id="tutorial-content-step2">
-  <div class="tutorial-tab tab-pane fade show active" id="curl-step2" role="tabpanel" aria-labelledby="curl-tab-step2">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step4" role="tabpanel" aria-labelledby="curl-tab-step4">
 ++++
 [source,bash]
 ----
@@ -459,11 +479,11 @@ curl -v \
      -H 'X-Killbill-CreatedBy: tutorial' \
      -H 'Content-Type: application/json' \
      -d '{ "pluginName": "__EXTERNAL_PAYMENT__" }' \
-     http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8/paymentMethods?isDefault=true
+     http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8/paymentMethods?isDefault=true 
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="java-step2" role="tabpanel" aria-labelledby="java-tab-step2">
+  <div class="tutorial-tab tab-pane fade" id="java-step4" role="tabpanel" aria-labelledby="java-tab-step4">
 ++++
 [source,java]
 ----
@@ -500,7 +520,7 @@ PaymentMethod paymentMethod = accountApi.createPaymentMethod(accountId,
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="ruby-step2" role="tabpanel" aria-labelledby="ruby-tab-step2">
+  <div class="tutorial-tab tab-pane fade" id="ruby-step4" role="tabpanel" aria-labelledby="ruby-tab-step4">
 ++++
 [source,ruby]
 ----
@@ -544,7 +564,7 @@ account_api.create_payment_method('1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="go-step2" role="tabpanel" aria-labelledby="go-tab-step2">
+  <div class="tutorial-tab tab-pane fade" id="go-step4" role="tabpanel" aria-labelledby="go-tab-step4">
 ++++
 [source,go]
 ----
@@ -601,7 +621,7 @@ if err == nil {
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="php-step2" role="tabpanel" aria-labelledby="php-tab-step2">
+  <div class="tutorial-tab tab-pane fade" id="php-step4" role="tabpanel" aria-labelledby="php-tab-step4">
 ++++
 [source,php]
 ----
@@ -644,26 +664,26 @@ You are now ready to create a https://docs.killbill.io/latest/Kill-Bill-Glossary
 ++++
 <ul class="nav nav-tabs" id="tutorial-step3" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="curl-tab-step3" data-toggle="tab" href="#curl-step3" role="tab" aria-controls="curl-step3" aria-selected="true">cURL</a>
+    <a class="nav-link active" id="curl-tab-step5" data-toggle="tab" href="#curl-step5" role="tab" aria-controls="curl-step5" aria-selected="true">cURL</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="java-tab-step3" data-toggle="tab" href="#java-step3" role="tab" aria-controls="java-step3" aria-selected="false">Java</a>
+    <a class="nav-link" id="java-tab-step5" data-toggle="tab" href="#java-step5" role="tab" aria-controls="java-step5" aria-selected="false">Java</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="ruby-tab-step3" data-toggle="tab" href="#ruby-step3" role="tab" aria-controls="ruby-step3" aria-selected="false">Ruby</a>
+    <a class="nav-link" id="ruby-tab-step5" data-toggle="tab" href="#ruby-step5" role="tab" aria-controls="ruby-step5" aria-selected="false">Ruby</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="python-tab-step3" data-toggle="tab" href="#python-step3" role="tab" aria-controls="python-step3" aria-selected="false">Python</a>
+    <a class="nav-link" id="python-tab-step5" data-toggle="tab" href="#python-step5" role="tab" aria-controls="python-step5" aria-selected="false">Python</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="go-tab-step3" data-toggle="tab" href="#go-step3" role="tab" aria-controls="go-step3" aria-selected="false">Go</a>
+    <a class="nav-link" id="go-tab-step5" data-toggle="tab" href="#go-step5" role="tab" aria-controls="go-step5" aria-selected="false">Go</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="php-tab-step3" data-toggle="tab" href="#php-step3" role="tab" aria-controls="php-step3" aria-selected="false">PHP</a>
+    <a class="nav-link" id="php-tab-step5" data-toggle="tab" href="#php-step5" role="tab" aria-controls="php-step5" aria-selected="false">PHP</a>
   </li>
 </ul>
-<div class="tab-content" id="tutorial-content-step3">
-  <div class="tutorial-tab tab-pane fade show active" id="curl-step3" role="tabpanel" aria-labelledby="curl-tab-step3">
+<div class="tab-content" id="tutorial-content-step5">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step5" role="tabpanel" aria-labelledby="curl-tab-step5">
 ++++
 [source,bash]
 ----
@@ -682,7 +702,7 @@ curl -v \
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="java-step3" role="tabpanel" aria-labelledby="java-tab-step3">
+  <div class="tutorial-tab tab-pane fade" id="java-step5" role="tabpanel" aria-labelledby="java-tab-step5">
 ++++
 [source,java]
 ----
@@ -717,7 +737,7 @@ Subscription subscription = subscriptionApi.createSubscription(body,
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="ruby-step3" role="tabpanel" aria-labelledby="ruby-tab-step3">
+  <div class="tutorial-tab tab-pane fade" id="ruby-step5" role="tabpanel" aria-labelledby="ruby-tab-step5">
 ++++
 [source,ruby]
 ----
@@ -745,7 +765,7 @@ subscription = body.create('tutorial',
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="python-step3" role="tabpanel" aria-labelledby="python-tab-step3">
+  <div class="tutorial-tab tab-pane fade" id="python-step5" role="tabpanel" aria-labelledby="python-tab-step5">
 ++++
 [source,python]
 ----
@@ -766,7 +786,7 @@ subscription_api.create_subscription(body,
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="go-step3" role="tabpanel" aria-labelledby="go-tab-step3">
+  <div class="tutorial-tab tab-pane fade" id="go-step5" role="tabpanel" aria-labelledby="go-tab-step5">
 ++++
 [source,go]
 ----
@@ -822,7 +842,7 @@ if err == nil {
 ----
 ++++
   </div>
-  <div class="tutorial-tab tab-pane fade" id="php-step3" role="tabpanel" aria-labelledby="php-tab-step3">
+  <div class="tutorial-tab tab-pane fade" id="php-step5" role="tabpanel" aria-labelledby="php-tab-step5">
 ++++
 [source,php]
 ----
@@ -856,4 +876,89 @@ $sub = $subscriptionApi->createSubscription(
 [step6]
 == View the Generated Invoice
 
+To view the invoice that Kill Bill automatically generated for the subscription (step 5), see the following tabs.
 
+For examples of responses, see https://killbill.github.io/slate/?java#account-retrieve-account-invoices[Retrieve Account Invoices] in the API.
+
+[NOTE]
+*Note:* Replace `1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8` below with the ID of your account.
+
+//should probably list response in this section
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step6" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step6" data-toggle="tab" href="#curl-step6" role="tab" aria-controls="curl-step6" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step6" data-toggle="tab" href="#java-step6" role="tab" aria-controls="java-step6" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step6" data-toggle="tab" href="#ruby-step6" role="tab" aria-controls="ruby-step6" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step6" data-toggle="tab" href="#python-step6" role="tab" aria-controls="python-step6" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step6" role="tabpanel" aria-labelledby="curl-tab-step6">
+++++
+[source,bash]
+----
+curl -v \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Accept: application/json" \
+    "http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8/invoices"
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="java-step6" role="tabpanel" aria-labelledby="java-tab-step6">
+++++
+[source,java]
+----
+import org.killbill.billing.client.api.gen.AccountApi;
+protected AccountApi accountApi;
+
+UUID accountId = UUID.fromString("1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8");
+LocalDate startDate = null;
+LocalDate endDate = null;
+Boolean withMigrationInvoices = false; // Will not fetch migrated invoice - if any
+Boolean unpaidInvoicesOnly = false; // Will not restrict to unpaid invoices
+Boolean includeVoidedInvoices = false; // Will not include void invoices
+String invoicesFilter = null;
+Invoices invoices = accountApi.getInvoicesForAccount(accountId,
+                                                     startDate, 
+                                                     endDate,
+                                                     withMigrationInvoices, 
+                                                     unpaidInvoicesOnly, 
+                                                     includeVoidedInvoices, 
+                                                     invoicesFilter,
+                                                     AuditLevel.FULL, 
+                                                     requestOptions);
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="ruby-step6" role="tabpanel" aria-labelledby="ruby-tab-step6">
+++++
+[source,ruby]
+----
+account.invoices(with_items,
+                 options)
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="python-step6" role="tabpanel" aria-labelledby="python-tab-step6">
+++++
+[source,python]
+----
+accountApi = killbill.api.AccountApi()
+account_id = '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8'
+
+accountApi.get_invoices_for_account(account_id, api_key, api_secret)
+----
+++++
+  </div>
+</div>
+++++
