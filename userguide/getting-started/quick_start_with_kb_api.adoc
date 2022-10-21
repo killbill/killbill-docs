@@ -1,0 +1,1623 @@
+= Quick Start with the Kill Bill API
+
+This guide explains how to get familiar with the Kill Bill API by performing the following tasks:  
+
+. <<_step_1_create_a_tenant, Create a tenant>>
+. <<_step_2_set_up_a_simple_catalog_and_plans, Set up a simple catalog and plan>>
+. <<_step_3_create_an_account, Create an account>> 
+. <<_step_4_add_a_payment_method_to_the_account, Add a payment method to the account>>
+. <<_step_5_set_up_a_subscription_for_the_account, Set up a subscription for the account>>
+. <<_step_6_view_the_generated_invoice, View the generated invoice>>
+
+== Before You Begin
+
+Make sure you have installed Kill Bill and Kaui and launched them per the https://docs.killbill.io/latest/getting_started.html[_Getting Started_] guide. 
+
+== Additional Resources
+
+* https://killbill.github.io/slate[_API Reference_]
+
+* https://docs.killbill.io/latest/userguide_kaui.html[_Kaui Guide_] 
+
+* https://docs.killbill.io/latest/Kill-Bill-Glossary.html[_Kill Bill Glossary_]
+ 
+[[_step_1_create_a_tenant]]
+== Step 1. Create a Tenant
+
+Kill Bill supports multi-tenancy, where each https://docs.killbill.io/latest/Kill-Bill-Glossary.html#tenant[tenant^] has its own data, configuration, and so forth. This section explains how to create a tenant via the Kill Bill API.
+
+For more information, see the https://killbill.github.io/slate/?java#tenant-create-a-tenant[Create a Tenant] endpoint.
+
+**Example Request**
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step1" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step1" data-toggle="tab" href="#curl-step1" role="tab" aria-controls="curl-step1" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step1" data-toggle="tab" href="#java-step1" role="tab" aria-controls="java-step1" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step1" data-toggle="tab" href="#ruby-step1" role="tab" aria-controls="ruby-step1" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step1" data-toggle="tab" href="#python-step1" role="tab" aria-controls="python-step1" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step1" role="tabpanel" aria-labelledby="curl-tab-step1">
+++++
+[source,bash]
+----
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '{ "apiKey": "bob", "apiSecret": "lazar"}' \
+    "http://127.0.0.1:8080/1.0/kb/tenants"
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="java-step1" role="tabpanel" aria-labelledby="java-tab-step1">
+++++
+[source,java]
+----
+import org.killbill.billing.client.api.gen.TenantApi;
+protected TenantApi tenantApi;
+
+UUID tenantId = null;
+String externalKey = null;
+String apiKey = "bob";
+String apiSecret = "lazar";
+ImmutableList<AuditLog> EMPTY_AUDIT_LOGS = ImmutableList.<AuditLog>of();
+
+Tenant body = new Tenant(tenantId,
+                         externalKey,
+                         apiKey,
+                         apiSecret,
+                         EMPTY_AUDIT_LOGS);
+
+tenantApi.createTenant(body, requestOptions);
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="ruby-step1" role="tabpanel" aria-labelledby="ruby-tab-step1">
+++++
+[source,ruby]
+----
+tenant = KillBillClient::Model::Tenant.new
+tenant.external_key = "demo_external_key"
+tenant.api_key = "demo_api_key"
+tenant.api_secret = "demo_api_secret"
+
+use_global_default = true
+user = "demo"
+reason = nil
+comment = nil
+
+tenant.create(use_global_default,
+              user,
+              reason,
+              comment,
+              options)
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="python-step1" role="tabpanel" aria-labelledby="python-tab-step1">
+++++
+[source,python]
+----
+tenantApi = killbill.api.TenantApi()
+
+body = Tenant(api_key='demo_api_key', api_secret='demo_api_secret')
+
+tenantApi.create_tenant(body, created_by='demo')
+----
+++++
+  </div>
+</div>
+++++
+
+**Response**
+
+If successful, returns a status code of 201 and an empty body. In addition a Location parameter is returned in the header. This parameter gives the URL for the tenant, including the `tenantId`.
+
+**Example Response**
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step1A" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step1A" data-toggle="tab" href="#curl-step1A" role="tab" aria-controls="curl-step1A" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step1A" data-toggle="tab" href="#java-step1A" role="tab" aria-controls="java-step1A" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step1A" data-toggle="tab" href="#ruby-step1A" role="tab" aria-controls="ruby-step1A" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step1A" data-toggle="tab" href="#python-step1A" role="tab" aria-controls="python-step1A" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step1A">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step1A" role="tabpanel" aria-labelledby="curl-tab-step1A">
+++++
+[source,bash]
+----
+class Tenant {
+    tenantId: 5cce926f-7f3a-4007-a5a0-e5b55fc50079
+    externalKey: null
+    apiKey: bob
+    apiSecret: lazar
+    auditLogs: []
+}
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="java-step1A" role="tabpanel" aria-labelledby="java-tab-step1A">
+++++
+[source,java]
+----
+class Tenant {
+    tenantId: 5cce926f-7f3a-4007-a5a0-e5b55fc50079
+    externalKey: null
+    apiKey: bob
+    apiSecret: lazar
+    auditLogs: []
+}
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="ruby-step1A" role="tabpanel" aria-labelledby="ruby-tab-step1A">
+++++
+[source,ruby]
+----
+
+{
+   "tenantId":"ab5981c2-de14-43d6-a35b-a2ed0b28c746",
+   "externalKey":"demo_external_key",
+   "apiKey":"bob"
+}
+
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="python-step1A" role="tabpanel" aria-labelledby="python-tab-step1A">
+++++
+[source,python]
+----
+no content
+----
+++++
+  </div>
+</div>
+++++
+
+[[_step_2_set_up_a_simple_catalog_and_plans]]
+== Step 2. Set Up a Simple Catalog and Plan
+
+The Kill Bill https://docs.killbill.io/latest/Kill-Bill-Glossary.html#catalog[catalog^] contains https://docs.killbill.io/latest/Kill-Bill-Glossary.html#products[products^] and https://docs.killbill.io/latest/Kill-Bill-Glossary.html#plans[plans^] definitions. This XML configuration file is really powerful and offers various options for handling https://docs.killbill.io/latest/Kill-Bill-Glossary.html#trial_phase[trials^], https://docs.killbill.io/latest/Kill-Bill-Glossary.html#addons[add-ons^], https://docs.killbill.io/latest/Kill-Bill-Glossary.html#upgrade[upgrades^] / https://docs.killbill.io/latest/Kill-Bill-Glossary.html#downgrade[downgrades^], and so forth. (For more information on the Kill Bill catalog, see the https://docs.killbill.io/latest/userguide_subscription.html#components-catalog[Catalog] section in the _Subscription Billing_ guide.)
+
+For this tutorial, instead of starting with the XML catalog, you'll learn how to create a simple catalog using the API as well as adding one plan. You can find more information on the https://killbill.github.io/slate/#catalog-simple-plan[Simple Plan] endpoint in the API. 
+
+[NOTE]
+*Note:* The simple catalog supports a _subset_ of the regular XML catalog features and isn't intended to serve as a catalog in production. For more details on the simple catalog, see the https://killbill.github.io/slate/#catalog-simple-plan["Simple Plan"] section in the _API Reference_.
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step2" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step2" data-toggle="tab" href="#curl-step2" role="tab" aria-controls="curl-step2" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step2" data-toggle="tab" href="#java-step2" role="tab" aria-controls="java-step2" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step2" data-toggle="tab" href="#ruby-step2" role="tab" aria-controls="ruby-step2" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step2" data-toggle="tab" href="#python-step2" role="tab" aria-controls="python-step2" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step2">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step2" role="tabpanel" aria-labelledby="curl-tab-step2">
+++++
+[source,bash]
+----
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '{ "planId": "standard-monthly", "productName": "Standard", "productCategory": "BASE", "currency": "USD", "amount": 24.95, "billingPeriod": "MONTHLY", "trialLength": 0, "trialTimeUnit": "UNLIMITED"}' \
+    "http://localhost:8080/1.0/kb/catalog/simplePlan"
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="java-step2" role="tabpanel" aria-labelledby="java-tab-step2">
+++++
+[source,java]
+----
+
+import org.killbill.billing.client.api.gen.CatalogApi;
+protected CatalogApi catalogApi;
+
+String planId = "standard-monthly";
+String productName = "Standard";
+Integer trialLength = 0;
+
+SimplePlan body = new SimplePlan(planId, 
+                                 productName, 
+                                 ProductCategory.BASE, 
+                                 Currency.USD, 
+                                 BigDecimal(24.95), 
+                                 BillingPeriod.MONTHLY, 
+                                 trialLength, 
+                                 TimeUnit.UNLIMITED, 
+                                 ImmutableList.<String>of())
+
+catalogApi.addSimplePlan(body, requestOptions);
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="ruby-step2" role="tabpanel" aria-labelledby="ruby-tab-step2">
+++++
+[source,ruby]
+----
+simple_plan                  = KillBillClient::Model::SimplePlanAttributes.new
+simple_plan.plan_id          = 'standard-monthly'
+simple_plan.product_name     = 'Standard'
+simple_plan.product_category = 'BASE'
+simple_plan.currency         = 'USD'
+simple_plan.amount           = 24.95
+simple_plan.billing_period   = 'MONTHLY'
+simple_plan.trial_length     = 0
+simple_plan.trial_time_unit  = 'UNLIMITED'
+
+KillBillClient::Model::Catalog.add_tenant_catalog_simple_plan(simple_plan,
+                                                              user,
+                                                              reason,
+                                                              comment,
+                                                              options)
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="python-step2" role="tabpanel" aria-labelledby="python-tab-step2">
+++++
+[source,python]
+----
+catalogApi = killbill.api.CatalogApi()
+body = SimplePlan(plan_id='standard-monthly',
+                  product_name='Standard',
+                  product_category='BASE',
+                  currency='USD',
+                  amount=24.95,
+                  billing_period='MONTHLY',
+                  trial_length=0,
+                  trial_time_unit='UNLIMITED')
+catalogApi.add_simple_plan(body, created_by, api_key, api_secret)
+----
+++++
+  </div>
+</div>
+++++
+
+**Response**
+
+If successful, returns a status code of 201 and an empty body.
+
+[NOTE]
+*Note:* You can repeat this API call to create another plan. For more information, see https://killbill.github.io/slate/#catalog-simple-plan[Simple Plan] in the API.
+
+[[_step_3_create_an_account]]
+== Step 3. Create an Account
+
+In this section, we will create an https://docs.killbill.io/latest/Kill-Bill-Glossary.html#account[account^] for a customer, which stores the data your organization uses to transact business with a customer. To keep it simple, we will create an account with a minimum of information.
+
+For more information, see the https://killbill.github.io/slate/#account-create-an-account[Create an Account] endpoint.
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step3" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step3" data-toggle="tab" href="#curl-step3" role="tab" aria-controls="curl-step3" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step3" data-toggle="tab" href="#java-step3" role="tab" aria-controls="java-step3" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step3" data-toggle="tab" href="#ruby-step3" role="tab" aria-controls="ruby-step3" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step3" data-toggle="tab" href="#python-step3" role="tab" aria-controls="python-step3" aria-selected="false">Python</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="go-tab-step3" data-toggle="tab" href="#go-step3" role="tab" aria-controls="go-step3" aria-selected="false">Go</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="php-tab-step3" data-toggle="tab" href="#php-step3" role="tab" aria-controls="php-step3" aria-selected="false">PHP</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step3">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step3" role="tabpanel" aria-labelledby="curl-tab-step3">
+++++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{ "name": "John Doe", "currency": "USD"}' \
+     'http://127.0.0.1:8080/1.0/kb/accounts'
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step3" role="tabpanel" aria-labelledby="java-tab-step3">
+++++
+[source,java]
+----
+import org.killbill.billing.catalog.api.Currency;
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.RequestOptions;
+import org.killbill.billing.client.api.gen.AccountApi;
+import org.killbill.billing.client.model.gen.Account;
+
+KillBillHttpClient client = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                   "admin",
+                                                   "password",
+                                                   "bob",
+                                                   "lazar");
+AccountApi accountApi = new AccountApi(client);
+
+Account body = new Account();
+body.setName("John Doe");
+body.setCurrency(Currency.USD);
+
+RequestOptions requestOptions = RequestOptions.builder()
+                                              .withCreatedBy("tutorial")
+                                              .build();
+Account account = accountApi.createAccount(body, requestOptions);
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step3" role="tabpanel" aria-labelledby="ruby-tab-step3">
+++++
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+body = KillBillClient::Model::Account.new
+body.name = 'John Doe'
+body.currency = 'USD'
+
+account = body.create('tutorial', nil, nil, options)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step3" role="tabpanel" aria-labelledby="python-tab-step3">
+++++
+[source,python]
+----
+import killbill
+
+killbill.configuration.base_uri = 'http://127.0.0.1:8080'
+killbill.configuration.username = 'admin'
+killbill.configuration.password = 'password'
+
+account_api = killbill.api.AccountApi()
+body = killbill.models.account.Account(name='John Doe', currency='USD')
+account = account_api.create_account(body, 'tutorial', 'bob', 'lazar')
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="go-step3" role="tabpanel" aria-labelledby="go-tab-step3">
+++++
+[source,go]
+----
+
+import (
+	"context"
+	"encoding/base64"
+	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/killbill/kbcli/kbclient"
+	"github.com/killbill/kbcli/kbclient/account"
+	"github.com/killbill/kbcli/kbmodel"
+)
+
+trp := httptransport.New("127.0.0.1:8080", "", nil)
+
+authWriter := runtime.ClientAuthInfoWriterFunc(
+	func(r runtime.ClientRequest, _ strfmt.Registry) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte("admin:password"))
+		if err := r.SetHeaderParam("Authorization", "Basic "+encoded); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiKey", "bob"); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiSecret", "lazar"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+createdBy := "tutorial"
+defaults := kbclient.KillbillDefaults{
+	CreatedBy: &createdBy,
+}
+
+client := kbclient.New(trp, strfmt.Default, authWriter, defaults)
+body := &kbmodel.Account{
+	Name:     "John Doe",
+	Currency: "USD",
+}
+
+newAccount, err := client.Account.CreateAccount(
+	context.Background(),
+	&account.CreateAccountParams{
+		Body:                  body,
+		ProcessLocationHeader: true,
+	})
+if err == nil {
+	print(newAccount.GetPayload().AccountID)
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="php-step3" role="tabpanel" aria-labelledby="php-tab-step3">
+++++
+[source,php]
+----
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$config = Killbill\Client\Swagger\Configuration::getDefaultConfiguration();
+$config->setHost('http://127.0.0.1:8080')
+       ->setUsername('admin')
+       ->setPassword('password')
+       ->setApiKey('X-Killbill-ApiKey', 'bob')
+       ->setApiKey('X-Killbill-ApiSecret', 'lazar');
+
+$accountApi = new Killbill\Client\Swagger\Api\AccountApi(null, $config);
+
+$accountData = new Killbill\Client\Swagger\Model\Account();
+$accountData->setName('John Doe');
+$accountData->setCurrency('USD');
+
+$account = $accountApi->createAccount($accountData, 'tutorial', NULL, NULL);
+----
+++++
+  </div>
+</div>
+++++
+
+**Response**
+
+If successful, returns a 201 status code. In addition, a `Location` header is returned giving the URL for the account object, including the generated `accountId`.
+
+**Example Response**
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step3A" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step3A" data-toggle="tab" href="#curl-step3A" role="tab" aria-controls="curl-step3A" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step3A" data-toggle="tab" href="#java-step3A" role="tab" aria-controls="java-step3A" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step3A" data-toggle="tab" href="#ruby-step3A" role="tab" aria-controls="ruby-step3A" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step3A" data-toggle="tab" href="#python-step3A" role="tab" aria-controls="python-step3A" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step3" role="tabpanel" aria-labelledby="curl-tab-step3">
+++++
+[source,bash]
+----
+# Subset of headers returned when specifying -v curl option
+< HTTP/1.1 201 Created
+< Location: http://127.0.0.1:8080/1.0/kb/accounts/a8984103-b8e1-47cc-9914-4b1c4f9dbeab
+< Content-Type: application/json
+< Content-Length: 0
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="java-step3A" role="tabpanel" aria-labelledby="java-tab-step3A">
+++++
+[source,java]
+----
+class Account {
+    org.killbill.billing.client.model.gen.Account@3f77a367
+    accountId: e1342e5c-db2a-4439-b52c-8597fde4390f
+    name: John Doe
+    firstNameLength: null
+    externalKey: e1342e5c-db2a-4439-b52c-8597fde4390f
+    email: john@laposte.com
+    billCycleDayLocal: 0
+    currency: USD
+    parentAccountId: null
+    isPaymentDelegatedToParent: false
+    paymentMethodId: null
+    referenceTime: 2012-08-25T00:02:47.000Z
+    timeZone: UTC
+    address1: null
+    address2: null
+    postalCode: null
+    company: null
+    city: null
+    state: null
+    country: null
+    locale: null
+    phone: null
+    notes: null
+    isMigrated: false
+    accountBalance: null
+    accountCBA: null
+    auditLogs: []
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step3A" role="tabpanel" aria-labelledby="ruby-tab-step3A">
+++++
+[source,ruby]
+----
+{
+   "accountId":"87dccc88-f504-493e-a05f-9b4a702c3add",
+   "name":"John Doe",
+   "externalKey":"87dccc88-f504-493e-a05f-9b4a702c3add",
+   "email":"john@laposte.com",
+   "billCycleDayLocal":0,
+   "currency":"USD",
+   "isPaymentDelegatedToParent":false,
+   "timeZone":"UTC",
+   "auditLogs":[]
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step3A" role="tabpanel" aria-labelledby="python-tab-step3A">
+++++
+[source,python]
+----
+no content
+----
+++++
+  </div>
+</div>
+++++
+
+
+[[_step_4_add_a_payment_method_to_the_account]]
+== Step 4. Add a Payment Method to the Account
+
+To pay its https://docs.killbill.io/latest/Kill-Bill-Glossary.html#invoice[invoices^], an account must have at least one https://docs.killbill.io/latest/Kill-Bill-Glossary.html#payment_method[payment method^] saved. This section explains how to add a payment method to a customer account.
+
+For simplicity, we will create an offline payment method—checks—for the account we created in <<_step_1_create_a_tenant, Step 1>> using the https://killbill.github.io/slate/#account-add-a-payment-method[Add a Payment Method] endpoint.
+
+[NOTE]
+*Note:* Replace `1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8` below with the ID of your account.
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step4" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step4" data-toggle="tab" href="#curl-step4" role="tab" aria-controls="curl-step4" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step4" data-toggle="tab" href="#java-step4" role="tab" aria-controls="java-step4" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step4" data-toggle="tab" href="#ruby-step4" role="tab" aria-controls="ruby-step4" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step4" data-toggle="tab" href="#python-step4" role="tab" aria-controls="python-step4" aria-selected="false">Python</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="go-tab-step4" data-toggle="tab" href="#go-step4" role="tab" aria-controls="go-step4" aria-selected="false">Go</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="php-tab-step4" data-toggle="tab" href="#php-step4" role="tab" aria-controls="php-step4" aria-selected="false">PHP</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step4">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step4" role="tabpanel" aria-labelledby="curl-tab-step4">
+++++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{ "pluginName": "__EXTERNAL_PAYMENT__" }' \
+     http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8/paymentMethods?isDefault=true 
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step4" role="tabpanel" aria-labelledby="java-tab-step4">
+++++
+[source,java]
+----
+import java.util.UUID;
+
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.RequestOptions;
+import org.killbill.billing.client.api.gen.AccountApi;
+import org.killbill.billing.client.model.gen.PaymentMethod;
+
+KillBillHttpClient client = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                   "admin",
+                                                   "password",
+                                                   "bob",
+                                                   "lazar");
+AccountApi accountApi = new AccountApi(client);
+
+PaymentMethod body = new PaymentMethod();
+body.setIsDefault(true);
+body.setPluginName("__EXTERNAL_PAYMENT__");
+
+RequestOptions requestOptions = RequestOptions.builder()
+                                              .withCreatedBy("tutorial")
+                                              .build();
+UUID accountId = UUID.fromString("1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8");
+PaymentMethod paymentMethod = accountApi.createPaymentMethod(accountId,
+                                                             body,
+                                                             true,
+                                                             null,
+                                                             null,
+                                                             null,
+                                                             requestOptions);
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step4" role="tabpanel" aria-labelledby="ruby-tab-step4">
+++++
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+body = KillBillClient::Model::PaymentMethod.new
+body.account_id = '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8'
+body.plugin_name = '__EXTERNAL_PAYMENT__'
+
+pm = body.create(true, 'tutorial', nil, nil, options)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step4" role="tabpanel" aria-labelledby="python-tab-step4">
+++++
+[source,python]
+----
+import killbill
+
+killbill.configuration.base_uri = 'http://127.0.0.1:8080'
+killbill.configuration.username = 'admin'
+killbill.configuration.password = 'password'
+
+account_api = killbill.api.AccountApi()
+body = killbill.models.payment_method.PaymentMethod(plugin_name='__EXTERNAL_PAYMENT__')
+account_api.create_payment_method('1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
+                                  body,
+                                  'tutorial',
+                                  'bob',
+                                  'lazar',
+                                  is_default=True)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="go-step4" role="tabpanel" aria-labelledby="go-tab-step4">
+++++
+[source,go]
+----
+import (
+	"context"
+	"encoding/base64"
+	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/killbill/kbcli/kbclient"
+	"github.com/killbill/kbcli/kbclient/account"
+	"github.com/killbill/kbcli/kbmodel"
+)
+
+trp := httptransport.New("127.0.0.1:8080", "", nil)
+
+authWriter := runtime.ClientAuthInfoWriterFunc(
+	func(r runtime.ClientRequest, _ strfmt.Registry) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte("admin:password"))
+		if err := r.SetHeaderParam("Authorization", "Basic "+encoded); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiKey", "bob"); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiSecret", "lazar"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+createdBy := "tutorial"
+defaults := kbclient.KillbillDefaults{
+	CreatedBy: &createdBy,
+}
+
+client := kbclient.New(trp, strfmt.Default, authWriter, defaults)
+body := &kbmodel.PaymentMethod{
+	PluginName: "__EXTERNAL_PAYMENT__",
+}
+
+isDefault := true
+pm, err := client.Account.CreatePaymentMethod(
+	context.Background(),
+	&account.CreatePaymentMethodParams{
+		Body:                  body,
+		AccountID:             "1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+		IsDefault:             &isDefault,
+		ProcessLocationHeader: true,
+	})
+if err == nil {
+	print(pm.GetPayload().PaymentMethodID)
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="php-step4" role="tabpanel" aria-labelledby="php-tab-step4">
+++++
+[source,php]
+----
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$config = Killbill\Client\Swagger\Configuration::getDefaultConfiguration();
+$config->setHost('http://127.0.0.1:8080')
+       ->setUsername('admin')
+       ->setPassword('password')
+       ->setApiKey('X-Killbill-ApiKey', 'bob')
+       ->setApiKey('X-Killbill-ApiSecret', 'lazar');
+
+$accountApi = new Killbill\Client\Swagger\Api\AccountApi(null, $config);
+
+$pmData = new Killbill\Client\Swagger\Model\PaymentMethod();
+$pmData->setPluginName('__EXTERNAL_PAYMENT__');
+
+$pm = $accountApi->createPaymentMethod(
+                     $pmData,
+                     'tutorial',
+                     '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
+                     NULL,
+                     NULL,
+                     $default = 'true'
+                   );
+----
+++++
+  </div>
+</div>
+++++
+
+**Response**
+
+If successful, returns a 201 status code. In addition, a `Location` header is returned giving the URL for the payment method, including the generated `paymentMethodId`.
+
+**Example Response**
+++++
+<ul class="nav nav-tabs" id="tutorial-step4A" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step4A" data-toggle="tab" href="#curl-step4A" role="tab" aria-controls="curl-step4A" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step4A" data-toggle="tab" href="#java-step4A" role="tab" aria-controls="java-step4A" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step4A" data-toggle="tab" href="#ruby-step4A" role="tab" aria-controls="ruby-step4A" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step4A" data-toggle="tab" href="#python-step4A" role="tab" aria-controls="python-step4A" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step4A">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step4A" role="tabpanel" aria-labelledby="curl-tab-step4A">
+++++
+[source,bash]
+----
+# Subset of headers returned when specifying -v curl option
+< HTTP/1.1 201 Created
+< Location: http://localhost:8080/1.0/kb/paymentMethods/064cd61b-557d-48ba-8605-8d22912c7dfb
+< Content-Type: application/json
+< Content-Length: 0
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step4A" role="tabpanel" aria-labelledby="java-tab-step4A">
+++++
+[source,java]
+----
+class PaymentMethod {
+    org.killbill.billing.client.model.gen.PaymentMethod@a820eeea
+    paymentMethodId: 538c5a98-879b-4735-88df-e58f7a4bf874
+    externalKey: a85a3fbe-30e8-457d-8a5a-55e16bcd730b
+    accountId: d751dd57-7644-469a-9e69-f98d36d86f67
+    isDefault: false
+    pluginName: __EXTERNAL_PAYMENT__
+    pluginInfo: null
+    auditLogs: []
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step4A" role="tabpanel" aria-labelledby="ruby-tab-step4A">
+++++
+[source,ruby]
+----
+{
+   "paymentMethodId":"059ecfb8-6b4d-4a89-9537-63a687e6cf10",
+   "externalKey":"unknown",
+   "accountId":"fa488b6e-c52a-450a-94bf-6607ae8b484f",
+   "isDefault":true,
+   "pluginName":"__EXTERNAL_PAYMENT__",
+   "pluginInfo":{
+      "properties":[]
+   },
+   "auditLogs":[]
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step4A" role="tabpanel" aria-labelledby="python-tab-step4A">
+++++
+[source,python]
+----
+no content
+----
+++++
+  </div>
+</div>
+++++
+
+[[_step_5_set_up_a_subscription_for_the_account]]
+== Step 5. Set Up a Subscription for the Account
+
+You are now ready to create a https://docs.killbill.io/latest/Kill-Bill-Glossary.html#subscription[subscription^] for the customer. For this, we'll use the https://killbill.github.io/slate/#subscription-create-a-subscription[Create a Subscription] endpoint.
+
+[NOTE]
+*Note:* Replace `1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8` below with the ID of your account. Also, `planName` must match the plan name in the catalog.
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step5" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step5" data-toggle="tab" href="#curl-step5" role="tab" aria-controls="curl-step5" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step5" data-toggle="tab" href="#java-step5" role="tab" aria-controls="java-step5" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step5" data-toggle="tab" href="#ruby-step5" role="tab" aria-controls="ruby-step5" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step5" data-toggle="tab" href="#python-step5" role="tab" aria-controls="python-step5" aria-selected="false">Python</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="go-tab-step5" data-toggle="tab" href="#go-step5" role="tab" aria-controls="go-step5" aria-selected="false">Go</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="php-tab-step5" data-toggle="tab" href="#php-step5" role="tab" aria-controls="php-step5" aria-selected="false">PHP</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step5">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step5" role="tabpanel" aria-labelledby="curl-tab-step5">
+++++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: tutorial' \
+     -H 'Content-Type: application/json' \
+     -d '{
+            "accountId": "1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+            "planName": "standard-monthly"
+         }' \
+     http://127.0.0.1:8080/1.0/kb/subscriptions
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="java-step5" role="tabpanel" aria-labelledby="java-tab-step5">
+++++
+[source,java]
+----
+import java.util.UUID;
+
+import org.killbill.billing.client.KillBillClientException;
+import org.killbill.billing.client.KillBillHttpClient;
+import org.killbill.billing.client.RequestOptions;
+import org.killbill.billing.client.api.gen.SubscriptionApi;
+import org.killbill.billing.client.model.gen.Subscription;
+
+KillBillHttpClient client = new KillBillHttpClient("http://127.0.0.1:8080",
+                                                   "admin",
+                                                   "password",
+                                                   "bob",
+                                                   "lazar");
+SubscriptionApi subscriptionApi = new SubscriptionApi(client);
+
+UUID accountId = UUID.fromString("1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8");
+Subscription body = new Subscription();
+body.setAccountId(accountId);
+body.setPlanName("standard-monthly");
+
+RequestOptions requestOptions = RequestOptions.builder()
+                                              .withCreatedBy("tutorial")
+                                              .build();
+Subscription subscription = subscriptionApi.createSubscription(body,
+                                                               null,
+                                                               null,
+                                                               null,
+                                                               requestOptions);
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="ruby-step5" role="tabpanel" aria-labelledby="ruby-tab-step5">
+++++
+[source,ruby]
+----
+require 'killbill_client'
+
+KillBillClient.url = 'http://127.0.0.1:8080'
+
+options = {
+  :username => 'admin',
+  :password => 'password',
+  :api_key => 'bob',
+  :api_secret => 'lazar'
+}
+
+body = KillBillClient::Model::Subscription.new
+body.account_id  = '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8'
+body.plan_name = 'standard-monthly'
+
+subscription = body.create('tutorial',
+                           nil,
+                           nil,
+                           nil,
+                           false,
+                           options)
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="python-step5" role="tabpanel" aria-labelledby="python-tab-step5">
+++++
+[source,python]
+----
+import killbill
+
+killbill.configuration.base_uri = 'http://127.0.0.1:8080'
+killbill.configuration.username = 'admin'
+killbill.configuration.password = 'password'
+
+subscription_api = killbill.api.SubscriptionApi()
+body = killbill.models.subscription.Subscription(account_id='1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
+                                                 plan_name='standard-monthly')
+
+subscription_api.create_subscription(body,
+                                     'tutorial',
+                                     'bob',
+                                     'lazar')
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="go-step5" role="tabpanel" aria-labelledby="go-tab-step5">
+++++
+[source,go]
+----
+import (
+	"context"
+	"encoding/base64"
+	"github.com/go-openapi/runtime"
+	httptransport "github.com/go-openapi/runtime/client"
+	"github.com/go-openapi/strfmt"
+	"github.com/killbill/kbcli/kbclient"
+	"github.com/killbill/kbcli/kbclient/subscription"
+	"github.com/killbill/kbcli/kbmodel"
+)
+
+trp := httptransport.New("127.0.0.1:8080", "", nil)
+
+authWriter := runtime.ClientAuthInfoWriterFunc(
+	func(r runtime.ClientRequest, _ strfmt.Registry) error {
+		encoded := base64.StdEncoding.EncodeToString([]byte("admin:password"))
+		if err := r.SetHeaderParam("Authorization", "Basic "+encoded); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiKey", "bob"); err != nil {
+			return err
+		}
+		if err := r.SetHeaderParam("X-KillBill-ApiSecret", "lazar"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+createdBy := "tutorial"
+defaults := kbclient.KillbillDefaults{
+	CreatedBy: &createdBy,
+}
+
+client := kbclient.New(trp, strfmt.Default, authWriter, defaults)
+planName := "standard-monthly"
+body := &kbmodel.Subscription{
+	AccountID: "1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+	PlanName:  &planName,
+}
+
+sub, err := client.Subscription.CreateSubscription(
+	context.Background(),
+	&subscription.CreateSubscriptionParams{
+		Body:                  body,
+		ProcessLocationHeader: true,
+	})
+if err == nil {
+	print(sub.GetPayload().SubscriptionID)
+}
+----
+++++
+  </div>
+  <div class="tutorial-tab tab-pane fade" id="php-step5" role="tabpanel" aria-labelledby="php-tab-step5">
+++++
+[source,php]
+----
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$config = Killbill\Client\Swagger\Configuration::getDefaultConfiguration();
+$config->setHost('http://127.0.0.1:8080')
+       ->setUsername('admin')
+       ->setPassword('password')
+       ->setApiKey('X-Killbill-ApiKey', 'bob')
+       ->setApiKey('X-Killbill-ApiSecret', 'lazar');
+
+$subscriptionApi = new Killbill\Client\Swagger\Api\SubscriptionApi(null, $config);
+
+$subData = new Killbill\Client\Swagger\Model\Subscription();
+$subData->setAccountId('1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8');
+$subData->setPlanName('standard-monthly');
+
+$sub = $subscriptionApi->createSubscription(
+                           $subData,
+                           'tutorial',
+                           NULL,
+                           NULL
+                         );
+----
+++++
+  </div>
+</div>
+++++
+
+**Response**
+
+If successful, returns a status code of 201 and an empty body. In addition, a `Location` parameter is returned in the header which contains the new subscription ID.
+
+**Example Response**
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step5A" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step5A" data-toggle="tab" href="#curl-step5A" role="tab" aria-controls="curl-step5A" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step5A" data-toggle="tab" href="#java-step5A" role="tab" aria-controls="java-step5A" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step5A" data-toggle="tab" href="#ruby-step5A" role="tab" aria-controls="ruby-step5A" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step5" data-toggle="tab" href="#python-step5A" role="tab" aria-controls="python-step5A" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step5A">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step5A" role="tabpanel" aria-labelledby="curl-tab-step5A">
+++++
+[source,bash]
+----
+# Subset of headers returned when specifying -v curl option
+< HTTP/1.1 201 Created
+< Location: http://127.0.0.1:8080/1.0/kb/subscriptions/77e23878-8b9d-403b-bf31-93003e125712
+< Content-Type: application/json
+< Content-Length: 0
+----
+++++
+ </div>
+ <div class="tutorial-tab tab-pane fade" id="java-step5A" role="tabpanel" aria-labelledby="java-tab-step5A">
+++++
+[source,java]
+----
+
+class Subscription {
+    org.killbill.billing.client.model.gen.Subscription@49563466
+    accountId: 1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8
+    bundleId: eac6eecf-2060-434a-b472-170f80a7591c
+    subscriptionId: a74081ee-d7bb-4387-a1df-34e962e37699
+    externalKey: somethingSpecial
+    bundleExternalKey: somethingAlsoSpecial
+    startDate: 2012-04-25
+    productName: Standard
+    productCategory: BASE
+    billingPeriod: MONTHLY
+    phaseType: EVERGREEN
+    priceList: DEFAULT
+    planName: standard-monthly
+    state: ACTIVE
+    sourceType: NATIVE
+    cancelledDate: null
+    chargedThroughDate: null
+    billingStartDate: 2012-04-25
+    billingEndDate: null
+    billCycleDayLocal: 25
+    events: [class EventSubscription {
+        org.killbill.billing.client.model.gen.EventSubscription@37b70727
+        eventId: 9ef798a3-95f6-41ac-9b86-00c9385c155f
+        billingPeriod: MONTHLY
+        effectiveDate: 2012-04-25
+        plan: standard-monthly
+        product: Standard
+        priceList: DEFAULT
+        eventType: START_ENTITLEMENT
+        isBlockedBilling: false
+        isBlockedEntitlement: false
+        serviceName: entitlement-service
+        serviceStateName: ENT_STARTED
+        phase: standard-monthly
+        auditLogs: []
+    }, class EventSubscription {
+        org.killbill.billing.client.model.gen.EventSubscription@410923f5
+        eventId: 65ec07fa-61c7-4f05-bd6f-82cea23cf06a
+        billingPeriod: MONTHLY
+        effectiveDate: 2012-04-25
+        plan: standard-monthly
+        product: Standard
+        priceList: DEFAULT
+        eventType: START_BILLING
+        isBlockedBilling: false
+        isBlockedEntitlement: false
+        serviceName: billing-service
+        serviceStateName: START_BILLING
+        phase: standard-monthly-trial
+        auditLogs: []
+    }, class EventSubscription {
+        org.killbill.billing.client.model.gen.EventSubscription@cac84db3
+        eventId: 88f77a50-edca-4cc3-b234-5d70c457128c
+        billingPeriod: MONTHLY
+        effectiveDate: 2012-05-25
+        plan: standard-monthly
+        product: Standard
+        priceList: DEFAULT
+        eventType: PHASE
+        isBlockedBilling: false
+        isBlockedEntitlement: false
+        serviceName: entitlement+billing-service
+        serviceStateName: PHASE
+        phase: shotgun-monthly
+        auditLogs: []
+    }]
+    priceOverrides: null
+    prices: [class PhasePrice {
+        planName: standard-monthly
+        phaseName: standard-monthly
+        phaseType: EVERGREEN
+        fixedPrice: null
+        recurringPrice: 24.95
+        usagePrices: []
+    }]
+    auditLogs: []
+}
+----
+++++
+  </div>
+<div class="tutorial-tab tab-pane fade" id="ruby-step5A" role="tabpanel" aria-labelledby="ruby-tab-step5A">
+++++
+[source,ruby]
+----
+{
+   "accountId":"1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+   "bundleId":"f3dea847-1567-467a-8373-838dfdcf6afc",
+   "subscriptionId":"ee508b5b-46b8-42a7-8988-16c0470de4ae",
+   "externalKey":"f3dea847-1567-467a-8373-838dfdcf6afc",
+   "bundleExternalKey":"addea847-1467-167a-1373-988dfdcf7acc",
+   "startDate":"2022-08-01",
+   "productName":"Standard",
+   "productCategory":"BASE",
+   "billingPeriod":"MONTHLY",
+   "phaseType":"EVERGREEN",
+   "priceList":"DEFAULT",
+   "planName":"standard-monthly",
+   "state":"ACTIVE",
+   "sourceType":"NATIVE",
+   "chargedThroughDate":"2022-09-01",
+   "billingStartDate":"2022-08-01",
+   "billCycleDayLocal":1,
+   "events":[
+      {
+         "eventId":"341fc529-612b-4bb9-b8d7-ee4a9115f577",
+         "billingPeriod":"MONTHLY",
+         "effectiveDate":"2022-08-01",
+         "plan":"standard-monthly",
+         "product":"Standard",
+         "priceList":"DEFAULT",
+         "eventType":"START_ENTITLEMENT",
+         "isBlockedBilling":false,
+         "isBlockedEntitlement":false,
+         "serviceName":"entitlement-service",
+         "serviceStateName":"ENT_STARTED",
+         "phase":"starndard-monthly",
+         "auditLogs":[]
+      },
+      {
+         "eventId":"caa54161-c001-44a0-9ff0-80be59989380",
+         "billingPeriod":"MONTHLY",
+         "effectiveDate":"2022-08-01",
+         "plan":"standard-monthly",
+         "product":"Standard",
+         "priceList":"DEFAULT",
+         "eventType":"START_BILLING",
+         "isBlockedBilling":false,
+         "isBlockedEntitlement":false,
+         "serviceName":"billing-service",
+         "serviceStateName":"START_BILLING",
+         "phase":"standard-monthly",
+         "auditLogs":[]
+      }
+   ],
+   "prices":[
+      {
+         "planName":"standard-monthly",
+         "phaseName":"standard-monthly",
+         "phaseType":"EVERGREEN",
+         "fixedPrice":null,
+         "recurringPrice":24.95,
+         "usagePrices":[]
+      }
+   ],
+   "auditLogs":[]
+}
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="python-step5A" role="tabpanel" aria-labelledby="python-tab-step5A">
+++++
+[source,python]
+----
+no content 
+----
+++++
+ <div>
+</div>
+++++
+
+[[_step_6_view_the_generated_invoice]]
+== Step 6. View the Generated Invoice
+
+To view the invoice that Kill Bill automatically generated for the subscription in <<_step_5_set_up_a_subscription_for_the_account, Step 5>>, use the https://killbill.github.io/slate/?shell#account-retrieve-account-invoices[Retrieve Account Invoices] endpoint.
+
+[NOTE]
+*Note:* Replace `1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8` below with the ID of your account.
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step6" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step6" data-toggle="tab" href="#curl-step6" role="tab" aria-controls="curl-step6" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step6" data-toggle="tab" href="#java-step6" role="tab" aria-controls="java-step6" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step6" data-toggle="tab" href="#ruby-step6" role="tab" aria-controls="ruby-step6" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step6" data-toggle="tab" href="#python-step6" role="tab" aria-controls="python-step6" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step1">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step6" role="tabpanel" aria-labelledby="curl-tab-step6">
+++++
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Accept: application/json" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8/invoices"
+----
+++++
+  </div>
+<div class="tutorial-tab tab-pane fade" id="java-step6" role="tabpanel" aria-labelledby="java-tab-step6">
+++++
+[source,java]
+----
+import org.killbill.billing.client.api.gen.AccountApi;
+protected AccountApi accountApi;
+
+UUID accountId = UUID.fromString("1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8");
+LocalDate startDate = null;
+LocalDate endDate = null;
+Boolean withMigrationInvoices = false; // Will not fetch migrated invoice - if any
+Boolean unpaidInvoicesOnly = false; // Will not restrict to unpaid invoices
+Boolean includeVoidedInvoices = false; // Will not include void invoices
+String invoicesFilter = null;
+Invoices invoices = accountApi.getInvoicesForAccount(accountId,
+                                                     startDate, 
+                                                     endDate,
+                                                     withMigrationInvoices, 
+                                                     unpaidInvoicesOnly, 
+                                                     includeVoidedInvoices, 
+                                                     invoicesFilter,
+                                                     AuditLevel.FULL, 
+                                                     requestOptions);
+----
+++++
+ </div>
+<div class="tutorial-tab tab-pane fade" id="ruby-step6" role="tabpanel" aria-labelledby="ruby-tab-step6">
+++++
+[source,ruby]
+----
+account.invoices(with_items,
+                 options)
+----
+++++
+</div>
+<div class="tutorial-tab tab-pane fade" id="python-step6" role="tabpanel" aria-labelledby="python-tab-step6">
+++++
+[source,python]
+----
+accountApi = killbill.api.AccountApi()
+account_id = '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8'
+
+accountApi.get_invoices_for_account(account_id, api_key, api_secret)
+----
+++++
+  </div>
+</div>
+++++
+
+**Response**
+
+If successful, returns a status of 200 and a list of invoice objects for this account.
+
+**Example Response**
+
+++++
+<ul class="nav nav-tabs" id="tutorial-step6A" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="curl-tab-step6A" data-toggle="tab" href="#curl-step6A" role="tab" aria-controls="curl-step6A" aria-selected="true">cURL</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="java-tab-step6A" data-toggle="tab" href="#java-step6A" role="tab" aria-controls="java-step6A" aria-selected="false">Java</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="ruby-tab-step6A" data-toggle="tab" href="#ruby-step6A" role="tab" aria-controls="ruby-step6A" aria-selected="false">Ruby</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="python-tab-step6A" data-toggle="tab" href="#python-step6A" role="tab" aria-controls="python-step6A" aria-selected="false">Python</a>
+  </li>
+</ul>
+<div class="tab-content" id="tutorial-content-step6A">
+  <div class="tutorial-tab tab-pane fade show active" id="curl-step6A" role="tabpanel" aria-labelledby="curl-tab-step6A">
+++++
+[source,bash]
+----
+# Subset of headers returned when specifying -v curl option
+
+< HTTP/1.1 200 OK
+< Content-Type: application/json
+[
+   {
+      "amount":24.95,
+      "currency":"USD",
+      "status":"COMMITTED",
+      "creditAdj":0.0,
+      "refundAdj":0.0,
+      "invoiceId":"d981abbb-3622-487a-9564-d594c9d04f83",
+      "invoiceDate":"2022-08-01",
+      "targetDate":"2022-08-01",
+      "invoiceNumber":"1563",
+      "balance":0.0,
+      "accountId":"1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+      "items":[
+         {
+            "invoiceItemId":"5f3b4e9c-66bd-4c5c-b84a-4ae951cc2f1d",
+            "invoiceId":"d981abbb-3622-487a-9564-d594c9d04f83",
+            "accountId":"1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+            "itemType":"EXTERNAL_CHARGE",
+            "description":"Some description",
+            "startDate":"2022-08-01",
+            "amount":24.95,
+            "currency":"USD",
+            "auditLogs":[]
+         }
+      ],
+      "isParentInvoice":false,
+      "auditLogs":[]
+   }
+]
+----
+++++
+ </div>
+<div class="tutorial-tab tab-pane fade" id="java-step6A" role="tabpanel" aria-labelledby="java-tab-step6A">
+++++
+[source,java]
+----
+
+class Invoice {
+    org.killbill.billing.client.model.gen.Invoice@df84aad8
+    amount: 24.95
+    currency: USD
+    status: COMMITTED
+    creditAdj: 0.00
+    refundAdj: 0.00
+    invoiceId: 66448454-4ff2-4a4c-9817-167c062fcde9
+    invoiceDate: 2022-04-25
+    targetDate: 2022-04-25
+    invoiceNumber: 1
+    balance: 24.95
+    accountId: 1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8
+    bundleKeys: null
+    credits: null
+    items: [class InvoiceItem {
+        org.killbill.billing.client.model.gen.InvoiceItem@7e405309
+        invoiceItemId: 898d4b59-9e85-48cc-b05e-33d2059b6250
+        invoiceId: 66448454-4ff2-4a4c-9817-167c062fcde9
+        linkedInvoiceItemId: null
+        accountId: 1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8
+        childAccountId: null
+        bundleId: 823db38d-864f-4123-96e1-86218663e1bd
+        subscriptionId: 8c0b5800-c892-4898-9295-837ecadad2f0
+        productName: Standard
+        planName: standard-monthly
+        phaseName: standard-monthly-trial
+        usageName: null
+        prettyProductName: Standard
+        prettyPlanName: Standard Monthly
+        prettyPhaseName: standard-monthly-trial
+        prettyUsageName: null
+        itemType: FIXED
+        description: standard-monthly-trial
+        startDate: 2022-04-25
+        endDate: null
+        amount: 24.95
+        rate: null
+        currency: USD
+        quantity: null
+        itemDetails: null
+        childItems: null
+        auditLogs: [class AuditLog {
+            changeType: INSERT
+            changeDate: 2022-04-25T00:03:43.000Z
+            objectType: INVOICE_ITEM
+            objectId: 898d4b59-9e85-48cc-b05e-33d2059b6250
+            changedBy: SubscriptionBaseTransition
+            reasonCode: null
+            comments: null
+            userToken: fc3e7a8d-7e8c-4b9d-a6ac-557cd2e74ccd
+            history: null
+        }]
+    }]
+    isParentInvoice: false
+    parentInvoiceId: null
+    parentAccountId: null
+    auditLogs: [class AuditLog {
+        changeType: INSERT
+        changeDate: 2022-04-25T00:03:43.000Z
+        objectType: INVOICE
+        objectId: 66448454-4ff2-4a4c-9817-167c062fcde9
+        changedBy: SubscriptionBaseTransition
+        reasonCode: null
+        comments: null
+        userToken: fc3e7a8d-7e8c-4b9d-a6ac-557cd2e74ccd
+        history: null
+    }]
+}
+----
+++++
+ </div>
+<div class="tutorial-tab tab-pane fade" id="ruby-step6A" role="tabpanel" aria-labelledby="ruby-tab-step6A">
+++++
+[source,ruby]
+----
+[
+   {
+      "amount":24.95,
+      "currency":"USD",
+      "status":"COMMITTED",
+      "creditAdj":0.0,
+      "refundAdj":0.0,
+      "invoiceId":"d981abbb-3622-487a-9564-d594c9d04f83",
+      "invoiceDate":"2022-08-01",
+      "targetDate":"2022-08-01",
+      "invoiceNumber":"1563",
+      "balance":24.95,
+      "accountId":"1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8",
+      "items":[
+         {
+            "invoiceItemId":"5f3b4e9c-66bd-4c5c-b84a-4ae951cc2f1d",
+            "invoiceId":"d981abbb-3622-487a-9564-d594c9d04f83",
+            "accountId":"1f310060-dad6-4151-87af-c58a4fe87679",
+            "itemType":"EXTERNAL_CHARGE",
+            "description":"Some description",
+            "startDate":"2022-08-01",
+            "amount":24.95,
+            "currency":"USD",
+            "auditLogs":[]
+         }
+      ],
+      "isParentInvoice":false,
+      "auditLogs":[]
+   }
+]
+----
+++++
+ </div>
+<div class="tutorial-tab tab-pane fade" id="python-step6A" role="tabpanel" aria-labelledby="python-tab-step6A">
+++++
+[source,python]
+----
+
+[{'account_id': '1cb6c8b0-1df6-4dd5-9c7c-2a69bab365e8',
+  'amount': 24.95,
+  'audit_logs': [],
+  'balance': 24.95,
+  'bundle_keys': None,
+  'credit_adj': 0.0,
+  'credits': None,
+  'currency': 'USD',
+  'invoice_date': datetime.date(2022, 5, 4),
+  'invoice_id': '6e2be596-f6f0-4453-9551-3638af9088d2',
+  'invoice_number': '766',
+  'is_parent_invoice': False,
+  'items': [],
+  'parent_account_id': None,
+  'parent_invoice_id': None,
+  'refund_adj': 0.0,
+  'status': 'COMMITTED',
+  'target_date': datetime.date(2022, 5, 4)}]
+----
+++++
+ </div>
+</div>
+++++ 

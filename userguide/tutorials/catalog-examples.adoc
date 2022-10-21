@@ -659,6 +659,251 @@ This is the default rule. It specifies that any other plan changes should occur 
 |Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$100` for `2021-10-29` to `2021-11-29` corresponding to the `standard-monthly` plan
 |===
 
+== Usage Billing
+
+Kill Bill supports usage based billing as explained in the https://docs.killbill.io/latest/userguide_subscription.html#components-catalog-usage[_Subscription Billing_] document. A quick summary about usage billing:
+
+* Users are billed based on their usage data as defined in the catalog. The `Plan` section in the catalog can contain one or more usage section(s) in addition to other non usage based sections.
+
+* Kill Bill supports two types of usage billing: `CONSUMABLE` and `CAPACITY`
+
+* In `CONSUMABLE` billing, users are billed based on the number of units consumed. Two `TierBlockPolicy` policies are supported: `ALL_TIER` and `TOP_TIER`. The `ALL_TIER` policy charges users across each tier while the `TOP_TIER` policy charges users at the top tier.
+
+* In `CAPACITY` billing users are charged a flat rate based on the units consumed.
+
+Let us take a look at a few catalog examples. 
+
+=== Consumable Billing with ALL_TIERS policy
+
+This example uses the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog. It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CONSUMABLE`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
+
+[options="header",cols="1,1,1,1,1"]
+|===
+|Unit   |Size   |Price   |Max   |Explanation
+//----------------------------------------
+|liter   |1   |$1.50   |1000   |Users will be charged at $1.50 per liter for the first 1000 liters   
+|liter   |1|$2.0   |-1   |Users will be charged at $2.0 per liter for any units consumed above `1000` 
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `water-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$630` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + (400 x 1.5) = 630` (Since `400` units are consumed, user is charged `$1.5` per liter as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` with date `2021-11-01`. Trigger invoice dry run with target date `2021-11-29` | Invoice generated for  `$1930` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + (1000 x 1.5) + (200 X 2.0) = 1930` (Since `1200` units are consumed, the first `1000` units are charged at `$1.5` per liter as per the first tier and the next `200` units are charged at at `$2.0` per liter as per the second tier)
+|===
+
+See https://docs.killbill.io/latest/consumable_in_arrear.html[_Consumable In Arrear Tutorial_] for additional information.
+
+=== Consumable Billing with TOP_TIER policy
+
+This example uses the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/consumable-billing-top-tier.xml[Consumable Billing Top Tier] catalog. This catalog is exactly the same as the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/consumable-billing-all-tiers.xml[Consumable Billing All Tiers] catalog explained above. The only difference is that it uses  `tierBlockPolicy=TOP_TIER`.
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `water-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$630` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + (400 x 1.5) = 630` (Since `400` units are consumed, user is charged `$1.5` per liter as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` with date `2021-11-01`. Trigger invoice dry run with target date `2021-11-29` | Invoice generated for  `$2430` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + (1200 x 2.0) = 2430`  (Since `1200` units are consumed, user is charged `$2.0` per liter as per the second tier)
+|===
+
+=== Capacity Billing
+
+This example uses the https://github.com/killbill/killbill-docs/blob/5d5d7a2219752da8a0d9456cc5a975161388088c/catalogs/capacity-billing.xml[Capacity Billing] catalog.  It has a `water-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CAPACITY`, and the following `tier` sections:
+
+[options="header",cols="1,1,1"]
+|===
+|Max Limit   |Price   |Explanation
+//----------------------------------------
+|1000   |$750.0   |Users will be charged a flat charge of $750 if their units are less than or equal to 1000  
+|10000   |$500.0 |Users will be charged a flat charge of $500 if their units exceed 1000.
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `water-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$780` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + 750 = 780` (Since `400` units are consumed, user is charged `$750` as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` with date `2021-11-01` . Trigger invoice dry run with target date `2021-11-29`  | Invoice generated for  `$530` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + 500 = 530` (Since `1200` units are consumed, user is charged `$500` as per the second tier)
+|===
+
+=== Multiple Usage Sections
+
+This example uses the https://github.com/killbill/killbill-docs/tree/a6339c9dd4bb75da375f4755e45aa5c5c07ebe01/catalogs/consumable-billing-multiple-usage-sections.xml[Consumable Billing Multiple Usage Sections] catalog. It has a `cell-phone-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it  has two usage sections: `cell-phone-minutes-monthly-usage` and `mbytes-monthly-usage`. The `cell-phone-minutes-monthly-usage` usage section specifies the `ALL_TIERS` policy while the `mbytes-monthly-usage` usage section specifies the `TOP_TIER` policy. 
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `cell-phone-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` for the `cell-phone-minutes` unitType with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$280` for `2021-09-29` to `2021-10-29`. It has 3 invoice items : `cell-phone-monthly-evergreen:$30`, `mbytes-monthly-usage:$0` and `cell-phone-minutes-monthly-usage:$250` (calculated as: `(100 x 1.0) + (300 x 0.5) = 250` as per the `ALL_TIERS` policy). 
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `1200` for the `Mbytes` unitType with date `2021-11-01` . Trigger invoice dry run with target date `2021-11-29`  | Invoice generated for  `$630` for `2021-10-29` to `2021-11-29`. It has 3 invoice items : `cell-phone-monthly-evergreen:$30`, `cell-phone-minutes-monthly-usage:$0` and `mbytes-monthly-usage:$630` (calculated as: `(1200 x 0.5) = 600` as per the `TOP_TIER` policy). 
+|===
+
+=== Block Size Greater Than One
+
+This example uses the https://github.com/killbill/killbill-docs/tree/a6339c9dd4bb75da375f4755e45aa5c5c07ebe01/catalogs/consumable-billing-block-size-more-than-one.xml[Consumable Billing Block Size More Than One] catalog. It has a `cell-phone-monthly` plan with a `MONTHLY` recurring charge of `$30`. In addition, it also has a usage section with `usageType=CONSUMABLE`, `tierBlockPolicy=ALL_TIERS` and the following `tieredBlock` sections:
+
+[options="header",cols="1,1,1,1,1"]
+|===
+|Unit   |Size   |Price   |Max   |Explanation
+//----------------------------------------
+|cell-phone-minutes   |10   |$1.00   |100   |A block size `10` is specified. So, users will be charged at $1.0 per 10 minutes. This is applicable for the for the first `100` blocks    
+|cell-phone-minutes   |10  |$0.5  |-1   |Users will be charged at $2.0 per block for any blocks consumed above `100` 
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result   
+//-------------
+|Create a subscription for the `cell-phone-monthly` plan on `2021-09-29` (current date)  | Because *IN_ARREAR* billing mode is specified, the system does not generate an invoice (yet).
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `400` with date `2021-10-01` | Again, invoice not generated since *IN_ARREAR* billing mode is specified
+|Trigger invoice dry run with target date `2021-10-29`    |Invoice generated for  `$70` for `2021-09-29` to `2021-10-29`. This is calculated as: `30 + ((400/100) x 1.0) = 70` (Since `400` minutes (`40` blocks) are recorded, user is charged `$1.0` per block as per the first tier)
+| https://killbill.github.io/slate/#usage-record-usage-for-a-subscription[Record a usage] of `110` with date `2021-11-01`. Trigger invoice dry run with target date `2021-11-29` | Invoice generated for  `$140` for `2021-10-29` to `2021-11-29`. This is calculated as: `30 + ((1000/100) x 1.0) + ((200/100) X 0.5) = 140` (Since `1200` minutes (`120` blocks) are recorded, the first `100` blocked are charged at `$1.0` per block as per the first tier and the next `20` blocks are charged at at `$0.5` per block as per the second tier)
+|===
+
+== Versioned Catalogs
+
+Kill Bill allows modifying the catalog over time. You can do this by creating a set of catalogs, one XML file for each version. Note that all the versions of a catalog need to have the same `catalogName` but different values for `effectiveDate`. The system will then rank such files based on their `effectiveDate` to create the various versions. 
+
+You can do the following using versioned catalogs:
+
+* Add new plans 
+* Modify the price for an existing plan 
+* Delete plans 
+
+Kill Bill uses the following rules to determine the active catalog version:
+
+* When there are multiple versions of a catalog, the catalog with an `effectiveDate` not later than the current date is treated as the active catalog. So any catalog version with a future `effectiveDate` is not treated as active until that date is reached.
+* If there are multiple catalog versions with effective dates before the current date, the newest one is considered active.
+* If all the catalog versions have effective dates after the current date, the oldest one is considered active.
+* If there are multiple catalog versions, with the same date component but different time components in the `effectiveDate`, the one with the earliest time component is considered as active. 
+* When there is only one catalog version, the `effectiveDate` does not matter. So, irrespective of whether it is in the past or in the future, the catalog is treated as the active catalog.
+
+The subsequent sections provide some examples of versioned catalogs.
+
+=== Add New Plan
+
+It is possible to add a new plan in a newer version of a catalog. The new plan is available only when the current date surpasses the `effectiveDate` in the new catalog version.
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/add-new-plan/add-new-plan-v1.xml[add-new-plan-v1.xml]  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/add-new-plan/add-new-plan-v2.xml[add-new-plan-v2.xml]  |2021-01-15T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge, `standard-yearly` plan with `$540` recurring charge.
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Create a subscription to the `standard-yearly` plan  |Subscription creation fails (Since the `standard-yearly` plan is not yet active)
+|Move the clock to `2021-02-01`.   | Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan
+|Create a subscription to the `standard-yearly` plan   | Invoice is generated for `$540` for `2021-02-01` to `2022-02-01` (Since `v2` is now active, subscription creation is successful)
+|===
+
+=== Modify Plan Price Without Affecting Existing Subscriptions
+
+It is possible to change the price of a plan in a newer version of a catalog. In such cases, the price change applies only to new subscriptions (subscriptions created after the catalog with the price change is effective). Older subscriptions continue to be billed as per the original price plan. 
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/modify-plan-price-without-effective-date-for-existing-subscriptions/modify-plan-price-without-effective-date-for-existing-sub-v1.xml[modify-plan-price-without-effective-date-for-existing-sub-v1.xml]  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/modify-plan-price-without-effective-date-for-existing-subscriptions/modify-plan-price-without-effective-date-for-existing-sub-v2.xml[modify-plan-price-without-effective-date-for-existing-sub-v2.xml]  |2021-01-15T00:00:00+00:00 | `standard-monthly` plan with `$60` recurring charge
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Move the clock to `2021-02-01`   | Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Although v2 is effective, invoice is generated as per the old price since this is an existing subscription)
+|Create another subscription to the `standard-monthly` plan   | Invoice is generated for `$60` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Invoice is generated as per the new price since this is a new subscription)
+|===
+
+=== Modify Plan Price And Use New Price for Existing Subscriptions
+
+As mentioned earlier, when a plan price is changed, it applies only to new subscriptions. If you do need to apply the price change to existing subscriptions, the `effectiveDateForExistingSubscriptions` attribute needs to be specified corresponding to the plan. 
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/modify-plan-price-with-effective-date-for-existing-subscriptions/modify-plan-price-with-effective-date-existing-sub-v1.xml[modify-plan-price-with-effective-date-existing-sub-v1.xml]  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/modify-plan-price-with-effective-date-for-existing-subscriptions/modify-plan-price-with-effective-date-existing-sub-v2.xml[modify-plan-price-with-effective-date-existing-sub-v2.xml]  |2021-01-15T00:00:00+00:00 | `standard-monthly` plan with `$60` recurring charge. The `standard-monthly` plan has `effectiveDateForExistingSubscriptions=2021-03-01T00:00:00+00:00`
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload both the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Move the clock to `2021-02-01`   |Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Although v2 is effective, invoice is generated as per the old price since this is an existing subscription and `effectiveDateForExistingSubscriptions` is not reached)
+|Move the clock to  `2021-03-01`   |Invoice generated for `$60` for `2021-03-01` to `2021-04-01` corresponding to the `standard-monthly` plan (Invoice is generated as per the new price since `effectiveDateForExistingSubscriptions` is reached)
+|===
+
+=== Retire Plan
+
+It is possible to delete a plan in a newer version of a catalog. In such cases, no new subscriptions can be created corresponding to the plan. However, existing subscriptions continue to be billed as per the original price plan. 
+
+This example uses the following catalogs:
+
+[options="header",cols="1,1, 1"]
+|===
+|Catalog Name   |effectiveDate | Plan Details
+//-------------
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/retire-plan/retire-plan-v1.xml[retire-plan-v1.xml]  |2020-01-01T00:00:00+00:00 | `standard-monthly` plan with `$30` recurring charge, `standard-weekly` plan with `$15` recurring charge
+|https://github.com/killbill/killbill-docs/blob/5a61ac1957f9174fd4e291c7b61a17c186194388/catalogs/retire-plan/retire-plan-v2.xml[retire-plan-v2.xml]  |2021-01-15T00:00:00+00:00 | `standard-weekly` plan with `$15` recurring charge
+|===
+
+The following table lists the actions and their results:
+
+[options="header",cols="1,1"]
+|===
+|Action   |Result
+//-------------
+|Set the date to `2021-01-01` and upload the catalogs mentioned above  |-
+|Create a subscription to the `standard-monthly` plan  |Invoice is generated for `$30` for `2021-01-01` to `2021-02-01` corresponding to the `standard-monthly` plan
+|Move the clock to `2021-02-01`.   | Invoice is generated for `$30` for `2021-02-01` to `2021-03-01` corresponding to the `standard-monthly` plan (Although v2 is effective and `standard-monthly` is not present in v2, invoice is generated since this is an existing subscription)
+|Create another subscription to the `standard-monthly` plan   | Subscription creation fails since v2 is now active and the `standard-monthly` plan is not present in v2.
+|===
+
 == Additional Information
 
 https://docs.killbill.io/latest/userguide_subscription.html#components-catalog[_Subscription Billing User Guide_]

@@ -1246,15 +1246,15 @@ Similar to the `AUTO_INVOICING_DRAFT` feature, it is the responsibility of the u
 
 == Parked Accounts
 
-Because invoicing drives payments, any issue in the system or misconfiguration leading to wrong invoices could have a direct impact on your customers. In order to avoid bad invoicing (and potentially invalid customer payment) we have introduced a mechanism to PARK the accounts. Once an account has been parked, no more invoicing will happen until its state has been fixed (or until safety bounds have been removed). A account can become parked in the following scenarii:
+Because invoicing drives payments, any issue in the system or misconfiguration leading to wrong invoices could have a direct impact on your customers. In order to avoid bad invoicing (and potentially invalid customer payment) we have introduced a mechanism to PARK the accounts. Once an account has been parked, no more invoicing will happen until its state has been fixed (or until safety bounds have been removed). A account can become parked in the following scenarios:
 
 First, the system now has a safety bound mechanism on the upper limit of invoice items generated for a given subscription on a given day. This safety bound is controlled by a system property `org.killbill.invoice.maxDailyNumberOfItemsSafetyBound` whose default value is set to `15` but that can also be disabled by setting it to `-1`. The safety bound will kick-in if a customer tries to buy too many things during a single day or in situations where the customer has not been invoiced for a while and the system is catching up (could happen if the account was tagged with `AUTO_INVOICING_OFF` and the tag gets removed).
 
 Second, the invoicing system will automatically park an account when an illegal state is reached during invoicing. This could be because the data associated with the account looks corrupted (which could happen because of previous bugs that did corrupt the data, manual data manipulation, or existing bug in the system).
 
-The way to get out of that state is to fix the issue that led to that state in the first place and trigger a new invoice generation. If this issue arose because of a bug, fixing the issue may require voiding invoices creating the issues. 
+The way to get out of that state is to fix the issue that led to that state in the first place and trigger a new invoice generation. If this issue arose because of a bug, fixing the issue may require voiding invoices creating the issues.
 
-For cases where there are many parked acounts, we have added an administrative https://killbill.github.io/slate/#admin-trigger-an-invoice-generation-for-all-parked-accounts[api] to go through all parked accounts and issue an invoice generation for each of those, only leaving in the parked state, accounts whose state has not been fixed yet. If you think the issue that led into that state is not a problem with the account state (data) but a bug in the system, please report to the https://groups.google.com/forum/#!forum/killbilling-users[mailing list].
+For cases where there are many parked accounts, we have added an administrative https://killbill.github.io/slate/\#admin-trigger-an-invoice-generation-for-all-parked-accounts[api] to go through all parked accounts and issue an invoice generation for each of those, only leaving in the parked state, accounts whose state has not been fixed yet. If you think the issue that led into that state is not a problem with the account state (data) but a bug in the system, please report to the https://groups.google.com/forum/#!forum/killbilling-users[mailing list].
 
 == Summary
 
@@ -1274,5 +1274,3 @@ The computation of the next invoice (and matching invoice items) is based upon t
 The invoicing algorithm recomputes the full view at each invocation and compares the **existing** view on disk (what was already billed) with the new set of **proposed** items, and based on the difference generates the next invoice (or nothing if there is no change since the previous invocation). If a new invoice was generated, it also inserts a new future notification and updates the `chargedThroughDate` for all subscriptions.
 
 In terms of payments, the source of truth resides in the `payments` (and associated `payments_transactions`) tables. However, the payment view of the invoicing subsystem relies on the `invoice_payments` table and is used to compute things like invoice and account balance: The `invoice_payments` table is updated using a 2-phase commit algorithm where a row is first inserted with a `status` set to false and then upon payment completion is updated to `true`.
-
-

@@ -1,0 +1,84 @@
+= PostgreSQL Configuration
+
+PostgreSQL is an open-source *Object-relational database system* and provides good performance with low maintenance efforts because of its high stability. The Kill Bill core team uses *MySQL*, but we also run regression tests against *MariaDB 10* and *PostgreSQL 12*. This document has detailed instructions to setup PostgreSQL with Kill Bill and Kaui.
+
+== PostgreSQL Kill Bill Configuration
+
+In order to configure PostgreSQL with Kill Bill, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
+
+. Create a user corresponding to Kill Bill. You can run the following command :
+[source,sql]
+ CREATE ROLE killbilluser WITH LOGIN INHERIT CREATEDB CREATEROLE NOREPLICATION PASSWORD 'killbill';
+
+ . Create a database corresponding to Kill Bill. You can run the following command:
+[source,sql]
+ CREATE DATABASE killbill WITH OWNER = killbilluser;
+
+
+. Connect to the Kill Bill database created above. In psql, you can run the following:
+[source,sql]
+  \connect killbill;
+
+. Create the Kill Bill schema. Run the following command:
+[source,sql]
+  CREATE SCHEMA killbillschema authorization killbilluser;
+
+. Connect to the schema created above using the following command:
+[source,sql]
+  set schema 'killbillschema';
+
+. Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL.
+
+. Run the Kill Bill DDL https://docs.killbill.io/latest/ddl.sql[here]. In psql, you  can run the following command:
+[source,sql]
+  \i <ddl_file_path>
+
+
+. Grant privileges to the schema using the following command:
+[source,sql]
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA killbillschema TO killbilluser;
+  GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA killbillschema TO killbilluser;
+
+== PostgreSQL Kaui Configuration
+
+In order to configure PostgreSQL, you need to follow the steps given below (These steps can be executed either via the command line *psql* tool or via *pgAdmin*):
+
+.  Create a database corresponding to kaui. You can run the following command:
+[source,sql]
+ CREATE DATABASE kaui WITH OWNER = killbilluser;
+
+.  Connect to the kaui database created above. In psql, you can run the following:
+[source,sql]
+  \connect kaui;
+
+. Create the Kill Bill schema. Run the following command:
+[source,sql]
+  CREATE SCHEMA killbillschema authorization killbilluser;
+
+. Connect to the schema created above using the following command:
+[source,sql]
+  set schema 'killbillschema';
+
+.  Execute https://github.com/killbill/killbill/blob/master/util/src/main/resources/org/killbill/billing/util/ddl-postgresql.sql[this] schema extension DDL.
+
+.  Run the Kaui DDL https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql[here].
+
+.  Grant privileges to the schema using the following command:
+[source,sql]
+  GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA killbillschema TO killbilluser;
+  GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA killbillschema TO killbilluser;
+
+.  Modify the `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` OR `TOMCAT_HOME/conf/catalina.properties` as the case may be. Add the following properties :
+[source,properties]
+ #KAUI postgresql section
+  kaui.db.url=jdbc:postgresql://127.0.0.1:5432/kaui
+  kaui.db.username=killbilluser
+  kaui.db.password=killbill
+
+.  Set the DB adapter to override for PostgreSQL instead of the defaut Mysql in either `PROJECT_ROOT/profiles/killbill/src/main/resources/killbill-server.properties` OR `TOMCAT_HOME/conf/catalina.properties` as the case may be :
+[source,properties]
+  kaui.db.adapter=postgresql
+
+.  Set the Search Path to killbillschema. Run the below command as postgres user
+[source,sql]
+  ALTER USER killbilluser SET search_path TO killbillschema;

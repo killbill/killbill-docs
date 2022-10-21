@@ -27,7 +27,8 @@ A plugin can be installed either via https://docs.killbill.io/latest/userguide_k
 kpm install_java_plugin analytics --destination=<path_to_install_plugin>
 
 . Verify that the plugin is installed properly. This can be done by ensuring that the plugin JAR is present at the `path_to_install_plugin` specified in the previous step. Alternatively, you can also open https://docs.killbill.io/latest/userguide_kaui.html[Kaui], hover over the plug icon and click on `analytics`. This should display the following screen:
-image:https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/analytics-plugin/analytics-plugin-in-kaui.png[align=center]
+
+image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/analytics-plugin/analytics-plugin-in-kaui.png[align=center]
 
 . If you would like to make changes to the plugin, you can clone the plugin code, build and deploy it as explained https://github.com/killbill/killbill-analytics-plugin[here].
 
@@ -106,10 +107,10 @@ This configures the following:
 |refreshDelaySeconds   |The delay in seconds, before starting to refresh analytics tables after an event is received. For workflows with lots of successive events (e.g. create account, add payment method, create payment), this makes sure that the latest state is available when starting the refresh.   |10   
 |lockAttemptRetries   |The number of retries to get the lock. See <<lock_notes, lock notes>>.   |100   
 |rescheduleIntervalOnLockSeconds   |The duration in seconds after which the refresh job should be scheduled in case the lock is not available. See <<lock_notes, lock notes>>. |10   
-|enablePartialRefreshes   |Whether partial refreshes are allowed. If true, the plugin refreshes only a subset of the analytics tables based on the received event. If false, all the analytics tables are updated.   |true   
+|enablePartialRefreshes   |Whether partial refreshes are allowed. If true, the plugin refreshes only a subset of the analytics tables based on the received event. If false, all the analytics tables are updated. When configured, some features are disabled, namely: `analytics_bundles.bundle_account_rank` cannot be computed   |true   
 |enableTemplateVariables   |Whether template variables should be allowed in raw SQL queries while creating reports based on SQL queries. Note that this could be prone to SQL injection and should only be enabled in trusted environments.   |false   
 |blacklist   |A list of account IDs to ignore.   |-
-|highCardinalityAccounts   |A list of account IDs with a high cardinality (account with 100k+ subscriptions). This is a performance hint to the plugin and tells the plugin to look up individual subscription rows instead of querying everything based on `account_record_id`. |-
+|highCardinalityAccounts   |A list of account IDs with a high cardinality (account with 100k+ subscriptions). This is a performance hint to the plugin and tells the plugin to look up individual subscription rows instead of querying everything based on `account_record_id`. When configured, some features are disabled, namely: `analytics_accounts.nb_active_bundles` is not computed for that account|-
 |ignoredGroups   |A list of https://github.com/killbill/killbill-analytics-plugin/blob/59c282f97960dc59b944ca33e17353bc19d7c842/src/main/java/org/killbill/billing/plugin/analytics/AnalyticsJobHierarchy.java#L59[groups] that should be ignored for refresh. Possible values are `FIELDS`, `INVOICES`, `INVOICE_AND_PAYMENTS`,`OVERDUE`, `OTHER`, `SUBSCRIPTIONS`, `ALL`. Thus, database tables corresponding to these groups will be ignored while performing a refresh.    |-   
 |pluginPropertyKeys   |A payment plugin name and plugin properties related to the payment plugin to be stored into the analytics tables. So, if a payment plugin populates these values, these are fetched and stored in the `analytics_payment_auths` table.   |1:processorResponse,
                                                                                   2:avsResultCode,                                                                                                3:cvvResultCode,                                                                                               4:payment_processor_account_id                                                                                                 5:paymentMethod   
@@ -144,10 +145,17 @@ The analytics plugin supports three types of reports as explained below:
 
 As explained earlier, we provide a set of canned reports that can be useful as a starting point. On non-Windows machines, these can be installed by running the https://github.com/killbill/killbill-analytics-plugin/blob/59c282f97960dc59b944ca33e17353bc19d7c842/src/main/resources/seed_reports.sh[seed_reports.sh] script. On Windows machines, you can install a report by opening the desired report sub-directory from the https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/reports[reports] directory and creating the _view_, _stored procedure_ and _report_ as explained in the next section.
 
+[NOTE]
+*Note:* The default views will use the converted amount columns when applicable, which require the `analytics_currency_conversion` table to be populated with currency conversion rates as explained in the <<currency_conversion, "Currency Conversion">> section. If you are only using one currency, use the non-converted columns instead (`next_mrr` instead of `converted_next_mrr` for example).
+
 [[create_custom_reports]]
 === Creating Custom Reports
 
-As mentioned earlier, the analytics plugin allows creating custom reports as per your requirements. A custom report can be created by executing API endpoints or via Kaui. This section covers report creation via API endpoint execution.
+As mentioned earlier, the analytics plugin allows creating custom reports as per your requirements. A custom report can be created by executing API endpoints or via Kaui.  
+
+In order to create a custom report via Kaui, hover over the plug icon and click on *"Analytics"*. This displays existing reports if any and also allows creating a new report by clicking on *"Available Reports"*.
+
+The rest of this section covers report creation via API endpoint execution.
 
 There are basically three steps in creating a report:
 
@@ -272,9 +280,12 @@ curl -v \
 ----
 +
 This specifies that the stored procedure should run on an hourly basis (it will run at 5' past the hour).
++
+[NOTE]
+*Note:* When configuring refreshes via stored procedures, it is recommended to bump the connection timeout using the `org.killbill.billing.osgi.dao.connectionTimeout`. See https://docs.killbill.io/latest/userguide_configuration.html#configuration_properties_table[Kill Bill Configuration Guide] for further information.
 
 [[advanced_report_creation_options]]
-=== Advanced Report Creation Options
+=== Advanced Report Creation
 
 You can create a report based on SQL executed on a remote database (`warehouse`) as follows:
 
@@ -504,18 +515,20 @@ A few remarks:
 * `EXTERNAL_CHARGE`, `FIXED`, and `RECURRING` items are treated as regular line items and are stored in *analytics_invoice_items*.
 * `ITEM_ADJ` items are treated as invoice item adjustments and stored in *analytics_invoice_item_adjustments*.
 * `CBA_ADJ` items (gained or consumed) are treated as account credits and stored in *analytics_invoice_credits*.
-* `CREDIT_ADJ` items that are not on their own invoice are treated as invoice adjustments and are stored in *analytics_invoice_adjustments*. Note that these should not be mixed with account level credits; when an administrator creates an account credit (different from CBA credits generated by the system), a negative `CREDIT_ADJ` item is added to a new invoice. This triggers a positive `CBA_ADJ` item (to bring the balance back to zero), which effectively becomes the account credit (and eventually stored in *analytics_invoice_credits*). In this case, the `CREDIT_ADJ` item will not be stored directly in the analytics tables.
-* Kill Bill repair items (`REPAIR_ADJ`) are not stored directly in any of these tables, but are combined with the new repaired item as invoice item adjustments (in *analytics_invoice_item_adjustments*). For example, if a recurring item of $20 was repaired into a $5 recurring item, *analytics_invoice_items* would contain the original $20 line item and *analytics_invoice_item_adjustments* would contain a $-15 adjustment item.
+* `CREDIT_ADJ` items that are not on their own invoice (items on an existing `DRAFT` invoice) are stored in *analytics_invoice_adjustments*. 
+* `CREDIT_ADJ` items on their on invoice are not stored separately in the analytics table since their corresponding `CBA_ADJ` items are stored in the *analytics_invoice_credits* as mentioned above. 
+* `REPAIR_ADJ` items are stored in the *analytics_invoice_item_adjustments* table. For example, if a recurring item of $20 was repaired into a $5 recurring item, *analytics_invoice_items* would contain the original $20 line item and *analytics_invoice_item_adjustments* would contain a $-15 adjustment item.
 * Any invoice item has a revenue recognizable attribute which is used to tell if the item is recognizable from a finance perspective (tied to cash). This is used for credits only today and we assume that any administrator generated credit (`CREDIT_ADJ` and `CBA_ADJ` on their own invoice) is not recognizable. All other credit items, including system generated ones, are.
 
-*Definitions:*
+Some of the important invoice related attributes can be computed as follows:
 
-* *invoice_balance*: invoice_amount_charged + invoice_amount_credited + invoice_amount_adjusted_for_account_credit - (invoice_amount_paid + invoice_amount_refunded). Note that *invoice_amount_adjusted_for_account_credit* is an internal adjustment that applies for account level credits only (`CREDIT_ADJ` items on their own invoices) and is not represented in Analytics. See the https://docs.killbill.io/latest/invoice_examples.html#\_invoice\_balance["__Invoice Balance__"] section in the __Invoice Examples__ document for further information.
+* https://docs.killbill.io/latest/Kill-Bill-Glossary.html#invoice_balance[*invoice balance*]: Calculated as: *invoice_amount_charged + invoice_amount_credited + invoice_amount_adjusted_for_account_credit - (invoice_amount_paid + invoice_amount_refunded)*. Note that *invoice_amount_adjusted_for_account_credit* is an internal adjustment that applies for account level credits only (`CREDIT_ADJ` items on their own invoices) and is not represented in Analytics. See https://docs.killbill.io/latest/invoice_examples.html#\_invoice\_balance["__Invoice Balance__"] for further information.
 * *invoice_amount_charged*: Sum of all *analytics_invoice_items*, *analytics_invoice_adjustments*, and *analytics_invoice_item_adjustments* items for that invoice.
 * *invoice_amount_credited*: Sum of all *analytics_invoice_credits* items for that invoice (positive if granted, negative if used).
 * *invoice_amount_paid*: 
-Sum of all *analytics_payments* items for that invoice.
-* *invoice_amount_refunded*: Sum of all *analytics_chargebacks* and *analytics_refunds* items for that invoice.
+Sum of all *analytics_payment_purchases* items for that invoice. 
+// Should invoice_amount_paid also include analytics_payment_auth and analytics_payment_capture??
+* *invoice_amount_refunded*: Sum of all *analytics_payment_chargebacks* and *analytics_payment_refunds* items for that invoice.
 * *invoice_original_amount_charged*: Sum of all *analytics_invoice_items* items for that invoice at the time of invoice creation.
 
 *References:*
