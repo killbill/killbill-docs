@@ -13,7 +13,6 @@ Setup
 * Make sure to work off branch `v3`
 * Install Ruby (use [RVM](https://rvm.io/) or [RubyInstaller](https://rubyinstaller.org/))
 * Run `bundle install`
-* [Optional] Install Dot (`brew install graphviz` on MacOS)
 * Verify documentation can be built by running the `make.sh` script
 
 Documentation on AsciiDoc can be found [here](http://asciidoctor.org/docs/). A quick reference is available [here](http://asciidoctor.org/docs/asciidoc-syntax-quick-reference/).

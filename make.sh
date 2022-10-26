@@ -12,7 +12,7 @@ SELFCONTAINED_EXTRA_OPTS="$COMMON_OPTS -T html5 -a stylesheet=kb.css -a stylesdi
 BUILD_DIR=$DIR/build
 SELFCONTAINED_BUILD_DIR=$BUILD_DIR/selfcontained
 
-SELFCONTAINED_BUILD="bundle exec asciidoctor --trace $SELFCONTAINED_EXTRA_OPTS -B $USERGUIDE_INPUT_DIR -D $SELFCONTAINED_BUILD_DIR -r asciidoctor-diagram -a doctype=book -a data-uri -a linkcss! -a homepage=http://killbill.io"
+SELFCONTAINED_BUILD="bundle exec asciidoctor --trace $SELFCONTAINED_EXTRA_OPTS -B $USERGUIDE_INPUT_DIR -D $SELFCONTAINED_BUILD_DIR -a doctype=book -a data-uri -a linkcss! -a homepage=https://killbill.io"
 
 # Setup
 rm -rf $BUILD_DIR && mkdir -p $BUILD_DIR
