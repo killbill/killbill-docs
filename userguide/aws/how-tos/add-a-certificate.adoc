@@ -25,7 +25,7 @@ If you own a domain, your domain provider can serve as your CA. If you don't hav
 
 A CNAME, or *Canonical Name*, is an identifier that links your CA to the resources that you are protecting with your certificate. You will be protecting public access to your instances of Kaui and Kill Bill through your load balancer, identified by its DNS name. The CNAME will link your domain to the load balancer. If your domain is `mydomain.com` your CNAME might look like `kaui.mydomain.com`. This will direct browsers to your verified domain, and then, through your CNAME, to your AWS resources.
 
-The CNAME is part of your domain's DNS profile, and your domain provider should have instructions for setting it up.
+The CNAME is part of your domain's DNS profile, and your domain provider should have instructions for setting it up. These instructions should ask you to enter two strings called `Name` and `Value`. These strings will be obtained during the certificate generation process.
 
 === Protocol and Port Setup
 
@@ -66,20 +66,20 @@ At the bottom you will see your domain name with a status of *Pending Validation
 
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-cert-validation-2.png[align=center]
 
-The two strings labeled *Name* and *Value* should be copied to the two required entries for your CNAME. Copy these long strings carefully. Do not include any trailing periods. There is an option to save these strings in a file so they may be copied more easily, or stored for a later time.
+The two strings labeled `Name` and `Value` should be copied to the two required entries for your CNAME. Copy these long strings carefully. Do not include any trailing periods. There is an option to save these strings in a file so they may be copied more easily, or stored for a later time.
 
-Your second CNAME is much simpler. The first entry will be `kaui`. The second entry will be simply your domain name, e.g., `mydomain.com`.
+Your second CNAME is much simpler. The `Name` entry will be `kaui`. The `Value` entry will be simply your domain name, e.g., `mydomain.com`.
 
 === 3. Create and Validate your Certificate
 
 When your CNAMEs are set, return to ACM and click *Continue*. The display changes to show that your certificate is *Pending Validation*. The certificate should now appear also on the main ACM page. When (and if) it is validated, the status will change to *Success*. *This may take several hours or more.* A short time later it will change again to *Issued*.
 
-When your certificate is successfully created, you may delete the temporary (validation) CNAME.
+When your certificate is successfully created, you may delete the temporary (validation) CNAME from your DNS Profile.
 
 
 == Using Let's Encrypt (with Certbot)
 
-`Let's Encrypt` is a root CA that is free to use. Certificates based on `Let's Encrypt` can be created using the application `certbot`. This approach is useful when using a third-party load balancer like `nginx`, which cannot be protected with ACM certificates. `Let's Encrypt` can be used free of charge.
+`Let's Encrypt` is a root CA that is free to use. Certificates based on `Let's Encrypt` can be created using the application `certbot`. This approach is useful when using a third-party load balancer like `nginx`, which cannot be protected with ACM certificates. This is the load balancer used with the single-tier Kill Bill option.`Let's Encrypt` can be used free of charge.
 
 `Certbot` is pre-installed in the latest Kill Bill AMI, but if you need a different version of `certbot`, this is also available through the new package manager `snap`. This package manager is also preinstalled in the Kill Bill AMI.
 
@@ -92,7 +92,7 @@ Create a CNAME, following instructions from your domain provider. You will be as
 === 2. Add your CNAME to the `nginx` configuration file
 
 This step tells `nginx` to forward HTTPS traffic via your CNAME.
-
+        
 First, login to your EC2 instance.
 
 Next, using a text editor of your choosing, edit the file `/etc/nginx/sites-enabled/killbill.conf`. You will need to use `sudo` to edit this file.
@@ -124,22 +124,7 @@ image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/sin
 
 This is just to allow `certbot` to create your certificate. After the certificate is created, we recommend that you remove this rule to maintain security.
 
-=== 4. (Optional) Update the `certbot` package
-
-First, remove the existing `certbot` package by typing the command:
-
-`sudo apt-get remove certbot`
-
-When asked if you want to proceed, type `Y` for yes.
-
-Next, install the latest version of `certbot` using `snap`, and link it to the `/usr/bin` directory:
-
-```
-sudo snap install --classic certbot
-sudo ln -s /snap/bin/certbot /usr/bin/certbot
-```
-
-=== 5. Create and Install the Certificate
+=== 4. Create and Install the Certificate
 
 Run `certbot` using the following command:
 
