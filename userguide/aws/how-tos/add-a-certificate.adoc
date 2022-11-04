@@ -2,9 +2,8 @@
 
 == Overview
 
-The HTTP protocol, commonly used for message exchange over the internet, does not provide encryption or authentication. As a result messages exchanged with this protocol may be insecure and subject to eavesdropping, and their source may be uncertain. To avoid this problem, HTTP is frequently combined with an encryption scheme known as SSL, or more recently TLS, that can be used to keep messages safe from unauthorized access, and verify that the sender is who they claim to be. This secure protocol is called HTTPS.
 
-This document provides information about HTTPS and its setup that applies to all of the AWS Kill Bill architectures: single-tier, multi-tier, and cloud formation.
+This document provides information about setting up HTTPS that applies to all of the AWS Kill Bill architectures: single-tier, multi-tier, and cloud formation.
 
 HTTPS is based on the use of a verification document called a *certificate*. the certificate serves two purposes:
 
@@ -19,6 +18,13 @@ For temporary use, you can sometimes create a *self-signed* certificate, in whic
 
 If you own a domain, your domain provider can serve as your CA. If you don't have a domain, you can purchase one for very low cost from a domain provider such as Godaddy. When you obtain a domain you need to prove your identity, so your domain provider can trust you. To demonstrate this trust you will need a CNAME.
 
+The remainder of this document has three parts:
+
+. <<step0, Preliminary Concepts>>
+. <<step1, Obtaining a Certificate>>
+. <<step2, Testing and Verification>>
+
+[[step0]]
 == Preliminary concepts
 
 === CNAMEs
@@ -35,18 +41,19 @@ Your AWS security group by default provides rules giving access to Kaui and Kill
 
 When you create a new certificate you will need to validate your certificate. This identifies the trust hierarchy for the certificate. You may need to setup a temporary CNAME for this purpose, and you may need to provide temporary access via an extra port in your security group.
 
-== Obtaining a Certificate
+[[step1]]
+== Step 1: Obtaining a Certificate
 
 There are many ways to obtain a certificate that you can use to protect a particular resource. Here we will describe two that may be of use in particular Kill Bill scenarios running on AWS. These are:
 
 1. Using the AWS Certificate Manager
 2. Using the free CA *Let's Encrypt*
 
-== Using the AWS Certificate Manager (ACM)
+=== Using the AWS Certificate Manager (ACM)
 
 The AWS Certificate Manager (ACM) offers a straightforward way to provide SSL/TLS protection for AWS resources such as load balancers. This is recommended when using the multi-tier or cloud formation installation options. There is no extra cost for using ACM certificates. 
 
-=== 1. Request a Certificate
+==== 1. Request a Certificate
 
 If you are on a page that is asking for your certificate, click on *Request a new Certificate from ACM*. Otherwise, select ACM from the Services menu. You will be taken to the main page of the ACM. Initially this will probably show that you have no certificates. Click *Request a Certificate*.
 
@@ -54,7 +61,7 @@ The next page will give you the option to import a certificate, or to request a 
 
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-request-certificate.png[align=center]
 
-=== 2. Setup a CNAME
+==== 2. Setup a CNAME
 
 To validate your certificate, you must first setup a *temporary* CNAME. The values to use for the CNAME will be seen shortly.  You will then create the CNAME that you will actually use to access the system.
 
@@ -70,14 +77,14 @@ The two strings labeled `Name` and `Value` should be copied to the two required 
 
 Your second CNAME is much simpler. The `Name` entry will be `kaui`. The `Value` entry will be simply your domain name, e.g., `mydomain.com`.
 
-=== 3. Create and Validate your Certificate
+==== 3. Create and Validate your Certificate
 
 When your CNAMEs are set, return to ACM and click *Continue*. The display changes to show that your certificate is *Pending Validation*. The certificate should now appear also on the main ACM page. When (and if) it is validated, the status will change to *Success*. *This may take several hours or more.* A short time later it will change again to *Issued*.
 
 When your certificate is successfully created, you may delete the temporary (validation) CNAME from your DNS Profile.
 
 
-== Using Let's Encrypt (with Certbot)
+=== Using Let's Encrypt (with Certbot)
 
 `Let's Encrypt` is a root CA that is free to use. Certificates based on `Let's Encrypt` can be created using the application `certbot`. This approach is useful when using a third-party load balancer like `nginx`, which cannot be protected with ACM certificates. This is the load balancer used with the single-tier Kill Bill option.`Let's Encrypt` can be used free of charge.
 
@@ -85,11 +92,11 @@ When your certificate is successfully created, you may delete the temporary (val
 
 To setup a certificate using `certbot`, perform the following steps. This discussion assumes you are using `nginx`:
 
-=== 1. Create a CNAME
+==== 1. Create a CNAME
 
-Create a CNAME, following instructions from your domain provider. You will be asked to provide two items of information. The first is simply `kaui`. The second is the *Public IPV4 DNS* name for your EC2 instance, for example, `ec2-3-238-230-120.compute-1.amazonaws.com`. Note that the IPV4 address alone will *not* work.
+Create a CNAME, following instructions from your domain provider. You will be asked to provide two strings, `Name` and `Value`. The `Name` string is simply `kaui`. The `Value` string is the *Public IPV4 DNS* name for your EC2 instance, for example, `ec2-3-238-230-120.compute-1.amazonaws.com`. Note that the IPV4 address alone will *not* work.
 
-=== 2. Add your CNAME to the `nginx` configuration file
+==== 2. Add your CNAME to the `nginx` configuration file
 
 This step tells `nginx` to forward HTTPS traffic via your CNAME.
         
@@ -116,7 +123,7 @@ Save the modified file, then reload it with the following command:
 
 `sudo nginx -s reload`
 
-=== 3. Enable HTTP on port 80 (temporarily)
+==== 3. Enable HTTP on port 80 (temporarily)
 
 Go to your EC2 dashboard and add a new inbound rule to your security group as follows: Type: HTTP, Protocol: TCP, Port Range: 80, Source: 0.0.0.0/0. Your inbound rules should now look like this:
 
@@ -124,7 +131,7 @@ image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/sin
 
 This is just to allow `certbot` to create your certificate. After the certificate is created, we recommend that you remove this rule to maintain security.
 
-=== 4. Create and Install the Certificate
+==== 4. Create and Install the Certificate
 
 Run `certbot` using the following command:
 
@@ -146,9 +153,10 @@ IMPORTANT NOTES:
 
 If the message does not appear, review the above steps carefully. If needed you can also try the `certbot` https://certbot.eff.org/help/[help page].
 
-== Testing and Renewal
+[[step2]]
+== Step 2: Testing and Renewal
 
-When your certificate is installed, you should be able to access KAUI from you browser using `https://` followed by your CNAME as the address. The browser should indicate that the site is secure.
+When your certificate is installed, you should be able to access Kaui from you browser using `https://` followed by your CNAME as the address. The browser should indicate that the site is secure.
 
 When your certificate is successfully installed, you can edit your security groups again to remove the access through port 80.
 
