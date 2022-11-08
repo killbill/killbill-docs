@@ -66,21 +66,27 @@ The conceptual flow below shows a 3D-Secure variation of the previous flows. The
 
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/payment-userguide/payments_hostedpages_3ds.png[width=960,align="center"]
 
-=== Gateway Integration flow
+=== Gateway Integration Flow
 
 For gateway integrations, the entry point for any payment is either the https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createAuthorization*] (to authorize a credit card), https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createPurchase*] (to charge a payment method, for example authorizing and capturing a credit card, to initiate an ACH transfer, to withdraw money from a Bitcoin wallet, etc.) or https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/payment/api/PaymentApi.java[*createCredit*] (to deposit money on a payment method, without any reference to a previous payment) APIs. The payment state will be in `*_INIT` state before calling the plugin.
 
-Usually, transactions end up in a terminal state right away as most gateways provide synchronous APIs. However, depending on the payment method, the plugin can choose to set the status to *PENDING*. For example, this is the case for 3D-Secure transactions (until the issuer verifies the payment after redirecting the user), for direct debit transfers (e.g., ACH, which usually takes a couple of days for banks to acknowledge), or for Bitcoin transfers (until blockchain confirms the transaction). Additionally, some gateways don't always provide synchronous responses (e.g., when using Adyen to capture funds), in which case the plugin has to rely on asynchronous notifications to transition the payment into a terminal state.
+There are two main types of scenarios:
 
-Before any payment operation can occur, the user must first enter his payment information. In Kill Bill, this translates into creating a PaymentMethod. When dealing with credit card information specifically, merchants have to keep the data into a PCI compliant environment (often handled by the gateway): this process requires tokenization of the PAN, so that the payment system only handles the token, which is stored at the plugin level and passed to Kill Bill as a plugin property. Take a look at our https://github.com/killbill/killbill-stripe-demo[Stripe demo] for a concrete example.
-
-Note that the creation of the Kill Bill payment method is not represented in the flows below: it can happen either in a prior step or during the payment using one of our combo payment call. Usually, the user is prompted with a form to enter his payment method information, and then the payment is initiated using one of the *createAuthorization* or *createPurchase* APIs. Kill Bill will connect to its payment plugin which in turn will contact the gateway to perform the required operation. Upon success/failure, the user is redirected to a landing page.
-
-.Gateway integration (direct payment API)
+* When payment gateways provide synchronous APIs, transactions end up in a terminal state right away. The following figure demonstrates this scenario:
++
+.Gateway integration (With Synchronous Payment API)
 
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/payment-userguide/payments_gateway.png[width=960,align="center"]
++
+The payment is initiated using one of the *createAuthorization* or *createPurchase* APIs. Kill Bill then connects to its payment plugin, which in turn contacts the gateway to perform the required operation. Upon success/failure, the end-user is redirected to a landing page.
++
+[NOTE]
+*Note:* Before any payment operation can occur, the user must first enter his/her payment information and a payment method must be created as explained in the <<payment_method_flows, payment method flows>> section. This is not represented in the flow above; it can happen either in a prior step or during the payment using one of our https://killbill.github.io/slate/#payment-combo-api-to-create-a-new-payment-transaction-on-a-existing-or-not-account[combo payment call].
++
+* In some cases, a plugin can choose to set the status to *PENDING*. For example, this is the case for 3D-Secure transactions (until the issuer verifies the payment after redirecting the user), for direct debit transfers (e.g., ACH, which usually takes a couple of days for banks to acknowledge), or for Bitcoin transfers (until blockchain confirms the transaction). Additionally, some gateways don't always provide synchronous responses (e.g., when using Adyen to capture funds), in which case the plugin has to rely on asynchronous notifications to transition the payment into a terminal state. The <<Janitor, Kill Bill Janitor>> can also be used to automatically fix *PENDING* states.
++
+The following figure demonstrates the Janitor scenario:
++
+.Gateway integration (With Asynchronous payment)
+image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/payment-userguide/janitor.png[width=960,align="center"]
 
-If 3D-Secure is enabled, the payment (e.g. authorization) is split into two phases:
-
-* The merchant site starts with an authorize call; if enough information is supplied to the gateway and if the payment method is 'registered' as being 3D-Secure, the gateway will return a (gateway) specific status so that the user can be redirected to the access control server to complete the flow
-* The user may then enter its specific information on the access control server, and upon success it is then redirected to the merchant site that will complete the authorize phase
