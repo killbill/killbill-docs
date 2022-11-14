@@ -5,18 +5,11 @@
 
 This document provides information about setting up HTTPS that applies to all of the AWS Kill Bill architectures: single-tier, multi-tier, and cloud formation.
 
-HTTPS is based on the use of a verification document called a *certificate*. the certificate serves two purposes:
-
-1. It provides the keys necessary for a highly secure encryption.
-2. It provides the electronic signature of a *certificate authority (CA)* who guarantees the identity of the sender.
-
-Increasingly, modern browsers require valid certificates when accessing sites using the HTTPS protocol. It may be difficult or impossible to access these sites if a valid certificate is not found.
-
-The structural details of certificates are defined by international standards and are well beyond the scope of this discussion. For more details see the https://en.wikipedia.org/wiki/X.509[Wikipedia article]. One thing you need to understand, though, is the certificate authority. Normally this is either an organization that is intrinsically well-known and trusted, such as DigiCert or GlobalSign (called a *root* CA), or an organization in the *trust hierarchy* derived from a root. A CA in a trust hierarchy must be itself certified by another CA in a chain which eventually leads to the root CA. Your CA, in turn, must be able to certify that *you* are who you say you are!
+HTTPS is based on the use of a verification document called a *certificate*. For an explanation of certificates see https://docs.killbill.io/latest/aws/explanations/https.html[About HTTPS and Certificates].
 
 For temporary use, you can sometimes create a *self-signed* certificate, in which you are your own CA. Most browsers will frown on this, since you are simply vouching for yourself, but it may allow you to get started with security. We will not consider this option in this document.
 
-If you own a domain, your domain provider can serve as your CA. If you don't have a domain, you can purchase one for very low cost from a domain provider such as Godaddy. When you obtain a domain you need to prove your identity, so your domain provider can trust you. To demonstrate this trust you will need a CNAME.
+If you own a domain, your domain provider can serve as your CA. If you don't have a domain, you can purchase one for very low cost from a domain provider such as https://www.godaddy.com/[Godaddy]. When you obtain a domain you need to prove your identity, so your domain provider can trust you. To demonstrate this trust you will need a CNAME.
 
 The remainder of this document has three parts:
 
@@ -51,19 +44,19 @@ There are many ways to obtain a certificate that you can use to protect a partic
 
 === Using the AWS Certificate Manager (ACM)
 
-The AWS Certificate Manager (ACM) offers a straightforward way to provide SSL/TLS protection for AWS resources such as load balancers. This is recommended when using the multi-tier or cloud formation installation options. There is no extra cost for using ACM certificates. 
+The AWS Certificate Manager (ACM) offers a straightforward way to provide SSL/TLS protection for AWS resources such as load balancers. This is recommended when using the multi-tier or cloud formation installation options. For these cases there is no extra cost for using ACM certificates. 
 
 ==== 1. Request a Certificate
 
-If you are on a page that is asking for your certificate, click on *Request a new Certificate from ACM*. Otherwise, select ACM from the Services menu. You will be taken to the main page of the ACM. Initially this will probably show that you have no certificates. Click *Request a Certificate*.
+If you are on a page that is asking for your certificate, click on *Request a new Certificate from ACM*. Otherwise, select *Security, Identity, and Compliance*, then *Certificate Manager* from the Services menu. You will be taken to the main page of the ACM. Initially this will probably show that you have no certificates. On the left menu, click *Request a Certificate*.
 
-The next page will give you the option to import a certificate, or to request a public or private certificate. Choose *private*, then click again on *Request a Certificate*. This will take you to the *Request a Certificate* page. You are initially at *Step 1: Add Domain Names*.
+The next page will give you the option to request a public or private certificate. The private option may be grayed out. Click *Request a Public Certificate*. The page that appears will ask you to specify several parameters, including one or more domain names and a validation method.
 
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-request-certificate.png[align=center]
 
 ==== 2. Setup a CNAME
 
-To validate your certificate, you must first setup a *temporary* CNAME. The values to use for the CNAME will be seen shortly.  You will then create the CNAME that you will actually use to access the system.
+To validate your certificate, you must first setup a *validation* CNAME. The values to use for the CNAME will be seen shortly.  You will then create the CNAME that you will actually use to access the system.
 
 Enter your domain name, using the wildcard format. Then click *Next*. On the following page, select *DNS Validation*. The next page gives you the chance to assign one or more tags to your certificate. These are optional and can be skipped. Finally, you are given a chance to review your request. Check everything, then click *Confirm and Request*. The *Validation* page will appear.
 
@@ -81,12 +74,11 @@ Your second CNAME is much simpler. The `Name` entry will be `kaui`. The `Value` 
 
 When your CNAMEs are set, return to ACM and click *Continue*. The display changes to show that your certificate is *Pending Validation*. The certificate should now appear also on the main ACM page. When (and if) it is validated, the status will change to *Success*. *This may take several hours or more.* A short time later it will change again to *Issued*.
 
-When your certificate is successfully created, you may delete the temporary (validation) CNAME from your DNS Profile.
-
+NOTE: Your validation CNAME will not be used again for normal HTTPS access, but it *will* be needed to revalidate your certificate when it is renewed.
 
 === Using Let's Encrypt (with Certbot)
 
-`Let's Encrypt` is a root CA that is free to use. Certificates based on `Let's Encrypt` can be created using the application `certbot`. This approach is useful when using a third-party load balancer like `nginx`, which cannot be protected with ACM certificates. This is the load balancer used with the single-tier Kill Bill option.`Let's Encrypt` can be used free of charge.
+https://letsencrypt.org[Let's Encrypt] is a root CA that is free to use. Certificates based on `Let's Encrypt` can be created using the application `certbot`. This approach is useful when using a third-party load balancer like `nginx`, which cannot be protected with ACM certificates. This is the load balancer used with the single-tier Kill Bill option.`Let's Encrypt` can be used free of charge.
 
 `Certbot` is pre-installed in the latest Kill Bill AMI, but if you need a different version of `certbot`, this is also available through the new package manager `snap`. This package manager is also preinstalled in the Kill Bill AMI.
 
@@ -151,7 +143,7 @@ IMPORTANT NOTES:
    your certificates, run "certbot renew"
 ```
 
-If the message does not appear, review the above steps carefully. If needed you can also try the `certbot` https://certbot.eff.org/help/[help page].
+If the message does not appear, review the above steps carefully. If needed you can also try the https://certbot.eff.org/help/[certbot help page].
 
 [[step2]]
 == Step 2: Testing and Renewal
@@ -162,4 +154,8 @@ When your certificate is successfully installed, you can edit your security grou
 
 The `Let's Encrypt` certifcates are only valid 90 days and will therefore neeed to be renewed. `certbot` will create a cron entry under `/etc/cron.d/certbot` to make this process automatic.
 
-The ACM certificates will renew automatically.
+The ACM certificates are good for approximately one year. They will renew automatically, provided that:
+
+1. It is currently associated with an AWS load balancer
+2. Your validation CNAME is still setup in your domain's DNS profile
+ 
