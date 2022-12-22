@@ -244,8 +244,8 @@ create table catalog_override_block_definition
 (
 record_id serial unique,
 parent_unit_name varchar(255) NOT NULL,
-bsize decimal(15,9) NOT NULL,
-max decimal(15,9) NULL,
+bsize decimal(18,9) NOT NULL,
+max decimal(18,9) NULL,
 currency varchar(3) NOT NULL,
 price decimal(15,9) NOT NULL,
 effective_date datetime NOT NULL,
@@ -316,6 +316,7 @@ CREATE TABLE subscription_events (
     phase_name varchar(255) DEFAULT NULL,
     price_list_name varchar(64) DEFAULT NULL,
     billing_cycle_day_local int DEFAULT NULL,
+	quantity int DEFAULT 1,
     is_active boolean default true,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -344,6 +345,7 @@ CREATE TABLE subscription_event_history (
     phase_name varchar(255) DEFAULT NULL,
     price_list_name varchar(64) DEFAULT NULL,
     billing_cycle_day_local int DEFAULT NULL,
+	quantity int DEFAULT 1,
     is_active boolean default true,
     change_type varchar(6) NOT NULL,
     created_by varchar(50) NOT NULL,
@@ -573,7 +575,7 @@ CREATE TABLE invoice_items (
     rate numeric(15,9) NULL,
     currency varchar(3) NOT NULL,
     linked_item_id varchar(36),
-    quantity int,
+    quantity decimal(18, 9),
     item_details text,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -612,7 +614,7 @@ CREATE TABLE invoice_item_history (
     rate numeric(15,9) NULL,
     currency varchar(3) NOT NULL,
     linked_item_id varchar(36),
-    quantity int,
+    quantity decimal(18, 9),
     item_details text,
     change_type varchar(6) NOT NULL,
     created_by varchar(50) NOT NULL,
@@ -637,6 +639,7 @@ CREATE TABLE invoices (
     status varchar(15) NOT NULL DEFAULT 'COMMITTED',
     migrated bool NOT NULL,
     parent_invoice bool NOT NULL DEFAULT FALSE,
+	grp_id varchar(36) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
     account_record_id bigint /*! unsigned */ not null,
@@ -646,6 +649,7 @@ CREATE TABLE invoices (
 CREATE UNIQUE INDEX invoices_id ON invoices(id);
 CREATE INDEX invoices_account ON invoices(account_id ASC);
 CREATE INDEX invoices_tenant_account_record_id ON invoices(tenant_record_id, account_record_id);
+CREATE INDEX invoice_grp_id ON invoices(grp_id ASC);
 
 
 DROP TABLE IF EXISTS invoice_history;
@@ -660,6 +664,7 @@ CREATE TABLE invoice_history (
     status varchar(15) NOT NULL DEFAULT 'COMMITTED',
     migrated bool NOT NULL,
     parent_invoice bool NOT NULL DEFAULT FALSE,
+	grp_id varchar(36) NOT NULL,
     change_type varchar(6) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -684,7 +689,7 @@ CREATE TABLE invoice_payments (
     processed_currency varchar(3) NOT NULL,
     payment_cookie_id varchar(255) DEFAULT NULL,
     linked_invoice_payment_id varchar(36) DEFAULT NULL,
-    success bool DEFAULT true,
+    status varchar(50) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
     account_record_id bigint /*! unsigned */ not null,
@@ -712,7 +717,7 @@ CREATE TABLE invoice_payment_history (
     processed_currency varchar(3) NOT NULL,
     payment_cookie_id varchar(255) DEFAULT NULL,
     linked_invoice_payment_id varchar(36) DEFAULT NULL,
-    success bool DEFAULT true,
+    status varchar(50) NOT NULL,
     change_type varchar(6) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
@@ -993,8 +998,8 @@ CREATE TABLE rolled_up_usage (
     id varchar(36) NOT NULL,
     subscription_id varchar(36) NOT NULL,
     unit_type varchar(255) NOT NULL,
-    record_date date NOT NULL,
-    amount bigint NOT NULL,
+    record_date datetime NOT NULL,
+    amount decimal(18, 9) NOT NULL,
     tracking_id varchar(128) NOT NULL,
     created_by varchar(50) NOT NULL,
     created_date datetime NOT NULL,
