@@ -1,16 +1,16 @@
 = How to Set up a Multi-tier System
 
-There are three different ways to setup a working Kill Bill system on AWS, using software preconfigured by Kill Bill. Two options are based on a single *Amazon Machine Image (AMI)* containing the complete Kill Bill stack, that is both the Kill Bill server and the administrative UI (KAUI). These options are *single-tier* and *multi-tier*. The https://docs.killbill.io/latest//aws-singletier.html[*single-tier* option] is designed to deploy a limited version of Kill Bill quickly for trial and experimentation. For production deployments, we offer the multi-tier option. A third alternative available for deploying a production system is https://docs.killbill.io/latest//aws-cf.html[CloudFormation templates]. 
 
 == Overview
 
-This document explains how to set up Kill Bill on AWS using the multi-tier option. This option is a recommended alternative for production environments. The multi-tier option requires more setup than CloudFormation, but provides more control over the deployment.
+This document describes the procedures for setting up Kill Bill under AWS using the multi-tier option. This is one of two recommended alternatives for production use. The multi-tier option requires more setup than CloudFormation, but provides more control over the deployment. The procedures in this document are based on the options recommended by Kill Bill.
 
 This configuration uses two or more EC2 instances and a separate database provided by the AWS *Relational Database Service (RDS)*. It also includes an AWS *Elastic Load Balancer (ELB)* to correctly spread the traffic among the various nodes, and to route traffic to either the Kill Bill Server or KAUI based on the incoming port.
 
-The diagram below shows the principal components of the multi-tier system: The ELB, the RDS, and two or more EC2 instances. Each EC2 is an instance of Ubuntu Linux, running both Kill Bill and Kaui within a `tomcat` server. Clients interact only with the ELB, which routes requests to the rest of the system.
+The diagram below shows the principal components of the multi-tier system: The ELB, the RDS, and two or more EC2 instances. Each EC2 is an instance of Ubuntu Linux, running both Kill Bill and KAUI within a `tomcat` server. Clients interact only with the ELB, which routes requests to the rest of the system.
 
-image::../../assets/aws/multi-tier-ami_deployment.png[width=750,align=center]
+
+image::../../assets/aws/multi-tier-ami_deployment.svg[width=750,align=center]
 
 
 
@@ -26,21 +26,21 @@ In addition, AWS places all resources within a *Virtual Private Cloud (VPC)*. A 
 
 Once you are logged in, the first step is to setup the RDS instance. This process begins with the RDS dashboard, which should be available from the Services menu. When the dashboard appears, select *Databases* from the left menu, and click the red button at the top right that reads *Create Database*:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-create-database.png[align=center]
+image::../../assets/aws/multitier-create-database.png[align=center]
 
-==== 1. Set the Configuration
+=== 2.1. Set the Configuration
 
-You will be taken to the *Create Database* page. The first choice you will have is between *Standard Create*, which allows you to set a full range of configuration parameters, or *Easy Create*, which sets most of these parameters to defaults. We recommend *Easy Create* in most cases.
+You will be taken to the *Create Database* page. The first choice you will have is between *Standard Create*, which allows you to set a full range of configuration parameters, or *Easy Create*, which sets most of these parameters to defaults. Select *Easy Create*.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-standard-or-easy.png[align=center]
+image::../../assets/aws/multitier-standard-or-easy.png[align=center]
 
 The next section offers you a choice of several database types. Kill Bill can work with any database type that is `mysql` or `postgres` compatible. For robust production use, Amazon Aurora is probably a good choice. Here we will illustrate the simpler steps setting up a MariaDB database.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-database-types.png[align=center]
+image::../../assets/aws/multitier-database-types.png[align=center]
 
 The next choice determines the instance size. We suggest the *Production* option as this will provide the most robust configuration.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-instance-sizes.png[align=center]
+image::../../assets/aws/multitier-instance-sizes.png[align=center]
 
 The last section asks you to:
 
@@ -48,30 +48,30 @@ The last section asks you to:
 2. Give a username for the administrative account (we suggest that you do *not* use the default name)
 3. Provide a password for the administrative acount (we suggest you let AWS generate one for you)
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-names-and-password.png[align=center]
+image::../../assets/aws/multitier-names-and-password.png[align=center]
 
-==== 2. Create the DBM
+=== 2.2. Create the DBM
 
 When the password is setup and confirmed, click *Create Database* in the lower right corner. You will return to the main Databases screen, which should now look like this:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-database-starting.png[align=center]
+image::../../assets/aws/multitier-database-starting.png[align=center]
 
 This display shows that your database is starting. After a few minutes, the status will change to *Available* (You may need to reload the page to see this). At this time you can click on the database name to get more information, including the full name of the instance.
 
 On the page that appears you should see a panel named *Connectivity and Security*. The left side of this panel shows the full name of the endpoint, which you will need shortly, and the port number, which is normally 3306.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-connectivity-and-security.png[align=center]
+image::../../assets/aws/multitier-connectivity-and-security.png[align=center]
 
-==== 3. Setup the Security Rules
+=== 2.3. Setup the Security Rules
 
 Lastly, on the *Connectivity and Security* panel, locate and click on the link for the default VPC security group. You will need to add an inbound security rule, because the database by default does not allow external access. In the panel for this group, click on *Inbound Rules* and select *Edit Inbound Rules*. Next click on *Add rule*. In the *Type* column select `MYSQL/Aurora`. The port will be set to 3306 automatically. In the *Source* column, click on the search icon and select `0.0.0.0/0`. Finally, click on *Save Rules* in the bottom right. Your database is ready to go.
 
-=== Edit the Configuration Script
+== Step 3: Edit the Configuration Script
 
 To set up the EC2 instances you will need to provide them with information needed to connect to the databases. We provide a brief configuration script to simplify this process. The template for this script is as follows:
 
 
-```
+```[source,bash]
 #!/bin/bash
 
 DB_PROPS="/var/tmp/db.props.$$"
@@ -103,12 +103,12 @@ Second, you may optionally edit any Kill Bill properties that you need to change
 
 Save this script in a text file. You will need it in the next step.
 
-=== Launch EC2 Instances
+== Step 4: Launch EC2 Instances
 
 The next step is to launch the number of EC2 instances you want, all based on the Kill Bill single AMI.
 
 
-==== 1. Subscribe to the AMI
+==== 4.1. Subscribe to the AMI
 
 To start the installation process, point your browser to the Kill Bill AMI at
 +++
@@ -121,58 +121,58 @@ AWS Marketplace
 
 You should see the following image at the top of your screen:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-subscribe.png[align=center]
+image::../../assets/aws/multitier-subscribe.png[align=center]
 
 Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions:
 
 Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click *Continue to Configuration*.
 
-==== 2. Configure the Instances
+==== 4.2. Configure the Instances
 
 The next page will give several configuration options:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-configure.png[align=center]
+image::../../assets/aws/multitier-configure.png[align=center]
 
 Be sure to select the region you plan to operate in. In most cases you should accept the other defaults. Then click *Continue to Launch*.
 
 The next page will give you several options for the launch method. We recommend that you choose *Launch through EC2*.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-launch.png[align=center]
+image::../../assets/aws/multitier-launch.png[align=center]
 
 All other options will disappear. Click *Launch*.
 
-The next page is headed *Launch an Instance*. There ar several things you will need to do here.
+The next page is headed *Launch an Instance*. There are several things you will need to do here.
 
 First, at the top right, select the number of instances you will use. We recommend 2. You can add more later.
 
 Next, scroll down to the middle of this page, to the box titled *Key Pair (login)* Here you are asked to choose or create a *key pair*.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/single-tier-keypair.png[align=center]
+image::../../assets/aws/single-tier-keypair.png[align=center]
 
 The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. Click *Create Key Pair* to display a pane to be used for the creation. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Do not change the other options on this pane. Then click *Download Key Pair*. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance.
 
 Finally, scroll to the bottom and open the section labeled *Advanced Details*. You will see a long list of settings. At to the very bottom of this list is a box headed *User Settings*. Copy your configuration file into this box.
 
-==== 3. Launch your Instances
+=== 4.3. Launch your Instances
 
 When the key pair is generated, click *Launch Instances*. You should see the screen below:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-launching.png[align=center]
+image::../../assets/aws/multitier-launching.png[align=center]
 
 Your instances are finally launching! To follow what is happening on the EC2 Dashboard, scroll all the way down to the bottom, and click *View Instance* at the bottom right. This will take you to the *Instances* screen which is part of the EC2 Dashboard.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-instances.png[align=center]
+image::../../assets/aws/multitier-instances.png[align=center]
 
 
 In a short time, the *Instance State* for each instance should indicate *Running*. You will need to scroll to the right to see all of the information available about your instances. In particular, make a note of the *Availability Zone* (such as `us-east-1a`) assigned to each instance. You will need this information later.
 
-==== 4. Setup Security Rules
+=== 4.4. Setup Security Rules
 
 The next step is to scroll down in the menu on the left side to select *Security Groups*. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for *Inbound Rules*. You should see:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound-original.png[align=center]
+image::../../assets/aws/multitier-inbound-original.png[align=center]
 
-These rules enable the ports that must be open to access KAUI and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, you need to add one more port.
+These rules enable the ports that must be open to access Kaui and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, you need to add one more port.
 
 Click on *Edit Inbound Rules*. then do the following:
 
@@ -183,10 +183,10 @@ Click on *Edit Inbound Rules*. then do the following:
 
 Your Inbound Rules should now look like this:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound-new.png[align=center]
+image::../../assets/aws/multitier-inbound-new.png[align=center]
 
 
-==== 5. Login to an Instance
+==== 4.5. Login to an Instance
 
 Now that your instances are set up, you need to ensure that you can login to them for configuration and maintenance when needed. To login, use the secure shell command:
 
@@ -201,7 +201,7 @@ The first time you login, you will see a warning message asking if you want to a
 You will now be able to explore your instance and perform various configuration and maintenance tasks. To exit from your login, type `exit`.
 
 
-=== Create the Databases
+== Step 5: Create the Databases
 
 Kill Bill requires two databases, with the names `killbill` and `kaui`. We provide predefined schemas for these databases.
 
@@ -209,7 +209,7 @@ To create the databases, you will need to login to one of your instances as desc
 
 The password will not be echoed when it is typed.
 
-```
+```[source,bash]
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p
 Enter Password:
 mysql> create database killbill;
@@ -223,7 +223,7 @@ The next step is to install the schemas. These can be found at:
 
 One easy way to do this is to return to your local computer (type `exit`) and download the schemas (give them distinct names), then use the `sftp` command to upload them to your EC2 instance home directory with the commands:
 
-```
+```[source,bash]
 sftp -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP
 put killbill.ddl
 put kaui.ddl
@@ -232,7 +232,7 @@ exit
 
 Once the files are successfully uploaded, login again to your instance using the `ssh` command. You can now install the schemas:
 
-```
+```[source,bash]
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p killbill < killbill.ddl
 Enter Password:
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p kaui < kaui.ddl
@@ -240,7 +240,7 @@ Enter Password:
 ```
 To ensure that the databases are setup correctly, login to `mysql` again, then try the SHOW TABLES command:
 
-```
+```[source,bash]
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p
 Enter Password:
 use killbill
@@ -254,14 +254,14 @@ Each `show tables` command should display a list of table names for the database
 
 === Initial Testing
 
-You can now login to KAUI from your browser using the URL http://INSTANCE_IP:3000, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. This should display the KAUI login screen. For an introduction to KAUI, see our https://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide. The default credentials are: `admin` / `password`. The first few requests might be a bit slow as Kill Bill initializes itself.
+You can now login to Kaui from your browser using the URL `\http://INSTANCE_IP:3000`, where `INSTANCE_IP` is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. This should display the KAUI login screen. For an introduction to Kaui, see our https://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide. The default credentials are: `admin` / `password`. The first few requests might be a bit slow as Kill Bill initializes itself.
 
-In addition, you can login to the Kill Bill server using the URL http://INSTANCE_IP:8080. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
+In addition, you can login to the Kill Bill server using the URL `\http://INSTANCE_IP:8080`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
 
 If these logins succeed, your EC2 instances and your RDS databases are setup properly.
 
 
-=== Add the ELB
+== Step 6: Add the ELB
 
 The last major task is to setup the Elastic Load Balancer in front of the EC2 instances.
 
