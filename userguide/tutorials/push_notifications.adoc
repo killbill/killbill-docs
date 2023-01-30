@@ -51,9 +51,75 @@ As explained earlier, once a handler is registered, each event is POST'ed to tha
 
 You can also read the https://docs.killbill.io/latest/kill_bill_events.html[Kill Bill Events] document to know more about events 
 
-== Further Information
-
 * https://killbill.github.io/slate/#tenant-push-notifications[_Tenant Push Notifications_]
 
 * https://docs.killbill.io/latest/kill_bill_events.html[_Kill Bill Events_]
 
+== Testing steps:
+
+* For testing, run a local HTTP listener like the following:
+
+`docker run -p 8082:8080 -p 8443:8443 --rm -t mendhak/http-https-echo:28`
+
+* Register a notification handler:
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -H "X-Killbill-Reason: demo" \
+     -H "X-Killbill-Comment: demo" \
+     "http://127.0.0.1:8081/1.0/kb/tenants/registerNotificationCallback?cb=http://localhost:8082/callback"
+----
+
+ * Make some configuration changes in a tenant so that Kill Bill pushes a notification on an event change. For example, https://docs.killbill.io/latest/quick_start_with_kaui.html#step2[add a new plan to a catalog].
+This will trigger a `TENANT_CONFIG_CHANGE` event. The following log is expected in Kill Bill server:
+[source,bash]
+----
+Sending extBusEvent='DefaultBusExternalEvent{objectId=0dfdcc75-f653-4116-921d-8ff43291ca40, accountId=null, tenantId=8e5256e2-e2cd-4ff0-a465-55bf20ebda16, objectType=TENANT_KVS, eventType=TENANT_CONFIG_CHANGE}' from busEvent='DefaultTenantConfigChangeInternalEvent{id=0dfdcc75-f653-4116-921d-8ff43291ca40, key='PUSH_NOTIFICATION_CB'}'
+2023-01-30T06:31:47,419+0000 lvl='INFO', log='PushNotificationListener', th='bus_events-th', xff='', rId='', tok='9d102dc3-abf8-48e7-a6a6-748c5b4ab118', aRId='', tRId='1', Sending push notification url='http://localhost:8082/callback', body='{"eventType":"TENANT_CONFIG_CHANGE","accountId":null,"objectType":"TENANT_KVS","objectId":"0dfdcc75-f653-4116-921d-8ff43291ca40","metaData":"{\"key\":\"PUSH_NOTIFICATION_CB\"}"}', attemptRetryNumber='*'
+----
+
+The following response is expected in the test HTTP listener:
+[source,bash]
+----
+{
+    "path": "/callback",
+    "headers": {
+        "connection": "Upgrade, HTTP2-Settings",
+        "content-length": "164",
+        "host": "localhost:8082",
+        "http2-settings": "AAEAAEAAAAIAAAABAAMAAABkAAQBAAAAAAUAAEAA",
+        "upgrade": "h2c",
+        "content-type": "application/json; charset=UTF-8",
+        "user-agent": "KillBill/1.0"
+    },
+    "method": "POST",
+    "body": "{\"eventType\":\"TENANT_CONFIG_CHANGE\",\"accountId\":null,\"objectType\":\"TENANT_KVS\",\"objectId\":\"5cf9c272-a493-4178-af30-3b8de0344a26\",\"metaData\":\"{\\\"key\\\":\\\"CATALOG\\\"}\"}",
+    "fresh": false,
+    "hostname": "localhost",
+    "ip": "::ffff:172.17.0.1",
+    "ips": [],
+    "protocol": "http",
+    "query": {},
+    "subdomains": [],
+    "xhr": false,
+    "os": {
+        "hostname": "95e3951d328e"
+    },
+    "connection": {},
+    "json": {
+        "eventType": "TENANT_CONFIG_CHANGE",
+        "accountId": null,
+        "objectType": "TENANT_KVS",
+        "objectId": "5cf9c272-a493-4178-af30-3b8de0344a26",
+        "metaData": "{\"key\":\"CATALOG\"}"
+    }
+}
+::ffff:172.17.0.1 - - [30/Jan/2023:06:57:07 +0000] "POST /callback HTTP/1.1" 200 984 "-" "KillBill/1.0"
+----
