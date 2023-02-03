@@ -1165,6 +1165,60 @@ pre.pygments .tok-il { color: #ae81ff } /* Literal.Number.Integer.Long */</style
 <div class="sect1"><h2 id="_events_format">Events format</h2><div class="sectionbody"><div class="paragraph"><p>As explained earlier, once a handler is registered, each event is POST&#8217;ed to that url. An event is an object of the type <a href="https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEvent.java">ExtBusEvent</a>. Each <code>event</code> object is serialized as a JSON string and contains the following fields:</p></div>
 <div class="ulist"><ul><li><p><code>eventType</code>: type of event (as defined by the <a href="https://github.com/killbill/killbill-plugin-api/blob/d9eca5af0e37541069b1c608f95e100dbe13b301/notification/src/main/java/org/killbill/billing/notification/plugin/api/ExtBusEventType.java">ExtBusEventType</a> enum)</p></li><li><p><code>objectType</code>: type of object being updated (as defined by the <a href="https://github.com/killbill/killbill-api/blob/master/src/main/java/org/killbill/billing/ObjectType.java">ObjectType</a> enum)</p></li><li><p><code>accountId</code>: account id being updated</p></li><li><p><code>objectId</code>: object id being updated</p></li><li><p><code>metaData</code>: event-specific metadata, serialize as JSON.</p></li></ul></div>
 <div class="paragraph"><p>You can also read the <a href="https://docs.killbill.io/latest/kill_bill_events.html">Kill Bill Events</a> document to know more about events</p></div></div></div>
+<div class="sect1"><h2 id="_testing_steps">Testing steps:</h2><div class="sectionbody"><div class="ulist"><ul><li><p>For testing, run a local HTTP listener like the following:</p></li></ul></div>
+<div class="paragraph"><p><code>docker run -p 8082:8080 -p 8443:8443 --rm -t mendhak/http-https-echo:28</code></p></div>
+<div class="ulist"><ul><li><p>Register a notification handler:</p></li></ul></div>
+<div class="listingblock"><div class="content"><pre>curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -H "X-Killbill-Reason: demo" \
+     -H "X-Killbill-Comment: demo" \
+     "http://127.0.0.1:8081/1.0/kb/tenants/registerNotificationCallback?cb=http://localhost:8082/callback"</pre></div></div>
+<div class="ulist"><ul><li><p>Make some configuration changes in a tenant so that Kill Bill pushes a notification on an event change. For example, <a href="https://killbill.github.io/slate/#catalog-add-a-simple-plan">add a new plan to a catalog</a>.
+This will trigger a <code>TENANT_CONFIG_CHANGE</code> event.</p></li></ul></div>
+<div class="paragraph"><p>The following log is expected in the Kill Bill server:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>Sending <span class="tok-nv">extBusEvent</span><span class="tok-o">=</span><span class="tok-s1">&#39;DefaultBusExternalEvent{objectId=0dfdcc75-f653-4116-921d-8ff43291ca40, accountId=null, tenantId=8e5256e2-e2cd-4ff0-a465-55bf20ebda16, objectType=TENANT_KVS, eventType=TENANT_CONFIG_CHANGE}&#39;</span> from <span class="tok-nv">busEvent</span><span class="tok-o">=</span><span class="tok-s1">&#39;DefaultTenantConfigChangeInternalEvent{id=0dfdcc75-f653-4116-921d-8ff43291ca40, key=&#39;</span>PUSH_NOTIFICATION_CB<span class="tok-s1">&#39;}&#39;</span>
+<span class="tok-m">2023</span>-01-30T06:31:47,419+0000 <span class="tok-nv">lvl</span><span class="tok-o">=</span><span class="tok-s1">&#39;INFO&#39;</span>, <span class="tok-nv">log</span><span class="tok-o">=</span><span class="tok-s1">&#39;PushNotificationListener&#39;</span>, <span class="tok-nv">th</span><span class="tok-o">=</span><span class="tok-s1">&#39;bus_events-th&#39;</span>, <span class="tok-nv">xff</span><span class="tok-o">=</span><span class="tok-s1">&#39;&#39;</span>, <span class="tok-nv">rId</span><span class="tok-o">=</span><span class="tok-s1">&#39;&#39;</span>, <span class="tok-nv">tok</span><span class="tok-o">=</span><span class="tok-s1">&#39;9d102dc3-abf8-48e7-a6a6-748c5b4ab118&#39;</span>, <span class="tok-nv">aRId</span><span class="tok-o">=</span><span class="tok-s1">&#39;&#39;</span>, <span class="tok-nv">tRId</span><span class="tok-o">=</span><span class="tok-s1">&#39;1&#39;</span>, Sending push notification <span class="tok-nv">url</span><span class="tok-o">=</span><span class="tok-s1">&#39;http://localhost:8082/callback&#39;</span>, <span class="tok-nv">body</span><span class="tok-o">=</span><span class="tok-s1">&#39;{&quot;eventType&quot;:&quot;TENANT_CONFIG_CHANGE&quot;,&quot;accountId&quot;:null,&quot;objectType&quot;:&quot;TENANT_KVS&quot;,&quot;objectId&quot;:&quot;0dfdcc75-f653-4116-921d-8ff43291ca40&quot;,&quot;metaData&quot;:&quot;{\&quot;key\&quot;:\&quot;PUSH_NOTIFICATION_CB\&quot;}&quot;}&#39;</span>, <span class="tok-nv">attemptRetryNumber</span><span class="tok-o">=</span><span class="tok-s1">&#39;*&#39;</span></code></pre></div></div>
+<div class="paragraph"><p>The following response is expected in the test HTTP listener:</p></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-o">{</span>
+    <span class="tok-s2">&quot;path&quot;</span>: <span class="tok-s2">&quot;/callback&quot;</span>,
+    <span class="tok-s2">&quot;headers&quot;</span>: <span class="tok-o">{</span>
+        <span class="tok-s2">&quot;connection&quot;</span>: <span class="tok-s2">&quot;Upgrade, HTTP2-Settings&quot;</span>,
+        <span class="tok-s2">&quot;content-length&quot;</span>: <span class="tok-s2">&quot;164&quot;</span>,
+        <span class="tok-s2">&quot;host&quot;</span>: <span class="tok-s2">&quot;localhost:8082&quot;</span>,
+        <span class="tok-s2">&quot;http2-settings&quot;</span>: <span class="tok-s2">&quot;AAEAAEAAAAIAAAABAAMAAABkAAQBAAAAAAUAAEAA&quot;</span>,
+        <span class="tok-s2">&quot;upgrade&quot;</span>: <span class="tok-s2">&quot;h2c&quot;</span>,
+        <span class="tok-s2">&quot;content-type&quot;</span>: <span class="tok-s2">&quot;application/json; charset=UTF-8&quot;</span>,
+        <span class="tok-s2">&quot;user-agent&quot;</span>: <span class="tok-s2">&quot;KillBill/1.0&quot;</span>
+    <span class="tok-o">}</span>,
+    <span class="tok-s2">&quot;method&quot;</span>: <span class="tok-s2">&quot;POST&quot;</span>,
+    <span class="tok-s2">&quot;body&quot;</span>: <span class="tok-s2">&quot;{\&quot;eventType\&quot;:\&quot;TENANT_CONFIG_CHANGE\&quot;,\&quot;accountId\&quot;:null,\&quot;objectType\&quot;:\&quot;TENANT_KVS\&quot;,\&quot;objectId\&quot;:\&quot;5cf9c272-a493-4178-af30-3b8de0344a26\&quot;,\&quot;metaData\&quot;:\&quot;{\\\&quot;key\\\&quot;:\\\&quot;CATALOG\\\&quot;}\&quot;}&quot;</span>,
+    <span class="tok-s2">&quot;fresh&quot;</span>: false,
+    <span class="tok-s2">&quot;hostname&quot;</span>: <span class="tok-s2">&quot;localhost&quot;</span>,
+    <span class="tok-s2">&quot;ip&quot;</span>: <span class="tok-s2">&quot;::ffff:172.17.0.1&quot;</span>,
+    <span class="tok-s2">&quot;ips&quot;</span>: <span class="tok-o">[]</span>,
+    <span class="tok-s2">&quot;protocol&quot;</span>: <span class="tok-s2">&quot;http&quot;</span>,
+    <span class="tok-s2">&quot;query&quot;</span>: <span class="tok-o">{}</span>,
+    <span class="tok-s2">&quot;subdomains&quot;</span>: <span class="tok-o">[]</span>,
+    <span class="tok-s2">&quot;xhr&quot;</span>: false,
+    <span class="tok-s2">&quot;os&quot;</span>: <span class="tok-o">{</span>
+        <span class="tok-s2">&quot;hostname&quot;</span>: <span class="tok-s2">&quot;95e3951d328e&quot;</span>
+    <span class="tok-o">}</span>,
+    <span class="tok-s2">&quot;connection&quot;</span>: <span class="tok-o">{}</span>,
+    <span class="tok-s2">&quot;json&quot;</span>: <span class="tok-o">{</span>
+        <span class="tok-s2">&quot;eventType&quot;</span>: <span class="tok-s2">&quot;TENANT_CONFIG_CHANGE&quot;</span>,
+        <span class="tok-s2">&quot;accountId&quot;</span>: null,
+        <span class="tok-s2">&quot;objectType&quot;</span>: <span class="tok-s2">&quot;TENANT_KVS&quot;</span>,
+        <span class="tok-s2">&quot;objectId&quot;</span>: <span class="tok-s2">&quot;5cf9c272-a493-4178-af30-3b8de0344a26&quot;</span>,
+        <span class="tok-s2">&quot;metaData&quot;</span>: <span class="tok-s2">&quot;{\&quot;key\&quot;:\&quot;CATALOG\&quot;}&quot;</span>
+    <span class="tok-o">}</span>
+<span class="tok-o">}</span>
+::ffff:172.17.0.1 - - <span class="tok-o">[</span><span class="tok-m">30</span>/Jan/2023:06:57:07 +0000<span class="tok-o">]</span> <span class="tok-s2">&quot;POST /callback HTTP/1.1&quot;</span> <span class="tok-m">200</span> <span class="tok-m">984</span> <span class="tok-s2">&quot;-&quot;</span> <span class="tok-s2">&quot;KillBill/1.0&quot;</span></code></pre></div></div></div></div>
 <div class="sect1"><h2 id="_further_information">Further Information</h2><div class="sectionbody"><div class="ulist"><ul><li><p><a href="https://killbill.github.io/slate/#tenant-push-notifications"><em>Tenant Push Notifications</em></a></p></li><li><p><a href="https://docs.killbill.io/latest/kill_bill_events.html"><em>Kill Bill Events</em></a></p></li></ul></div></div></div></div></article></div><div class="bd-links-wrapper"><nav class="bd-links toc right-side-menu" id="toc" data-toggle="toc"></nav></div></div></div></main><script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script><script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script><script src="https://cdn.staticaly.com/gh/afeld/bootstrap-toc/v1.0.0/dist/bootstrap-toc.min.js"></script><script src="https://cdn.jsdelivr.net/npm/@docsearch/js@3"></script><script src="https://www.googletagmanager.com/gtag/js?id=G-C0HVJ1E78Z"></script><script>
     setTimeout(function(){
       $('.content-wrapper h2, .content-wrapper h3, .content-wrapper h4').append('<a href=""><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M7.775 3.275a.75.75 0 001.06 1.06l1.25-1.25a2 2 0 112.83 2.83l-2.5 2.5a2 2 0 01-2.83 0 .75.75 0 00-1.06 1.06 3.5 3.5 0 004.95 0l2.5-2.5a3.5 3.5 0 00-4.95-4.95l-1.25 1.25zm-4.69 9.64a2 2 0 010-2.83l2.5-2.5a2 2 0 012.83 0 .75.75 0 001.06-1.06 3.5 3.5 0 00-4.95 0l-2.5 2.5a3.5 3.5 0 004.95 4.95l1.25-1.25a.75.75 0 00-1.06-1.06l-1.25 1.25a2 2 0 01-2.83 0z"></path></svg></a>');
