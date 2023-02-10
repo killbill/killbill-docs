@@ -12,8 +12,21 @@ The diagram below shows the principal components of the multi-tier system: The E
 
 image::../../assets/aws/multi-tier-ami_deployment.svg[width=750,align=center]
 
+These components will be installed in reverse order. First we setup the RDS databases. Next the EC2 instances are created. Finally, the ELB load balancer is installed to tie everything together.
+
+The setup procedure includes eight steps:
+
+. <<step1, Login to AWS>>
+. <<step2, Setup the RDS>>
+. <<step3, Edit the Configuration Script>>
+. <<step4, Launch EC2 Instances>>
+. <<step5, Create the Databases>>
+. <<step6, Perform Initial Testing>>
+. <<step7, Add the ELB>>
+. <<step8, Perform Final Testing>>
 
 
+[[step1]]
 == Step 1: Login to AWS
 
 To begin, log in to Amazon Web Services at https://aws.amazon.com. If you are new to AWS, you will be asked to create an account and provide billing information. You will need to sign in as a *Root User*. This should take you to the *AWS Management Console*, which provides links to all available services.
@@ -22,9 +35,10 @@ Check the upper right corner of your screen to be sure you are in the appropriat
 
 In addition, AWS places all resources within a *Virtual Private Cloud (VPC)*. A default VPC will be created and used automatically in the following steps. However, if you have access to other VPCs, you will need to ensure that all Kill Bill resources are deployed in the same one.
 
-== Step 2: Setup the Database Manager
+[[step2]]
+== Step 2: Setup the RDS
 
-Once you are logged in, the first step is to setup the RDS instance. This process begins with the RDS dashboard, which should be available from the Services menu. When the dashboard appears, select *Databases* from the left menu, and click the red button at the top right that reads *Create Database*:
+Once you are logged in, the first step is to setup the Relational Database System. This process begins with the RDS dashboard, which should be available from the Services menu. When the dashboard appears, select *Databases* from the left menu, and click the red button at the top right that reads *Create Database*:
 
 image::../../assets/aws/multitier-create-database.png[align=center]
 
@@ -50,7 +64,7 @@ The last section asks you to:
 
 image::../../assets/aws/multitier-names-and-password.png[align=center]
 
-=== 2.2. Create the DBM
+=== 2.2. Create the Database Manager
 
 When the password is setup and confirmed, click *Create Database* in the lower right corner. You will return to the main Databases screen, which should now look like this:
 
@@ -66,6 +80,7 @@ image::../../assets/aws/multitier-connectivity-and-security.png[align=center]
 
 Lastly, on the *Connectivity and Security* panel, locate and click on the link for the default VPC security group. You will need to add an inbound security rule, because the database by default does not allow external access. In the panel for this group, click on *Inbound Rules* and select *Edit Inbound Rules*. Next click on *Add rule*. In the *Type* column select `MYSQL/Aurora`. The port will be set to 3306 automatically. In the *Source* column, click on the search icon and select `0.0.0.0/0`. Finally, click on *Save Rules* in the bottom right. Your database is ready to go.
 
+[[step3]]
 == Step 3: Edit the Configuration Script
 
 To set up the EC2 instances you will need to provide them with information needed to connect to the databases. We provide a brief configuration script to simplify this process. The template for this script is as follows:
@@ -98,12 +113,13 @@ _EOF
 su -l -c "cd /var/lib/tomcat/bin && /var/lib/tomcat/bin/updateProperties.sh $DB_PROPS $KB_PROPS" tomcat
 ```
 
-First, you need to edit the database properties. <DB-INSTANCE-NAME> should be replaced by the full name of the DB instance, as given in the *Connectivity and Security* panel (see above). The port number 3306 is required. <ADMIN-NAME> and <PASSWORD> should be set to the administrator credentials you have chosen for the RDS instance.
+First, you need to edit the database properties. <DB-INSTANCE-NAME> should be replaced by the full name of the DB endpoint, as given in the *Connectivity and Security* panel (see above). The port number 3306 is required. <ADMIN-NAME> and <PASSWORD> should be set to the administrator credentials you have chosen for the RDS instance.
 
 Second, you may optionally edit any Kill Bill properties that you need to change from the standard defaults. For more information see the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide].
 
 Save this script in a text file. You will need it in the next step.
 
+[[step4]]
 == Step 4: Launch EC2 Instances
 
 The next step is to launch the number of EC2 instances you want, all based on the Kill Bill single AMI.
@@ -152,7 +168,7 @@ image::../../assets/aws/single-tier-keypair.png[align=center]
 
 The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. Click *Create Key Pair* to display a pane to be used for the creation. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Do not change the other options on this pane. Then click *Download Key Pair*. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance.
 
-Finally, scroll to the bottom and open the section labeled *Advanced Details*. You will see a long list of settings. At to the very bottom of this list is a box headed *User Settings*. Copy your configuration file into this box.
+Finally, scroll to the bottom and open the section labeled *Advanced Details*. You will see a long list of settings. At the very bottom of this list is a box headed *User Settings*. Copy your configuration file into this box.
 
 === 4.3. Launch your Instances
 
@@ -178,7 +194,7 @@ These rules enable the ports that must be open to access Kaui and Kill Bill from
 Click on *Edit Inbound Rules*. then do the following:
 
 1. For the rule that specifies Type: HTTPS, Port Range: 443, change the type to CUSTOM TCP and the Port Range to 3000.
-2. For the rule that specifies Type: CUStOM TCP, Port Range: 8443, change the Port Range to 8080.
+2. For the rule that specifies Type: CUSTOM TCP, Port Range: 8443, change the Port Range to 8080.
 3. Finally, add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0.
 
 
@@ -204,6 +220,7 @@ You will now be able to explore your instance and perform various configuration 
 NOTE: We recommend that you *remove* the SSH rule from your security group when you are *not* doing configuration or maintenance.
 
 
+[[step5]]
 == Step 5: Create the Databases
 
 Kill Bill requires two databases, with the names `killbill` and `kaui`. We provide predefined schemas for these databases.
@@ -255,15 +272,17 @@ exit
 
 Each `show tables` command should display a list of table names for the database.
 
-== Step 6: Initial Testing
+[[step6]]
+== Step 6: Perform Initial Testing
 
-You can now login to Kaui from your browser using the URL `\http://<INSTANCE_IP>:3000`, where `<INSTANCE_IP>` is the IPV4 address for one of your instances, given on your dashboard as *Public IPV4 Address*. This should display the Kaui login screen. For an introduction to Kaui, see our https://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide. The default credentials are: `admin` / `<INSTANCE_ID>`, where <INSTANCE_ID> is the AWS ID for the same instance you selected for login.
+You can now login to Kaui from your browser using the URL `\http://<INSTANCE_IP>:3000`, where `<INSTANCE_IP>` is the IPV4 address for one of your instances, given on your dashboard as *Public IPV4 Address*. This should display the Kaui login screen. For an introduction to Kaui, see our https://docs.killbill.io/latest/quick_start_with_kaui.html[Quick Start with Kaui] guide. The default credentials are: `admin` / `<INSTANCE_ID>`, where <INSTANCE_ID> is the AWS ID for the same instance you selected for login.
 
 In addition, you can login to the Kill Bill server using the URL `\http://<INSTANCE_IP>:8080`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
 
 Repeat the tests for your other instance(s). If these logins succeed, your EC2 instances and your RDS databases are setup properly.
 
 
+[[step7]]
 == Step 7: Add the ELB
 
 The last major task is to setup the Elastic Load Balancer in front of the EC2 instances.
@@ -274,7 +293,7 @@ To begin, from the EC2 dashboard scroll down the left-hand menu and select *Load
 
 You will be given a choice of several load balancer types. The type we will use is *Application Load Balancer*. Click on the *Create* button in the Application Load Balancer box. This will bring up the page titled *Create Application Load Balancer*. This is your master page for the load balancer creation.
 
-=== 7.2. Basic Configuration
+=== 7.2. Set Basic Configuration
 
 In the section headed *Basic Configuration*, give your load balancer a name. Do not change the other settings.
 
@@ -300,20 +319,20 @@ Initially you will see one listener, set with protocol HTTP and Port 80. Change 
 
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-secure-listener.png[align=center]
 
-Here you will be required to create or provide an X.509 SSL Certificate. If you already have a certificate you can identify it or upload it here. Otherwise click on *Request a New Certificate from ACM.* This will enable you to create a certificate using the *Amazon Certificate Manager*. Follow the steps described for the ACM in https://docs.killbill.io/latest/using-https.html[add-a-certificate], then return to this page and proceed to the next step. In any case the Security Policy should not be changed.
+Here you will be required to create or provide an X.509 SSL Certificate. If you already have a certificate you can identify it or upload it here. Otherwise click on *Request a New Certificate from ACM.* This will enable you to create a certificate using the *Amazon Certificate Manager*. Follow the steps described for the ACM in https://docs.killbill.io/latest/add-a-certificate-using-ACM.html[Add a Certificate Using the Amazon Certificate Manager], then return to this page. Select your new certificate from the dropdown list. You can now proceed to the next step.
 
 Next you will need to click on *Add Listener* to create a second Listener. This listener will use port 8443. 
 
 
 === 7.5. Setup Target Groups
 
-The next step is to identify the *target* instances for your load balancer, which are collected into a *target group*. Each listener will have a separate target group. Note that the display for each listener contain a link labeled *Create target group*. Click on this link for the first listener.  This will setup the routing for messages directed to Kaui.
+The next step is to identify the *target* instances for your load balancer, which are collected into a *target group*. Each listener will have a separate target group. Note that the display for each listener contains a link labeled *Create target group*. Click on this link for the first listener.  This will setup the routing for messages directed to Kaui.
 
 Your group will consist of all of the instances you have launched. First, create the group, give it a simple name, and set the port to 3000:
 
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-configure-routing.png[align=center]
 
-Now click on *Next*, to open a page titled *Register Targets*. The purpose of this step is to identify the target instances that will be part of your target group. Initially, all your instances will be listed at the top. To register them, select them all and click *Include as pending below*. The instances will now be listed in the bottom section Then proceed to *Next: Review*. If all looks well, click on *Create Target Group*. This will bring you to the *Target groups* page, and your new group should appear.
+Now click on *Next*, to open a page titled *Register Targets*. The purpose of this step is to identify the target instances that will be part of your target group. Initially, all your instances will be listed at the top. To register them, select them all and click *Include as pending below*. The instances will now be listed in the bottom section. Proceed to *Next: Review*. If all looks well, click on *Create Target Group*. This will bring you to the *Target groups* page, and your new group should appear.
 
 Now return to the master page where you created the listeners. Click on the refresh icon for the first listener, then select your new target group from the dropdown list.
 
@@ -329,11 +348,12 @@ When both target groups are setup, you will have a chance to review your setting
 
 Check all settings, then click *Create*. Your load balancer will be created. Close the final page to see the Load Balancer list. The initial status for your new ELB will be *provisioning*. After a few minutes this will change to *active*.
 
-== Step 8: Final Testing
+[[step8]]
+== Step 8: Perform Final Testing
 
-When your ELB is complete you can proceed to testing. You should now be able to login to Kaui from your browser using the URL https://kaui.<DOMAIN>, where <DOMAIN> is *your* domain that you have used for your certificate. The Kaui login screen should appear, as in Step 6. Similarly, you should be able to login directly to the Kill Bill server using the URL https://kaui.<DOMAIN>:8443.
+When your ELB is complete you can proceed to testing. You should now be able to login to Kaui from your browser using the URL `\https://kaui.<DOMAIN>`, where <DOMAIN> is *your* domain that you have used for your certificate. The Kaui login screen should appear, as in Step 6. Similarly, you should be able to login directly to the Kill Bill server using the URL `\https://kaui.<DOMAIN>:8443`.
 
-If these logins do not work correctly, review your setup steps correctly, then proceed to the Troubleshooting page.
+If these logins do not work correctly, review your setup steps carefully, then proceed to the https://docs.killbill.io/latest/aws/howtos/maintain-a-multi-tier-system.html[Multi-Tier Maintenance Guide].
 
 Congratulations! Your multi-tier installation is ready to go!
 
