@@ -86,7 +86,8 @@ Lastly, on the *Connectivity and Security* panel, locate and click on the link f
 To set up the EC2 instances you will need to provide them with information needed to connect to the databases. We provide a brief configuration script to simplify this process. The template for this script is as follows:
 
 
-```[source,bash]
+[source,bash]
+----
 #!/bin/bash
 
 DB_PROPS="/var/tmp/db.props.$$"
@@ -111,7 +112,7 @@ org.killbill.dontexist=foo
 _EOF
 
 su -l -c "cd /var/lib/tomcat/bin && /var/lib/tomcat/bin/updateProperties.sh $DB_PROPS $KB_PROPS" tomcat
-```
+----
 
 First, you need to edit the database properties. <DB-INSTANCE-NAME> should be replaced by the full name of the DB endpoint, as given in the *Connectivity and Security* panel (see above). The port number 3306 is required. <ADMIN-NAME> and <PASSWORD> should be set to the administrator credentials you have chosen for the RDS instance.
 
@@ -229,13 +230,14 @@ To create the databases, you will need to login to one of your instances as desc
 
 The password will not be echoed when it is typed.
 
-```[source,bash]
+[source,bash]
+----
 > mysql -h <DB-INSTANCE-NAME> -u <ADMIN-NAME> -p
 Enter Password:
 mysql> create database killbill;
 mysql> create database kaui;
 mysql> exit
-```
+----
 The next step is to install the schemas. These can be found at:
 
 * killbill schema: `https://docs.killbill.io/latest/ddl.sql`
@@ -243,24 +245,27 @@ The next step is to install the schemas. These can be found at:
 
 One easy way to do this is to return to your local computer (type `exit`) and download the schemas (give them distinct names), then use the `sftp` command to upload them to your EC2 instance home directory with the commands:
 
-```[source,bash]
+[source,bash]
+----
 sftp -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP
 put killbill.ddl
 put kaui.ddl
 exit
-```
+----
 
 Once the files are successfully uploaded, login again to your instance using the `ssh` command. You can now install the schemas:
 
-```[source,bash]
+[source,bash]
+----
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p killbill < killbill.ddl
 Enter Password:
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p kaui < kaui.ddl
 Enter Password:
-```
+----
 To ensure that the databases are setup correctly, login to `mysql` again, then try the SHOW TABLES command:
 
-```[source,bash]
+[source,bash]
+----
 > mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p
 Enter Password:
 use killbill
@@ -268,7 +273,7 @@ show tables;
 use kaui
 show tables;
 exit
-```
+----
 
 Each `show tables` command should display a list of table names for the database.
 
@@ -307,7 +312,7 @@ We will use the secure protocol `HTTPS` (based on TLS) for users to access your 
 
 Enter a name and a brief description for your security group. The description cannot be empty. Then setup the Inboud Rules as follows:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/multitier-inbound-original.png[align=center]
+image::../../assets/aws/multitier-inbound-original.png[align=center]
 
 When your security group is set, return to the master page and select this group from the dropdown list. You may need to use the refresh icon to make your new group appear in the list. Delete any other group that remains selected.
 
@@ -317,7 +322,7 @@ The next section is titled *Listeners and Routing*. This is the last section you
 
 Initially you will see one listener, set with protocol HTTP and Port 80. Change the protocol to HTTPS and the port to 443. A new section will open up, headed *Secure listener settings*:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-secure-listener.png[align=center]
+image::../../assets/aws/ELB-secure-listener.png[align=center]
 
 Here you will be required to create or provide an X.509 SSL Certificate. If you already have a certificate you can identify it or upload it here. Otherwise click on *Request a New Certificate from ACM.* This will enable you to create a certificate using the *Amazon Certificate Manager*. Follow the steps described for the ACM in https://docs.killbill.io/latest/add-a-certificate-using-ACM.html[Add a Certificate Using the Amazon Certificate Manager], then return to this page. Select your new certificate from the dropdown list. You can now proceed to the next step.
 
@@ -330,13 +335,13 @@ The next step is to identify the *target* instances for your load balancer, whic
 
 Your group will consist of all of the instances you have launched. First, create the group, give it a simple name, and set the port to 3000:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-configure-routing.png[align=center]
+image::../../assets/aws/ELB-configure-routing.png[align=center]
 
 Now click on *Next*, to open a page titled *Register Targets*. The purpose of this step is to identify the target instances that will be part of your target group. Initially, all your instances will be listed at the top. To register them, select them all and click *Include as pending below*. The instances will now be listed in the bottom section. Proceed to *Next: Review*. If all looks well, click on *Create Target Group*. This will bring you to the *Target groups* page, and your new group should appear.
 
 Now return to the master page where you created the listeners. Click on the refresh icon for the first listener, then select your new target group from the dropdown list.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ELB-listener-with-TG.png[align=center]
+image::../../assets/aws/ELB-listener-with-TG.png[align=center]
 
 
 Next, you need to perform the same steps for the second listener. This listener will handle messages directed to the Kill Bill server. Click the link on the second listener labeled *Create target group*. Follow the same steps, setting the port this time to 8080.
