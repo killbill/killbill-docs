@@ -1,0 +1,40 @@
+= How to Set up a CloudFormation System
+
+
+== Overview
+
+This document describes the procedures for setting up Kill Bill under AWS using the CloudFormation option. This is one of two recommended alternatives for production use. The multi-tier option requires more setup than CloudFormation, but provides more control over the deployment. The procedures in this document are based on the options recommended by Kill Bill.
+
+Deployment via CloudFormation leverages the capabilites of the AWS infrastructure to provide a robust *production ready* deployment with a single click. The entire CloudFormation configuration, or stack, is defined by a *CloudFormation Template*.
+
+The features of the CloudFormation system include:
+
+* Both Kill Bill and Kaui instances can be scaled up or down using AWS autoscaling groups
+* AWS CloudWatch provides metrics to follow what is happening
+* The RDS database based on AWS Aurora comes automatically configured and ready for use
+
+== Overview
+
+Running Kill Bill on AWS using our CloudFormation Template is the easiest and fastest way to get started with a production cluster. *It is also the only method of installation that is certified by the core developers for a highly available, horizontally scalable and production-ready installation.*
+
+With the click of a button, the template will install and configure:
+
+* Kill Bill and Kaui on a custom AMI optimized for AWS workloads (integrated with CloudWatch, SQS, SES, X-Ray and more)
+* Auto Scaling Groups, to automatically scale up and down the number of EC2 instances as needed (such as when batches of invoices are generated)
+* A load balancer, integrated with our internal healthchecks to promptly take unhealthy instances out of rotation
+* An RDS Aurora Cluster with automatic failover
+
+
+The following diagram shows the various AWS entities that will be created by CloudFormation:
+
+image::../../assets/aws/cf_stack.png[align=center]
+
+All resources for this system run within a single AWS *Virtual Private Cloud (VPC)*, providing a dedicated block of IP addresses which must be located in a single *region*. The cloud is partitioned into *availability zones*, which are accessed by *subnets*. The resources must be distributed over at least two availability zones.
+
+Multiple instances of Kaui and the Kill Bill server are deployed in the VPC, each running on its own Ubuntu Linux server. AWS autoscaling is used to increase and decrease the number of instances for each package as needed.
+
+Access to these instances is managed by an AWS *Elastic Load Balancer (ELB)*. The ELB routes each request to the correct package and distributes the requests across the available instances. The ELB accepts traffic using HTTP by default, but we will upgrade to HTTPS for higher security (see below).
+
+The back end of the system is an *Aurora* database manager provided through the AWS *Relational Database System (RDS)*. Aurora is a robust database system developed by AWS, compatible with MySQL and Postgres. There are separate databases maintained for Kill Bill and Kaui.
+
+Finally, the complete CloudFormation system makes use of AWS scalable and reliable *S3* storage technology, and incorporates AWS *CloudWatch* for monitoring and reports.
