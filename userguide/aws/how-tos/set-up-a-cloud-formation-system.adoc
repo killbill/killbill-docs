@@ -13,8 +13,6 @@ The features of the CloudFormation system include:
 * AWS CloudWatch provides metrics to follow what is happening
 * The RDS database based on AWS Aurora comes automatically configured and ready for use
 
-== Overview
-
 Running Kill Bill on AWS using our CloudFormation Template is the easiest and fastest way to get started with a production cluster. *It is also the only method of installation that is certified by the core developers for a highly available, horizontally scalable and production-ready installation.*
 
 With the click of a button, the template will install and configure:
@@ -38,3 +36,141 @@ Access to these instances is managed by an AWS *Elastic Load Balancer (ELB)*. Th
 The back end of the system is an *Aurora* database manager provided through the AWS *Relational Database System (RDS)*. Aurora is a robust database system developed by AWS, compatible with MySQL and Postgres. There are separate databases maintained for Kill Bill and Kaui.
 
 Finally, the complete CloudFormation system makes use of AWS scalable and reliable *S3* storage technology, and incorporates AWS *CloudWatch* for monitoring and reports.
+
+The setup procedure includes six steps:
+
+. <<step1, Login to AWS>>
+. <<step2, Setup the VPC and Subnets>>
+. <<step3, Create a Key Pair>>
+. <<step4, Configure and Launch>>
+. <<step5, Enable Https>>
+. <<step6, Test your Stack>>
+
+
+[[step1]]
+== Step 1: Login to AWS
+
+To begin, log in to Amazon Web Services at https://aws.amazon.com. If you are new to AWS, you will be asked to create an account and provide billing information. You will need to sign in as a *Root User*. This should take you to the *AWS Management Console*, which provides links to all available services.
+
+Check the upper right corner of your screen to be sure you are in the appropriate *region*. All resources you create will be placed in this region, and may not be accessible from other regions.
+
+In addition, AWS places all resources within a *Virtual Private Cloud (VPC)*. A default VPC will be created and used automatically in the following steps. However, if you have access to other VPCs, you will need to ensure that all Kill Bill resources are deployed in the same one.
+
+[[step2]]
+== Step 2: Setup the VPC and Subnets
+
+All resources for your CloudFormation deployment must be placed within a single VPC. To prepare for CloudFormation deployment you will first need to setup and identify your VPC and subnets.
+
+=== 1. Setup your VPC
+
+From the *Services* menu item at the top of the main AWS page, under *Networking and Content Delivery*, select *VPC*. This will open the *VPC Dashboard*. Then select *Your VPCs* from the left menu.
+
+Normally you will see one VPC, which AWS provides by default. This VPC will automatically be used for all your resources. If you have more than one, you need to select the one you want to use and be sure to set its ID as a parameter for your CloudFormation configuration. If there is no VPC listed, you must create one. The only parameter you need to set is the ipv4 CIDR block, which designates a range of (private) IP addresses. A suggested value is 192.168.0.0/16.
+
+=== 2. Setup your Subnets
+
+From the left menu of the VPC Dashboard select *Subnets*. This shows a list of your subnets. By default AWS creates one subnet for each Availability Zone in your region. You may create your own subnets, as long as you give each a CIDR block representing a unique subset of your VPC, and assign each to a specific availability zone. If you don't know what this means, just accept the defaults.
+
+[[step3]]
+== Step 3: Create a Key Pair
+
+The Kill Bill CloudFormation stack requires a key pair. The key pair provides the credentials you will need to login to your EC2 instances. If you already have a key pair, you are all set. Otherwise you will need to create one.
+
+To create a key pair, from the EC2 console scroll down to *Networks & Security / Key Pairs*. Select *Create Key Pair* and follow the instructions. Give the key pair a simple, easy to remember name such as `My-Key-Pair`.For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instances.
+
+[[step4]]
+== Step 4: Configure and Launch
+
+The setup process starts with the  +++<a href="https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_" onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-nochv5omslmds?ref=_ptnr_doc_'); return false;">Kill Bill CloudFormation Template at AWS Marketplace.</a>+++ Go to this page, then click *Continue to Subscribe*.
+
+image::../../assets/aws/cf-subscribe.png[align=center]
+
+THe next page gives the AWS Terms and Conditions. You must accept these conditions if asked, then click *Continue to Configuration*. This will take you to the page titled *Configure This Software*:
+
+image::../../assets/aws/cf-configure.png[align=center]
+
+Make sure your Region is correct. There is nothing else to change on this page. Click *Continue to Launch*. THe next page is titled *Launch this Software*. There is nothing to do here either. Click *Launch*.
+
+The next page is designated *Step 1: Specify Template* and titled *Create stack*:
+
+image::../../assets/aws/cf-step1.png[align=center]
+
+Once again everything is filled in for you. Click *Next*. This brings up the *Stack Details* page (your complete configuration is called a stack):
+
+image::../../assets/aws/cf-details.png[align=center]
+
+*Now* you have some work to do! This page requires that a number of configuration parameters be filled in. All of these are important, and some are critical.
+
+First, you need to provide a name for your stack. Any name will do, as long as it meets the stated rules. Then you will need to carefully set a series of parameters:
+
+* *DBClass:* the database instance type to use for RDS. This normally should not be changed.
+* *DBName:* the database name for Kill Bill. This is preset to *killbill*. Do not change it.
+* *DBUser:* database admin username. The username you choose for the database administrator.
+* *DBPassword:* database admin password. The password you choose for the database administrator. This must be at least 8 characters long, and composed entirely of letters and digits.
+* *EnableCloudWatchMetrics:* whether to enable metrics in CloudWatch. This is strongly recommended for production.
+* *EnvType:* the purpose of this configuration: test, dev (development), or prod (production). There is no difference in the stack being created but this value will be sent to CloudWatch as a dimension.
+* *HTTPLocation:* the IP address range allowed to access the load balancer, in the form of a CIDR block. You can use 0.0.0.0/0 initially and adjust access later on.
+* *InstanceType:* the EC2 instance type to use for Kill Bill. This normally should not be changed.
+* *KBAdminPassword:* the password to be used for the default `root` user which has all permissions. By default this is set to `password`. Please change it! The requirements are the same as for *DBPassword*.
+* *KauiDBName:* database name for Kaui. This is preset to *Kaui*. Do not change it.
+* *KauiServerCapacity:* the initial number of Kaui instances in the Auto Scaling group. We recommend using the default value, `2`.
+* *KeyName:* name of your existing EC2 KeyPair to enable SSH access to the instances. You created this in Step 3.
+* *KillBillServerCapacity:* the initial number of Kill Bill instances in the Auto Scaling group. Again we recommend the default value of `2`.
+* *RDSSubnets:* the subnets to use for the RDS instance. Select two or more from your subnets, which must be in two or more availability zones. There is no harm in using more.
+* *Subnets:* the subnets to use for the KB and Kaui instances. Also two or more from your subnets in two or more availability zones. These may or may not be the same as the RDS subnets.
+* *VpcId:* the Id of the VPC to use for the installation, which you identified earlier.
+
+When all of these are set, click *Next* to go to *Configure Stack Options*. Now take a break. There is nothing to do here. Then click *Next*.
+
+The final page gives you a chance to review. If everything seems OK, read and check any warnings at the bottom, then click *Create Stack*. you are off!
+
+image::../../assets/aws/cf-creating.png[align=center]
+
+If there are any errors, you will see a message and the Create will not begin. You will need to go back and fix the errors. Common errors may include using an invalid password form (which may give a misleading message), or not choosing subnets in at least two availability zones.
+
+Otherwise, you will see that your stack is being created, and its status (shown in blue) will be *CREATE_IN_PROGRESS*. You may also check the *Resources* tab to see the many resources that are being created to make up the complete stack.
+
+If the create succeeds, the status will eventually change to CREATE_COMPLETE (shown in green). This may take a fairly long time.
+
+[[step5]]
+== Step 5: Enable HTTPS
+
+Your deployment is initially set up to accept external communications, such as Kaui interaction, using HTTP. For secure and private communication it is necessary to switch to HTTPS. this requires an X.506 certificate that you must provide. If you do not have a certificate, we will create one using the AWS Certificate Manager. For details see https://add-a-certificate-using-ACM.html[How to Add a Certificate Using ACM].
+
+To configure the load balancer to accept https connections, proceed as follows:
+
+First, find the load balancer in the EC2 console:
+
+image::../../assets/aws/find-lb.png[align=center]
+
+Two HTTP listeners are configured by default, on ports 9090 (Kaui) and 80 (Kill Bill). You need to add two additional HTTPS listeners.
+
+For example, to expose Kaui behind port 443, the configuration would look like this (note the Forward To section):
+
+image::../../assets/aws/add-lb-listener.png[align=center]
+
+When requested, follow the instructions to import your certificate.
+
+You will also need to allow https traffic in your security group:
+
+image::../../assets/aws/lb-security-group.png[align=center]
+
+The load balancer is now configured to redirect SSL traffic on port 443 to Kaui. Do the same for Kill Bill (using port 8443), and delete the http rules in your Security Group.
+
+[[step6]]
+== Step 6: Test your Stack
+
+You should now be able to login to Kaui from your browser using the URL https://kaui.<DOMAIN>, where <DOMAIN> is *your* domain that you have used for your certificate. The KAUI login screen should appear:
+
+image::../../assets/aws/cf-success.png[align=center]
+
+
+For an introduction to Kaui, see our https://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide. The default credentials are: `admin` / `password`. The first few requests might be a bit slow as Kill Bill initializes itself.
+
+
+Similarly, you should be able to login directly to the Kill Bill server using the URL https://kaui.<DOMAIN>:8443.
+
+Congratulations! Your CloudFormation installation is ready to go!
+
+
+
