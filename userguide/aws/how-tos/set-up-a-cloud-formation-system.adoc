@@ -112,7 +112,7 @@ First, you need to provide a name for your stack. Any name will do, as long as i
 * *HTTPLocation:* the IP address range allowed to access the load balancer, in the form of a CIDR block. You can use 0.0.0.0/0 initially and adjust access later on.
 * *InstanceType:* the EC2 instance type to use for Kill Bill. This normally should not be changed.
 * *KBAdminPassword:* the password to be used for the default `root` user which has all permissions. By default this is set to `password`. Please change it! The requirements are the same as for *DBPassword*.
-* *KauiDBName:* database name for Kaui. This is preset to *Kaui*. Do not change it.
+* *KauiDBName:* database name for Kaui. This is preset to *kaui*. Do not change it.
 * *KauiServerCapacity:* the initial number of Kaui instances in the Auto Scaling group. We recommend using the default value, `2`.
 * *KeyName:* name of your existing EC2 KeyPair to enable SSH access to the instances. You created this in Step 3.
 * *KillBillServerCapacity:* the initial number of Kill Bill instances in the Auto Scaling group. Again we recommend the default value of `2`.
@@ -135,7 +135,7 @@ If the create succeeds, the status will eventually change to CREATE_COMPLETE (sh
 [[step5]]
 == Step 5: Enable HTTPS
 
-Your deployment is initially set up to accept external communications, such as Kaui interaction, using HTTP. For secure and private communication it is necessary to switch to HTTPS. this requires an X.506 certificate that you must provide. If you do not have a certificate, we will create one using the AWS Certificate Manager. For details see https://add-a-certificate-using-ACM.html[How to Add a Certificate Using ACM].
+Your deployment is initially set up to accept external communications, such as Kaui interaction, using HTTP. For secure and private communication it is necessary to switch to HTTPS. this requires an X.506 certificate that you must provide. If you do not have a certificate, we will create one using the AWS Certificate Manager.
 
 To configure the load balancer to accept https connections, proceed as follows:
 
@@ -143,34 +143,64 @@ First, find the load balancer in the EC2 console:
 
 image::../../assets/aws/find-lb.png[align=center]
 
-Two HTTP listeners are configured by default, on ports 9090 (Kaui) and 80 (Kill Bill). You need to add two additional HTTPS listeners.
+Select the load balancer and click the Listeners tab. There are two listeners. These are configured by default to use HTTP on ports 9090 (Kaui) and 80 (Kill Bill). We will change these to use HTTPS.
 
-For example, to expose Kaui behind port 443, the configuration would look like this (note the Forward To section):
+Select the listener for port 9090. This is the Kaui listener. Under the Actions dropdown choose **Edit Listener**.
 
-image::../../assets/aws/add-lb-listener.png[align=center]
+image::../../assets/aws/cf-edit-listener.png[align=center]
 
-When requested, follow the instructions to import your certificate.
+Change HTTP to HTTPS. The port is automatically set to 443. A new section will open at the bottom of the page, called **Secure Listener Settings**.
 
-You will also need to allow https traffic in your security group:
+image::../../assets/aws/cf-secure-listener-settings.png[align=center]
 
-image::../../assets/aws/lb-security-group.png[align=center]
+If you do not have a certificate, click **Request a certificate from ACM**, then follow the instructions in https://add-a-certificate-using-ACM.html[How to Add a Certificate Using ACM].
 
-The load balancer is now configured to redirect SSL traffic on port 443 to Kaui. Do the same for Kill Bill (using port 8443), and delete the http rules in your Security Group.
+If you have a certificate, not created by ACM, set the bottom left dropdown to **Import** and follow the instructions. Import the certificate to ACM.
+
+If you have a certificate in ACM, including one you just imported or created, set the bottom left dropdown to **From ACM** and select your certificate in the bottom right dropdown.
+
+Finally, at the bottom select **Save changes**.
+
+Similarly, edit the second listener and change HTTP to HTTPS. Type 8443 as the port number, replacing 443. Be sure your certificate is selected at the bottom, and click **Save Changes**.
+
+Now return to the Listener tab on the Load Balancer page. You will see:
+
+image::../../assets/aws/cf-listeners-not-reachable.png[align=center]
+
+What happened? The (now secure) listeners are not reachable because we have not yet enabled HTTPS in their security group.
+
+To fix this, return to the Load Balancer page and select the *Security* tab. Click on the security group name. Make sure the *Inbound rules* tab is selected, then click *Edit inbound rules*.
+
+Change the rule with Type HTTP to Type HTTPS. The Port Range automatically becomes 443.
+
+For the rule with Type Custom TCP, set the Port Range to 8443.
+
+You should now have:
+
+image::../../assets/aws/cf-new-inbound-rules.png[align=center]
+
+
+Click *Save rules*, then return to the Load Balancer page. The "Not Reachable" warnings should be gone.
+
+
 
 [[step6]]
 == Step 6: Test your Stack
 
-You should now be able to login to Kaui from your browser using the URL https://kaui.<DOMAIN>, where <DOMAIN> is *your* domain that you have used for your certificate. The KAUI login screen should appear:
+You should now be able to login to Kaui from your browser using the URL https://kaui.<DOMAIN>, where <DOMAIN> is *your* domain that you have used for your certificate. The Kaui login screen should appear:
 
 image::../../assets/aws/cf-success.png[align=center]
 
 
-For an introduction to Kaui, see our https://docs.killbill.io/latest/getting_started.html#_using_kill_bill_with_kaui[Getting Started] guide. The default credentials are: `admin` / `password`. The first few requests might be a bit slow as Kill Bill initializes itself.
-
+For an introduction to Kaui, see our https://docs.killbill.io/latest/quick_start_with_kaui.html[Quick Start with Kaui] guide. The default credentials are: `admin` / `<INSTANCE_ID>`, where <INSTANCE_ID> is the AWS ID for the same instance you selected for login.
 
 Similarly, you should be able to login directly to the Kill Bill server using the URL https://kaui.<DOMAIN>:8443.
+. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
+
 
 Congratulations! Your CloudFormation installation is ready to go!
+
+For information on troubleshooting, maintaining and upgrading your installation see https://../how-to-maintain-a-cloudformation-system.adoc[How to Maintain a CloudFormation System].
 
 
 
