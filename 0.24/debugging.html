@@ -1187,8 +1187,7 @@ curl -v http://&lt;IP_ADDRESS&gt;:8080/1.0/metrics?pretty<span class="tok-o">=</
 <span class="tok-na">-Djava.rmi.server.hostname</span><span class="tok-o">=</span><span class="tok-s">localhost</span></code></pre></div></div>
 <div class="paragraph"><p>on startup in your JVM settings to enable access via <code>jconsole</code>.</p></div>
 <div class="paragraph"><p>You can set at runtime the log level of specific classes and packages (look for  the <code>ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator</code> MBean).</p></div>
-<div class="paragraph"><p>Similar considerations as the remote debugging section apply regarding the IP address and expose ports (see above). For Docker, <code>java.rmi.server.hostname</code> should point to the host IP address (e.g. <code>192.168.99.100</code>). Passing this IP address to our Docker images as <code>ENV_HOST_IP</code> enables jConsole automatically.</p></div>
-<div class="paragraph"><p>Note that setting <code>ENV_HOST_IP</code> can affect Ruby plugins.</p></div></div></div>
+<div class="paragraph"><p>Similar considerations as the remote debugging section apply regarding the IP address and expose ports (see above). For Docker, <code>java.rmi.server.hostname</code> should point to the host IP address (e.g. <code>192.168.99.100</code>). Passing this IP address to our Docker images as <code>ENV_HOST_IP</code> enables jConsole automatically.</p></div></div></div>
 <div class="sect1"><h2 id="_following_tokens">Following tokens</h2><div class="sectionbody"><div class="paragraph"><p>To understand why a specific action was taken, it is often useful to follow tokens.</p></div>
 <div class="paragraph"><p>When invoking a JAX-RS (HTTP) API, a <code>userToken</code> is automatically generated. You can also specify your own token via the <code>X-Request-Id</code> HTTP header (it <strong>must</strong> be a UUID).</p></div>
 <div class="paragraph"><p>Once set, this token is:</p></div>
@@ -1328,12 +1327,12 @@ curl -v <span class="tok-se">\</span>
 <span class="tok-n">res</span> <span class="tok-o">=</span> <span class="tok-n">auth_capture_task</span><span class="tok-o">.</span><span class="tok-n">op_create_capture</span><span class="tok-p">(</span><span class="tok-n">payment_id</span><span class="tok-p">,</span> <span class="tok-n">ext_key</span><span class="tok-p">,</span> <span class="tok-n">amount</span><span class="tok-p">,</span> <span class="tok-n">currency</span><span class="tok-p">,</span> <span class="tok-n">username</span><span class="tok-p">,</span> <span class="tok-n">options</span><span class="tok-p">)</span></code></pre></div></div>
 <div class="paragraph"><p>Note that Ruby client gem will not make any attempt to synchronize access the the profiling_data map, when multiple threads are making calls. It is recommended to use per-thread data and potentially merge the results from the different threads at the end.</p></div></div>
 <div class="sect2"><h3 id="_tips_and_tricks">Tips and tricks</h3><div class="ulist"><ul><li><p>In most cases, the client will be a bottleneck. Make sure to watch the number of sockets in <code>TIME_WAIT</code> (<code>watch 'netstat -an | grep 8080 | grep WAIT | wc -l'</code>) and speed up the recycling process:</p></li></ul></div>
-<div class="listingblock"><div class="content"><pre>echo 2 &gt; /proc/sys/net/ipv4/tcp_fin_timeout
-echo 15000 65000 &gt; /proc/sys/net/ipv4/ip_local_port_range
-echo 1 &gt; /proc/sys/net/ipv4/tcp_tw_recycle
-echo 1 &gt; /proc/sys/net/ipv4/tcp_tw_reuse</pre></div></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-nb">echo</span> <span class="tok-m">2</span> &gt; /proc/sys/net/ipv4/tcp_fin_timeout
+<span class="tok-nb">echo</span> <span class="tok-m">15000</span> <span class="tok-m">65000</span> &gt; /proc/sys/net/ipv4/ip_local_port_range
+<span class="tok-nb">echo</span> <span class="tok-m">1</span> &gt; /proc/sys/net/ipv4/tcp_tw_recycle
+<span class="tok-nb">echo</span> <span class="tok-m">1</span> &gt; /proc/sys/net/ipv4/tcp_tw_reuse</code></pre></div></div>
 <div class="ulist"><ul><li><p>On the server side, check the expected concurrency level by watching the number of sockets in <code>ESTABLISHED</code> (<code>watch 'netstat -an | grep 8080 | grep EST | wc -l'</code>)</p></li><li><p>Make sure to allocate enough database (<code>org.killbill.dao.maxActive</code> / <code>org.killbill.billing.osgi.dao.maxActive</code>) and plugin (<code>org.killbill.payment.plugin.threads.nb</code>) threads. Check your container thread pool too (e.g. <code>conf/server.xml</code> for Tomcat)</p></li><li><p>Use tools like Siege (<a class="bare" href="http://www.joedog.org/siege-home/">http://www.joedog.org/siege-home/</a>) to verify your basic setup: <code>siege -b -t30S -c100 <a class="bare" href="http://127.0.0.1:8080/1.0/kb/test/clock">http://127.0.0.1:8080/1.0/kb/test/clock</a></code> should yield at least 5k req./s.</p></li><li><p>If Shiro is spending too many CPU cycles for authentication, lower the default number of iterations (e.g. <code>org.killbill.security.shiroNbHashIterations=2000</code>).</p></li><li><p>When using YourKit, turn off probes (especially the database ones). They cause a significant slowdown.</p></li><li><p>Allow a warm-up period, before starting a full test, to avoid contention in the JRuby JIT.</p></li><li><p>Use <a href="https://github.com/AdoptOpenJDK/mjprof">mjprof</a> to extract stacktraces:</p></li></ul></div>
-<div class="listingblock"><div class="content"><pre>java -jar target/mjprof-1.0.jar jmx/127.0.0.1:8989/.ncontains/name,RMI TCP/.ncontains/name,RMI Reaper/.ncontains/name,RMI RenewClean/.ncontains/name,RMI Scheduler/.ncontains/name,jruby-restarter/.ncontains/name,com.google.inject.internal.util.$Finalizer/.ncontains/name,Finalizer/.ncontains/name,Reference/.ncontains/name,FelixStartLevel/.ncontains/name,FelixDispatchQueue/.ncontains/name,http-nio-8080/.ncontains/name,Abandoned connection cleanup thread/.ncontains/name,CM Event Dispatcher/.ncontains/name,CM Configuration Updater/.ncontains/name,SCR Component Actor/.ncontains/name,Timer-/.ncontains/name,telnetconsole.Listener/.ncontains/name,O worker /.ncontains/name,O boss /.ncontains/name,NioBlockingSelector/.ncontains/name,Signal Dispatcher/.ncontains/name,main/.ncontains/name,JMX server connection timeout/.ncontains/state,WAITING/.sort/state/</pre></div></div></div>
+<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>java -jar target/mjprof-1.0.jar jmx/127.0.0.1:8989/.ncontains/name,RMI TCP/.ncontains/name,RMI Reaper/.ncontains/name,RMI RenewClean/.ncontains/name,RMI Scheduler/.ncontains/name,jruby-restarter/.ncontains/name,com.google.inject.internal.util.<span class="tok-nv">$Finalizer</span>/.ncontains/name,Finalizer/.ncontains/name,Reference/.ncontains/name,FelixStartLevel/.ncontains/name,FelixDispatchQueue/.ncontains/name,http-nio-8080/.ncontains/name,Abandoned connection cleanup thread/.ncontains/name,CM Event Dispatcher/.ncontains/name,CM Configuration Updater/.ncontains/name,SCR Component Actor/.ncontains/name,Timer-/.ncontains/name,telnetconsole.Listener/.ncontains/name,O worker /.ncontains/name,O boss /.ncontains/name,NioBlockingSelector/.ncontains/name,Signal Dispatcher/.ncontains/name,main/.ncontains/name,JMX server connection timeout/.ncontains/state,WAITING/.sort/state/</code></pre></div></div></div>
 <div class="sect2"><h3 id="_load_tests">Load Tests</h3><div class="sect3"><h4 id="_integration_tests">Integration Tests</h4><div class="paragraph"><p>The <a href="https://github.com/killbill/killbill-integration-tests">integration tests repo</a> allows to run load tests against a running instance of Kill Bill. The <a href="https://github.com/killbill/killbill-integration-tests/blob/master/README.md">README</a> has a section explaining how they work.</p></div>
 <div class="paragraph"><p>Note: It is difficult to rely on single process MT threaded Ruby script to generate enough load.</p></div></div>
 <div class="sect3"><h4 id="_gnu_parallel_simple_load_testing_script">GNU parallel: simple load testing script</h4><div class="paragraph"><p>Another way to generate load is to rely on <code>GNU parallel</code>:</p></div>
@@ -1378,104 +1377,6 @@ curl  <span class="tok-se">\</span>
 
 <span class="tok-nb">echo</span> <span class="tok-s2">&quot;===&gt; Finished </span><span class="tok-nv">$iteration_id</span><span class="tok-s2">&quot;</span></code></pre></div></div>
 <div class="paragraph"><p>Note that on a single machine, this client-side script will most likely be the bottleneck (spawning the processes takes too much time). Use <a href="http://jmeter.apache.org/">JMeter</a> instead.</p></div></div></div></div></div>
-<div class="sect1"><h2 id="_ruby_plugins_debugging">Ruby plugins debugging</h2><div class="sectionbody"><div class="sect2"><h3 id="_using_rubymine">Using RubyMine</h3><div class="ulist"><ul><li><p>Add the following dependencies to your Gemfile:</p></li></ul></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="ruby"><span></span><span class="tok-n">gem</span> <span class="tok-s1">&#39;ruby-debug&#39;</span><span class="tok-p">,</span> <span class="tok-s1">&#39;~&gt; 0.10&#39;</span>
-<span class="tok-n">gem</span> <span class="tok-s1">&#39;ruby-debug-ide&#39;</span><span class="tok-p">,</span> <span class="tok-s1">&#39;~&gt; 0.6&#39;</span></code></pre></div></div>
-<div class="ulist"><ul><li><p>Add the following snippet at the entry point of your plugin, e.g. top of <code>lib/cybersource.rb</code> for CyberSource:</p></li></ul></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="ruby"><span></span><span class="tok-k">unless</span> <span class="tok-n">defined?</span><span class="tok-p">(</span><span class="tok-no">Debugger</span><span class="tok-o">::</span><span class="tok-no">PROG_SCRIPT</span><span class="tok-p">)</span>
-  <span class="tok-no">JRuby</span><span class="tok-o">.</span><span class="tok-n">objectspace</span> <span class="tok-o">=</span> <span class="tok-kp">true</span>
-
-  <span class="tok-nb">require</span> <span class="tok-s1">&#39;ruby-debug-ide&#39;</span>
-  <span class="tok-no">Debugger</span><span class="tok-o">::</span><span class="tok-no">PROG_SCRIPT</span> <span class="tok-o">=</span> <span class="tok-bp">__FILE__</span>
-
-  <span class="tok-nb">require</span> <span class="tok-s1">&#39;ostruct&#39;</span>
-  <span class="tok-n">options</span> <span class="tok-o">=</span> <span class="tok-no">OpenStruct</span><span class="tok-o">.</span><span class="tok-n">new</span><span class="tok-p">(</span>
-      <span class="tok-c1"># Host name used for remote debugging</span>
-      <span class="tok-s1">&#39;host&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">nil</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Port used for remote debugging</span>
-      <span class="tok-s1">&#39;port&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-mi">1234</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Port used for multi-process debugging dispatcher</span>
-      <span class="tok-s1">&#39;dispatcher_port&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-o">-</span><span class="tok-mi">1</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Load mode (experimental)</span>
-      <span class="tok-s1">&#39;load_mode&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">false</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Stop when the script is loaded</span>
-      <span class="tok-s1">&#39;stop&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">false</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Keep frame bindings</span>
-      <span class="tok-s1">&#39;frame_bind&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">true</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Turn on line tracing</span>
-      <span class="tok-s1">&#39;tracing&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">false</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Disables interrupt signal handler</span>
-      <span class="tok-s1">&#39;int_handler&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">true</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Evaluation timeout in seconds</span>
-      <span class="tok-s1">&#39;evaluation_timeout&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-mi">20</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Enable all RubyMine-specific incompatible protocol extensions</span>
-      <span class="tok-s1">&#39;rm_protocol_extensions&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">true</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Enable chatchpointDeleted event</span>
-      <span class="tok-s1">&#39;catchpoint_deleted_event&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">false</span><span class="tok-p">,</span>
-      <span class="tok-c1"># Allow to pass variable&#39;s value as nested element instead of attribute</span>
-      <span class="tok-s1">&#39;value_as_nested_element&#39;</span> <span class="tok-o">=&gt;</span> <span class="tok-kp">true</span>
-  <span class="tok-p">)</span>
-
-  <span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">keep_frame_binding</span> <span class="tok-o">=</span> <span class="tok-n">options</span><span class="tok-o">.</span><span class="tok-n">frame_bind</span>
-  <span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">tracing</span> <span class="tok-o">=</span> <span class="tok-n">options</span><span class="tok-o">.</span><span class="tok-n">tracing</span>
-  <span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">evaluation_timeout</span> <span class="tok-o">=</span> <span class="tok-n">options</span><span class="tok-o">.</span><span class="tok-n">evaluation_timeout</span>
-  <span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">catchpoint_deleted_event</span> <span class="tok-o">=</span> <span class="tok-n">options</span><span class="tok-o">.</span><span class="tok-n">catchpoint_deleted_event</span> <span class="tok-o">||</span> <span class="tok-n">options</span><span class="tok-o">.</span><span class="tok-n">rm_protocol_extensions</span>
-  <span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">value_as_nested_element</span> <span class="tok-o">=</span> <span class="tok-n">options</span><span class="tok-o">.</span><span class="tok-n">value_as_nested_element</span> <span class="tok-o">||</span> <span class="tok-n">options</span><span class="tok-o">.</span><span class="tok-n">rm_protocol_extensions</span>
-
-  <span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">debug_program</span><span class="tok-p">(</span><span class="tok-n">options</span><span class="tok-p">)</span>
-
-  <span class="tok-nb">exit</span>
-<span class="tok-k">end</span></code></pre></div></div>
-<div class="ulist"><ul><li><p>Rebuild and redeploy the plugin:</p></li></ul></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>bundle install <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake killbill:clean <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake build <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake killbill:package <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake killbill:deploy<span class="tok-o">[</span>true<span class="tok-o">]</span></code></pre></div></div>
-<div class="ulist"><ul><li><p>Create a Ruby remote debug configuration in RubyMine:</p></li><li><p>Remote host: localhost</p></li><li><p>Remote port: 1234</p></li><li><p>Remote root folder: /var/tmp/bundles/plugins/ruby/\&lt;plugin\&gt;/\&lt;version\&gt;/ROOT</p></li><li><p>Local port: 26162</p></li><li><p>Local root folder: path to your code</p></li><li><p>Restart Kill Bill with the Java property <code>-X+O</code></p></li></ul></div>
-<div class="paragraph"><p>The Kill Bill startup sequence will stop at:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>Fast Debugger (ruby-debug-ide 0.6.0, ruby-debug-base 0.10.6, file filtering is supported) listens on 127.0.0.1:1234</code></pre></div></div>
-<div class="paragraph"><p>until RubyMine is connected.</p></div></div>
-<div class="sect2"><h3 id="_using_ruby_debug">Using ruby-debug</h3><div class="paragraph"><p>While RubyMine offers a nice GUI, it can quickly lose its context or have a hard time stepping through gems dependencies. <code>ruby-debug</code> is much more reliable.</p></div>
-<div class="ulist"><ul><li><p>Add the following dependency to your Gemfile:</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="ruby"><span></span><span class="tok-n">gem</span> <span class="tok-s1">&#39;ruby-debug&#39;</span><span class="tok-p">,</span> <span class="tok-s1">&#39;~&gt; 0.10&#39;</span></code></pre></div></div></li><li><p>Add the following snippet at the entry point of your plugin, e.g. top of <code>lib/cybersource.rb</code> for CyberSource:</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="ruby"><span></span><span class="tok-nb">require</span> <span class="tok-s1">&#39;ruby-debug&#39;</span>
-<span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">wait_connection</span> <span class="tok-o">=</span> <span class="tok-kp">true</span>
-<span class="tok-no">Debugger</span><span class="tok-o">.</span><span class="tok-n">start_remote</span><span class="tok-p">(</span><span class="tok-kp">nil</span><span class="tok-p">,</span> <span class="tok-mi">1234</span><span class="tok-p">)</span></code></pre></div></div></li><li><p>Set a breakpoint in the source code using <code>debugger</code></p></li><li><p>Rebuild and redeploy the plugin:</p><div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>bundle install <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake killbill:clean <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake build <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake killbill:package <span class="tok-o">&amp;&amp;</span> <span class="tok-se">\</span>
-rake killbill:deploy<span class="tok-o">[</span>true<span class="tok-o">]</span></code></pre></div></div></li><li><p>Restart Kill Bill with the Java property <code>-X+O</code></p></li></ul></div>
-<div class="paragraph"><p>The Kill Bill startup sequence will stop until <code>ruby-debug</code> is connected. To launch it:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code data-lang="bash"><span></span>rdebug --client -p <span class="tok-m">1234</span></code></pre></div></div>
-<div class="paragraph"><p>When the breakpoint is hit, you can examine the context and step into the code:</p></div>
-<div class="listingblock"><div class="content"><pre class="pygments highlight"><code><span></span>lib/cybersource/api.rb:164
-properties = merge_properties(properties, options)
-(rdb:9) l
-[159, 168] in lib/cybersource/api.rb
-   159          # Pass extra parameters for the gateway here
-   160          options = {}
-   161
-   162          debugger
-   163
-=&gt; 164          properties = merge_properties(properties, options)
-   165          super(kb_account_id, kb_payment_method_id, payment_method_props, set_default, properties, context)
-   166        end
-   167
-   168        def delete_payment_method(kb_account_id, kb_payment_method_id, properties, context)
-(rdb:9) s
-/var/tmp/bundles/plugins/ruby/killbill-cybersource/3.0.0/ROOT/gems/gems/killbill-5.2.0/lib/killbill/helpers/properties_helper.rb:24
-merged = properties_to_hash(properties, options)
-(rdb:9) l
-[19, 28] in /var/tmp/bundles/plugins/ruby/killbill-cybersource/3.0.0/ROOT/gems/gems/killbill-5.2.0/lib/killbill/helpers/properties_helper.rb
-   19          end
-   20          merged.merge(options)
-   21        end
-   22
-   23        def merge_properties(properties, options = {})
-=&gt; 24          merged = properties_to_hash(properties, options)
-   25
-   26          properties = []
-   27          merged.each do |k, v|
-   28            properties &lt;&lt; build_property(k, v)</code></pre></div></div></div></div></div>
 <div class="sect1"><h2 id="_seeking_help">Seeking help</h2><div class="sectionbody"><div class="paragraph"><p>If all else fail, reach out to our <a href="https://groups.google.com/forum/#!forum/killbilling-users">mailing-list</a> for help (<strong>do not open a GitHub issue</strong>).</p></div>
 <div class="paragraph"><p>In your message, specify:</p></div>
 <div class="ulist"><ul><li><p>What you are seeing and what you are expecting</p></li><li><p>How to reproduce your scenario (cURL commands, code snippet, &#8230;&#8203;)</p></li><li><p><a href="https://github.com/killbill/killbill-cloud/tree/9305e1abb8840f22a03d2c36269710bff3dc1996/kpm#kpm-diagnostic">KPM diagnostic</a> output (see notes below)</p></li></ul></div>
