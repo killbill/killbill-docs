@@ -5,17 +5,17 @@
 
 == TroubleShooting
 
-This secion discusses things that could go wrong during installation or beyond, and provides some suggestions for dealing with them.
+In spite of your best efforts, your installation may not succeed. Some components may not be created, or testing may produce errors. This section discusses some things that could go wrong during installation, and provides some suggestions for dealing with them.
 
-=== Stack Creation
+=== Stack Creation Problems
 
-There are several possible issues that could arise when starting the stack from CloudFormation (CFN). The goal of this section
-is to provide some tips debugging the issues, and knowledge about where to find various logs. Also keep in mind
-that starting the CFN stack will typically take in the order of 15-20 minutes, mostly because of the time it takes to setup the
+There are several possible problems that could arise when creating the CloudFormation stack. In this section
+we provide some tips debugging the issues, and discuss where to find various logs. Also keep in mind
+that creating the stack will typically take in the order of 15-20 minutes, mostly because of the time it takes to setup the
 RDS cluster, so be patient...
 
 
-Let's start with the https://console.aws.amazon.com/cloudformation[CloudFormation console]: The stack will have a status which will be `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, try to locate from the `Resources` tab which resource failed to initialize properly.
+Let's start with the https://console.aws.amazon.com/cloudformation[CloudFormation console]: The stack will initially have a status of `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, try to locate from the `Resources` tab which resource failed to initialize properly.
 
 === Possible Issues
 
@@ -57,14 +57,14 @@ In order to answer these questions, you will first need to be able to SSH to the
 From the EC2 dashboard, you can locate the instances by filtering on a prefix in the stack's name, in my case `my-stack`, and as indicated below you will see the instances for Kill Bill server and KAUI. In the example below we see one of each:
 
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-instances.png[align=center]
+image::../../assets/aws/ec2-instances.png[align=center]
 
 You can select one instance and then from the description tag, you will have access to:
 
 1. Public DNS
 2. The security group
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/ec2-description.png[align=center]
+image::../../assets/aws/ec2-description.png[align=center]
 
 You will need to first click on the security group link to open the inbound port 22 required for SSH, as shown below:
 
@@ -72,12 +72,13 @@ image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/sec
 
 Then, you can issue the SSH command, by copying the Public DNS from the description tab:
 
-```
+[source,bash]
+----
 # SSH as ubuntu user
 > ssh -i  <LOCATION_KEY>/<KEY_NAME>.pem ubuntu@<PUBLIC_DNS>
 # Move to tomcat user
 > sudo su - tomcat
-```
+----
 
 === CloudFormation Logs
 
@@ -85,12 +86,14 @@ Then, you can issue the SSH command, by copying the Public DNS from the descript
 If there are any issue with CFN, it should be available from `/var/log/cfn-init-cmd.log` or `/var/log/cfn-init.log`
 
 Other logs of interest may include:
-```
+
+[source,bash]
+----
 /var/log/cfn-wire.log
 /var/log/cloud-init-output.log
 /var/log/awslogs.logs
 /var/log/xray/xray.log
-```
+----
 
 **Kill Bill/KAUI Server Logs**
 
@@ -104,12 +107,13 @@ The configuration of the logging (log rotation, log level, ...) can be found in 
 
 If you update the `logback.xml` (or any configuration file) you will need to restart the service. In order to restart the service, you can run as `root` the following command:
 
-```
+[source,bash]
+----
 # Restart  killbill server instance
 > service killbill restart
 # Restart  kaui server instance
 > service kaui restart
-```
+----
 
 === Access to the Database
 
@@ -117,41 +121,46 @@ From any Kill Bill EC2 instance, it is possible to access the RDS database. On e
 allowing database access. The database hostname can be obtained from the CFN Resources screen, or one can also
 extract this information from the `killbill.properties` file:
 
-```
+[source,bash]
+----
 > grep 'org.killbill.dao' /var/lib/killbill/config/killbill.properties
 org.killbill.dao.password=killbill
 org.killbill.dao.url=jdbc:mysql:aurora://mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill
 org.killbill.dao.user=killbill
-```
+----
 
 Based on such info, the following command would allow you to get a mysql prompt:
 
-```
+[source,bash]
+----
 > mysql -h mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com -u killbill -pkillbill killbill
 > show tables
 > ...
-```
+----
 
 === Service Health
 
 Since both Kill Bill/KAUI server listen on port 8080, you can check if the service is running by issuing the following command:
 
-```
+[source,bash]
+----
 telnet 127.0.0.1 8080
 Trying 127.0.0.1...
 Connected to 127.0.0.1.
 Escape character is '^]'.
-```
+----
 
 For the Kill Bill server specifically some useful commands are:
 
 
-```
+[source,bash]
+----
 # Healthcheck
 > curl http://127.0.0.1:8080/1.0/healthcheck
-```
+----
 
-```
+[source,bash]
+----
 # Check which Kill Bill & plugin versions
 > curl -u admin:<KBAdminPassword> http://127.0.0.1:8080/1.0/kb/nodesInfo | jq
 [
@@ -186,13 +195,14 @@ For the Kill Bill server specifically some useful commands are:
     ]
   }
 ]
-```
+----
 
 === Diagnostic Command
 
 The `diagnostic` option of the `kpm` command creates an extensive report for a given tenant that may be useful for troubleshooting. To run this command:
 
-```
+[source,bash]
+----
 # Login as 'tomcat'
 > sudo su - tomcat
 #
@@ -208,7 +218,7 @@ The `diagnostic` option of the `kpm` command creates an extensive report for a g
   --killbill-api-credentials=KEY SECRET \
   --killbill-web-path=/var/lib/tomcat/webapps \
   --database-host=DBHOST
-```
+----
 
 You will need to edit this command to include:
 
@@ -219,9 +229,10 @@ You will need to edit this command to include:
 
 The last line of the response should look like:
 
-```
+[source,bash]
+----
 Diagnostic data exported under /tmp/killbill-diagnostics-20200212-26849-c0rrz3/killbill-diagnostics-02-12-20.zip
-```
+----
 
 Note that there is also a `--account-export=<account_id>` flag to export the data associated with a specific Kill Bill `account_id`.
 
@@ -242,14 +253,14 @@ We recommend that you rely on the CloudFormation `ChangeSet` functionality to ge
 
 Each AMI is defined by a CloudFormation template. To access the template for the latest AMI, go to the Marketplace page as described under *Configure and Launch* above. Check that the page lists the desired version, then scroll down to the *Usage Information* section. Expand the link *View Cloudformation Template*. Below the diagram that appears, click *Download Cloudformation Template*. Save the template file. This will be a long text (JSON) file with a name ending in `template`.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/change-set-usage-information.png[align=center]
+image::../../assets/aws/change-set-usage-information.png[align=center]
 
 
 [2]. Create a new ChangeSet
 
 Go to the CloudFormation dashboard and select you current stack. Then select *Stack Details* from the left menu. You should see the following page:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/create-change-set.png[align=center]
+image::../../assets/aws/create-change-set.png[align=center]
 
 Select *Create Change Set.* On the page that appears, Select *Replace Current Template*, then select *Upload a Template File*. Finally, upload the file you downloaded in Step 1.
 
@@ -259,7 +270,7 @@ The next page will be the *Configure Stack Options*. Again, no changes required.
 
 THe last page is the *Review* page. If everything looks good, scroll to the bottom. You will see the following message, that you will need to acknowledge:
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/change-set-capabilities.png[align=center]
+image::../../assets/aws/change-set-capabilities.png[align=center]
 
 Finally click *Create Change Set*. You can provide an optional description in the popup that appears, then select *Create Change Set* again. Your change set will be created. You will initially see the status *CREATE_PENDING*. Wait until the status message changes to *CREATE_COMPLETE*.
 
@@ -268,6 +279,6 @@ Finally click *Create Change Set*. You can provide an optional description in th
 
 It is important to remember that at this point your Kill Bill installation has not changed. Your change set is ready and waiting when you do want to use it. When that time comes, return to the cloudformation dashboard, select your stack and select the *change sets* tab. Select your change set, then click *Execute*.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/aws/change-set-execute.png[align=center]
+image::../../assets/aws/change-set-execute.png[align=center]
 
 Your new resources will be created and any old ones no longer needed will be deleted. The status of the stack will show as *UPDATE_IN_PROGRESS*. For a short time the stack may be in an unusable state. When the status changes to *UPDATE_COMPLETE*, the stack has been fully updated to the new version.
