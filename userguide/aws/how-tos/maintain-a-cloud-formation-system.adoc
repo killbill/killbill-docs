@@ -1,7 +1,12 @@
 = How to Mantain a CloudFormation System
 
+This guide discusses how to troubleshoot, maintain and upgrade your Kill Bill CloudFormation (CFN) installation.
 
-.
+== Logging in to your EC2s
+
+Many of the steps you may want to take to troubleshoot and maintain your system require login and command line access to one or more of your EC2 instances. To enable this you will need to temporarily modify the corresponding security group.
+
+First, go to the Instances screen on your EC2 dashboard and select an instance to log in to. For most tasks you can use any one. Scroll to the right to see the security group associated with this instance. Click on the name of the group. Then select the tab labeled Inbound Rules. You should see:
 
 == TroubleShooting
 
@@ -10,24 +15,17 @@ In spite of your best efforts, your installation may not succeed. Some component
 === Stack Creation Problems
 
 There are several possible problems that could arise when creating the CloudFormation stack. In this section
-we provide some tips debugging the issues, and discuss where to find various logs. Also keep in mind
-that creating the stack will typically take in the order of 15-20 minutes, mostly because of the time it takes to setup the
+we provide some tips for debugging the issues, and discuss where to find various logs. Also keep in mind
+that creating the stack will typically take on the order of 15-20 minutes, mostly because of the time it takes to set up the
 RDS cluster, so be patient...
 
+The stack will initially have a status of `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, check the `Resources` tab to see which resource(s) failed to initialize properly.
 
-Let's start with the https://console.aws.amazon.com/cloudformation[CloudFormation console]: The stack will initially have a status of `CREATE_IN_PROGRESS` for the duration of the initialization, and will then either transition to `CREATE_COMPLETE` or `CREATE_FAILED`. In case of `CREATE_FAILED`, try to locate from the `Resources` tab which resource failed to initialize properly.
-
-=== Possible Issues
-
-The main possible issues can be summarized as:
-
-**Issues with the template**
-
-If you think there is an issue with the CFN template itself, please report any issue to `support@killbill.io`
 
 **AWS Errors**
+Various errors could occur due to the organization of your AWS system or possible limitations on your account.
 
-Typical Issues are:
+Typical issues might include:
 
   * Insufficient IAM Permissions
   * Limit Exceeded
@@ -35,7 +33,36 @@ Typical Issues are:
   * RDS Cluster failed to come up
   * ...
 
-Make sure to check the discussion above to ensure you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation]
+Make sure thate you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation]
+
+**Issues with the template**
+
+If you think there is an issue with the CloudFormation template itself, please report any issue to `support@killbill.io`.
+
+*CloudFormation Logs*
+
+
+The CloudFormation KillBill system maintains a variety of logs. First we recommend you check `/var/log/cfn-init-cmd.log` or `/var/log/cfn-init.log`. Other logs of interest may include:
+
+[source,bash]
+----
+/var/log/cfn-wire.log
+/var/log/cloud-init-output.log
+/var/log/awslogs.logs
+/var/log/xray/xray.log
+----
+
+**Kill Bill/KAUI Server Logs**
+
+The Kill Bill/KAUI server logs are located under `/var/lib/tomcat/logs/`, with the main 2 interesting logs being:
+
+* `killbill.out`: All Kill Bill server logs, configured as `INFO` by default
+* `kaui.out`: All KAUI server logs, configured as `INFO` by default
+* `localhost_access_log...`: Access requests to the servers
+
+The configuration of the logging (log rotation, log level, ...) can be found in `/var/lib/killbill/config/logback.xml`
+
+
 
 **Service Unavailable**
 
@@ -79,31 +106,6 @@ Then, you can issue the SSH command, by copying the Public DNS from the descript
 # Move to tomcat user
 > sudo su - tomcat
 ----
-
-=== CloudFormation Logs
-
-
-If there are any issue with CFN, it should be available from `/var/log/cfn-init-cmd.log` or `/var/log/cfn-init.log`
-
-Other logs of interest may include:
-
-[source,bash]
-----
-/var/log/cfn-wire.log
-/var/log/cloud-init-output.log
-/var/log/awslogs.logs
-/var/log/xray/xray.log
-----
-
-**Kill Bill/KAUI Server Logs**
-
-The Kill Bill/KAUI server logs are located under `/var/lib/tomcat/logs/`, with the main 2 interesting logs being:
-
-* `killbill.out`: All Kill Bill server logs, configured as `INFO` by default
-* `kaui.out`: All KAUI server logs, configured as `INFO` by default
-* `localhost_access_log...`: Access requests to the servers
-
-The configuration of the logging (log rotation, log level, ...) can be found in `/var/lib/killbill/config/logback.xml`
 
 If you update the `logback.xml` (or any configuration file) you will need to restart the service. In order to restart the service, you can run as `root` the following command:
 
