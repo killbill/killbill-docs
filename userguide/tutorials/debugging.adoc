@@ -52,13 +52,91 @@ curl -v http://<IP_ADDRESS>:8080/1.0/healthcheck?pretty=true
 curl -v http://<IP_ADDRESS>:8080/1.0/metrics?pretty=true
 ----
 
-== Remote debugging
+== Remote Debugging
 
-Specify `-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=12345` on startup in your JVM settings to enable remote debugging (this is set by default in our Docker images). You can then connect to Kill Bill on port 12345 from your debugger (e.g. Eclipse or IntelliJ).
+=== Remote debuggging Kill Bill running in Tomcat
 
-If Kill Bill is running locally, you can just specify `localhost` or `127.0.0.1` as the remote host in your debugger. To debug instances remotely (e.g. in the cloud), you need to specify the publicly accessible IP address of your instance. For Docker, this should be the public IP address of the container. If you are using docker-machine and your machine is named `default`, you can retrieve the IP address via `docker-machine inspect default -f '{{.Driver.IPAddress}}'`. Passing this IP address to our Docker images as `ENV_HOST_IP` enables remote debugging automatically.
+In order to remote debug Kill Bill running in Tomcat, the following needs to be done:
 
-Make sure also that the port `12345` is open (e.g. check your security groups in AWS). For Docker, expose the port via `-p12345:12345`.
+1. Ensure that you have Kill Bill and Kaui installed in Tomcat as explained in the https://docs.killbill.io/latest/getting_started.html#_tomcat[Getting Started] guide.
+2. Set the following environment variable:  
++
+[source,bash]
+----
+JPDA_OPTS=-agentlib:jdwp=transport=dt_socket,address=12345,server=y,suspend=n
+----
++
+3. Start Tomcat as follows:
++
+[source,bash]
+----
+catalina.sh jpda start
+----
++
+4. Create a new remote debug configuration in Eclipse/Intellij with `Host=localhost` and `Port=12345`.
+5. Add a breakpoint to the code.
+6. Execute any action that invokes the code with the breakpoint. This will run the code in debug mode.
+
+=== Remote debuggging Kill Bill running in Docker
+
+In order to remote debug Kill Bill running in Docker, the following needs to be done:
+
+1. Expose port `12345` and specify the `JVM_JDWP_PORT` environment variable in your https://docs.killbill.io/latest/getting_started.html#_kill_bill_installation[docker-compose] file as follows:
++
+[source, bash]
+----
+version: '3.2'
+volumes:
+  db:
+services:
+  killbill:
+    image: killbill/killbill:0.24.0
+    ports:
+      - "8080:8080"
+      - 12345:12345
+    environment:
+      - JVM_JDWP_PORT=*:12345
+      - KILLBILL_DAO_URL=jdbc:mysql://db:3306/killbill
+      - KILLBILL_DAO_USER=root
+      - KILLBILL_DAO_PASSWORD=killbill
+      - KILLBILL_CATALOG_URI=SpyCarAdvanced.xml
+      - KB_org_killbill_server_test_mode=true
+  kaui:
+    image: killbill/kaui:2.0.11
+    ports:
+      - "9090:8080"
+    environment:
+      - KAUI_CONFIG_DAO_URL=jdbc:mysql://db:3306/kaui
+      - KAUI_CONFIG_DAO_USER=root
+      - KAUI_CONFIG_DAO_PASSWORD=killbill
+      - KAUI_KILLBILL_URL=http://killbill:8080
+  db:
+    image: killbill/mariadb:0.24
+    volumes:
+      - type: volume
+        source: db
+        target: /var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=killbill
+----
++
+2. Create a new remote debug configuration in Eclipse/Intellij with `Host=localhost` and `Port=12345`.
+3. Add a breakpoint to the code.
+4. Execute any action that invokes the code with the breakpoint. This will run the code in debug mode.
+
+
+Alternatively, you may also start Kill Bill in Docker using the following command at step 1:
+[source, bash]
+----
+docker run -p 12345:12345 -p 8080:8080 -e 'JVM_JDWP_PORT=*:12345' killbill/killbill:0.24.1
+----
+
+=== Other Notes
+
+* To debug instances remotely (e.g. in the cloud), you need to specify the publicly accessible IP address of your instance.
+* Make sure also that the port `12345` is open (e.g. check your security groups in AWS)
 
 == Turning on DEBUG logging
 
