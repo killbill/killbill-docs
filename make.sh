@@ -17,8 +17,8 @@ SELFCONTAINED_BUILD="bundle exec asciidoctor --trace $SELFCONTAINED_EXTRA_OPTS -
 # Setup
 rm -rf $BUILD_DIR && mkdir -p $BUILD_DIR
 
-for dir in `find $USERGUIDE_INPUT_DIR -maxdepth 2 -type d \! -name assets \! -name common`; do
-  for doc in `find $dir -maxdepth 2 -type f -name '*.adoc'`; do
+for dir in `find $USERGUIDE_INPUT_DIR -maxdepth 1 -type d \! -name assets \! -name common`; do
+  for doc in `find $dir -maxdepth 1 -type f -name '*.adoc'`; do
     echo "Building $doc"
     $SELFCONTAINED_BUILD $doc
   done
