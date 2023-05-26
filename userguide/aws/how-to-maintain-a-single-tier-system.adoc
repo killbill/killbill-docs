@@ -6,32 +6,8 @@ This guide explains how to maintain your single-tier Kill Bill installation on A
 
 == Login
 
-To perform most maintenance tasks you will need to login to your EC2 instance. Be sure that SSH is enabled on Port 22 in your security group. Login procedures are described in your setup guide.
+To perform most maintenance tasks you will need to login to your EC2 instance. Be sure that SSH is enabled on Port 22 in your security group. Login procedures are described in your setup guide  (See https://docs.killbill.io/latest/how-to-set-up-a-single-tier-system.html#step_7_login_to_your_instance[Step 7: Login to an Instance])
 
-== Configuration
-
-Kill Bill defines a number of global properties and per-tenant properties that can be varied. These properties are explained in the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill and Kaui Configuration Guide]. Default values for these properties are built into the Kill Bill code; these values can be overridden by values defined in the file `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the database URL and credentials.
-
-This file also defines the location of the `shiro.ini` file, which by default is in the same directory. This file defines the Kill Bill admin credentials, along with any other users and their roles. See the https://docs.killbill.io/latest/user_management.html[Users, Roles, and Permissions Management] guide for details about this file.
-
-== Upgrades
-
-From time to time new versions of Kill Bill are released. These versions can be incorporated in your installation with minimal impact on production. This section explains how to upgrade to a new version of Kill Bill. Note that these are *not* the same as new versions of the AMI, which can be incorporated only by a full reinstall.
-
-First, login to your instance using `ssh`,
-
-Next, switch to the `tomcat` user:
-
-`sudo su - tomcat`
-
-The configuration file `/var/lib/killbill/kpm.yml` specifies the Kill Bill version (and its plugins) to be run on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:
-
-1. Edit the configuration file to update the version number
-2. Run the command `$KPM_INSTALL_KB_CMD`
-3. Delete the cached directory `/var/lib/tomcat/webapps/ROOT`
-4. Restart the instance.
-
-A similar process can be used for Kaui: update `/var/lib/kaui/kpm.yml`, run `$KPM_INSTALL_KAUI_CMD`, delete the cached directory `/var/lib/tomcat/webapps2/ROOT` and restart the instance.
 
 == Troubleshooting
 
@@ -58,11 +34,22 @@ For each report there should be a line near the top with the following form:
 `Active: active (running) since Sat 2020-10-24 20:13:43 UTC; 1 day 1h ago`
 
 
-You can `start` or `stop` the services using similar commands, such as `sudo service kaui stop` to stop KAUI. If any of these services are not active, try starting it using the appropriate command.
+You can `start` or `stop` the services using similar commands, such as `sudo service kaui stop` to stop Kaui. If any of these services are not active, try starting it using the appropriate command.
 
 If all services are running, the next step is to collect several reports.
 
 
+=== Log Files
+
+The system maintains a series of log files that may be helpful when troubleshooting is needed. These logs may be forwarded to Kill Bill to help diagnose your problem.
+
+Tomcat logs are under `/var/lib/tomcat/logs/`:
+
+* Kaui log: `/var/lib/tomcat/logs/kaui.out`
+* Kill Bill server log: `/var/lib/tomcat/logs/killbill.out`
+* Complete tomcat log: `/var/lib/tomcat/logs/catalina.out`
+
+Some of these logs may be very large, expecially catalina.out.
 
 
 === System Health Check
@@ -197,18 +184,34 @@ To exit the mysql interactive mode, type `exit`.
 
 The load balancer `nginx` should normally require little attention. The configuration files are located under `/etc/nginx/`. The configuration file for `nginx` itself is `/etc/nginx/nginx.conf`. Additional configuration files are located under `/etc/nginx/sites-enabled/`. The only file normally present in this directory is `/etc/nginx/sites-enabled/killbill.conf`.
 
-=== Log Files
-
-The system maintains a series of logfiles that may be helpful when troubleshooting is needed.
-
-Tomcat logs are under `/var/lib/tomcat/logs/`:
-
-* KAUI logs: `/var/lib/tomcat/logs/kaui.out`
-* Kill Bill server logs: `/var/lib/tomcat/logs/catalina.out`
 
 Nginx logs can be found under `/var/log/nginx/`
 
 * Access logs: `/var/log/nginx/access.log`
 * Error logs: `/var/log/nginx/error.log`
 
+== Configuration
+
+Kill Bill defines a number of global properties and per-tenant properties that can be varied. These properties are explained in the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill and Kaui Configuration Guide]. Default values for these properties are built into the Kill Bill code; these values can be overridden by values defined in the file `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the database URL and credentials.
+
+This file also defines the location of the `shiro.ini` file, which by default is in the same directory. This file defines the Kill Bill admin credentials, along with any other users and their roles. See the https://docs.killbill.io/latest/user_management.html[Users, Roles, and Permissions Management] guide for details about this file.
+
+== Upgrades
+
+From time to time new versions of Kill Bill are released. These versions can be incorporated in your installation with minimal impact on production. This section explains how to upgrade to a new version of Kill Bill. Note that these are *not* the same as new versions of the AMI, which can be incorporated only by a full reinstall.
+
+First, login to your instance using `ssh`,
+
+Next, switch to the `tomcat` user:
+
+`sudo su - tomcat`
+
+The configuration file `/var/lib/killbill/kpm.yml` specifies the Kill Bill version (and its plugins) to be run on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:
+
+1. Edit the configuration file to update the version number
+2. Run the command `$KPM_INSTALL_KB_CMD`
+3. Delete the cached directory `/var/lib/tomcat/webapps/ROOT`
+4. Restart the instance.
+
+A similar process can be used for Kaui: update `/var/lib/kaui/kpm.yml`, run `$KPM_INSTALL_KAUI_CMD`, delete the cached directory `/var/lib/tomcat/webapps2/ROOT` and restart the instance.
 
