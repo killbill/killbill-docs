@@ -9,6 +9,7 @@ This document explains plugin layout, installation and plugin configuration.
 
 == Plugin Layout 
 
+[#_overview]
 === Overview
 
 Kill Bill scans the file system on startup and starts all the plugins that were detected. Kill Bill uses the value of the `org.killbill.osgi.bundle.install.dir` property to determine the root of the plugin directory structure. (See https://docs.killbill.io/latest/userguide_configuration.html#configuration_properties_table[Kill Bill Configuration Properties]). By default, this value is set to `/var/tmp/bundles`.
@@ -28,9 +29,9 @@ Under `root`, you will find the following:
 
 * A `sha1.yml` file which is a used by the `KPM` tool to keep track of artifacts that were already downloaded to avoid downloading binaries already present on the filesystem. KPM also offers the `--force-download` to override that behavior.
 
-* A `platform` folder which contains the `kpm` OSGi bundle as well as a set of other OSGI bundles required for things like OSGI logging, OSGI console, ....
+* A `platform` folder: Also known as *bundles*. This is a directory for deploying Kill Bill's internal OSGI bundles, such as KPM, Logging, Eureka, Metrics, and any JARs/OSGI plugins from `<killbill-platform>/osgi-bundles`. Deploying 3rd party plugins into this directory is not recommended.
 
-* A `plugins` folder which contains: 
+* A `plugins` folder: This is where your plugin or 3rd party plugins are deployed. This folder contains:
 
 ** A `java` folder. Under `java`, you will find one entry per plugin per version.
 For instance, if we had installed two versions for the `stripe` plugin, we would see the following (`SET_DEFAULT` is a symbolic link that point to the default active version):
@@ -167,7 +168,25 @@ curl -v \
 
 === Deploying by Hand
 
-Deploying by hand consists of building the self contained OSGI jar, and copying that jar at the right location. For example, the `adyen` plugin with a version with version `0.3.2` would show up as the following:
+As explained in link:#_overview[overview section], Kill Bill has two locations to deploying plugins:
+
+1. `/platform` (bundles) for Kill Bill internal plugins, and;
+2. `/plugins` for 3rd party plugins.
+
+Deploying bundles is straightforward:
+
+1. Build https://github.com/killbill/killbill-platform[killbill-platform] project.
+2. Copy desired bundles to `/platform` folder.
+3. Start Kill Bill server.
+
+If you want to deploy 3rd party or your own plugins, you need to:
+
+1. Create a new folder with the name that represents your plugin. It is a good practice to set plugin name with "-plugin" suffix.
+2. Add a sub-folder that represents your plugin version.
+3. Copy your plugin JAR file into the folder you've created in step 2. It is recommended that your plugin jar is named in the following format: `<plugin-name>-<semver-plugin-version>.jar`.
+4. Start Kill Bill server.
+
+For example, the `adyen` plugin with version `0.3.2` would show up as the following:
 
 ```
 java
