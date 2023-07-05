@@ -1,0 +1,91 @@
+= Reference Time/Fixed Offset Timezone
+
+In this document, we look a little bit deeper into the concepts of reference time and fixed offset timezone.
+
+== Reference Time
+
+Each account in Kill Bill has a *reference time* associated with it. It can be specified at the time of creating the account. If not specified, it defaults to the account creation date time. Kill Bill uses the reference time to convert a `LocalDate` to a `DateTime` and vice-versa. So for example, if the invoice for an account is due on a particular date, the reference time is used to determine the time of the day at which the invoice will actually be generated. Note that the reference time is always considered to be in UTC.
+
+Let us take a look at a few examples of how the reference time influences invoice generation.
+
+=== Example 1
+
+* Set the time to `2023-01-01T11:00`.
+* Create an account with `referenceTime=2023-01-01T10:30`.
+* Create a subscription to a monthly plan - Invoice is generated immediately.
+* Move the clock to `2023-02-01` (Time component defaults to the current time) - Invoice is generated immediately since the current time (`11:00`) is past the reference time (`10:30`).
+
+=== Example 2
+
+* Set the time to `2023-01-01T7:00`.
+* Create an account with `referenceTime=2023-01-01T10:30`.
+* Create a subscription to a monthly plan - Invoice is generated immediately.
+* Move the clock to `2023-02-01` (Time component defaults to the current time) - Invoice is not generated since reference time is not reached (The current time is `7:00` while the reference time is `10:30`)
+* Move the clock to `2023-02-01T10:30` - Invoice is generated since the reference time is reached.
+
+== Fixed Offset Timezone
+
+Further, each account is also associated with a *fixed offset timezone*. This is a special timezone used by the system to determine the date in the user's time zone.
+
+The fixed offset timezone depends on:
+
+* The account timezone
+* The account reference time (and if DST was in effect at the reference time).
+
+For example, if the account timezone is `America/Los_Angeles` and the reference time is `2023-01-01T10:00:01.000Z`, DST was not in effect and the fixed offset timezone is `-08:00`. If the reference time however is `2023-03-08T10:00:01.000Z`, DST was in effect and the fixed offset timezone is `-07:00`.
+
+The following table lists the values of fixed offset timezone for various timezone/reference time combinations.
+
+
+|===
+|*Account Timezone* |*Reference Time* |*Fixed Offset Timezone*
+|UTC
+|2023-01-01T10:00:01.000Z
+|0:00
+|America/Los_Angeles
+|2023-01-01T10:00:01.000Z
+|-08:00
+
+|America/Los_Angeles
+|2023-03-08T10:00:01.000Z
+|-07:00
+
+|America/New_York
+|2022-04-06T00:57:14.0Z
+|-04:00
+|===
+
+As mentioned earlier, the fixed offset timezone is used to determine the date in the user's time zone.
+
+Let us take a look at a few examples of how the fixed offset timezone is used to determine the subscription start date.
+
+=== Example 1
+* Set the time to `2023-01-01T7:00`.
+* Create an account. The timezone defaults to `UTC` and reference time defaults to the current time of `2023-01-01T7:00`- The fixed offset timezone is `0:00`.
+* Create a subscription - The subscription start date is `2023-01-01`.(`createdDate=2023-01-01T7:00` and fixed offset timezone is `0:00`)
+* Move the clock to `2023-02-01T4:00` - Invoice is not generated since reference time is not reached.
+* Move the clock to `2023-02-01T8:00` - Invoice is generated as reference time is reached.
+
+
+=== Example 2
+
+* Set the time to `2023-01-01T5:00`.
+* Create an account in the `America/Los_Angeles` timezone with reference time `2023-01-01T10:00`- The fixed offset timezone is `-8:00` since DST is not in effect.
+* Create a subscription - The subscription start date is `2022-12-31`. (`createdDate=2023-01-01T5:00` and fixed offset timezone is `-8:00`, this works out to be `2022-12-31T21:00` that is `9 PM` on the previous day in the user's timezone). so, the date is converted to a date in the user's time zone.
+* Move the clock to `2023-02-01T4:00` - Invoice is not generated since reference time is not reached.
+* Move the clock to `2023-02-01T6:00` - Invoice is generated as reference time is reached. So invoice is generated at `2023-02-01T5:00` UTC or `2023-01-31T121:00` Los Angeles time
+
+== Additional Notes
+
+* Kill Bill internally always uses the UTC time. So, if a subscription is created on `2023-01-01`, the time component defaults to the current UTC time.
+* The account reference time is always considered to be in UTC. So, if you create an account with `referenceTime=2022-12-31T21:00`, the invoice will be generated at 9 PM UTC as per the reference time irrespective of the user's timezone.
+* Fixed offset timezone has no effect on reference time.
+
+
+== Further Reading
+
+* https://docs.killbill.io/latest/invoice_subsystem.html#_reference_time_and_fixed_offset_timezone[Reference time and fixed offset timezone]
+
+* https://docs.killbill.io/latest/Kill-Bill-Glossary.html[Kill Bill Glossary]
+
+
