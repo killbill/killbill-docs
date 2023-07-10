@@ -1,0 +1,34 @@
+== HTTPS and Certificates
+
+=== Overview
+
+The HTTP protocol, commonly used for message exchange over the internet, does not provide encryption or authentication.
+As a result messages exchanged with this protocol may be insecure and subject to eavesdropping, and their source may be uncertain.
+To avoid this problem, HTTP is frequently combined with an encryption scheme known as SSL, or more recently TLS,
+that can be used to keep messages safe from unauthorized access, and verify that the sender is who they claim to be. This secure protocol is called HTTPS.
+
+=== Certificates
+
+HTTPS is based on the use of a verification document called a *certificate*. The certificate serves two purposes:
+
+1. It provides the keys necessary for a highly secure encryption.
+2. It provides the electronic signature of a *certificate authority (CA)* who guarantees the identity of the certificate holder.
+
+Increasingly, modern browsers require valid certificates when accessing sites using the HTTPS protocol. It may be difficult or impossible to access these sites if a valid certificate is not found.
+
+The structural details of certificates are defined by international standards; for more details see the https://en.wikipedia.org/wiki/X.509[Wikipedia article]. The certificate authority is either an organization that is intrinsically well-known and trusted, such as DigiCert or GlobalSign (called a *root* CA), or an organization in the *trust hierarchy* derived from a root. A CA in a trust hierarchy must be itself certified by another CA in a chain which eventually leads to the root CA.
+
+For temporary use, you can sometimes create a *self-signed* certificate, in which you are your own CA. Most browsers will frown on this, since you are simply vouching for yourself, but it may allow you to get started with security.
+
+=== CNAMEs
+
+A *CNAME record*, or *Canonical Name record*, is a mapping that connects a DNS name to a domain name. If your domain name is `mydomain.com`, the CNAME record could show that `www.mydomain.com` is an *alias* for `mydomain.com`. In this case `mydomain.com` is the CNAME. The CNAME must always be a DNS name, never an IP address. An alias may be linked to only one CNAME.
+
+The CNAME may be at a different domain from the alias. This usage can make the CNAME record a part of the trust hierarchy for a certificate. Suppose the CNAME is `somesite.securedomain.com` which is protected by a certificate. Then if the alias `mysite.mydomain.com` refers to `somesite`, it will be secured by the same certificate. Thus a browser accessing `mysite.mydomain.com` can trust that it is seeing the site it expects.
+
+You will be protecting public access to your instances of Kaui and Kill Bill through your load balancer, identified by its DNS name. The CNAME record will link your domain to the load balancer. If your domain is `mydomain.com` your alias might look like `kaui.mydomain.com`. This will direct browsers to your verified domain, and then, through your CNAME record, to your AWS resources.
+
+The CNAME record is part of your domain's DNS profile, and your domain provider should have instructions for setting it up.
+
+The process of setting up HTTPS access to Kill Bill load balancers in AWS is documented in several How-To articles. This process includes the generation of one or more pairs of strings called `Name` and `Value` that will be used to create your CNAME records.
+
