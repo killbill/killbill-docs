@@ -83,11 +83,11 @@ $('.switch').on('click', function () {
   toggle.prop('checked', isChecked);
   if (isChecked) {
     $('body').attr('data-theme', 'dark');
-    $('#logo').attr('src', '/images/logo/dark-logo.svg');
+    $('#logo').attr('src', '../stylesheets/images/logo/dark-logo.svg');
     localStorage.setItem('theme', 'dark');
   } else {
     $('body').attr('data-theme', 'light');
-    $('#logo').attr('src', '/images/logo/light-logo.svg');
+    $('#logo').attr('src', '../stylesheets/images/logo/light-logo.svg');
     localStorage.setItem('theme', 'light');
   }
 });

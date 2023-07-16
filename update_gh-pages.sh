@@ -17,10 +17,6 @@ cp -f $BUILD/build/selfcontained/* $BUILD/killbill-docs/$VERSION/
 # This will also copy the manually generated files (*.xsd, ddl.sql)
 cp -f $BUILD/killbill-docs/$VERSION/* $BUILD/killbill-docs/latest/
 
-# Copy assets
-cp -f stylesheets/* $BUILD/killbill-docs/stylesheets/
-cp -f javascripts/* $BUILD/killbill-docs/javascripts/
-
 pushd $BUILD/killbill-docs
 git config user.name "Kill Bill core team"
 git config user.email "contact@killbill.io"
