@@ -59,7 +59,7 @@ $('#close-ligtbox, .overlay').on('click',function () {
 
 $('.sidebar-toggler').on('click', function () {
   $(this).toggleClass('active');
-  $('main.main').toggleClass('sidebar-hide');
+  $('main.main').toggleClass('sidebar-show');
 });
 
 $('.content-wrapper a').filter(function() {
@@ -75,7 +75,7 @@ let toggle = $('#theme-toggle');
 let currentTheme = localStorage.getItem('theme');
 $('body').attr('data-theme', currentTheme);
 if(currentTheme === 'dark') {
-  $('#logo').attr('src', '/images/logo/dark-logo.svg');
+  $('#logo').attr('src', '../stylesheets/images/logo/dark-logo.svg');
   toggle.prop('checked', true);
 }
 $('.switch').on('click', function () {
@@ -91,3 +91,40 @@ $('.switch').on('click', function () {
     localStorage.setItem('theme', 'light');
   }
 });
+
+function getNavigationPaths() {
+  const navLinks = Array.from($(".sidebar .navbar-nav .nav-link")).map(link => {
+    return new Object({
+      title: link.innerText,
+      link: link.href.replace(window.location.origin, '')
+    })
+  });
+
+  let currentPath = window.location;
+  currentPath = currentPath.href.replace(currentPath.origin, '');
+
+  const currentNav = navLinks.find(link => link.link.split('.').at(0).toLowerCase() === currentPath.toString().toLowerCase().split('.').at(0));
+  const currentNavIndex = navLinks.indexOf(currentNav);
+  console.log(currentPath.toString().toLowerCase().split('.').at(0))
+
+  const prevNav = currentNavIndex > 0 ? navLinks[currentNavIndex - 1] : null;
+  const nextNav = currentNavIndex < navLinks.length ? navLinks[currentNavIndex + 1] : null;
+
+  console.log({currentPath, nextNav, prevNav})
+  return {prevNav, nextNav};
+}
+
+const { prevNav, nextNav } = getNavigationPaths();
+
+if (prevNav?.link) {
+  $('#prev-nav-link').attr('href', `${prevNav.link}`);
+  $('#prev-navigator').text(prevNav.title);
+} else {
+  $('#prev-nav-link').css('display', 'none');
+}
+if (nextNav?.link) {
+  $('#next-nav-link').attr('href', `${nextNav.link}`);
+  $('#next-navigator').text(nextNav.title);
+} else {
+  $('#next-nav-link').css('display', 'none');
+}
