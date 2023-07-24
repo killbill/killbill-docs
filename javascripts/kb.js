@@ -40,11 +40,6 @@ setTimeout(function(){
   });
 }, 1000);
 
-$('.main-wrapper').css('display', 'none');
-setTimeout(function() {
-  $('.main-wrapper').css('display', 'block');
-}, 100)
-
 $('.main').append('<div class="lightbox-modal"> <div id="close-ligtbox">âœ•</div> <div class="img"><img src="" alt=""></div></div><div class="overlay"></div>');
 
 $('.main img').on('click', function () {
