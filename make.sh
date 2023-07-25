@@ -20,9 +20,8 @@ mkdir -p $SELFCONTAINED_BUILD_DIR/stylesheets $SELFCONTAINED_BUILD_DIR/javascrip
 cp -rf stylesheets/* $SELFCONTAINED_BUILD_DIR/stylesheets
 cp -rf javascripts/* $SELFCONTAINED_BUILD_DIR/javascripts
 
-for dir in `find $USERGUIDE_INPUT_DIR -maxdepth 1 -type d \! -name assets \! -name common`; do
-  for doc in `find $dir -maxdepth 1 -type f -name '*.adoc'`; do
-    echo "Building $doc"
-    $SELFCONTAINED_BUILD $doc
-  done
+# -maxdepth 2 to avoid building the included files (userguide/*/includes)
+for doc in `find $USERGUIDE_INPUT_DIR -type f -name '*.adoc' -maxdepth 2`; do
+  echo "Building $doc"
+  $SELFCONTAINED_BUILD $doc
 done
