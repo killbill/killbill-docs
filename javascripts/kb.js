@@ -6,6 +6,7 @@ setTimeout(function(){
     $(this).find('a').attr("href", itemHref);
   })
 
+
   $('.content-wrapper table').each(function() {
     $(this).wrap('<div class="table-wrap"></div>')
     $('.table-wrap').each(function() {
@@ -87,11 +88,14 @@ $('.switch').on('click', function () {
   }
 });
 
+$('.nav.navbar-nav.active-list').parent().toggleClass('open')
+
 function getNavigationPaths() {
   const navLinks = Array.from($(".sidebar .navbar-nav .nav-link")).map(link => {
     return new Object({
       title: link.innerText,
-      link: link.href.replace(window.location.origin, '')
+      link: link.href.replace(window.location.origin, ''),
+      external: !link.href.includes(window.location.origin)
     })
   });
 
@@ -100,12 +104,10 @@ function getNavigationPaths() {
 
   const currentNav = navLinks.find(link => link.link.split('.').at(0).toLowerCase() === currentPath.toString().toLowerCase().split('.').at(0));
   const currentNavIndex = navLinks.indexOf(currentNav);
-  console.log(currentPath.toString().toLowerCase().split('.').at(0))
 
   const prevNav = currentNavIndex > 0 ? navLinks[currentNavIndex - 1] : null;
   const nextNav = currentNavIndex < navLinks.length ? navLinks[currentNavIndex + 1] : null;
 
-  console.log({currentPath, nextNav, prevNav})
   return {prevNav, nextNav};
 }
 
@@ -120,6 +122,11 @@ if (prevNav?.link) {
 if (nextNav?.link) {
   $('#next-nav-link').attr('href', `${nextNav.link}`);
   $('#next-navigator').text(nextNav.title);
+  
+  if(nextNav?.external)
+    $(`a[href='${nextNav?.link}'`).toggleClass('external');
+    $(`a[href='${nextNav?.link}'`).attr('target', '_blank');
+
 } else {
   $('#next-nav-link').css('display', 'none');
 }
