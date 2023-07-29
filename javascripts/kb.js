@@ -117,12 +117,12 @@ function getNavigationPaths() {
   const currentNavIndex = navLinks.indexOf(currentNav);
 
   const prevNav = currentNavIndex > 0 && currentPath ? navLinks[currentNavIndex - 1] : null;
-  const nextNav = currentNavIndex < navLinks.length && currentNavIndex >= 0 ? navLinks[currentNavIndex + 1] : null;
+  const nextNav = currentNavIndex < navLinks.length ? navLinks[currentNavIndex + 1] : null;
 
-  return { prevNav, nextNav, navLinks };
+  return { prevNav, nextNav, navLinks, currentNav };
 }
 
-const { prevNav, nextNav, navLinks } = getNavigationPaths();
+const { prevNav, nextNav, navLinks, currentNav } = getNavigationPaths();
 navLinks.forEach(navLink => {
   if (navLink?.external) {
     $(`a[href='${navLink?.link}'`).toggleClass('external');
