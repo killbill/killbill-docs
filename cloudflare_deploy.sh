@@ -4,7 +4,7 @@
 if [ -f Gemfile ]
 then
     ./make.sh
-    cp build/selfcontained/index.html build/
+    cp -fr build/selfcontained/* build/
     mv build/selfcontained build/latest
 else
     rm -f .gitignore latest.txt *.sh
