@@ -20,6 +20,12 @@ make.sh
 
 Generated html files are in the `build` directory.
 
+To run the site locally:
+
+```
+ruby server.rb
+```
+
 Prerequisites:
 
 * Install Ruby (use [RVM](https://rvm.io/) or [RubyInstaller](https://rubyinstaller.org/))
