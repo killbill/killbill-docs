@@ -78,161 +78,29 @@ image::../assets/aws/multitier-connectivity-and-security.png[align=center]
 
 === 2.3. Setup the Security Rules
 
-Lastly, on the *Connectivity and Security* panel, locate and click on the link for the default VPC security group. You will need to add an inbound security rule, because the database by default does not allow external access. In the panel for this group, click on *Inbound Rules* and select *Edit Inbound Rules*. Next click on *Add rule*. In the *Type* column select `MYSQL/Aurora`. The port will be set to 3306 automatically. In the *Source* column, click on the search icon and select `0.0.0.0/0`. Finally, click on *Save Rules* in the bottom right. Your database is ready to go.
+Lastly, on the *Connectivity and Security* panel, locate and click on the link for the default VPC security group. You will need to add an inbound security rule because the database by default does not allow external access. In the panel for this group, click on *Inbound Rules* and select *Edit Inbound Rules*. Next, click on *Add rule*. In the *Type* column select `MYSQL/Aurora`. The port will be set to 3306 automatically. In the *Source* column, click on the search icon and select `0.0.0.0/0`. Finally, click on *Save Rules* in the bottom right. Your database is ready to go.
+
+[NOTE]
+====
+The current security configuration allows open access to the database from any IP address, which can pose significant security risks. Exposing a database to the public internet without proper restrictions is generally not recommended as it may lead to potential vulnerabilities and make your data susceptible to attacks.
+
+To ensure robust protection, it is essential to promptly update the database security settings after completing the Multi-Tier setup. We recommend restricting access so that only EC2 instances running Kill Bill and Kaui are permitted to connect to the database.
+====
 
 [[step3]]
-== Step 3: Edit the Configuration Script
-
-To set up the EC2 instances you will need to provide them with information needed to connect to the databases. We provide a brief configuration script to simplify this process. The template for this script is as follows:
-
-
-[source,bash]
-----
-#!/bin/bash
-
-DB_PROPS="/var/tmp/db.props.$$"
-KB_PROPS="/var/tmp/kb.props.$$"
-
-cat <<_EOF > $DB_PROPS
-#
-# EDIT THE FOLLOWING DB PROPERTIES AS NEEDED:
-#
-DB_SERVER=<DB-INSTANCE-NAME>:3306
-DB_USER=<ADMIN-NAME>
-DB_PASSWORD=<PASSWORD>
-KILLBILL_DB_NAME=killbill
-KAUI_DB_NAME=kaui
-_EOF
-
-cat <<_EOF > $KB_PROPS
-#
-# EDIT THE FOLLOWING KB PROPERTIES AS NEEDED:
-#
-org.killbill.dontexist=foo
-_EOF
-
-su -l -c "cd /var/lib/tomcat/bin && /var/lib/tomcat/bin/updateProperties.sh $DB_PROPS $KB_PROPS" tomcat
-----
-
-First, you need to edit the database properties. <DB-INSTANCE-NAME> should be replaced by the full name of the DB endpoint, as given in the *Connectivity and Security* panel (see above). The port number 3306 is required. <ADMIN-NAME> and <PASSWORD> should be set to the administrator credentials you have chosen for the RDS instance.
-
-Second, you may optionally edit any Kill Bill properties that you need to change from the standard defaults. For more information see the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide].
-
-Save this script in a text file. You will need it in the next step.
-
-[[step4]]
-== Step 4: Launch EC2 Instances
-
-The next step is to launch the number of EC2 instances you want, all based on the Kill Bill single AMI.
-
-
-=== 4.1. Subscribe to the AMI
-
-To start the installation process, point your browser to the 
-+++
-<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_"
-onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_');
-return false;">
-Kill Bill AMI at AWS Marketplace
-</a>
-+++.
-
-You should see the following image at the top of your screen:
-
-image::../assets/aws/multitier-subscribe.png[align=center]
-
-Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions:
-
-Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click *Continue to Configuration*.
-
-=== 4.2. Configure the Instances
-
-The next page will give several configuration options:
-
-image::../assets/aws/multitier-configure.png[align=center]
-
-Be sure to select the region you plan to operate in. Accept the other defaults. Then click *Continue to Launch*.
-
-The next page will give you several options for the launch method. Choose *Launch through EC2*.
-
-image::../assets/aws/multitier-launch.png[align=center]
-
-All other options will disappear. Click *Launch*.
-
-The next page is headed *Launch an Instance*. There are several things you will need to do here.
-
-First, at the top right, select the number of instances you will use. We recommend 2. You can add more later.
-
-Next, scroll down to the middle of this page, to the box titled *Key Pair (login)* Here you are asked to choose or create a *key pair*.
-
-image::../assets/aws/single-tier-keypair.png[align=center]
-
-The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. Click *Create Key Pair* to display a pane to be used for the creation. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Do not change the other options on this pane. Then click *Download Key Pair*. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance.
-
-Finally, scroll to the bottom and open the section labeled *Advanced Details*. You will see a long list of settings. At the very bottom of this list is a box headed *User Settings*. Copy your configuration file into this box.
-
-=== 4.3. Launch your Instances
-
-When the key pair is generated, click *Launch Instances*. You should see the screen below:
-
-image::../assets/aws/multitier-launching.png[align=center]
-
-Your instances are finally launching! To follow what is happening on the EC2 Dashboard, scroll all the way down to the bottom, and click *View all instances* at the bottom right. This will take you to the *Instances* screen which is part of the EC2 Dashboard.
-
-image::../assets/aws/multitier-instances.png[align=center]
-
-
-In a short time, the *Instance State* for each instance should indicate *Running*. You will need to scroll to the right to see all of the information available about your instances. In particular, make a note of the *Availability Zone* (such as `us-east-1a`) assigned to each instance. You will need this information later.
-
-=== 4.4. Setup Security Rules
-
-The next step is to scroll down in the menu on the left side to select *Security Groups*. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for *Inbound Rules*. You should see:
-
-image::../assets/aws/multitier-inbound-original.png[align=center]
-
-These rules enable the ports that must be open to access Kaui and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, you need to add one more port.
-
-Click on *Edit Inbound Rules*. then do the following:
-
-1. For the rule that specifies Type: HTTPS, Port Range: 443, change the type to CUSTOM TCP and the Port Range to 3000.
-2. For the rule that specifies Type: CUSTOM TCP, Port Range: 8443, change the Port Range to 8080.
-3. Finally, add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0.
-
-
-Your Inbound Rules should now look like this:
-
-image::../assets/aws/multitier-inbound-new.png[align=center]
-
-
-=== 4.5. Login to an Instance
-
-Now that your instances are set up, you need to ensure that you can login to them for configuration and maintenance when needed. To login, use the secure shell command:
-
-`ssh -i <PRIVATE_KEY>.pem ubuntu@<INSTANCE_IP>`
-
-Here <PRIVATE_KEY> is the pathname where you have stored the private key that was downloaded when you generated your key pair, and <INSTANCE_IP> is the IPV4 address for any one of your instances as described earlier. The private key will not work unless its access controls are set to readable by the owner only.
-
-On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 `ssh` is available but may need to be activated through the Settings screen.
-
-The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
-
-You will now be able to explore your instance and perform various configuration and maintenance tasks. To exit from your login, type `exit`.
-
-NOTE: We recommend that you *remove* the SSH rule from your security group when you are *not* doing configuration or maintenance.
-
-
-[[step5]]
-== Step 5: Create the Databases
+== Step 3: Create the Databases
 
 Kill Bill requires two databases, with the names `killbill` and `kaui`. We provide predefined schemas for these databases.
 
-To create the databases, you will need to login to one of your instances as described above. Once you are logged in, you can use the `mysql` command to create the two databases `killbill` and `kaui`. The credentials for this command are the same ones you set up for the database and copied to the configuration file. Note that the <DB-INSTANCE-NAME> should *not* include the port number.
+To create the databases, you will need to login to one of your instances as described above. Once you are logged in, you can use the `mysql` command to create the two databases `killbill` and `kaui`. The credentials required for this command are the same ones you set up for the database in step 2.1 above. 
+
+Note that the host <DB-Endpoint-Writer-Instance> should *not* include the port number and there is no space after `-h` and `-u` options.
 
 The password will not be echoed when it is typed.
 
 [source,bash]
 ----
-> mysql -h <DB-INSTANCE-NAME> -u <ADMIN-NAME> -p
+> mysql -h<DB-Endpoint-Writer-Instance> -u<DB-Username> -p
 Enter Password:
 mysql> create database killbill;
 mysql> create database kaui;
@@ -257,25 +125,170 @@ Once the files are successfully uploaded, login again to your instance using the
 
 [source,bash]
 ----
-> mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p killbill < killbill.ddl
-Enter Password:
-> mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p kaui < kaui.ddl
-Enter Password:
+> mysql -h<DB-Endpoint-Writer-Instance> -u<DB-Username> -p<DB-Password> < killbill.ddl
+
+> mysql -h<DB-Endpoint-Writer-Instance> -u<DB-Username> -p<DB-Password> < kaui.ddl
 ----
 To ensure that the databases are setup correctly, login to `mysql` again, then try the SHOW TABLES command:
 
 [source,bash]
 ----
-> mysql -h DB-INSTANCE-NAME -u ADMIN-NAME -p
-Enter Password:
-use killbill
+> mysql -h<DB-Endpoint-Writer-Instance> -u<DB-Username> -p<DB-Password>
+
+use killbill;
 show tables;
-use kaui
+use kaui;
 show tables;
 exit
 ----
 
 Each `show tables` command should display a list of table names for the database.
+
+[[step4]]
+== Step 4: Edit the Configuration Script
+
+To configure the EC2 instances and establish their connection to the databases, you'll need to provide essential information. Fortunately, Kill Bill and Kaui are equipped to read environment variables, making the setup more straightforward. For your convenience, we have a concise configuration script available to streamline this process. Below is the template for the script:
+
+
+[source,bash]
+----
+#!/bin/bash
+
+db_host="<DB endpoint writer instance>"
+db_port="<DB port>"
+db_user="<DB username>"
+db_password="<DB passwordd>"
+kb_admin_password="<Kaui admin login password>"
+
+cat << EOF > /etc/environment
+KB_org_killbill_dao_url=jdbc:mysql://$db_host:$db_port/killbill
+KB_org_killbill_dao_user=$db_user
+KB_org_killbill_dao_password=$db_password
+
+KB_org_killbill_billing_osgi_dao_url=jdbc:mysql://$db_host:$db_port/killbill
+KB_org_killbill_billing_osgi_dao_user=$db_user
+KB_org_killbill_billing_osgi_dao_password=$db_password
+
+KB_ADMIN_PASSWORD=$kb_admin_password
+
+KAUI_DB_ADAPTER=mysql2
+KAUI_DB_URL=jdbc:mysql://$db_host:$db_port/kaui
+KAUI_DB_USERNAME=$db_user
+KAUI_DB_PASSWORD=$db_password
+KAUI_KILLBILL_URL=http://127.0.0.1:8080
+EOF
+----
+
+In the above script, replace the value of `db_host` with the full name of the DB writer endpoint obtained from the Connectivity and Security panel, as indicated earlier. Be sure to specify the appropriate database port number (`3306` for MySQL or `5432` for PostgreSQL) by setting `db_port`. The `kb_admin_password` value will be utilized as the admin password for Kaui login.
+
+Optionally, you may choose to customize other Kill Bill properties based on your specific needs. For more detailed information on available configuration options, please refer to the documentation provided at: https://docs.killbill.io/latest/userguide_configuration.html.
+
+[NOTE]
+====
+The Kaui properties present in the provided template are required for proper functioning. Missing any of these properties may prevent the Kill Bill service from starting successfully. Ensure to set all the necessary properties correctly to ensure a smooth setup process.
+====
+
+Save this script to a file as it will be necessary during the launch of EC2 instances.
+
+[[step5]]
+== Step 5: Launch EC2 Instances
+
+The next step is to launch the number of EC2 instances you want, all based on the Kill Bill single AMI.
+
+
+=== 5.1. Subscribe to the AMI
+
+To start the installation process, point your browser to the 
++++
+<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_"
+onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_');
+return false;">
+Kill Bill AMI at AWS Marketplace
+</a>
++++.
+
+You should see the following image at the top of your screen:
+
+image::../assets/aws/multitier-subscribe.png[align=center]
+
+Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions:
+
+Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click *Continue to Configuration*.
+
+=== 5.2. Configure the Instances
+
+The next page will give several configuration options:
+
+image::../assets/aws/multitier-configure.png[align=center]
+
+Be sure to select the region you plan to operate in. Accept the other defaults. Then click *Continue to Launch*.
+
+The next page will give you several options for the launch method. Choose *Launch through EC2*.
+
+image::../assets/aws/multitier-launch.png[align=center]
+
+All other options will disappear. Click *Launch*.
+
+The next page is headed *Launch an Instance*. There are several things you will need to do here.
+
+First, at the top right, select the number of instances you will use. We recommend 2. You can add more later.
+
+Next, scroll down to the middle of this page, to the box titled *Key Pair (login)* Here you are asked to choose or create a *key pair*.
+
+image::../assets/aws/single-tier-keypair.png[align=center]
+
+The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. Click *Create Key Pair* to display a pane to be used for the creation. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Do not change the other options on this pane. Then click *Download Key Pair*. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance.
+
+=== 5.3. Setup Security Rules
+
+The next step is to scroll down in the menu on the left side to select *Security Groups*. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for *Inbound Rules*. You should see:
+
+image::../assets/aws/multitier-inbound-original.png[align=center]
+
+These rules enable the ports that must be open to access Kaui and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, you need to add one more port.
+
+Click on *Edit Inbound Rules*. then do the following:
+
+1. For the rule that specifies Type: HTTPS, Port Range: 443, change the type to CUSTOM TCP and the Port Range to 3000.
+2. For the rule that specifies Type: CUSTOM TCP, Port Range: 8443, change the Port Range to 8080.
+3. Finally, add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0.
+
+
+Your Inbound Rules should now look like this:
+
+image::../assets/aws/multitier-inbound-new.png[align=center]
+
+=== 5.4. Add user data script
+Finally, scroll to the bottom and open the section labeled *Advanced Details*. You will see a long list of settings. At the very bottom of this list is a box headed *User data*. Paste the script created in Step 4 here.
+
+=== 5.5. Launch your Instances
+
+When the key pair is generated, click *Launch Instances*. You should see the screen below:
+
+image::../assets/aws/multitier-launching.png[align=center]
+
+Your instances are finally launching! To follow what is happening on the EC2 Dashboard, scroll all the way down to the bottom, and click *View all instances* at the bottom right. This will take you to the *Instances* screen which is part of the EC2 Dashboard.
+
+image::../assets/aws/multitier-instances.png[align=center]
+
+
+In a short time, the *Instance State* for each instance should indicate *Running*. You will need to scroll to the right to see all of the information available about your instances. In particular, make a note of the *Availability Zone* (such as `us-east-1a`) assigned to each instance. You will need this information later.
+
+=== 5.6. Login to an Instance
+
+Now that your instances are set up, you need to ensure that you can login to them for configuration and maintenance when needed. To login, use the secure shell command:
+
+`ssh -i <PRIVATE_KEY>.pem ubuntu@<INSTANCE_IP>`
+
+Here <PRIVATE_KEY> is the pathname where you have stored the private key that was downloaded when you generated your key pair, and <INSTANCE_IP> is the IPV4 address for any one of your instances as described earlier. The private key will not work unless its access controls are set to readable by the owner only.
+
+On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 `ssh` is available but may need to be activated through the Settings screen.
+
+The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
+
+You will now be able to explore your instance and perform various configuration and maintenance tasks. To exit from your login, type `exit`.
+
+NOTE: We recommend that you *remove* the SSH rule from your security group when you are *not* doing configuration or maintenance.
 
 [[step6]]
 == Step 6: Perform Initial Testing
