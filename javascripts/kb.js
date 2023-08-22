@@ -66,6 +66,11 @@ $('#close-ligtbox, .overlay').on('click', function () {
 
 $('.sidebar-toggler').on('click', function () {
   $(this).toggleClass('active');
+  $('main.main').toggleClass('sidebar-full-width-show');
+});
+
+$('.sidebar__control').on('click', function () {
+  $(this).toggleClass('active');
   $('main.main').toggleClass('sidebar-show');
 });
 
