@@ -1,18 +1,47 @@
-killbill-docs
-=============
+# Docs
 
 Kill Bill documentation (user guides and tutorials).
 
-To generate the documentation locally, run ```make.sh```. Generated html files are in the *build* directory (only selfcontained HTML files are generated today).
+The site is built using [Asciidoctor](http://asciidoctor.org/docs/).
 
-Pages are automatically built and pushed to https://docs.killbill.io/ by GitHub Actions.
+## Edit and Syntax
 
-Setup
------
+The documentation is in the `userguide` directory.
 
-* Make sure to work off branch `v3`
+AsciiDoc syntax: https://docs.asciidoctor.org/asciidoc/latest/syntax-quick-reference/
+
+## Development
+
+To generate the documentation locally:
+
+```
+make.sh
+```
+
+Generated html files are in the `build` directory.
+
+To run the site locally:
+
+```
+ruby server.rb
+```
+
+Prerequisites:
+
 * Install Ruby (use [RVM](https://rvm.io/) or [RubyInstaller](https://rubyinstaller.org/))
 * Run `bundle install`
-* Verify documentation can be built by running the `make.sh` script
 
-Documentation on AsciiDoc can be found [here](http://asciidoctor.org/docs/). A quick reference is available [here](http://asciidoctor.org/docs/asciidoc-syntax-quick-reference/).
+## Deployment
+
+To deploy the docs:
+
+```
+make.sh
+update_gh-pages.sh
+```
+
+Notes:
+
+* The generated static pages under `build/selfcontained` are pushed to the `gh-pages` branch (not served by GitHub pages)
+* The `gh-pages` branch is then deployed by Cloudflare (https://docs.killbill.io/)
+* Minification of assets is handled by Cloudflare (check-in the unminified version)
