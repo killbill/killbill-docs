@@ -6,37 +6,21 @@ on:
       - v3
   workflow_dispatch:
 
-env:
-  DEBIAN_FRONTEND: noninteractive
-
 jobs:
   publish:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Install packages
-        run: |
-          sudo apt update -qy
-          sudo apt-get install -y curl
-      - name: Set up RVM
-        run: |
-          curl -sSL https://get.rvm.io | bash
+      - uses: actions/checkout@v3
       - name: Set up Ruby
-        run: |
-          source $HOME/.rvm/scripts/rvm
-          rvm install 2.7.2 --binary
-          rvm --default use 2.7.2
-      - name: Install Ruby dependencies
-        run: |
-          source $HOME/.rvm/scripts/rvm
-          bundle install
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.2.2
+          bundler-cache: true
       - name: Build pages
         run: |
-          source $HOME/.rvm/scripts/rvm
           bash make.sh
       - name: Publish pages
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          source $HOME/.rvm/scripts/rvm
           bash update_gh-pages.sh
