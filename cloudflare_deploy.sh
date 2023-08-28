@@ -4,12 +4,14 @@
 if [ -f Gemfile ]
 then
     ./make.sh
+    cp -fr build/selfcontained/* build/
+    mv build/selfcontained build/latest
 else
     rm -f .gitignore latest.txt *.sh
 
     ALL_BUILT_FILES_TMP_DIR=`mktemp -d "${TMPDIR:-/tmp}"/foo.XXXX`
     mv * $ALL_BUILT_FILES_TMP_DIR/
 
-    mkdir -p build/selfcontained
-    mv $ALL_BUILT_FILES_TMP_DIR/* build/selfcontained/
+    mkdir -p build/
+    mv $ALL_BUILT_FILES_TMP_DIR/* build/
 fi
