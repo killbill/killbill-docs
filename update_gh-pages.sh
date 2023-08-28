@@ -9,16 +9,22 @@ pushd $BUILD
 git clone --depth=5 --branch=gh-pages https://$GH_REF
 popd
 
-VERSION=$(cat $BUILD/killbill-docs/latest.txt)
-mkdir -p $BUILD/killbill-docs/$VERSION
-mkdir -p $BUILD/killbill-docs/latest
 cp -f $BUILD/build/selfcontained/index.html $BUILD/killbill-docs/
-cp -f $BUILD/build/selfcontained/* $BUILD/killbill-docs/$VERSION/
 # Copy assets (see make.sh)
 cp -rf $BUILD/build/selfcontained/stylesheets/* $BUILD/killbill-docs/stylesheets/
 cp -rf $BUILD/build/selfcontained/javascripts/* $BUILD/killbill-docs/javascripts/
+
+VERSION=$(cat $BUILD/killbill-docs/latest.txt)
+mkdir -p $BUILD/killbill-docs/$VERSION $BUILD/killbill-docs/$VERSION/stylesheets $BUILD/killbill-docs/$VERSION/javascripts
+cp -f $BUILD/build/selfcontained/* $BUILD/killbill-docs/$VERSION/
+cp -rf $BUILD/build/selfcontained/stylesheets/* $BUILD/killbill-docs/$VERSION/stylesheets/
+cp -rf $BUILD/build/selfcontained/javascripts/* $BUILD/killbill-docs/$VERSION/javascripts/
+
+mkdir -p $BUILD/killbill-docs/latest $BUILD/killbill-docs/latest/stylesheets $BUILD/killbill-docs/latest/javascripts
 # This will also copy the manually generated files (*.xsd, ddl.sql)
 cp -f $BUILD/killbill-docs/$VERSION/* $BUILD/killbill-docs/latest/
+cp -rf $BUILD/killbill-docs/$VERSION/stylesheets/* $BUILD/killbill-docs/latest/stylesheets/
+cp -rf $BUILD/killbill-docs/$VERSION/javascripts/* $BUILD/killbill-docs/latest/javascripts/
 
 pushd $BUILD/killbill-docs
 git config user.name "Kill Bill core team"
