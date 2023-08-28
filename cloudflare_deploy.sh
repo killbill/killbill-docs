@@ -12,6 +12,9 @@ else
     ALL_BUILT_FILES_TMP_DIR=`mktemp -d "${TMPDIR:-/tmp}"/foo.XXXX`
     mv * $ALL_BUILT_FILES_TMP_DIR/
 
-    mkdir -p build/
+    mkdir -p build/latest
     mv $ALL_BUILT_FILES_TMP_DIR/* build/
+    # For relative links
+    cp -r build/javascripts build/latest/
+    cp -r build/stylesheets build/latest/
 fi
