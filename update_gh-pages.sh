@@ -14,6 +14,9 @@ mkdir -p $BUILD/killbill-docs/$VERSION
 mkdir -p $BUILD/killbill-docs/latest
 cp -f $BUILD/build/selfcontained/index.html $BUILD/killbill-docs/
 cp -f $BUILD/build/selfcontained/* $BUILD/killbill-docs/$VERSION/
+# Copy assets (see make.sh)
+cp -rf $BUILD/build/selfcontained/stylesheets/* $BUILD/killbill-docs/stylesheets/
+cp -rf $BUILD/build/selfcontained/javascripts/* $BUILD/killbill-docs/javascripts/
 # This will also copy the manually generated files (*.xsd, ddl.sql)
 cp -f $BUILD/killbill-docs/$VERSION/* $BUILD/killbill-docs/latest/
 
