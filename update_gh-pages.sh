@@ -23,7 +23,7 @@ cp -f $BUILD/killbill-docs/$VERSION/* $BUILD/killbill-docs/latest/
 pushd $BUILD/killbill-docs
 git config user.name "Kill Bill core team"
 git config user.email "contact@killbill.io"
-git add $VERSION latest index.html
+git add $VERSION latest stylesheets javascripts index.html
 git commit -m "Docs update"
 git push -f "https://${GH_TOKEN}:x-oauth-basic@${GH_REF}" gh-pages:gh-pages
 popd
