@@ -133,8 +133,15 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>Make sure the servers have enough entropy: <code>/proc/sys/kernel/random/entropy_avail</code> should be &gt; 3k (otherwise install <code>haveged</code> / <code>rng-tools</code>). Kill Bill should also be started with <code>-Djava.security.egd=file:/dev/./urandom</code>.</p>
 </li>
 <li>
-<p>Adjust <code>org.killbill.security.shiroNbHashIterations</code> as needed. This setting configures the number of iterations run to hash API secrets and user passwords. The default value is high for security reasons, but can be adjusted down if required (e.g. for Docker <code>-e KILLBILL_SECURITY_SHIRO_NB_HASH_ITERATIONS=1</code>) as this can have a significant performance impact. Note that changing the value requires re-hashing manually all tenants secrets and user passwords.</p>
+<p>Adjust <code>org.killbill.security.shiroNbHashIterations</code> as needed. This setting configures the number of iterations run to hash API secrets and user passwords. The default value is high for security reasons, but can be adjusted down if required (e.g. for Docker <code>-e KILLBILL_SECURITY_SHIRO_NB_HASH_ITERATIONS=1</code>) as this can have a significant performance impact.</p>
 </li>
+</ul>
+</div>
+<div class="paragraph">
+<p>In order to change this value OR to rotate the keys, manual re-hashing of all tenants secrets and user passwords is required. To achieve this, specify the target value of the property in the configuration ( not required in case of rotating the keys ). Then create a new tenant with same config ( OR with the new key in case of rotating the keys ) in the test environment. This will now create the required values in the table <code>tenants</code> for the columns api_key, api_secret and api_salt, that need to be copied over to replace the corresponding values in the Production database. Make sure to restart each node OR alternatively to invalidate the caches after the update.</p>
+</div>
+<div class="ulist">
+<ul>
 <li>
 <p>Make sure your database and queues configuration are adequate: the <code>bus_events</code> table should almost always be empty and the <code>notifications</code> table should never have any <code>AVAILABLE</code> entry with an effective date in the past. Otherwise, in both cases, the system will be late (invoices not generated, etc.). These two metrics should always be monitored in production (potentially a paging event).</p>
 </li>
