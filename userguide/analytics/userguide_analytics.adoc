@@ -54,14 +54,14 @@ You can configure the following properties related to the analytics plugin in th
 |org.killbill.notificationq.analytics.tableName   |The name of the notification queue table   |notifications (Same as Kill Bill notification queue table)
 |org.killbill.notificationq.analytics.historyTableName   |The name of the notification queue history table    |notifications_history (Same as Kill Bill notification queue history table)
 |org.killbill.analytics.lockSleepMilliSeconds   |How long to sleep between retries to get the lock. See <<lock_notes, lock notes>>.   |100   
-|org.killbill.billing.plugin.analytics.referenceCurrency   |The reference currency. See  <<currency_conversion, Currency Conversion>>  |USD   
+|org.killbill.billing.plugin.analytics.referenceCurrency   |The reference currency. See  <<currency_conversion, Currency Conversion>>  |USD
 |===
 
 [NOTE]
 *Note:*
 All the properties specified above are optional and the analytics plugin uses suitable defaults in case they are not specified. We however encourage you use different notification queue tables by specifying the `org.killbill.notificationq.analytics.tableName` and `org.killbill.notificationq.analytics.historyTableName` properties.
 
-In addition, the analytics plugin also allows some optional  https://docs.killbill.io/latest/userguide_configuration.html#_per_tenant_properties[tenant level] configuration. This can be done by executing the following API endpoint via `cURL`:
+In addition, the analytics plugin also allows some optional https://docs.killbill.io/latest/userguide_configuration.html#_per_tenant_properties[tenant level] configuration. This can be done by executing the https://killbill.github.io/slate/tenant.html#add-a-per-tenant-configuration-for-a-plugin[per-tenant configuration] endpoint as follows:
 
 [source,bash]
 ----
@@ -116,6 +116,22 @@ This configures the following:
                                                                                   2:avsResultCode,                                                                                                3:cvvResultCode,                                                                                               4:payment_processor_account_id                                                                                                 5:paymentMethod   
 |databases[[remote_database_configuration]]   |Specifies the database configuration for external (remote) databases against which reports can be created. The database `type` and `url` needs to be specified as part of the database configuration. The analytics plugin currently only supports `trino` databases. See the <<advanced_report_creation_options, "Advanced Report Creation Options">> section.|-   
 |===
+
+Some of the per-tenant properties mentioned above can also be configured globally by setting the following properties in the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill Configuration File]:
+
+[source, bash]
+----
+org.killbill.billing.plugin.analytics.blacklist=468e5259-6635-4988-9ae7-3d79b11fc6ed,f7da09af-8593-4a88-b6d4-1c4ebf807103
+org.killbill.billing.plugin.analytics.ignoredGroups=FIELDS
+org.killbill.billing.plugin.analytics.highCardinalityAccounts=a8e594e5-1b78-4c2d-876b-f09ec36c611c,31ea22c7-19ae-4316-a432-5e6319e49f97
+org.killbill.billing.plugin.analytics.refreshDelaySeconds=10
+org.killbill.billing.plugin.analytics.lockAttemptRetries=100
+org.killbill.billing.plugin.analytics.rescheduleIntervalOnLockSeconds=10
+org.killbill.billing.plugin.analytics.enablePartialRefreshes=true
+org.killbill.billing.plugin.analytics.enableTemplateVariables=false
+----
+
+Note that the per-tenant configuration always takes precedence. So, the global properties only serve as defaults when a per-tenant configuration is not specified.
 
 [[lock_notes]]
 *Lock Notes*: Some critical operations in Kill Bill use a https://github.com/killbill/killbill-commons/tree/master/locker[database-based global lock] to ensure a single Kill Bill node performs a given operation at a time. Bumping the `lockSleepMilliSeconds` parameter could help if these critical operations (refresh) take a long time. By default, if a refresh is in progress (i.e. lock is taken) and another node tries to refresh the same account, it will attempt `lockAttemptRetries` times to grab the lock, sleeping `lockSleepMilliSeconds` in between retries, before giving up. If the lock is taken and `rescheduleIntervalOnLockSeconds` is configured, it will reschedule itself `rescheduleIntervalOnLockSeconds` in the future, before trying the above algorithm.
