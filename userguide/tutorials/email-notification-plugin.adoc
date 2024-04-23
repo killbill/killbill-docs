@@ -1,12 +1,14 @@
 = Email Notification Plugin 
 
-As the name implies, the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a plugin that sends out emails when certain events occur. This document covers how to install, test, and use this plugin.
+As the name implies, the https://github.com/killbill/killbill-email-notifications-plugin[email notification plugin] is a plugin that sends out emails when certain events occur. This document covers how to install, test, and use this plugin, with support for both SMTP and AWS SES for sending email notifications.
 
 == Prerequisites
 
 * Ensure that you have Kill Bill, Kaui, and the database set up as explained in the https://docs.killbill.io/latest/getting_started.html[__Getting Started Guide__].
 
 * Ensure that you have https://curl.haxx.se/[_cURL_] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[_Git Bash_] to run the `cURL` commands.
+
+* If you plan to use AWS SES, obtain your AWS SES credentials (access key and secret key) and ensure that the IAM user has the ses:SendEmail permission.
 
 == Overview 
 
@@ -61,12 +63,36 @@ The email-notification-plugin requires some additional database tables. To creat
 [[plugin_configuration]]
 == Plugin Configuration
 
-In order to use the email notification plugin, a tenant needs to be configured with the SMTP properties required for sending emails. Additionally, the tenant can also be configured with the events for which emails should be sent. In addition to the per-tenant configuration, the plugin also allows a more granular account-level configuration for the set of emails to be sent for the particular account. Thus, either the tenant or the account needs to be configured with the events for which the email needs to be sent.
+In order to use the email notification plugin, you need to configure either SMTP or AWS SES settings. Below are the steps to configure both:
+
+=== AWS SES Configuration
+To enable AWS SES for email notifications, add the following properties into killbill.properties.
+
+[source,bash]
+org.killbill.email.notification.via.ses=true
+org.killbill.mail.from=<Default sender's email>
+org.killbill.aws.region=<AWS region, default region is us-east-1>
+
+AWS SES requires authentication for sending emails. System-wide environment variables can be configured for all users by appending them to the /etc/environment file. Open the `/etc/environment` file in a text editor with root privileges, set the following variables:
+
+[source,bash]
+AWS_ACCESS_KEY_ID=<AWS access key ID>
+AWS_SECRET_ACCESS_KEY=<AWS access secret>
+
+
+Reboot the system to apply the changes.
+
+
+[NOTE]
+*Note:* Ensure that the credentials used have the necessary permissions, specifically `ses:SendEmail`, on the resource arn:aws:ses:<region>:<account>:identity/<sender's email>.
+
+=== SMTP Configuration
+A tenant needs to be configured with the SMTP properties required for sending emails. Additionally, the tenant can also be configured with the events for which emails should be sent. In addition to the per-tenant configuration, the plugin also allows a more granular account-level configuration for the set of emails to be sent for the particular account. Thus, either the tenant or the account needs to be configured with the events for which the email needs to be sent.
 
 The tenant/account configuration can be done by executing the required API endpoints via *cURL* as explained below:
 
 [[tenant-config]]
-. *Configure the tenant* using the following cURL command (Replace `<events>` with a comma-separated list of the events for which the emails need to be sent. For example, to configure the tenant to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `org.killbill.billing.plugin.email-notifications.defaultEvents=INVOICE_CREATION,INVOICE_PAYMENT_SUCCESS`):
+*Configure the tenant* using the following cURL command (Replace `<events>` with a comma-separated list of the events for which the emails need to be sent. For example, to configure the tenant to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `org.killbill.billing.plugin.email-notifications.defaultEvents=INVOICE_CREATION,INVOICE_PAYMENT_SUCCESS`):
 [source,bash]
 curl -v \
      -X POST \
@@ -85,11 +111,13 @@ org.killbill.billing.plugin.email-notifications.smtp.useSSL=false
 org.killbill.billing.plugin.email-notifications.smtp.sendHTMLEmail=true
 org.killbill.billing.plugin.email-notifications.smtp.defaultSender=xxx@yyy.com' \
 http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-email-notifications
-+
+
 [NOTE]
 *Note:* On Windows systems, multiline `cURL` commands like the one above do not run property when `cURL` is used on the standard windows command prompt. So, we recommend using either https://git-scm.com/download/win[_Git Bash_] or https://www.postman.com/[_Postman_] as explained https://docs.killbill.io/latest/postman.html[_here_].
-+
-. *Configure the account* using the following `cURL` command (Replace `{accountId}` with the id of the account for which emails need to be sent and `<events>` with a comma-separated list of the events for which the emails need to be sent. For example, to configure the account to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `"INVOICE_CREATION", "INVOICE_PAYMENT_SUCCESS"`):
+
+
+=== Configure Events
+*Configure the account* using the following `cURL` command (Replace `{accountId}` with the id of the account for which emails need to be sent and `<events>` with a comma-separated list of the events for which the emails need to be sent. For example, to configure the account to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `"INVOICE_CREATION", "INVOICE_PAYMENT_SUCCESS"`):
 [source,bash]
 curl -v \
      -X POST \
