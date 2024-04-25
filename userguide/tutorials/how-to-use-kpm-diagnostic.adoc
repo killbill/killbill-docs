@@ -1,0 +1,174 @@
+= How to use the KPM Diagnostic Tool
+
+The `kpm diagnostic` command gathers information about your Kill Bill installation (Kill Bill/Kaui versions, Java version, plugins that you use, etc.), Kill Bill logs, tenant configuration data and account data. It generates a zip file with this data. When this file is shared with us, it allows us to replicate your Kill Bill environment and diagnose the issue.
+
+== Running the Diagnostic Tool
+
+The kpm diagnostic tool can be run as follows:
+
+[source,bash]
+----
+kpm diagnostic --killbill-api-credentials=bob lazar --killbill-credentials admin password --account-export=ACCOUNT_ID
+----
+
+Note that the parameters specified above are optional. The complete set of parameters are documented in the subsequent section.
+
+Once the kpm diagnostic command completes, it displays the path of the generated file. For example, with a Tomcat installation on a Windows machine, it displays the following:
+
+[source,bash]
+----
+Diagnostic data exported under C:/Users/<USERNAME>/AppData/Local/Temp/killbill-diagnostics-20220215-10768-1pplgn6/killbill-diagnostics-02-15-22.zip
+----
+
+The zip file named `killbill-diagnostics-02-15-22.zip` can be copied from this path and shared with the KB Team.
+
+
+== KPM Diagnostic Command Parameters
+
+The following table documents the complete list of parameters that can be specified with the `kpm diagnostic` command:
+
+|===
+|Options |Description | Default
+
+|--account-export
+|Account Id. If specified, includes data from the KB database tables for the specified `accountId`.
+| None (no account data is included)
+
+|--log-dir
+|Log directory. If specified, includes the contents of the specified directory as a zip file
+|Logs from `<CATALINA_BASE>/logs` (`var/lib/tomcat/logs`)
+
+|--config-file
+| Yml that contains the various config options. Alternative to specifying the individual parameters
+|None
+
+|--killbill-api-credentials
+|Tenant API Key and Tenant API Secret corresponding to the tenant for which you want to export data
+|bob/lazar
+
+|--killbill-credentials
+|KB authentication credentials
+|admin/password
+
+|--killbill-url
+|The KB URL to connect to
+|http://127.0.0.1:8080
+
+|--kaui-web-path
+|The path to the Kaui war file. If specified, includes the Kaui version
+|None (no version information is included)
+
+|--killbill-web-path
+|The path to the KB war file. If specified, includes the KB version
+|None (no version information is included)
+
+|--bundles-dir
+|Plugin installation directory. If specified, includes information about the plugins installed at this path
+|None (no plugin information is included)
+|===
+
+== Examples
+
+=== Example 1
+
+[source,bash]
+----
+kpm diagnostic --account-export=88a0f329-2893-46fe-
+b3b7-4e21cafa2118
+----
+Exports data for the specified `accountId` (Assuming the account belongs to the `bob/lazar` tenant and the killbill credentials are `admin/password`).
+
+=== Example 2
+
+[source,bash]
+----
+kpm diagnostic --killbill-api-credentials=test test  --killbill-credentials root root --account-export=88a0f329-2893-46fe-b3b7-4e21cafa2118
+----
+
+Exports data for the specified `accountId` belonging to the `test/test` tenant. Uses the `root/root` KB credentials.
+
+=== Example 3
+
+[source,bash]
+----
+kpm diagnostic --killbill-api-credentials=bob lazar  --killbill-credentials admin password
+----
+
+Exports only system and tenant data. No account information in exported since the `--account-export=` parameter is not specified
+
+=== Example 4
+
+[source,bash]
+----
+kpm diagnostic --account-export=88a0f329-2893-46fe-b3b7-4e21cafa2118 --bundles-dir=d:/var/tmp/bundles
+----
+
+Exports data for the specified `accountId`. Includes plugin information from the `d:/var/tmp/bundles` path.
+
+=== Example 5
+
+[source,bash]
+----
+kpm diagnostic  --account-export=88a0f329-2893-46fe-b3b7-4e21cafa2118 --kaui-web-path=/var/lib/tomcat/webapps2/ROOT.war --killbill-web-path=/var/lib/tomcat/webapps/ROOT.war
+----
+
+Exports data for the specified `accountId`. Includes Kaui/KB version.
+
+=== Example 6
+
+Create a file called `config.yml` as follows:
+
+[source,yml]
+----
+killbill:
+  api_key: bob
+  api_secret: lazar
+  port: 8080
+  host: localhost
+  user: admin
+  password: password
+  plugins_dir: /var/tmp/bundles
+----
+
+[source,bash]
+----
+kpm diagnostic --account-export=88a0f329-2893-46fe-b3b7-4e21cafa2118 --config_file=D:/D
+ata/Temp/config.yml
+----
+
+Exports data for the specified `accountId` using the details from `config.yml`
+
+== Environment Specific Notes
+
+=== Tomcat
+
+In a Tomcat installation, the `kpm` tool needs to be explicitly installed if not already done. Refer to the https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation[kpm installation notes].
+
+After the `kpm` tool is installed, you can run the `kpm diagnostic` command as explained above.
+
+=== Docker
+
+In case of a Docker installation, the `kpm diagnostic` command needs to be run within the Kill Bill Docker container.
+
+Alternatively, you can also run the following command within the Kill Bill Docker container:
+
+[source,bash]
+----
+$KPM_DIAGNOSTIC_CMD -e killbill_user=admin \
+-e killbill_password=password \
+-e killbill_api_key=bob \
+-e killbill_api_secret=lazar \
+-e killbill_account=ACCOUNT_ID
+----
+
+=== AWS
+
+In case of an AWS installation, you would need to login as Tomcat using the following command:
+
+[source,bash]
+----
+# Login as 'tomcat'
+sudo su - tomcat
+----
+
+After this, you can run the kpm diagnostic command as mentioned above.
