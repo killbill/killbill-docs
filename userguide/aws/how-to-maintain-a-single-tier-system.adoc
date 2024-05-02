@@ -112,7 +112,9 @@ Here <ADMIN> is your Kaui administrator username, and <INSTANCE_ID> is your EC2 
 
 === Diagnostic Command
 
-The `diagnostic` option of the `Kill Bill Package Manager (kpm)` command creates an extensive report for a given tenant that may be useful for troubleshooting. To run this command:
+The `diagnostic` option of the `Kill Bill Package Manager (kpm)` command creates an extensive report for a given tenant that may be useful for troubleshooting. See https://docs.killbill.io/latest/how-to-use-kpm-diagnostic[KPM Diagnostic Usage].
+
+To run this command:
 
 [source,bash]
 ----
@@ -122,14 +124,13 @@ The `diagnostic` option of the `Kill Bill Package Manager (kpm)` command creates
 # Run the command with your access credentials:
 #
 > kpm  diagnostic \
+  --account-export=<account_id> \
   --killbill-credentials=<ADMIN> <INSTANCE_ID> \
   --bundles-dir=/var/lib/killbill/bundles \
-  --database-name=killbill \
-  --database-credentials=<DBUSER> <DBPASS> \
   --killbill-api-credentials=<KEY> <SECRET> \
+  --killbill-web-path=/var/lib/tomcat/webapps \
   --kaui-web-path=/var/lib/tomcat/webapps2 \
   --killbill-url=http://127.0.0.1:8080 \
-  --database-host=127.0.0.1:3306
 ----
 
 You will need to edit this command to include:
@@ -137,16 +138,6 @@ You will need to edit this command to include:
 1. Your Kaui admin username and your EC2 instance ID (<ADMIN> <INSTANCE_ID>)
 2. Your database credentials (<DBUSER> <DBPASS>)
 3. The public key and secret key for your tenant (<KEY> <SECRET>)
-
-To restrict the report to a single account, you can add the line
-
-[source,bash]
-----
---account-export=<ACCOUNT_ID>
-----
-
-replacing <ACCOUNT_ID> with the ID of the specific account to be included.
-
 
 The last line of the response should look like:
 
@@ -209,9 +200,15 @@ Next, switch to the `tomcat` user:
 The configuration file `/var/lib/killbill/kpm.yml` specifies the Kill Bill version (and its plugins) to be run on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:
 
 1. Edit the configuration file to update the version number
-2. Run the command `$KPM_INSTALL_KB_CMD`
-3. Delete the cached directory `/var/lib/tomcat/webapps/ROOT`
-4. Restart the instance.
+2. Delete the cached directory `/var/lib/tomcat/webapps/ROOT`
+3. Run the command `$KPM_INSTALL_KB_CMD`
+4. Restart KB using `sudo service killbill restart`.
 
 A similar process can be used for Kaui: update `/var/lib/kaui/kpm.yml`, run `$KPM_INSTALL_KAUI_CMD`, delete the cached directory `/var/lib/tomcat/webapps2/ROOT` and restart the instance.
 
+== SSL Certificate
+
+The KB single tier AMI comes pre-configured with a self-signed certificate. Some backend systems might not trust this certificate, leading to SSL related failures. There are two possible solutions:
+
+1. You can update the backend to trust KB's self-signed certificate. This involves configuring the backend application to trust the certificate. For instance, if your backend is using Java, we can add KB's certificate to the truststore. The certificate used by KB can be found at `/etc/nginx/ssl/ssl-cert-snakeoil.pem` (public key) and `/etc/nginx/ssl/ssl-cert-snakeoil.key` (private key).
+2. If you prefer not to modify the backend, you can obtain a valid certificate from a Certificate Authority. This certificate would be automatically trusted by most clients without requiring any additional configuration in your backend application. Let’s Encrypt is a root CA that is free to use. See https://docs.killbill.io/latest/using-https#_using_lets_encrypt_with_certbot[Using Let's Encrypt].
