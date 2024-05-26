@@ -66,7 +66,7 @@ The email-notification-plugin requires some additional database tables. To creat
 In order to use the email notification plugin, you need to configure either SMTP or AWS SES settings. Below are the steps to configure both:
 
 === AWS SES Configuration
-To enable AWS SES for email notifications, add the following properties into killbill.properties.
+To enable AWS SES for email notifications, add the following properties into killbill.properties. The default sender's email must be verified in AWS SES.
 
 [source,bash]
 org.killbill.email.notification.via.ses=true
@@ -115,27 +115,20 @@ http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-email-notificat
 [NOTE]
 *Note:* On Windows systems, multiline `cURL` commands like the one above do not run property when `cURL` is used on the standard windows command prompt. So, we recommend using either https://git-scm.com/download/win[_Git Bash_] or https://www.postman.com/[_Postman_] as explained https://docs.killbill.io/latest/postman.html[_here_].
 
+[[smtp_server_notes]]
+== SMTP Server Notes
 
-=== Configure Events
-*Configure the account* using the following `cURL` command (Replace `{accountId}` with the id of the account for which emails need to be sent and `<events>` with a comma-separated list of the events for which the emails need to be sent. For example, to configure the account to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `"INVOICE_CREATION", "INVOICE_PAYMENT_SUCCESS"`):
-[source,bash]
-curl -v \
-     -X POST \
-     -u admin:password \
-     -H 'X-Killbill-ApiKey: bob' \
-     -H 'X-Killbill-ApiSecret: lazar' \
-     -H 'X-Killbill-CreatedBy: admin' \
-     -H 'Content-Type: application/json' \
-     -d '[<events>]' \
-    http://127.0.0.1:8080/plugins/killbill-email-notifications/v1/accounts/{accountId}
-   
-. Note that either the *tenant* or the *account* should be configured with the events for which emails need to be sent, otherwise, emails will not be sent. Some scenarios for this:
+In order to be able to use the email notification plugin to send emails, a local SMTP server is required.
 
-.. If a tenant is configured with some events, but the account is not configured, then emails will be sent based on what is configured at the tenant level.
 
-.. If a tenant is not configured with any events but the account is configured with events, then emails will be sent based on what is configured at the account level.
 
-.. If both tenant and account are configured with separate events, emails will be sent based on the events configured for both.
+We typically use the `namshi/smtp` docker image as follows to start a local SMTP server on port 25:
+
+[source, bash]
+docker run -tid --name smtp_server -p 25:25  -e DISABLE_IPV6=true namshi/smtp
+
+Alternatively, if you would like to use a non-docker based SMTP server, you can use https://www.mailslurper.com/[_MailSlurper_]. MailSlurper is a small handy SMTP server that can be useful for development and testing. It can be downloaded and configured as explained in its https://github.com/mailslurper/mailslurper/wiki/Getting-Started[_documentation_].
+
 
 [[account_configuration]]
 == Account Configuration
@@ -157,27 +150,32 @@ curl -v \
     -d '{ "name": "John Doe", "email": "<email_id>", "currency": "USD", "company": "Acme Corporation", "locale":"en_US", "address1": "57 Academy Drive","city": "Oak Creek","state": "WI","postalCode": "53154", "country": "US"}' \
 "http://127.0.0.1:8080/1.0/kb/accounts"
 
+=== Configure Events
+*Configure the account* using the following `cURL` command (Replace `{accountId}` with the id of the account for which emails need to be sent and `<events>` with a comma-separated list of the events for which the emails need to be sent. For example, to configure the account to send emails for *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS*, specify `"INVOICE_CREATION", "INVOICE_PAYMENT_SUCCESS"`):
+[source,bash]
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: application/json' \
+     -d '[<events>]' \
+    http://127.0.0.1:8080/plugins/killbill-email-notifications/v1/accounts/{accountId}
 
-[[smtp_server_notes]]
-== SMTP Server Notes
+Note that either the *tenant* or the *account* should be configured with the events for which emails need to be sent, otherwise, emails will not be sent. Some scenarios for this:
 
-In order to be able to use the email notification plugin to send emails, a local SMTP server is required. 
+.. If a tenant is configured with some events, but the account is not configured, then emails will be sent based on what is configured at the tenant level.
 
+.. If a tenant is not configured with any events but the account is configured with events, then emails will be sent based on what is configured at the account level.
 
-
-We typically use the `namshi/smtp` docker image as follows to start a local SMTP server on port 25:
-
-[source, bash]
-docker run -tid --name smtp_server -p 25:25  -e DISABLE_IPV6=true namshi/smtp
-
-Alternatively, if you would like to use a non-docker based SMTP server, you can use https://www.mailslurper.com/[_MailSlurper_]. MailSlurper is a small handy SMTP server that can be useful for development and testing. It can be downloaded and configured as explained in its https://github.com/mailslurper/mailslurper/wiki/Getting-Started[_documentation_].
-
+.. If both tenant and account are configured with separate events, emails will be sent based on the events configured for both.
 
 == Testing the Plugin
 
 Once the plugin is installed and configured as explained above, it can be used for sending emails. You can verify that the plugin is working correctly by following the steps given below:
 
-. Start a local SMTP server as explained in the <<smtp_server_notes, "SMTP Server Notes">> section.
+. If you're using SMTP, start a local SMTP server as explained in the <<smtp_server_notes, "SMTP Server Notes">> section. Otherwise, if you're using AWS SES, make sure it's configured as explained in the <<plugin_configuration, "Plugin Configuration">> section.
 
 . Ensure that Kill Bill is running either in https://docs.killbill.io/latest/development.html#_running_the_application[_standalone_] mode or in https://docs.killbill.io/latest/getting_started.html[_Tomcat_].
 
@@ -193,8 +191,6 @@ curl -v \
     -H "X-Killbill-Comment: demo" \
     -d '{ "apiKey": "bob", "apiSecret": "lazar"}' \
     "http://127.0.0.1:8080/1.0/kb/tenants"
-
-. Configure the tenant as specified in the <<tenant-config, "Plugin Configuration">> section above with *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS* events.
 
 . Create an account as follows (Replace `<email_id>` with the email id where you would like to receive the email and change values for the other fields as required):
 [source, bash]
@@ -212,6 +208,8 @@ curl -v \
 "http://127.0.0.1:8080/1.0/kb/accounts"
 
 . If successful, the command above returns a `Location` header like \http://127.0.0.1:8080/1.0/kb/accounts/eda3e357-20a1-456d-a9b3-b39ca3db8020. Copy the `account_id` in the header (`eda3e357-20a1-456d-a9b3-b39ca3db8020` in this case) and save it for future use.
+
+. If you're using SMTP, configure the tenant as specified in the <<tenant-config, "Plugin Configuration">> section above with *INVOICE_CREATION* and *INVOICE_PAYMENT_SUCCESS* events.
 
 . Add a payment method as follows (replace `<account_id>` with the account id obtained above):
 [source, bash]
