@@ -1,0 +1,120 @@
+= Configuring Kill Bill to Send Events to AWS SQS
+
+== Overview
+
+This document outlines the steps to configure the Kill Bill application to send events to an Amazon Simple Queue Service (SQS) queue.
+
+Kill Bill generates different events when various actions occur within the system. For more details, refer to the link:kill_bill_events.adoc[Kill Bill events] documentation.
+
+
+== Prerequisites
+
+* Access to AWS Management Console.
+* IAM permissions to create and manage SQS and IAM roles.
+* SSH access to the EC2 instance running Kill Bill.
+
+== Configuration Steps
+
+=== Step 1: Create an SQS Queue
+
+1. In the AWS Management Console, search for `SQS` (Simple Queue Service).
+
+2. Under the *Get started* section, click on *Create queue*.
+
+3. Choose the type of queue:
+   * **Standard**: At-least-once delivery, message ordering isn't preserved.
+   * **FIFO**: First-in-first-out delivery, message ordering is preserved.
+  
+4. Enter a name for the queue.
+
+5. Adjust any configurations as per your requirements.
+
+6. Click on *Create queue*.
+
+=== Step 2: Create an IAM Role
+
+1. In the AWS Management Console, navigate to the `IAM` (Identity and Access Management) service.
+
+2. Click on *Roles* in the sidebar.
+
+3. Click on *Create role*.
+
+4. Choose the *AWS service* type and select *EC2* as the service that will use this role.
+
+5. Click on *Next: Permissions*.
+
+6. Attach the following policy to allow sending messages to SQS:
+
+[source]
+----
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "sqs:SendMessage",
+        "Resource": "arn:aws:sqs:{REGION}:{ACCOUNT_ID}:{QUEUE_NAME}"
+      }
+    ]
+  }
+----
+
+7. Click on *Next: Tags*, add any tags if needed, and then click on *Next: Review*.
+
+8. Enter a name for the role and click on *Create role*.
+
+=== Step 3: Attach the IAM Role to the EC2 Instance
+
+1. Navigate to the EC2 Dashboard in the AWS Management Console.
+
+2. Select the EC2 instance where Kill Bill is running.
+
+3. Click on *Actions*, then *Security*, and choose *Modify IAM role*.
+
+4. Select the IAM role created in Step 2 from the dropdown menu.
+
+5. Click on *Update IAM role*.
+
+=== Step 4: Configure Kill Bill to Use SQS
+
+1. SSH to the EC2 instance running Kill Bill.
+
+2. Edit the `/var/lib/tomcat/bin/setenv2.sh` file to include the following properties. Be sure to replace `queueName` with the name of your SQS queue and adjust `maxRetries` if necessary:
+
+[source]
+----
+-Dcom.killbill.aws.enableSqsEvents=true
+-Dcom.killbill.aws.sqs.queueName=<queue-name>
+-Dcom.killbill.aws.sqs.maxRetries=5
+----
+
+=== Step 5: Restart the Kill Bill EC2 Instance
+
+Restart the EC2 instance to apply the changes:
+
+[source]
+----
+sudo reboot
+----
+
+=== Step 6: Test the Configuration
+
+1. To test the setup, install any plugin, add a user, or make tenant configuration changes in Kill Bill. These actions should generate events that will be sent to the SQS queue.
+
+2. Check the SQS dashboard to see if the events are received. Here is a sample event that might be sent to SQS:
+
+[source]
+----
+  {
+    "objectId": "af64be18-a334-4f42-8f07-b2cdc93861a6",
+    "objectType": "TENANT_KVS",
+    "eventType": "TENANT_CONFIG_CHANGE",
+    "accountId": null,
+    "tenantId": "4effbb8c-1c40-4051-871a-613ff6e954cb",
+    "metaData": "{\"key\":\"CATALOG\"}"
+  }
+----
+
+== Conclusion
+
+By following these steps, you can configure Kill Bill to send events to an AWS SQS queue, enabling better event-driven integrations and workflows.
