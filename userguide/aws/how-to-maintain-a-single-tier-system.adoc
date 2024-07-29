@@ -15,151 +15,25 @@ If a new installation does not seem to work correctly, the first step is to revi
 
 === Status Reports
 
-When you launch the EC2 instance,  all required services should be enabled and running, including:
-
-* An instance of `nginx` receiving traffic on port `443` and `8443`
-* An instance of Kill Bill server listening on `127.0.0.1:8080` (and receiving external traffic through nginx on port `8443`)
-* An instance of Kaui listening on `127.0.0.1:3000` (and receiving external traffic through nginx on port `443`)
-* A local `mysql` server running on port `3306`
-
-The status of each service can be checked by the following commands:
-
-* Kill Bill service: `sudo service killbill status`
-* KAUI service: `sudo service kaui status`
-* Nginx service: `sudo service nginx status`
-* Mysql service: `sudo service mysql status`
-
-For each report there should be a line near the top with the following form:
-
-`Active: active (running) since Sat 2020-10-24 20:13:43 UTC; 1 day 1h ago`
-
-
-You can `start` or `stop` the services using similar commands, such as `sudo service kaui stop` to stop Kaui. If any service is not active, try starting it using the appropriate command.
-
-If all services are running, the next step is to collect several reports.
-
+include::{sourcedir}/aws/includes/status-reports.adoc[]
 
 === Log Files
 
 The system maintains a series of log files that may be helpful when troubleshooting is needed. These logs may be forwarded to Kill Bill to help diagnose your problem.
 
-Tomcat/KB/Kaui logs are under `/var/lib/tomcat/logs/`:
-
-* Kaui log: `/var/lib/tomcat/logs/kaui.out`
-* Kill Bill server log: `/var/lib/tomcat/logs/killbill.out`
-* Complete tomcat log: `/var/lib/tomcat/logs/catalina.out`
-* Access requests to the servers: `localhost_access_log*.txt`
-
-Sometimes these logs will clearly show anomalies that will pinpoint the problem. If not you should forward your logs to Kill Bill for review.Some of these logs may be very large, especially catalina.out.
-
+include::{sourcedir}/aws/includes/logs.adoc[]
 
 === System Health Check
 
-The healthcheck report checks the health of various software components, and determines if any queues are growing improperly over time. To create this report, issue the following command:
-
-`curl \http://127.0.0.1:8080/1.0/healthcheck`
-
-This will return a series of messages giving the health status of each component. These messages may look like:
-
-[source,bash]
-----
-"com.codahale.metrics.health.jvm.ThreadDeadlockHealthCheck":{"healthy":true},
-"main.pool.Connection99Percent":{"healthy":true},
-"main.pool.ConnectivityCheck":{"healthy":true},
-...
-"bus":{"growing":false},
-"overdue-service:overdue-check-queue":{"growing":false},
-...
-----
-
-An unexpected message may indicate a component that is not working properly.
+include::{sourcedir}/aws/includes/healthcheck.adoc[]
 
 === System Information
 
-For a detailed system information report, showing the current version of each component, use the following command:
-
-`curl -u <ADMIN>:<INSTANCE_ID> \http://127.0.0.1:8080/1.0/kb/nodesInfo`
-
-Here <ADMIN> is your Kaui administrator username, and <INSTANCE_ID> is your EC2 instance ID. THe output will look like:
-
-[source,bash]
-----
-[
-  {
-    "nodeName": "ip-192-168-241-89.ec2.internal",
-    "bootTime": "2024-07-11T07:30:59.000Z",
-    "lastUpdatedDate": "2024-07-11T07:30:59.000Z",
-    "kbVersion": "0.24.10",
-    "apiVersion": "0.54.0",
-    "pluginApiVersion": "0.27.1",
-    "commonVersion": "0.26.2",
-    "platformVersion": "0.41.9",
-    "pluginsInfo": [
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      },
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      },
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-metrics",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-metrics",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      }
-    ]
-  }
-]
-----
+include::{sourcedir}/aws/includes/system-information.adoc[]
 
 === Diagnostic Command
 
-The `diagnostic` option of the `Kill Bill Package Manager (kpm)` command creates an extensive report for a given tenant that may be useful for troubleshooting. See https://docs.killbill.io/latest/how-to-use-kpm-diagnostic[KPM Diagnostic Usage].
-
-To run this command:
-
-[source,bash]
-----
-# Login as 'tomcat'
-> sudo su - tomcat
-#
-# Run the command with your access credentials:
-#
-> kpm  diagnostic \
-  --account-export=<account_id> \
-  --killbill-credentials=<ADMIN> <INSTANCE_ID> \
-  --bundles-dir=/var/lib/killbill/bundles \
-  --killbill-api-credentials=<KEY> <SECRET> \
-  --killbill-web-path=/var/lib/tomcat/webapps \
-  --kaui-web-path=/var/lib/tomcat/webapps2 \
-  --killbill-url=http://127.0.0.1:8080
-----
-
-You will need to edit this command to include:
-
-1. Your Kaui admin username and your EC2 instance ID (<ADMIN> <INSTANCE_ID>)
-2. The public key and secret key for your tenant (<KEY> <SECRET>)
-
-The last line of the response should look like:
-
-`Diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip`
-
-The specified zip file contains several reports of various sizes. This report can be downloaded to your computer using `sftp` and forwarded to Kill Bill for analysis.
+include::{sourcedir}/aws/includes/diagnostics.adoc[]
 
 === Databases
 
@@ -167,25 +41,7 @@ To access the mysql (MariaDB) databases, you can use the following command:
 
 `mysql -u root -proot`
 
-This enables interactive access to the database manager. There is one `killbill` and one `kaui` database created and used by the respective applications. To verify the tables in each database, you can type:
-
-[source,sql]
-----
-use killbill
-show tables;
-----
-or
-
-[source,sql]
-----
-use kaui
-show tables;
-----
-
-Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!
-
-To exit the mysql interactive mode, type `exit`.
-
+include::{sourcedir}/aws/includes/database.adoc[]
 
 === Load Balancer
 
@@ -199,89 +55,11 @@ Nginx logs can be found under `/var/log/nginx/`
 
 == Configuration
 
-Kill Bill defines a number of global properties and per-tenant properties that can be varied. These properties are explained in the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill and Kaui Configuration Guide]. Default values for these properties are built into the Kill Bill code; these values can be overridden by values defined in the file `/var/lib/killbill/config/killbill.properties`. For example, this is where you can change the database URL and credentials.
-
-This file also defines the location of the `shiro.ini` file, which by default is in the `/var/lib/killbill/config` directory. The `shiro.ini` file defines the Kill Bill admin credentials, along with any other users and their roles. See the https://docs.killbill.io/latest/user_management.html[Users, Roles, and Permissions Management] guide for details about this file.
+include::{sourcedir}/aws/includes/configuration.adoc[]
 
 == Upgrades
 
-From time to time new versions of Kill Bill are released. These versions can be incorporated in your installation with minimal impact on production. This section explains how to upgrade to a new version of Kill Bill. Note that these are *not* the same as new versions of the AMI, which can be incorporated only by a full re-installation.
-
-You can upgrade KB using the following steps:
-
-1. Log in to your instance using `ssh`.
-
-2. Switch to the `tomcat` user:
-+
-```
-sudo su - tomcat
-```
-+
-3. Update `/var/lib/killbill/kpm.yml` with the appropriate KB version. For example, to upgrade to KB `0.24.9`, update this file as follows:
-+
-```
-killbill:
-  version: 0.24.9
-  plugins:
-  plugins_dir: /var/lib/killbill/bundles
-  webapp_path: /var/lib/tomcat/webapps/ROOT.war
-```
-4. Delete the cached `webapps/ROOT` directory:
-+
-```
-rm -rf /var/lib/tomcat/webapps/ROOT
-```
-+
-5. Run the following command to update KB:
-+
-```
-$KPM_INSTALL_KB_CMD
-```
-+
-6. Restart KB:
-+
-```
-sudo service killbill restart
-```
-
-You can upgrade Kaui using the following steps:
-
-1. Log in to your instance using `ssh`.
-
-2. Switch to the `tomcat` user:
-+
-```
-sudo su - tomcat
-```
-+
-3. Update `/var/lib/kaui/kpm.yml` with the appropriate Kaui version. For example, to upgrade to Kaui `3.0.6`, edit this file as follows:
-+
-```
-kaui:
-  version: 3.0.6
-  # Used for the sha1.yml
-  plugins_dir: /var/lib/kaui/bundles
-  webapp_path: /var/lib/tomcat/webapps2/ROOT.war
-```
-+
-4. Delete the cached `webapps2/ROOT` directory:
-+
-```
-rm -rf /var/lib/tomcat/webapps2/ROOT
-```
-+
-5. Run the following command to update Kaui:
-+
-```
-$KPM_INSTALL_KAUI_CMD
-```
-+
-6. Restart KB:
-+
-```
-sudo service killbill restart
-```
-
+include::{sourcedir}/aws/includes/upgrade.adoc[]
 
 == SSL Certificate
 

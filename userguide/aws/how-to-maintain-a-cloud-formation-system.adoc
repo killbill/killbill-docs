@@ -62,47 +62,11 @@ Some other CFN logs are listed below. However, these are more specialized and ma
 /var/log/xray/xray.log
 ----
 
-The Kill Bill/Kaui server logs are located under `/var/lib/tomcat/logs/`.  These logs may be forwarded to Kill Bill to help diagnose your problem.
-
-* Kaui log: `/var/lib/tomcat/logs/kaui.out`
-* Kill Bill server log: `/var/lib/tomcat/logs/killbill.out`
-* Complete tomcat log: `/var/lib/tomcat/logs/catalina.out`
-* Access requests to the servers: `localhost_access_log*.txt`
-
+include::{sourcedir}/aws/includes/logs.adoc[]
 
 === Diagnostic Command
 
-The `diagnostic` option of the `Kill Bill Package Manager (kpm)` command creates an extensive report for a given tenant that may be useful for troubleshooting. See https://docs.killbill.io/latest/how-to-use-kpm-diagnostic[KPM Diagnostic Usage].
-
-To run this command:
-
-[source,bash]
-----
-# Login as 'tomcat'
-> sudo su - tomcat
-#
-# Run the command with your access credentials:
-#
-> kpm  diagnostic \
-  --account-export=<account_id> \
-  --killbill-credentials=<ADMIN> <INSTANCE_ID> \
-  --bundles-dir=/var/lib/killbill/bundles \
-  --killbill-api-credentials=<KEY> <SECRET> \
-  --killbill-web-path=/var/lib/tomcat/webapps \
-  --kaui-web-path=/var/lib/tomcat/webapps2 \
-  --killbill-url=http://127.0.0.1:8080
-----
-
-You will need to edit this command to include:
-
-1. Your Kaui admin username and your EC2 instance ID (<ADMIN> <INSTANCE_ID>)
-2. The public key and secret key for your tenant (<KEY> <SECRET>)
-
-The last line of the response should look like:
-
-`Diagnostic data is exported under /tmp/killbill-diagnostics-20200213-23204-u93ah5/killbill-diagnostics-02-13-20.zip`
-
-The specified zip file contains several reports of various sizes. This report can be downloaded to your computer using `sftp` and forwarded to Kill Bill for analysis.
+include::{sourcedir}/aws/includes/diagnostics.adoc[]
 
 
 === Database Problems
@@ -119,24 +83,7 @@ Based on this info, the following command would allow you to get a `mysql` promp
 > ...
 ----
 
-This enables interactive access to the database manager. There is one `killbill` and one `kaui` database created and used by the respective applications. To verify the tables in each database, you can type:
-
-[source,sql]
-----
-use killbill
-show tables;
-----
-or
-
-[source,sql]
-----
-use kaui
-show tables;
-----
-
-Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!
-
-To exit the mysql interactive mode, type `exit`.
+include::{sourcedir}/aws/includes/database.adoc[]
 
 === AWS Errors
 
@@ -158,9 +105,9 @@ If you update any configuration file, you will need to restart the service. To d
 [source,bash]
 ----
 # Restart  killbill server instance
-> service killbill restart
+> sudo service killbill restart
 # Restart  kaui server instance
-> service kaui restart
+> sudo service kaui restart
 ----
 
 == Maintenance
@@ -183,79 +130,11 @@ This check may be needed on each of the KB and Kaui instances.
 
 === System Health Check
 
-The healthcheck report checks the health of various software components, and determines if any queues are growing improperly over time. To create this report, issue the following command:
-
-`curl \http://127.0.0.1:8080/1.0/healthcheck`
-
-This will return a series of messages giving the health status of each component. These messages may look like:
-
-[source,bash]
-----
-"com.codahale.metrics.health.jvm.ThreadDeadlockHealthCheck":{"healthy":true},
-"main.pool.Connection99Percent":{"healthy":true},
-"main.pool.ConnectivityCheck":{"healthy":true},
-...
-"bus":{"growing":false},
-"overdue-service:overdue-check-queue":{"growing":false},
-...
-----
-
-An unexpected message may indicate a component that is not working properly.
+include::{sourcedir}/aws/includes/healthcheck.adoc[]
 
 === System Information
 
-For a detailed system information report, showing the current version of each component, use the following command:
-
-`curl -u <ADMIN>:<PASSWORD> \http://127.0.0.1:8080/1.0/kb/nodesInfo`
-
-Here <ADMIN> is your Kaui administrator username, and <PASSWORD> is your Kaui administrator password. THe output will look like:
-
-[source,bash]
-----
-[
-  {
-    "nodeName": "ip-192-168-241-89.ec2.internal",
-    "bootTime": "2024-07-11T07:30:59.000Z",
-    "lastUpdatedDate": "2024-07-11T07:30:59.000Z",
-    "kbVersion": "0.24.10",
-    "apiVersion": "0.54.0",
-    "pluginApiVersion": "0.27.1",
-    "commonVersion": "0.26.2",
-    "platformVersion": "0.41.9",
-    "pluginsInfo": [
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      },
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      },
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-metrics",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-metrics",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      }
-    ]
-  }
-]
-----
-
-
+include::{sourcedir}/aws/includes/system-information.adoc[]
 
 
 == Upgrading
