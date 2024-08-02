@@ -61,7 +61,7 @@ The last section asks you to:
 
 1. Specify a name for your database
 2. Give a username for the administrative account (we suggest that you do *not* use the default name)
-3. Provide a password for the administrative account (we suggest you let AWS generate one for you)
+3. Provide a password for the administrative acount (we suggest you let AWS generate one for you)
 
 image::../assets/aws/multitier-names-and-password.png[align=center]
 
@@ -93,7 +93,7 @@ To ensure robust protection, it is essential to promptly update the database sec
 
 Kill Bill requires two databases, with the names `killbill` and `kaui`. We provide predefined schemas for these databases.
 
-To create the databases, you will need to login to one of your instances as described above. Once you are logged in, you can use the `mysql` command to create the two databases `killbill` and `kaui`. The credentials required for this command are the same ones you set up for the database in step 2.1 above. 
+To create the databases, you will need to login to one of your instances as described above. Once you are logged in, you can use the `mysql` command to create the two databases `killbill` and `kaui`. The credentials required for this command are the same ones you set up for the database in step 2.1 above.
 
 Note that the host <DB-Endpoint-Writer-Instance> should *not* include the port number and there is no space after `-h` and `-u` options.
 
@@ -160,7 +160,7 @@ db_user="<DB username>"
 db_password="<DB passwordd>"
 kb_admin_password="<Kaui admin login password>"
 
-cat << EOF > /etc/environment
+cat << EOF >> /etc/environment
 KB_org_killbill_dao_url=jdbc:mysql://$db_host:$db_port/killbill
 KB_org_killbill_dao_user=$db_user
 KB_org_killbill_dao_password=$db_password
@@ -198,12 +198,12 @@ The next step is to launch the number of EC2 instances you want, all based on th
 
 === 5.1. Subscribe to the AMI
 
-To start the installation process, point your browser to the 
+To start the installation process, point your browser to the
 +++
-<a href="https://aws.amazon.com/marketplace/pp/prodview-rtgjip6tx3oea"
-onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/prodview-rtgjip6tx3oea');
+<a href="https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_"
+onclick="getOutboundLink('https://aws.amazon.com/marketplace/pp/B083LYVG9H?ref=_ptnr_doc_');
 return false;">
-Kill Bill on AWS - Multi-Tier on EC2
+Kill Bill AMI at AWS Marketplace
 </a>
 +++.
 
@@ -231,27 +231,32 @@ All other options will disappear. Click *Launch*.
 
 The next page is headed *Launch an Instance*. There are several things you will need to do here.
 
-First, scroll down to the middle of this page, to the box titled *Key Pair (login)* Here you are asked to choose or create a *key pair*.
+First, at the top right, select the number of instances you will use. We recommend 2. You can add more later.
+
+Next, scroll down to the middle of this page, to the box titled *Key Pair (login)* Here you are asked to choose or create a *key pair*.
 
 image::../assets/aws/single-tier-keypair.png[align=center]
 
 The key pair provides the credentials you will need to login to your EC2 instance. For details about key pairs, see the https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html[AWS documentation]. We recommend that you create a new key pair. Click *Create Key Pair* to display a pane to be used for the creation. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Do not change the other options on this pane. Then click *Download Key Pair*. Important: You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance.
 
-Next, at the bottom of the page, select the number of instances you will use. We recommend 2. You can add more later.
-
 === 5.3. Setup Security Rules
 
-The next step is to scroll to the *Network Settings* section. Click *Edit*. You should see the following security rules:
+The next step is to scroll down in the menu on the left side to select *Security Groups*. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for *Inbound Rules*. You should see:
 
-image::../assets/aws/multitier-security-groups.png[align=center]
+image::../assets/aws/multitier-inbound-original.png[align=center]
 
 These rules enable the ports that must be open to access Kaui and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, you need to add one more port.
 
-Do the following:
+Click on *Edit Inbound Rules*. then do the following:
 
 1. For the rule that specifies Type: HTTPS, Port Range: 443, change the type to CUSTOM TCP and the Port Range to 3000.
 2. For the rule that specifies Type: CUSTOM TCP, Port Range: 8443, change the Port Range to 8080.
 3. Finally, add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0.
+
+
+Your Inbound Rules should now look like this:
+
+image::../assets/aws/multitier-inbound-new.png[align=center]
 
 === 5.4. Add user data script
 Finally, scroll to the bottom and open the section labeled *Advanced Details*. You will see a long list of settings. At the very bottom of this list is a box headed *User data*. Paste the script created in Step 4 here.
@@ -334,7 +339,7 @@ image::../assets/aws/ELB-secure-listener.png[align=center]
 
 Here you will be required to create or provide an X.509 SSL Certificate. If you already have a certificate you can identify it or upload it here. Otherwise click on *Request a New Certificate from ACM.* This will enable you to create a certificate using the *Amazon Certificate Manager*. Follow the steps described for the ACM in https://docs.killbill.io/latest/how-to-add-a-certificate-using-ACM.html[Add a Certificate Using the Amazon Certificate Manager], then return to this page. Select your new certificate from the dropdown list. You can now proceed to the next step.
 
-Next you will need to click on *Add Listener* to create a second Listener. This listener will use port 8443. 
+Next you will need to click on *Add Listener* to create a second Listener. This listener will use port 8443.
 
 
 === 7.5. Setup Target Groups
