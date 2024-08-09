@@ -75,10 +75,10 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </div>
 </div>
 <div class="sect1">
-<h2 id="_login">Login</h2>
+<h2 id="_log_in">Log in</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>To perform most maintenance tasks you will need to login to your EC2 instances. Be sure that SSH is enabled on Port 22 in your security group. Login procedures are described in your setup guide  (See <a href="https://docs.killbill.io/latest/how-to-set-up-a-multi-tier-system.html#_4_5_login_to_an_instance">4.5. Login to an Instance</a>).</p>
+<p>To perform most maintenance tasks you will need to log in to your EC2 instances. Be sure that SSH is enabled on Port 22 in your security group. Login procedures are described in the setup guide  (See <a href="https://docs.killbill.io/latest/how-to-set-up-a-multi-tier-system.html#_4_5_login_to_an_instance">4.5. Login to an Instance</a>).</p>
 </div>
 </div>
 </div>
@@ -86,47 +86,72 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <h2 id="_troubleshooting">Troubleshooting</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>If a new installation does not seem to work correctly, the first step is to review your installation process carefully, to be sure that everything has been done and checked as described in your setup guide. If problems persist, we will be glad to work with you to identify the problem. To help us to do this, there are several information reports that you may need to gather. These reports are somewhat technical but can be analyzed by Kill Bill personnel. This section explains how to obtain the reports that may be needed.</p>
+<p>If a new installation does not seem to work correctly, the first step is to review your installation process carefully, to be sure that everything has been done and checked as described in the <a href="https://docs.killbill.io/latest/how-to-set-up-a-multi-tier-system">setup guide</a>. If problems persist, we will be glad to work with you to identify the problem. To help us to do this, there are several information reports that you may need to gather. These reports are somewhat technical but can be analyzed by Kill Bill personnel. This section explains how to obtain the reports that may be needed.</p>
 </div>
 <div class="sect2">
 <h3 id="_log_files">Log Files</h3>
 <div class="paragraph">
-<p>The system maintains a series of logfiles that may be helpful when troubleshooting is needed.</p>
+<p>The system maintains a series of log files that may be helpful when troubleshooting is needed. These logs may be forwarded to Kill Bill to help diagnose your problem.</p>
 </div>
 <div class="paragraph">
-<p>These logs are under <code>/var/lib/tomcat/logs/</code>:</p>
+<p>Tomcat/KB/Kaui logs are under <code>/var/lib/tomcat/logs/</code>:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Kaui logs: <code>/var/lib/tomcat/logs/kaui.out</code></p>
+<p>Kaui log: <code>/var/lib/tomcat/logs/kaui.out</code></p>
 </li>
 <li>
-<p>Kill Bill server logs: <code>/var/lib/tomcat/logs/catalina.out</code></p>
+<p>Kill Bill server log: <code>/var/lib/tomcat/logs/killbill.out</code></p>
+</li>
+<li>
+<p>Complete tomcat log: <code>/var/lib/tomcat/logs/catalina.out</code></p>
+</li>
+<li>
+<p>Access requests to the servers: <code>localhost_access_log*.txt</code></p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>Sometimes these logs will clearly show anomalies that will pinpoint the problem. If not you should forward your logs to Kill Bill for review.</p>
+<p>Sometimes these logs will clearly show anomalies that will pinpoint the problem. If not you should forward your logs to Kill Bill for review.Some of these logs may be very large, especially catalina.out.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_logging_configuration">Logging Configuration</h3>
+<div class="paragraph">
+<p>The logging configuration, including settings for log rotation and log levels, is defined in the <code>logback.xml file</code>. Separate <code>logback.xml</code> files are used for KB and Kaui, located at the following paths:</p>
+</div>
+<div class="paragraph">
+<p>KB logback file: <code>/var/lib/tomcat/webapps/ROOT/WEB-INF/classes/logback.xml</code>
+Kaui logback file: <code>/var/lib/tomcat/webapps2/ROOT/WEB-INF/classes/logback.xml</code></p>
+</div>
+<div class="paragraph">
+<p>These files can be modified to customize the logging settings for KB and Kaui. By default, the log level is configured as <code>INFO</code>.</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_status_reports">Status Reports</h3>
 <div class="paragraph">
-<p>When you launch each EC2 instance,  the following services should be enabled and running:</p>
+<p>When you launch the EC2 instance,  all required services should be enabled and running, including:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>An instance of Kill Bill server listening on port <code>8080</code> (and receiving external traffic through the ELB on port <code>8443</code>)</p>
+<p>An instance of <code>nginx</code> receiving traffic on port <code>443</code> and <code>8443</code></p>
 </li>
 <li>
-<p>An instance of Kaui listening on port <code>3000</code> (and receiving external traffic through the ELB on port <code>443</code>)</p>
+<p>An instance of Kill Bill server listening on <code>127.0.0.1:8080</code> (and receiving external traffic through nginx on port <code>8443</code>)</p>
+</li>
+<li>
+<p>An instance of Kaui listening on <code>127.0.0.1:3000</code> (and receiving external traffic through nginx on port <code>443</code>)</p>
+</li>
+<li>
+<p>A local <code>mysql</code> server running on port <code>3306</code></p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>The status of each service can be checked by the following commands:</p>
+<p>The status of nginx/KB/mysql services can be checked by the following commands:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -134,7 +159,10 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>Kill Bill service: <code>sudo service killbill status</code></p>
 </li>
 <li>
-<p>KAUI service: <code>sudo service kaui status</code></p>
+<p>Nginx service: <code>sudo service nginx status</code></p>
+</li>
+<li>
+<p>Mysql service: <code>sudo service mysql status</code></p>
 </li>
 </ul>
 </div>
@@ -145,7 +173,7 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p><code>Active: active (running) since Sat 2020-10-24 20:13:43 UTC; 1 day 1h ago</code></p>
 </div>
 <div class="paragraph">
-<p>You can <code>start</code> or <code>stop</code> the services using similar commands, such as <code>sudo service kaui stop</code> to stop Kaui. If any of these services are not active, try starting it using the appropriate command.</p>
+<p>You can <code>start</code> or <code>stop</code> the services using similar commands, such as <code>sudo service killbill stop</code> to stop Kill Bill. If any service is not active, try starting it using the appropriate command.</p>
 </div>
 <div class="paragraph">
 <p>If all services are running, the next step is to collect several reports.</p>
@@ -164,13 +192,84 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-s2">&quot;com.codahale.metrics.health.jvm.ThreadDeadlockHealthCheck&quot;</span>:<span class="tok-o">{</span><span class="tok-s2">&quot;healthy&quot;</span>:true<span class="tok-o">}</span>,
-<span class="tok-s2">&quot;main.pool.Connection99Percent&quot;</span>:<span class="tok-o">{</span><span class="tok-s2">&quot;healthy&quot;</span>:true<span class="tok-o">}</span>,
-<span class="tok-s2">&quot;main.pool.ConnectivityCheck&quot;</span>:<span class="tok-o">{</span><span class="tok-s2">&quot;healthy&quot;</span>:true<span class="tok-o">}</span>,
-...
-<span class="tok-s2">&quot;bus&quot;</span>:<span class="tok-o">{</span><span class="tok-s2">&quot;growing&quot;</span>:false<span class="tok-o">}</span>,
-<span class="tok-s2">&quot;overdue-service:overdue-check-queue&quot;</span>:<span class="tok-o">{</span><span class="tok-s2">&quot;growing&quot;</span>:false<span class="tok-o">}</span>,
-...</code></pre>
+<pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-w">  </span>%<span class="tok-w"> </span>Total<span class="tok-w">    </span>%<span class="tok-w"> </span>Received<span class="tok-w"> </span>%<span class="tok-w"> </span>Xferd<span class="tok-w">  </span>Average<span class="tok-w"> </span>Speed<span class="tok-w">   </span>Time<span class="tok-w">    </span>Time<span class="tok-w">     </span>Time<span class="tok-w">  </span>Current
+<span class="tok-w">                                 </span>Dload<span class="tok-w">  </span>Upload<span class="tok-w">   </span>Total<span class="tok-w">   </span>Spent<span class="tok-w">    </span>Left<span class="tok-w">  </span>Speed
+<span class="tok-m">100</span><span class="tok-w">  </span><span class="tok-m">1412</span><span class="tok-w">    </span><span class="tok-m">0</span><span class="tok-w">  </span><span class="tok-m">1412</span><span class="tok-w">    </span><span class="tok-m">0</span><span class="tok-w">     </span><span class="tok-m">0</span><span class="tok-w">  </span><span class="tok-m">54307</span><span class="tok-w">      </span><span class="tok-m">0</span><span class="tok-w"> </span>--:--:--<span class="tok-w"> </span>--:--:--<span class="tok-w"> </span>--:--:--<span class="tok-w"> </span><span class="tok-m">56480</span>
+<span class="tok-o">{</span>
+<span class="tok-w">  </span><span class="tok-s2">&quot;main.pool.ConnectivityCheck&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">    </span><span class="tok-s2">&quot;healthy&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">true</span>
+<span class="tok-w">  </span><span class="tok-o">}</span>,
+<span class="tok-w">  </span><span class="tok-s2">&quot;org.killbill.billing.server.healthchecks.KillbillHealthcheck&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">    </span><span class="tok-s2">&quot;healthy&quot;</span>:<span class="tok-w"> </span>true,
+<span class="tok-w">    </span><span class="tok-s2">&quot;message&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;OK&quot;</span>
+<span class="tok-w">  </span><span class="tok-o">}</span>,
+<span class="tok-w">  </span><span class="tok-s2">&quot;org.killbill.billing.server.healthchecks.KillbillPluginsHealthcheck&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">    </span><span class="tok-s2">&quot;healthy&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">true</span>
+<span class="tok-w">  </span><span class="tok-o">}</span>,
+<span class="tok-w">  </span><span class="tok-s2">&quot;org.killbill.billing.server.healthchecks.KillbillQueuesHealthcheck&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">    </span><span class="tok-s2">&quot;healthy&quot;</span>:<span class="tok-w"> </span>true,
+<span class="tok-w">    </span><span class="tok-s2">&quot;bus&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;overdue-service:overdue-check-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;notifications-retries:overdue-check-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;entitlement-service:entitlement-events&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;invoice-service:next-billing-date-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;notifications-retries:extBusEvent-listener&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;payment-service:janitor&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;externalBus&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;payment-service:retry&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;notifications-retries:next-billing-date-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;notifications-retries:payment-bus-handler&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;subscription-service:subscription-events&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;invoice-service:parent-invoice-commitment-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;server-service:push-notification-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;notifications-retries:overdue-async-bus-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;overdue-service:overdue-async-bus-queue&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;notifications-retries:payment-service&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;notifications-retries:invoice-listener&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">      </span><span class="tok-s2">&quot;growing&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">false</span>
+<span class="tok-w">    </span><span class="tok-o">}</span>
+<span class="tok-w">  </span><span class="tok-o">}</span>,
+<span class="tok-w">  </span><span class="tok-s2">&quot;osgi.pool.ConnectivityCheck&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">    </span><span class="tok-s2">&quot;healthy&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">true</span>
+<span class="tok-w">  </span><span class="tok-o">}</span>,
+<span class="tok-w">  </span><span class="tok-s2">&quot;shiro.pool.ConnectivityCheck&quot;</span>:<span class="tok-w"> </span><span class="tok-o">{</span>
+<span class="tok-w">    </span><span class="tok-s2">&quot;healthy&quot;</span>:<span class="tok-w"> </span><span class="tok-nb">true</span>
+<span class="tok-w">  </span><span class="tok-o">}</span>
+<span class="tok-o">}</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -190,36 +289,57 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-s2">&quot;nodeName&quot;</span>:<span class="tok-s2">&quot;ip 172-31-20-130.ec2.internal&quot;</span>,
-<span class="tok-s2">&quot;bootTime&quot;</span>:<span class="tok-s2">&quot;2023-01-28T20:30:19.000Z&quot;</span>,
-<span class="tok-s2">&quot;lastUpdatedDate&quot;</span>:<span class="tok-s2">&quot;2023-01-28T20:30:19.000Z&quot;</span>,
-<span class="tok-s2">&quot;kbVersion&quot;</span>:<span class="tok-s2">&quot;0.22.26&quot;</span>,
-<span class="tok-s2">&quot;apiVersion&quot;</span>:<span class="tok-s2">&quot;0.53.17&quot;</span>,
-<span class="tok-s2">&quot;pluginApiVersion&quot;</span>:<span class="tok-s2">&quot;0.26.4&quot;</span>,
-<span class="tok-s2">&quot;commonVersion&quot;</span>:<span class="tok-s2">&quot;0.24.15&quot;</span>,
-<span class="tok-s2">&quot;platformVersion&quot;</span>:<span class="tok-s2">&quot;0.40.8&quot;</span>,
-<span class="tok-s2">&quot;pluginsInfo&quot;</span>:
-<span class="tok-w">    </span><span class="tok-o">[{</span><span class="tok-s2">&quot;bundleSymbolicName&quot;</span>:<span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-kpm&quot;</span>,
-<span class="tok-w">      </span><span class="tok-s2">&quot;pluginKey&quot;</span>:null,
-<span class="tok-w">      </span><span class="tok-s2">&quot;pluginName&quot;</span>:<span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-kpm&quot;</span>,
-<span class="tok-w">      </span><span class="tok-s2">&quot;version&quot;</span>:null,
-<span class="tok-w">      </span><span class="tok-s2">&quot;state&quot;</span>:<span class="tok-s2">&quot;RUNNING&quot;</span>,
-<span class="tok-w">      </span><span class="tok-s2">&quot;isSelectedForStart&quot;</span>:true,
-<span class="tok-w">      </span><span class="tok-s2">&quot;services&quot;</span>:<span class="tok-o">[]}</span>,
-<span class="tok-w">    </span><span class="tok-o">{</span><span class="tok-s2">&quot;bundleSymbolicName&quot;</span>:<span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-logger&quot;</span>,
-<span class="tok-w">      </span><span class="tok-s2">&quot;pluginKey&quot;</span>:null,
-<span class="tok-w">      </span><span class="tok-s2">&quot;pluginName&quot;</span>:<span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-logger&quot;</span>,
-<span class="tok-w">      </span><span class="tok-s2">&quot;version&quot;</span>:null,
-<span class="tok-w">      </span><span class="tok-s2">&quot;state&quot;</span>:<span class="tok-s2">&quot;RUNNING&quot;</span>,
-<span class="tok-w">      </span><span class="tok-s2">&quot;isSelectedForStart&quot;</span>:true,
-<span class="tok-w">      </span><span class="tok-s2">&quot;services&quot;</span>:<span class="tok-o">[]}]</span></code></pre>
+<pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-o">[</span>
+<span class="tok-w">  </span><span class="tok-o">{</span>
+<span class="tok-w">    </span><span class="tok-s2">&quot;nodeName&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;ip-192-168-241-89.ec2.internal&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;bootTime&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;2024-07-11T07:30:59.000Z&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;lastUpdatedDate&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;2024-07-11T07:30:59.000Z&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;kbVersion&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;0.24.10&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;apiVersion&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;0.54.0&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;pluginApiVersion&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;0.27.1&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;commonVersion&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;0.26.2&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;platformVersion&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;0.41.9&quot;</span>,
+<span class="tok-w">    </span><span class="tok-s2">&quot;pluginsInfo&quot;</span>:<span class="tok-w"> </span><span class="tok-o">[</span>
+<span class="tok-w">      </span><span class="tok-o">{</span>
+<span class="tok-w">        </span><span class="tok-s2">&quot;bundleSymbolicName&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-kpm&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;pluginKey&quot;</span>:<span class="tok-w"> </span>null,
+<span class="tok-w">        </span><span class="tok-s2">&quot;pluginName&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-kpm&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;version&quot;</span>:<span class="tok-w"> </span>null,
+<span class="tok-w">        </span><span class="tok-s2">&quot;state&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;RUNNING&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;isSelectedForStart&quot;</span>:<span class="tok-w"> </span>true,
+<span class="tok-w">        </span><span class="tok-s2">&quot;services&quot;</span>:<span class="tok-w"> </span><span class="tok-o">[]</span>
+<span class="tok-w">      </span><span class="tok-o">}</span>,
+<span class="tok-w">      </span><span class="tok-o">{</span>
+<span class="tok-w">        </span><span class="tok-s2">&quot;bundleSymbolicName&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-logger&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;pluginKey&quot;</span>:<span class="tok-w"> </span>null,
+<span class="tok-w">        </span><span class="tok-s2">&quot;pluginName&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-logger&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;version&quot;</span>:<span class="tok-w"> </span>null,
+<span class="tok-w">        </span><span class="tok-s2">&quot;state&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;RUNNING&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;isSelectedForStart&quot;</span>:<span class="tok-w"> </span>true,
+<span class="tok-w">        </span><span class="tok-s2">&quot;services&quot;</span>:<span class="tok-w"> </span><span class="tok-o">[]</span>
+<span class="tok-w">      </span><span class="tok-o">}</span>,
+<span class="tok-w">      </span><span class="tok-o">{</span>
+<span class="tok-w">        </span><span class="tok-s2">&quot;bundleSymbolicName&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-metrics&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;pluginKey&quot;</span>:<span class="tok-w"> </span>null,
+<span class="tok-w">        </span><span class="tok-s2">&quot;pluginName&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;org.kill-bill.billing.killbill-platform-osgi-bundles-metrics&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;version&quot;</span>:<span class="tok-w"> </span>null,
+<span class="tok-w">        </span><span class="tok-s2">&quot;state&quot;</span>:<span class="tok-w"> </span><span class="tok-s2">&quot;RUNNING&quot;</span>,
+<span class="tok-w">        </span><span class="tok-s2">&quot;isSelectedForStart&quot;</span>:<span class="tok-w"> </span>true,
+<span class="tok-w">        </span><span class="tok-s2">&quot;services&quot;</span>:<span class="tok-w"> </span><span class="tok-o">[]</span>
+<span class="tok-w">      </span><span class="tok-o">}</span>
+<span class="tok-w">    </span><span class="tok-o">]</span>
+<span class="tok-w">  </span><span class="tok-o">}</span>
+<span class="tok-o">]</span></code></pre>
 </div>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_diagnostic_command">Diagnostic Command</h3>
 <div class="paragraph">
-<p>The <code>diagnostic</code> option of the <code>Kill Bill Package Manager (kpm)</code> command creates an extensive report for a given tenant that may be useful for troubleshooting. To run this command:</p>
+<p>The <code>diagnostic</code> option of the <code>Kill Bill Package Manager (kpm)</code> command creates an extensive report for a given tenant that may be useful for troubleshooting. See <a href="https://docs.killbill.io/latest/how-to-use-kpm-diagnostic">KPM Diagnostic Usage</a>.</p>
+</div>
+<div class="paragraph">
+<p>To run this command:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -229,14 +349,13 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <span class="tok-c1"># Run the command with your access credentials:</span>
 <span class="tok-c1">#</span>
 &gt;<span class="tok-w"> </span>kpm<span class="tok-w">  </span>diagnostic<span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>--killbill-credentials<span class="tok-o">=</span>&lt;ADMIN&gt;<span class="tok-w"> </span>&lt;INSTANCE_ID&gt;<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>--account-export<span class="tok-o">=</span>&lt;account_id&gt;<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>--killbill-credentials<span class="tok-o">=</span>&lt;ADMIN&gt;<span class="tok-w"> </span>&lt;PASSWORD&gt;<span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>--bundles-dir<span class="tok-o">=</span>/var/lib/killbill/bundles<span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>--database-name<span class="tok-o">=</span>killbill<span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>--database-credentials<span class="tok-o">=</span>&lt;DBUSER&gt;<span class="tok-w"> </span>&lt;DBPASS&gt;<span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>--killbill-api-credentials<span class="tok-o">=</span>&lt;KEY&gt;<span class="tok-w"> </span>&lt;SECRET&gt;<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>--killbill-web-path<span class="tok-o">=</span>/var/lib/tomcat/webapps<span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>--kaui-web-path<span class="tok-o">=</span>/var/lib/tomcat/webapps2<span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>--killbill-url<span class="tok-o">=</span>http://127.0.0.1:8080<span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>--database-host<span class="tok-o">=</span>&lt;DBURL&gt;:3306</code></pre>
+<span class="tok-w">  </span>--killbill-url<span class="tok-o">=</span>http://127.0.0.1:8080</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -245,29 +364,12 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Your Kaui admin username and your EC2 instance ID (&lt;ADMIN&gt; &lt;INSTANCE_ID&gt;)</p>
-</li>
-<li>
-<p>Your database credentials (&lt;DBUSER&gt; &lt;DBPASS&gt;)</p>
+<p>Your admin username and password</p>
 </li>
 <li>
 <p>The public key and secret key for your tenant (&lt;KEY&gt; &lt;SECRET&gt;)</p>
 </li>
-<li>
-<p>Your database URL (&lt;DBURL&gt;)</p>
-</li>
 </ol>
-</div>
-<div class="paragraph">
-<p>To restrict the report to a single account, you can add the line</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>--account-export<span class="tok-o">=</span>&lt;ACCOUNT_ID&gt;</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>replacing &lt;ACCOUNT_ID&gt; with the ID of the specific account to be included.</p>
 </div>
 <div class="paragraph">
 <p>The last line of the response should look like:</p>
@@ -279,6 +381,42 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>The specified zip file contains several reports of various sizes. This report can be downloaded to your computer using <code>sftp</code> and forwarded to Kill Bill for analysis.</p>
 </div>
 </div>
+<div class="sect2">
+<h3 id="_databases">Databases</h3>
+<div class="paragraph">
+<p>To access the RDS database, you can use the following command:</p>
+</div>
+<div class="paragraph">
+<p><code>mysql -h&lt;db-writer-endpont&gt; -u&lt;db-username&gt; -p&lt;db-password&gt;</code></p>
+</div>
+<div class="paragraph">
+<p>Replace <code>&lt;db-writer-endpont&gt;</code> with the DB writer endpoint and <code>&lt;db-username&gt;/&lt;db-password&gt;</code> with the database credentials obtained during the setup (<a href="https://docs.killbill.io/latest/how-to-set-up-a-multi-tier-system#_2_2_create_the_database_manager">Step 2.2</a>).</p>
+</div>
+<div class="paragraph">
+<p>This enables interactive access to the database manager. There is one <code>killbill</code> and one <code>kaui</code> database created and used by the respective applications. To verify the tables in each database, you can type:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="sql"><span></span><span class="tok-n">use</span><span class="tok-w"> </span><span class="tok-n">killbill</span>
+<span class="tok-k">show</span><span class="tok-w"> </span><span class="tok-n">tables</span><span class="tok-p">;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>or</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="sql"><span></span><span class="tok-n">use</span><span class="tok-w"> </span><span class="tok-n">kaui</span>
+<span class="tok-k">show</span><span class="tok-w"> </span><span class="tok-n">tables</span><span class="tok-p">;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Standard SQL commands can be used to explore or manipulate the tables. Be sure you know what you are doing, or the databases may become corrupted!</p>
+</div>
+<div class="paragraph">
+<p>To exit the mysql interactive mode, type <code>exit</code>.</p>
+</div>
+</div>
 </div>
 </div>
 <div class="sect1">
@@ -288,46 +426,123 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>Kill Bill defines a number of global properties and per-tenant properties that can be varied. These properties are explained in the <a href="https://docs.killbill.io/latest/userguide_configuration.html">Kill Bill and Kaui Configuration Guide</a>. Default values for these properties are built into the Kill Bill code; these values can be overridden by values defined in the file <code>/var/lib/killbill/config/killbill.properties</code>. For example, this is where you can change the database URL and credentials.</p>
 </div>
 <div class="paragraph">
-<p>This file also defines the location of the <code>shiro.ini</code> file, which by default is in the same directory. This file defines the Kill Bill admin credentials, along with any other users and their roles. See the <a href="https://docs.killbill.io/latest/user_management.html">Users, Roles, and Permissions Management</a> guide for details about this file.</p>
+<p>This file also defines the location of the <code>shiro.ini</code> file, which by default is in the <code>/var/lib/killbill/config</code> directory. The <code>shiro.ini</code> file defines the Kill Bill admin credentials, along with any other users and their roles. See the <a href="https://docs.killbill.io/latest/user_management.html">Users, Roles, and Permissions Management</a> guide for details about this file.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_upgrading">Upgrading</h2>
+<h2 id="_upgrades">Upgrades</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>From time to time new versions of Kill Bill are released. These versions can be incorporated in your installation with minimal impact on production. This section explains how to upgrade to a new version of Kill Bill. Note that these are <strong>not</strong> the same as new versions of the AMI, which can be incorporated only by a full reinstall.</p>
+<p>From time to time new versions of Kill Bill are released. These versions can be incorporated in your installation with minimal impact on production. This section explains how to upgrade to a new version of Kill Bill. Note that these are <strong>not</strong> the same as new versions of the AMI, which can be incorporated only by a full re-installation.</p>
 </div>
 <div class="paragraph">
-<p>First, login to your instance using <code>ssh</code>,</p>
-</div>
-<div class="paragraph">
-<p>Next, switch to the <code>tomcat</code> user:</p>
-</div>
-<div class="paragraph">
-<p><code>sudo su - tomcat</code></p>
-</div>
-<div class="paragraph">
-<p>The configuration file <code>/var/lib/killbill/kpm.yml</code> specifies the Kill Bill version (and its plugins) to be run on the instance. Once you edit this file to specify the new version number, it will be used automatically. Perform the following steps:</p>
+<p>You can upgrade KB using the following steps:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Edit the configuration file to update the version number</p>
+<p>Log in to your instance using <code>ssh</code>.</p>
 </li>
 <li>
-<p>Run the command <code>$KPM_INSTALL_KB_CMD</code></p>
+<p>Switch to the <code>tomcat</code> user:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>sudo<span class="tok-w"> </span>su<span class="tok-w"> </span>-<span class="tok-w"> </span>tomcat</code></pre>
+</div>
+</div>
 </li>
 <li>
-<p>Delete the cached directory <code>/var/lib/tomcat/webapps/ROOT</code></p>
+<p>Update <code>/var/lib/killbill/kpm.yml</code> with the appropriate KB version. For example, to upgrade to KB <code>0.24.9</code>, update this file as follows:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="yaml"><span></span><span class="tok-nt">killbill</span><span class="tok-p">:</span>
+<span class="tok-w">  </span><span class="tok-nt">version</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-l tok-l-Scalar tok-l-Scalar-Plain">0.24.9</span>
+<span class="tok-w">  </span><span class="tok-nt">plugins</span><span class="tok-p">:</span>
+<span class="tok-w">  </span><span class="tok-nt">plugins_dir</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-l tok-l-Scalar tok-l-Scalar-Plain">/var/lib/killbill/bundles</span>
+<span class="tok-w">  </span><span class="tok-nt">webapp_path</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-l tok-l-Scalar tok-l-Scalar-Plain">/var/lib/tomcat/webapps/ROOT.war</span></code></pre>
+</div>
+</div>
 </li>
 <li>
-<p>Restart the instance.</p>
+<p>Delete the cached <code>webapps/ROOT</code> directory:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>rm<span class="tok-w"> </span>-rf<span class="tok-w"> </span>/var/lib/tomcat/webapps/ROOT</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Run the following command to update KB:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-nv">$KPM_INSTALL_KB_CMD</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Restart KB:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>sudo<span class="tok-w"> </span>service<span class="tok-w"> </span>killbill<span class="tok-w"> </span>restart</code></pre>
+</div>
+</div>
 </li>
 </ol>
 </div>
 <div class="paragraph">
-<p>A similar process can be used for Kaui: update <code>/var/lib/kaui/kpm.yml</code>, run <code>$KPM_INSTALL_KAUI_CMD</code>, delete the cached directory <code>/var/lib/tomcat/webapps2/ROOT</code> and restart the instance.</p>
+<p>You can upgrade Kaui using the following steps:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Log in to your instance using <code>ssh</code>.</p>
+</li>
+<li>
+<p>Switch to the <code>tomcat</code> user:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>sudo<span class="tok-w"> </span>su<span class="tok-w"> </span>-<span class="tok-w"> </span>tomcat</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Update <code>/var/lib/kaui/kpm.yml</code> with the appropriate Kaui version. For example, to upgrade to Kaui <code>3.0.6</code>, edit this file as follows:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="yaml"><span></span><span class="tok-nt">kaui</span><span class="tok-p">:</span>
+<span class="tok-w">  </span><span class="tok-nt">version</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-l tok-l-Scalar tok-l-Scalar-Plain">3.0.6</span>
+<span class="tok-w">  </span><span class="tok-c1"># Used for the sha1.yml</span>
+<span class="tok-w">  </span><span class="tok-nt">plugins_dir</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-l tok-l-Scalar tok-l-Scalar-Plain">/var/lib/kaui/bundles</span>
+<span class="tok-w">  </span><span class="tok-nt">webapp_path</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-l tok-l-Scalar tok-l-Scalar-Plain">/var/lib/tomcat/webapps2/ROOT.war</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Delete the cached <code>webapps2/ROOT</code> directory:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>rm<span class="tok-w"> </span>-rf<span class="tok-w"> </span>/var/lib/tomcat/webapps2/ROOT</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Run the following command to update Kaui:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-nv">$KPM_INSTALL_KAUI_CMD</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Restart KB:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>sudo<span class="tok-w"> </span>service<span class="tok-w"> </span>killbill<span class="tok-w"> </span>restart</code></pre>
+</div>
+</div>
+</li>
+</ol>
 </div>
 </div>
 </div></div><div class="bottom-nav-links"><a href="#" id="prev-nav-link" class="bottom-nav-link card prev"><span class="arrow-icon left"><svg class="i-arrow" width="12" height="11" viewBox="0 0 12 11" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.19526 1.02876C4.45561 0.768409 4.87772 0.768409 5.13807 1.02876C5.39842 1.28911 5.39842 1.71122 5.13807 1.97157L2.27614 4.8335H11.3333C11.7015 4.8335 12 5.13197 12 5.50016C12 5.86835 11.7015 6.16683 11.3333 6.16683H2.27614L5.13807 9.02876C5.39842 9.28911 5.39842 9.71122 5.13807 9.97157C4.87772 10.2319 4.45561 10.2319 4.19526 9.97157L0.195261 5.97157C-0.0650883 5.71122 -0.0650883 5.28911 0.195261 5.02876L4.19526 1.02876Z" fill=""/></svg><span class="prev-text">Previous</span></span><span id="prev-navigator" class="bottom-nav-text">Prev</span>                               </a><a href="#" id="next-nav-link" class="bottom-nav-link card next"><span class="arrow-icon"><span class="next-text">Next</span><svg class="i-arrow icon-left" width="12" height="11" viewBox="0 0 12 11" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.19526 1.02876C4.45561 0.768409 4.87772 0.768409 5.13807 1.02876C5.39842 1.28911 5.39842 1.71122 5.13807 1.97157L2.27614 4.8335H11.3333C11.7015 4.8335 12 5.13197 12 5.50016C12 5.86835 11.7015 6.16683 11.3333 6.16683H2.27614L5.13807 9.02876C5.39842 9.28911 5.39842 9.71122 5.13807 9.97157C4.87772 10.2319 4.45561 10.2319 4.19526 9.97157L0.195261 5.97157C-0.0650883 5.71122 -0.0650883 5.28911 0.195261 5.02876L4.19526 1.02876Z" fill=""/></svg></span><span id="next-navigator" class="bottom-nav-text">Next</span></a></div></article></div><div class="bd-links-wrapper"><nav class="bd-links toc right-side-menu" id="myScrollspy" data-toggle="toc"></nav></div></div></div></div></div></main><script src="javascripts/jquery-3.6.1.min.js"></script><script src="javascripts/bootstrap.min.js"></script><script src="javascripts/bootstrap-toc.min.js"></script><script type="module" src="javascripts/kb.js"></script><script src="https://cdn.jsdelivr.net/npm/@docsearch/js@3"></script><script>docsearch({apiKey: '3ef227e7fd5e2e1a3fffd880484934bf', container: '#docsearch', appId: 'S2ISXITURI', indexName: 'killbill'});</script><script>
