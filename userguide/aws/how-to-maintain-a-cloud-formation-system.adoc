@@ -6,27 +6,30 @@ This guide discusses how to troubleshoot, maintain and upgrade your Kill Bill Cl
 
 Many of the steps you may want to take to troubleshoot and maintain your system require login and command line access to one or more of your EC2 instances. To enable this you will need to temporarily modify the corresponding security group.
 
-First, go to the *Instances* screen on your EC2 dashboard and select an instance to log in to. For most tasks you can use any one. Scroll to the right to see the security group associated with this instance. Click on the name of the group. Then select the tab labeled *Inbound Rules*. You should see:
-
+1. Go to the *Instances* screen on your EC2 dashboard and select an instance to log in to. For most tasks you can use any one. Scroll to the right to see the security group associated with this instance. Click on the name of the group. Then select the tab labeled *Inbound Rules*. You should see:
++
 image::../assets/aws/cf-security-group-1.png[align=center]
-
-Select *Add Rule* and add a rule with Type SSH, Source 0.0.0.0/0. The Port range will set automatically to 22. You should now see:
-
++
+2. Select *Add Rule* and add a rule with Type SSH, Source 0.0.0.0/0. The Port range will set automatically to 22. You should now see:
++
 image::../assets/aws/cf-security-group-2.png[align=center]
-
-To login, use the secure shell command:
-
-`ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP`
-
++
+3. Login using SSH as follows:
++
+[source,bash]
+----
+ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP
+----
++
 Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.
-
++
 On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 and 11, `ssh` is available but may need to be activated through the Settings screen.
-
-The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
-
++
+The first time you log in, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
++
 You will now be able to explore your instance and perform various configuration and maintenance tasks. Be careful, because you automatically have root (su) privileges. To exit from your login, type `exit`.
 
-It is a good idea to *remove* the extra security rule when you have no need to login.
+4. *Remove* the extra security rule when you have no need to login.
 
 
 == Troubleshooting
@@ -40,7 +43,7 @@ we provide some tips for debugging the issues. The stack will initially have a s
 that creating the stack will typically take on the order of 15-20 minutes, mostly because of the time it takes to set up the
 RDS cluster, so you need to be patient. If the final status is `CREATE_FAILED` you need to find out why.
 
-Check the *Resources* tab on the stack creation page to see which resources failed to create. If you have set the option to prevent rollback, most of the resources will usually have created successfully. If one or more EC2 instances were created, they should now be running, and you can login to one of them (any one) for further checks.
+Check the *Resources* tab on the stack creation page to see which resources failed to create. If you have set the option to prevent rollback, most of the resources will usually have created successfully. If one or more EC2 instances were created, they should now be running, and you can log in to one of them (any one) for further checks.
 
 If no instances are running, it is likely there is a problem with your template. Try once more, then contact `support@killbill.io`.
 
@@ -50,7 +53,7 @@ Your system keeps a variety of logs, and some of them are useful even during sta
 
 CloudFormation logs are found in the `/var/log` directory. First we recommend you check `/var/log/cfn-init.log`, which gives a summary of the startup events.  Next you may look at `/var/log/cfn-init-cmd.log` which breaks down the configuration command in more detail.
 
-Some other CFN logs are listed below. However these are more specialized and may be less helpful:
+Some other CFN logs are listed below. However, these are more specialized and may be less helpful:
 
 [source,bash]
 ----
@@ -60,14 +63,28 @@ Some other CFN logs are listed below. However these are more specialized and may
 /var/log/xray/xray.log
 ----
 
-The Kill Bill/Kaui server logs are located under `/var/lib/tomcat/logs/`. The most interesting of these are:
+include::{sourcedir}/aws/includes/logs.adoc[]
 
-* `killbill.out`: All Kill Bill server logs, configured as `INFO` by default
-* `kaui.out`: All Kaui server logs, configured as `INFO` by default
-* `localhost_access_log...`: Access requests to the servers
+=== Diagnostic Command
 
-The configuration of the logging (log rotation, log level, ...) can be found in `/var/lib/killbill/config/logback.xml`
+include::{sourcedir}/aws/includes/diagnostics.adoc[]
 
+
+=== Database Problems
+
+From any Kill Bill EC2 instance, it is possible to access the RDS Aurora database. On each node, there is a `mysql` client installed
+allowing database access. The database hostname can be obtained from the RDSCluster in the CFN Resources screen. On clicking RDSCluster, you can copy the DB endpoint details from the Connectivity & Security tab.
+
+Based on this info, the following command would allow you to get a `mysql` prompt:
+
+[source,bash]
+----
+> mysql -h mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com -u killbill -pkillbill killbill
+> show tables
+> ...
+----
+
+include::{sourcedir}/aws/includes/database.adoc[]
 
 === AWS Errors
 
@@ -79,49 +96,22 @@ Some errors could occur due to the organization of your AWS system or possible l
   * RDS Cluster failed to come up
   * ...
 
-Make sure thate you have setup a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation].
+Make sure that you have set up a valid VPC with valid subnets. Fow AWS specific issues, please refer to the https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/troubleshooting.html[AWS troubleshooting documentation].
 
 
 If you think there is an issue with the CloudFormation template itself, please report any issue to `support@killbill.io`.
 
-If you update any configuration file, you will need to restart the service. To do this, you can run the following commands:
+If you update any configuration file, you will need to restart the service. To do this, you can run the following command:
 
 [source,bash]
 ----
 # Restart  killbill server instance
-> service killbill restart
-# Restart  kaui server instance
-> service kaui restart
+> sudo service killbill restart
 ----
-
-=== Database Problems
-
-From any Kill Bill EC2 instance, it is possible to access the RDS Aurora database. On each node, there is a `mysql` client installed
-allowing database access. The database hostname can be obtained from the CFN Resources screen. This information can also be
-extracted from the `killbill.properties` file:
-
-[source,bash]
-----
-> grep 'org.killbill.dao' /var/lib/killbill/config/killbill.properties
-org.killbill.dao.password=killbill
-org.killbill.dao.url=jdbc:mysql:aurora://mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com:3306/killbill
-org.killbill.dao.user=killbill
-----
-
-Based on this info, the following command would allow you to get a `mysql` prompt:
-
-[source,bash]
-----
-> mysql -h mystack-test-rdscluster-1qwiqitatcb9m.cluster-cah16olm8gkg.us-east-1.rds.amazonaws.com -u killbill -pkillbill killbill
-> show tables
-> ...
-----
-
-You should ensure that the database is up and running, and the schemas are properly installed.
 
 == Maintenance
 
-If your installation has been running well but shows signs of slowing down or other problems, there are several commands you can use to assess its overall health. Thee commands can be used when you are logged in to any instance. Some should be run on all instances from time to time.
+If your installation has been running well but shows signs of slowing down or other problems, there are several commands you can use to assess its overall health. These commands can be used when you are logged in to any instance. Some should be run on all instances from time to time.
 
 === Service Health
 
@@ -137,170 +127,13 @@ Escape character is '^]'.
 
 This check may be needed on each of the KB and Kaui instances.
 
-For the Kill Bill servers specifically, some useful commands are:
+=== System Health Check
 
+include::{sourcedir}/aws/includes/healthcheck.adoc[]
 
-[source,bash]
-----
-# Check the status of various memory pools and queues
-> curl http://127.0.0.1:8080/1.0/healthcheck | jq
-----
+=== System Information
 
-Sample output:
-
-[source,bash]
-----
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-100  1164    0  1164    0     0  25866      0 --:--:-- --:--:-- --:--:-- 25866
-{
-  "main.pool.ConnectivityCheck": {
-    "healthy": true
-  },
-  "org.killbill.billing.server.healthchecks.KillbillHealthcheck": {
-    "healthy": true,
-    "message": "OK"
-  },
-  "org.killbill.billing.server.healthchecks.KillbillPluginsHealthcheck": {
-    "healthy": true
-  },
-  "org.killbill.billing.server.healthchecks.KillbillQueuesHealthcheck": {
-    "healthy": true,
-    "bus": {
-      "growing": false
-    },
-    "overdue-service:overdue-check-queue": {
-      "growing": false
-    },
-    "entitlement-service:entitlement-events": {
-      "growing": false
-    },
-    "invoice-service:next-billing-date-queue": {
-      "growing": false
-    },
-    "notifications-retries:extBusEvent-listener": {
-      "growing": false
-    },
-    "payment-service:janitor": {
-      "growing": false
-    },
-    "externalBus": {
-      "growing": false
-    },
-    "payment-service:retry": {
-      "growing": false
-    },
-    "notifications-retries:next-billing-date-queue": {
-      "growing": false
-    },
-    "subscription-service:subscription-events": {
-      "growing": false
-    },
-    "invoice-service:parent-invoice-commitment-queue": {
-      "growing": false
-    },
-    "server-service:push-notification-queue": {
-      "growing": false
-    },
-    "overdue-service:overdue-async-bus-queue": {
-      "growing": false
-    },
-    "notifications-retries:invoice-listener": {
-      "growing": false
-    }
-  },
-  "osgi.pool.ConnectivityCheck": {
-    "healthy": true
-  },
-  "shiro.pool.ConnectivityCheck": {
-    "healthy": true
-  }
-}
-----
-
-
-[source,bash]
-----
-# Check which Kill Bill & plugin versions are present
-> curl -u admin:KBADMINPASSWORD http://127.0.0.1:8080/1.0/kb/nodesInfo | jq
-----
-
-Sample output:
-
-[source,bash]
-----
-[
-  {
-    "nodeName": "ip-192-168-65-236.ec2.internal",
-    "bootTime": "2020-02-02T21:26:44.000Z",
-    "lastUpdatedDate": "2020-02-02T21:26:44.000Z",
-    "kbVersion": "0.22.1",
-    "apiVersion": "0.53.17",
-    "pluginApiVersion": "0.26.3",
-    "commonVersion": "0.23.7",
-    "platformVersion": "0.39.12",
-    "pluginsInfo": [
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-kpm",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      },
-      {
-        "bundleSymbolicName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
-        "pluginKey": null,
-        "pluginName": "org.kill-bill.billing.killbill-platform-osgi-bundles-logger",
-        "version": null,
-        "state": "RUNNING",
-        "isSelectedForStart": true,
-        "services": []
-      }
-    ]
-  }
-]
-----
-
-=== Diagnostic Command
-
-The `diagnostic` option of the `kpm` command creates an extensive report for a given tenant that may be useful for troubleshooting. To run this command:
-
-[source,bash]
-----
-# Login as 'tomcat'
-> sudo su - tomcat
-#
-# Details about DB host can be extracted from '/var/lib/killbill/config/killbill.properties'
-#
-# Run the command with your access credentials:
-#
-> kpm  diagnostic \
-  --killbill-credentials=ADMIN PASSWORD \
-  --bundles-dir=/var/lib/killbill/bundles \
-  --database-name=killbill \
-  --database-credentials=DBUSER DBPASS \
-  --killbill-api-credentials=KEY SECRET \
-  --killbill-web-path=/var/lib/tomcat/webapps \
-  --database-host=DBHOST
-----
-
-You will need to edit this command to include:
-
-1. Your KAUI username and password (ADMIN PASSWORD)
-2. Your database credentials (DBUSER DBPASS)
-3. The key and secret key for your tenant (KEY SECRET)
-4. Your database host (see  `/var/lib/killbill/config/killbill.properties` )
-
-The last line of the response should look like:
-
-[source,bash]
-----
-Diagnostic data exported under /tmp/killbill-diagnostics-20200212-26849-c0rrz3/killbill-diagnostics-02-12-20.zip
-----
-
-Note that there is also a `--account-export=<account_id>` flag to export the data associated with a specific Kill Bill `account_id`.
+include::{sourcedir}/aws/includes/system-information.adoc[]
 
 
 == Upgrading
