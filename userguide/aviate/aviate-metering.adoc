@@ -3,3 +3,76 @@
 include::{sourcedir}/aviate/includes/aviate-card.adoc[]
 
 == Introduction
+
+The Aviate plugin offers metering capabilities. The https://apidocs.killbill.io/usage[Kill Bill core usage APIs] support recording rolled-up usage data. However, any required aggregation must be performed outside Kill Bill. With the introduction of the metering feature, aggregation can now occur directly within Kill Bill. Thus, this feature allows users to be charged based on aggregated units seamlessly.
+
+The Aviate Metering feature introduces the concept of a https://killbill.github.io/slate/aviate-metering-apis.html#billingmeter[BillingMeter] and a https://killbill.github.io/slate/aviate-metering-apis.html#usageevent[UsageEvent]. A `BillingMeter` encapsulates information about how usages should be aggregated. A `UsageEvent` represents a single usage. Each `UsageEvent` has an associated `BillingMeter`. The `UsageEvents` are then aggregated based on the aggregation type specified in the associated `BillingMeter`.
+
+== Getting Started with Aviate Metering
+
+This section provides a step-by-step approach to start using the Aviate Metering feature.
+
+=== Installing the Plugin
+
+The Aviate plugin can be installed as documented in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] doc.
+
+=== Enabling Aviate Metering
+
+To use the metering capabilities provided by the Aviate plugin, ensure that KB is started with the following property:
+
+[source,bash]
+----
+com.killbill.billing.plugin.aviate.enableUsageApis=true
+----
+
+Refer to the https://docs.killbill.io/latest/userguide_configuration.html[__Kill Bill Configuration Guide__] to know more about setting configuration properties.
+
+=== Using Metering APIs
+
+Once the aviate plugin is installed and the metering feature is enabled, you can start using the Aviate Metering APIs. These APIs enable creation of billing meters and usage recording. They are documented in our https://apidocs.killbill.io/aviate-metering-apis[api docs].
+
+## A Metering Example
+
+This section explains how metering works with an example.
+
+Assume that we would like to track the cellphone minutes consumed by a user. We can create a `BillingMeter` as follows:
+
+[source, json]
+-----
+{
+    "name": "cell-phone-minutes",
+    "code": "cell-phone-minutes",
+	"eventKey": "minutes",
+    "aggregationType": "SUM"
+}
+-----
+
+Note that the `SUM` aggregationType is used.
+
+UsageEvents can then be recorded corresponding to the cellphone minutes actually consumed by the user.
+
+For example, consider the following UsageEvents:
+
+[source, json]
+-----
+# event1 - User consumed 10.5 minutes on 2025-01-01T10:30
+{
+    "billingMeterCode": "cell-phone-minutes",
+    "subscriptionId": "8e242ddd-eff9-41d9-b8ca-b2ed77b98da3",
+    "trackingId": "t1",
+    "timestamp": "2025-01-01T10:30",
+    "value": 10.5
+}
+# event2 - User consumed 15 minutes on 2025-02-01T11:45
+{
+    "billingMeterCode": "cell-phone-minutes",
+    "subscriptionId": "8e242ddd-eff9-41d9-b8ca-b2ed77b98da3",
+    "trackingId": "t2",
+    "timestamp": "2025-02-01T11:45",
+    "value": 15
+}
+-----
+The above JSON snippet specifies two UsageEvents. The value of the `value` field is aggregated based on the `aggregationType` in the associated BillingMeter. In the example above, the `SUM` aggregationType is used, so the values are added and the aggregated usage comes to `10.5+15=25.5`.
+
+[NOTE]
+*Note:* At the time of writing, the `eventType` and `eventFilters` fields in the `BillingMeter` are not implemented.
