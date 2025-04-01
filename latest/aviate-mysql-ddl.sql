@@ -17,7 +17,7 @@ create table aviate_event_categories (
 , event_group varchar(256) not null
 , event_category varchar(256) not null
 ) /*! CHARACTER SET utf8mb4 COLLATE utf8mb4_bin */;
-create unique index event_category_unq on aviate_event_categories(event_group, event_category);
+CREATE UNIQUE INDEX event_category_unq ON aviate_event_categories(event_category);
 
 create table aviate_sample_kinds (
   sample_kind_id serial
@@ -252,6 +252,7 @@ create table aviate_catalog_prices (
     price_type varchar(12) not null,
     plan_phase_id bigint /*! unsigned */ not null,
     plan_record_id bigint /*! unsigned */ not null,
+    tier_blocks_record_id bigint /*! unsigned*/ default null,
     created_by varchar(50) not null,
     created_date datetime not null,
     account_id varchar(36),
@@ -277,6 +278,90 @@ create table aviate_catalog_plans (
 ) /*! CHARACTER SET utf8mb4 COLLATE utf8mb4_bin */;
 create index aviate_catalog_plans_tenant_account_idx on aviate_catalog_plans(tenant_id, account_id);
 create unique index aviate_catalog_plans_plan_shapes_idx on aviate_catalog_plans(tenant_id, plan_shapes_record_id, eff_date);
+
+create table aviate_catalog_usages (
+    record_id serial unique,
+    name varchar (255) not null,
+    pretty_name varchar(255) not null,
+    billing_mode varchar(12) not null,
+    usage_type varchar(12) not null,
+    billing_period varchar(50),
+    plan_phase_record_id bigint /*! unsigned */ not null,
+    created_by varchar(50) not null,
+    created_date datetime not null,
+    account_id varchar(36),
+    tenant_id varchar(36) not null,
+    PRIMARY KEY(record_id)
+) /*! CHARACTER SET utf8mb4 COLLATE utf8mb4_bin */;
+create index aviate_catalog_usages_tenant_account_idx on aviate_catalog_usages(tenant_id, account_id);
+
+
+create table aviate_catalog_tier_blocks (
+    record_id serial unique,
+    billing_meter_code varchar(50) not null,
+    max_value numeric(15,9) not null,
+    size_value int not null,
+    tier_number int not null,
+    usage_record_id bigint /*! unsigned */ not null,
+    created_by varchar(50) not null,
+    created_date datetime not null,
+    account_id varchar(36),
+    tenant_id varchar(36) not null,
+    PRIMARY KEY(record_id)
+) /*! CHARACTER SET utf8mb4 COLLATE utf8mb4_bin */;
+create index aviate_catalog_tier_blocks_tenant_account_idx on aviate_catalog_tier_blocks(tenant_id, account_id);
+
+create table aviate_billing_meters (
+    record_id serial unique,
+    name varchar (255) not null,
+    code varchar(255) not null,
+    event_key varchar(255) not null,
+    event_filters varchar(255) default null,
+    aggregation_type varchar(50) not null,
+    created_by varchar(50) not null,
+    created_date datetime not null,
+    account_id varchar(36),
+    tenant_id varchar(36) not null,
+    PRIMARY KEY(record_id)
+) /*! CHARACTER SET utf8mb4 COLLATE utf8mb4_bin */;
+create index aviate_billing_meters_tenant_account_idx on aviate_billing_meters(tenant_id, account_id);
+create unique index aviate_billing_meters_code_idx on aviate_billing_meters(tenant_id, code);
+
+create table aviate_invoice_sequences (
+  record_id serial
+, invoice_sequence integer not null
+, kb_invoice_id char(36) not null
+, kb_account_id char(36) not null
+, prefix varchar(255) default null
+, suffix varchar(255) default null
+, retired bool default false
+, created_at datetime not null
+, updated_at datetime not null
+, kb_tenant_id char(36) not null
+, primary key(record_id)
+) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+create index aviate_invoice_sequences_kb_tenant_id on aviate_invoice_sequences(kb_tenant_id);
+create index aviate_invoice_sequences_kb_tenant_account_id on aviate_invoice_sequences(kb_tenant_id, kb_account_id);
+create unique index aviate_invoice_sequences_kb_tenant_invoice_id on aviate_invoice_sequences(kb_tenant_id, kb_invoice_id);
+
+CREATE TABLE aviate_ledger_entries (
+    record_id serial,
+    source_id varchar(36) not null, /* wallet-id */
+    currency varchar(3) default null,
+    origin_amount numeric(15,9) not null,
+    remain_amount numeric(15,9) not null,
+    credit_type varchar(24) not null,
+    description varchar(255),
+    created_date datetime not null,
+    expires_date datetime default null,
+    parent_record_id bigint default null,
+    kb_invoice_id char(36) default null,
+    account_id varchar(36) not null,
+    tenant_id varchar(36) not null,
+    PRIMARY KEY(record_id)
+);
+create index aviate_ledger_entries_idx on aviate_ledger_entries(tenant_id, account_id);
+create index aviate_ledger_entries_parent_idx on aviate_ledger_entries(parent_record_id);
 
 delimiter //
 create procedure create_aviate_calendar(calendar_from date, calendar_to date)
