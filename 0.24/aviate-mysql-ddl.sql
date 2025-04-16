@@ -344,24 +344,88 @@ create index aviate_invoice_sequences_kb_tenant_id on aviate_invoice_sequences(k
 create index aviate_invoice_sequences_kb_tenant_account_id on aviate_invoice_sequences(kb_tenant_id, kb_account_id);
 create unique index aviate_invoice_sequences_kb_tenant_invoice_id on aviate_invoice_sequences(kb_tenant_id, kb_invoice_id);
 
-CREATE TABLE aviate_ledger_entries (
+
+create table aviate_wallets (
     record_id serial,
-    source_id varchar(36) not null, /* wallet-id */
+    wallet_id varchar(36) not null,
     currency varchar(3) default null,
+    live_balance numeric(15,9) not null,
+    top_off_type varchar(24) not null,
+    top_off_watermark numeric(15,9) not null,
+    top_off_amount numeric(15,9) not null,
+    top_off_exp_duration_unit varchar(30),
+    top_off_exp_duration_length int default null,
+    created_date datetime not null,
+    updated_date datetime not null,
+    account_id varchar(36) not null,
+    tenant_id varchar(36) not null,
+    PRIMARY KEY(record_id)
+);
+create index aviate_wallets_idx on aviate_wallets(tenant_id, account_id);
+create unique index aviate_wallets_id_idx on aviate_wallets(wallet_id);
+
+ create table aviate_ledger_entries (
+    record_id serial,
+    wallet_record_id bigint not null,
     origin_amount numeric(15,9) not null,
     remain_amount numeric(15,9) not null,
     credit_type varchar(24) not null,
     description varchar(255),
-    created_date datetime not null,
     expires_date datetime default null,
     parent_record_id bigint default null,
     kb_invoice_id char(36) default null,
+    kb_payment_id char(36) default null,
+    created_date datetime not null,
+    updated_date datetime not null,
     account_id varchar(36) not null,
     tenant_id varchar(36) not null,
     PRIMARY KEY(record_id)
 );
 create index aviate_ledger_entries_idx on aviate_ledger_entries(tenant_id, account_id);
 create index aviate_ledger_entries_parent_idx on aviate_ledger_entries(parent_record_id);
+create index aviate_ledger_entries_kb_invoice_not_null_idx on aviate_ledger_entries(kb_invoice_id) /* regular index although kb_invoice_id may be null */;
+
+create table aviate_notifications (
+  record_id serial unique
+, class_name varchar(256) not null
+, event_json varchar(2048) not null
+, user_token varchar(36)
+, created_date datetime not null
+, creating_owner varchar(50) not null
+, processing_owner varchar(50) default null
+, processing_available_date datetime default null
+, processing_state varchar(14) default 'AVAILABLE'
+, error_count int /*! unsigned */ DEFAULT 0
+, search_key1 int /*! unsigned */ default null
+, search_key2 int /*! unsigned */ default null
+, queue_name varchar(64) not null
+, effective_date datetime not null
+, future_user_token varchar(36)
+, primary key(record_id)
+) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
+create index aviate_notifications_comp_where on aviate_notifications(effective_date, processing_state, processing_owner, processing_available_date);
+create index aviate_notifications_update on aviate_notifications(processing_state,processing_owner,processing_available_date);
+create index aviate_notifications_get_ready on aviate_notifications(effective_date,created_date);
+create index aviate_notifications_search_keys on aviate_notifications(search_key2, search_key1);
+
+create table aviate_notifications_history (
+  record_id serial unique
+, class_name varchar(256) not null
+, event_json varchar(2048) not null
+, user_token varchar(36)
+, created_date datetime not null
+, creating_owner varchar(50) not null
+, processing_owner varchar(50) default null
+, processing_available_date datetime default null
+, processing_state varchar(14) default 'AVAILABLE'
+, error_count int /*! unsigned */ DEFAULT 0
+, search_key1 int /*! unsigned */ default null
+, search_key2 int /*! unsigned */ default null
+, queue_name varchar(64) not null
+, effective_date datetime not null
+, future_user_token varchar(36)
+, primary key(record_id)
+) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 
 delimiter //
 create procedure create_aviate_calendar(calendar_from date, calendar_to date)
