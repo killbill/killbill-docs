@@ -1,0 +1,277 @@
+= Usage Tutorial - AI Use Case
+
+include::{sourcedir}/aviate/includes/aviate-card.adoc[]
+
+== Introduction
+
+This tutorial shows how to use the Aviate APIs together with open-source Kill Bill APIs to address usage-based billing scenarios.
+
+Kill Bill already supports sophisticated catalogs, usage-based plans, and automated invoicing. Aviate extends these capabilities with:
+
+* A scalable metering system for capturing usage data points.
+* Wallet functionality integrated with Kill Bill to manage credit pools and balances.
+* Advanced product and plan management, also integrated with Kill Bill.
+
+In this example, we simulate an AI use cases where input tokens are recorded as usage and billed periodically via paid credits.
+
+== Prerequisites
+
+You will need:
+
+* A running Kill Bill with the Aviate plugin installed.
+* A valid API access tokens for all Aviate APIs calls - referred to is `ID_TOKEN`
+
+== Setup: Configuring a Tenant
+
+=== Step 1: Create a tenant
+
+We start by creating a tenant `usage-scenario`.
+
+Use the standard Kill Bill API: https://killbill.github.io/slate/tenant.html#create-a-tenant
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "Content-Type: application/json" \
+-H "Accept: application/json" \
+-H "X-Killbill-CreatedBy: demo" \
+-d '{ "apiKey": "usage-scenario", "apiSecret": "usage-scenario" }' \
+"http://127.0.0.1:8080/1.0/kb/tenants"
+-----
+
+=== Step 2: Create a billing meter
+
+A BillingMeter defines how usage points are filtered and aggregated. Before creating a Plan with usage, a valid billing meter must exist. This is a new abstraction in Aviate that extends the default capabilities from Kill Bill open-source.
+
+For reference, this uses the https://docs.killbill.io/latest/aviate-metering[aviate metering capabilities].
+
+[source,bash]
+-----
+curl -X POST \
+-H 'Content-Type: application/json' \
+-H "Authorization: Bearer ${ID_TOKEN}" \
+-H 'X-killbill-apiKey: usage-scenario' \
+-H 'X-killbill-apisecret: usage-scenario' \
+-d '[{"name": "Input Tokens (per Million)", "code": "input-M-tokens", "eventKey": "input.tokens", "aggregationType": "SUM"}]' \
+http://127.0.0.1:8080/plugins/aviate-plugin/v1/metering/billingMeters
+-----
+
+=== Step 3: Create a simple catalog with one Plan
+
+The Plan includes a usage section linked to the billing meter. The usage section will look like the following:
+
+* We see the billing period to be `MONTHLY`
+* We can see the reference to the `billingMeter#Code`
+* We see one tier configured with a package size of 1 million.
+* We see the price matrix, which in our case is set to be $2
+
+[source,bash]
+-----
+"usages": [
+  {
+    "usageName": "usage-monthly-1",
+    "usageType": "CONSUMABLE",
+    "billingPeriod": "MONTHLY",
+    "tiers": [
+      {
+        "tierNumber": 1,
+        "blocks": [
+          {
+            "billingMeterCode": "input-M-tokens",
+            "size": 1000000,
+            "max": -1,
+            "prices": [{"currency": "USD", "value": "2.0"}]
+          }
+        ]
+      }
+    ]
+  }
+]
+-----
+
+For reference, this uses the https://docs.killbill.io/latest/aviate-catalog-plugin[aviate catalog capabilities].
+
+
+The full paylaod and API call can be seens below:
+
+Use aviate API: https://killbill.github.io/slate/aviate-catalog.html#create-plan-product-pricelist
+
+[source,bash]
+-----
+curl -X POST \
+-H 'Content-Type: application/json' \
+-H "Authorization: Bearer ${ID_TOKEN}" \
+-H "X-killbill-apiKey: usage-scenario" \
+-H "X-killbill-apisecret: usage-scenario" \
+-d '{"plans":[{"name":"usage-monthly","prettyName":"Usage Monthly Scenario","recurringBillingMode":"IN_ADVANCE","pricelistName":"DEFAULT","productName":"UsageDemo","phases":[{"prettyName":"Premium Annual Evergreen","type":"EVERGREEN","durationUnit":"UNLIMITED","durationLength":-1,"usages":[{"usageName":"usage-monthly-1","usageType":"CONSUMABLE","billingPeriod":"MONTHLY","tiers":[{"tierNumber":1,"blocks":[{"billingMeterCode":"input-M-tokens","size":1000000,"max":-1,"prices":[{"currency":"USD","value":"2.0"}]}]}]}]}]}],"products":[{"name":"UsageDemo","category":"BASE"}]}' \
+http://127.0.0.1:8080/plugins/aviate-plugin/v1/catalog/inputData
+
+-> {"catalogName":"","plans":[{"name":"usage-monthly","prettyName":"Usage Monthly Scenario","recurringBillingMode":"IN_ADVANCE","effectiveDate":"2025-05-01T00:41:30.000Z","effectiveDateForExistingSubscriptions":"","productName":"UsageDemo","pricelistName":"DEFAULT","retired":false,"phases":[{"prettyName":"Premium Annual Evergreen","type":"EVERGREEN","durationUnit":"UNLIMITED","durationLength":-1,"fixedPrices":[],"usages":[{"usageName":"usage-monthly-1","prettyName":"","usageType":"CONSUMABLE","billingPeriod":"MONTHLY","tierBlockPolicy":"","tiers":[{"tierNumber":1,"blocks":[{"billingMeterCode":"input-M-tokens","size":1000000,"max":-1,"prices":[{"currency":"USD","value":"2.000000000"}]}]}]}]}]}],"products":[{"name":"UsageDemo","prettyName":"","category":"BASE","availableForBps":[],"availableAddons":[]}]}
+-----
+
+== Creating a Customer Account
+
+=== Step 1: Create an account
+
+Use the standard Kill Bill API:https://killbill.github.io/slate/account.html#create-an-account
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+-H "Content-Type: application/json" \
+-d '{ "name": "John Doe", "email": "john.doe@somewhere.com", "currency": "USD" }' \
+"http://127.0.0.1:8080/1.0/kb/accounts"
+-----
+
+=== Step 2: Add a default payment method
+
+Use the standard Kill Bill API: https://killbill.github.io/slate/account.html#add-a-payment-method
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+-H "Content-Type: application/json" \
+-d '{ "externalKey": "ExternalKey", "pluginName": "__EXTERNAL_PAYMENT__" }' \
+"http://127.0.0.1:8080/1.0/kb/accounts/{accountId}/paymentMethods"
+-----
+
+Note that we did not pass the query parameter `?isDefault=true`, meaning there is no default payment method on the account.
+
+=== Step 3: Create a subscription using the usage plan previously created
+
+Use the standard Kill Bill API: https://apidocs.killbill.io/subscription#create-a-subscription
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+-H "Content-Type: application/json" \
+-d '{ "accountId": "{accountId}", "planName": "usage-monthly" }' \
+"http://127.0.0.1:8080/1.0/kb/subscriptions"
+-----
+
+=== Step 4: Create a wallet for the account
+
+We create a wallet and initialize it with some paid initial credits, that will result in a Kill Bill invoice and a matching payment using the default payment method on the account. If somehow the payment fails, the credits are not made available; if later a new payment attempt is made and succeeds, credits become available.
+
+We also configure the wallet to replenish when available credits go below `$5` and set a target amount to `$10`; this replenish the wallet to bring it back to its original level every time it drops to `$5`.
+
+Finally, we also set some expiration dates on these credits as indicated in the call below.
+
+For reference, this uses the https://docs.killbill.io/latest/aviate-wallet[aviate wallet capabilities]
+
+[source,bash]
+-----
+curl -v -X POST \
+-H "Authorization: Bearer ${ID_TOKEN}" \
+-H "X-Killbill-ApiKey: usage-scenario" \
+-H 'Content-Type: application/json' \
+-d '{ "kbAccountId": "{accountId}", "currency": "USD", "initCredit": { "creditType": "CREDIT_PAID", "amount": "10.00", "expDate": "2025-12-31T00:00:00Z" }, "topOff": { "topOffType": "TOP_OFF_TARGET", "lowWatermark": "5.00", "amount": "10.00", "expDurationUnit": "MONTHS", "expDurationLength": 3 } }' \
+http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet
+-----
+
+Note that we see a `WALLET_PAYMENT_FAILED` status because we did not pass the query parameter `?isDefault=true` when adding the payment method. The wallet was created, but the initial credits are not yet made available.
+
+
+== Recording Usage Points
+
+=== Step 1: Record usage points
+
+For reference, this uses the https://docs.killbill.io/latest/aviate-metering[aviate metering capabilities]
+
+[source,bash]
+-----
+curl -v -X POST \
+-H "Authorization: Bearer ${ID_TOKEN}" \
+-H 'Content-Type: application/json' \
+-H "X-killbill-apiKey: usage-scenario" \
+-H "X-killbill-apisecret: usage-scenario" \
+-d '[{"billingMeterCode": "input-M-tokens", "subscriptionId": "{subscriptionId}", "timestamp": "2025-05-01T05:30:00.000Z", "value": 100000}]' \
+http://127.0.0.1:8080/plugins/aviate-plugin/v1/metering/billing/{tenantId}
+-----
+
+=== Step 2: Fetch usage points
+
+Use the standard Kill Bill API: https://apidocs.killbill.io/usage#retrieve-usage-for-a-subscription
+
+[source,bash]
+-----
+curl -v -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+"http://127.0.0.1:8080/1.0/kb/usages/{subscriptionId}?startDate=2025-05-01&endDate=2025-05-31"
+-----
+
+== Invoicing Usage
+
+=== Step 1: Trigger invoice
+
+Use the standard Kill Bill API: https://apidocs.killbill.io/invoice#trigger-an-invoice-run
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+-H "Content-Type: application/json" \
+"http://127.0.0.1:8080/1.0/kb/invoices?accountId={accountId}&targetDate=2025-06-01"
+
+<{"subscriptionId":"349b6a64-1b55-4285-8021-4ef70fda2266","startDate":"2025-05-01T00:00:00.000Z","endDate":"2025-05-31T00:00:00.000Z","rolledUpUnits":[{"unitType":"input.tokens","amount":2000001.0}]}
+-----
+
+=== Step 2: Fetch invoice
+
+Use the standard Kill Bill API: https://apidocs.killbill.io/invoice#retrieve-an-invoice-by-id
+
+[source,bash]
+-----
+curl -v -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+"http://127.0.0.1:8080/1.0/kb/invoices/{invoiceId}"
+-----
+
+== Payment Retry and Credit Activation
+
+=== Step 1: Set default payment method
+
+Use the standard Kill Bill API: https://killbill.github.io/slate/account.html#set-the-default-payment-method
+
+[source,bash]
+-----
+curl -v -X PUT -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+"http://127.0.0.1:8080/1.0/kb/accounts/{accountId}/paymentMethods/{paymentMethodId}/setDefault"
+-----
+
+=== Step 2: Retry invoice payment
+
+Use the standard Kill Bill API: https://killbill.github.io/slate/invoice.html#trigger-a-payment-for-an-invoice
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "X-Killbill-ApiKey: usage-scenario" \
+-d '{ "accountId": "{accountId}", "purchasedAmount": 10, "targetInvoiceId": "{invoiceId}" }' \
+"http://localhost:8080/1.0/kb/invoices/{invoiceId}/payments"
+-----
+
+=== Step 3: Fetch wallet accounts
+
+https://apidocs.killbill.io/aviate-wallet#retrieve-wallets-for-user-account
+
+[source,bash]
+-----
+curl -X GET \
+-H "Authorization: Bearer ${ID_TOKEN}" \
+-H 'X-Killbill-ApiKey: usage-scenario' \
+http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet/{accountId}
+-----
+
+Credits will now be available for future usage invoicing. You can repeat the same steps to insert more usage points on the next billing period, recreate a future invoice and verify this is the case.
+
+
+
+
+
+
+
