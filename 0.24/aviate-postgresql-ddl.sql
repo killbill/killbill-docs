@@ -178,7 +178,6 @@ create table aviate_billing_accounts (
 , primary key(record_id)
 );
 create index aviate_billing_accounts_billing_account_id on aviate_billing_accounts(billing_account_id);
-create index aviate_billing_accounts_account_id_idx on aviate_billing_accounts(account_id);
 create index aviate_billing_accounts_tenant_account_idx on aviate_billing_accounts(tenant_id, account_id);
 
 create table aviate_tax_registrations (
