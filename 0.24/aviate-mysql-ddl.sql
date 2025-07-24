@@ -350,7 +350,6 @@ create table aviate_invoice_sequences (
 , tenant_id char(36) not null
 , primary key(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
-create index aviate_invoice_sequences_tenant_id_idx on aviate_invoice_sequences(tenant_id);
 create unique index aviate_invoice_sequences_tenant_id_invoice_id_idx on aviate_invoice_sequences(tenant_id, kb_invoice_id);
 create index aviate_invoice_sequences_tenant_account_idx on aviate_invoice_sequences(tenant_id, account_id);
 
