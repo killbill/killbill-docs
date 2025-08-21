@@ -1,0 +1,810 @@
+= AvaTax Plugin
+
+The https://github.com/killbill/killbill-avatax-plugin[AvaTax Plugin] is a Kill Bill tax plugin for https://www.avalara.com/us/en/products/calculations.html[Avalara AvaTax]. It delegates computation of sales taxes to Avalara AvaTax. Such tax items will appear directly on Kill Bill invoices.
+
+== Prerequisites
+
+* Ensure that you have Kill Bill, Kaui, and the database set up as explained in the https://docs.killbill.io/latest/getting_started.html[__Getting Started Guide__].
+
+* Ensure that you have https://curl.haxx.se/[_cURL_] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[_Git Bash_] to run the `cURL` commands.
+
+== Overview
+
+The https://github.com/killbill/killbill-avatax-plugin[AvaTax Plugin] integrates
+the Avalara tax engine with Kill Bill. It automatically calculates taxes during
+invoice generation by sending invoice information to Avalara and adding the
+corresponding tax items back to the invoice.
+
+By default, the plugin uses the zip code specified on the Kill Bill account to
+compute taxes. In addition, it provides several advanced features:
+
+- Marking an account as exempt
+- Configuring taxation using
+https://developer.avalara.com/avatax/dev-guide/product-taxability/[Avalara-specific tax codes]
+- APIs to manipulate product tax codes
+- APIs to retrieve, commit, and void Avalara transactions
+//TODO - shipping address
+
+Each of these features is explained in the <<plugin_features, Plugin Features>>
+section below.
+
+
+== How it Works
+
+For developers, the AvaTax plugin is implemented as a
+https://docs.killbill.io/latest/invoice_plugin[Kill Bill Invoice Plugin].
+It implements the
+https://github.com/killbill/killbill-plugin-api/blob/a20776687fc61ce4ca94d84e2b117e4cce0a255c/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java#L39[getAdditionalInvoiceItems]
+method.
+
+**Execution Flow**
+
+1. Kill Bill generates an invoice and invokes the plugin.
+2. Kill Bill passes all invoice items to the plugin.
+3. The plugin forwards the items to Avalara.
+4. Avalara calculates applicable taxes and returns tax items.
+5. The plugin adds these tax items back to the invoice.
+
+**Field Mapping**
+
+Here is how the main Avalara fields map to Kill Bill:
+
+- **Customer Code** → Kill Bill account external key (if present), otherwise account id
+- **Description** → Kill Bill invoice id
+- **Line item number** → Kill Bill invoice item id
+- **Line item code** → Kill Bill invoice item description, or the plan, phase, or usage name (first non-null)
+- **Line item Ref1** → Kill Bill invoice item id
+- **Line item Ref2** → Kill Bill invoice id
+
+== Plugin Installation
+
+You can install the plugin as explained in the https://docs.killbill.io/latest/plugin_installation#_plugin_installation[Plugin Installation Guide].
+
+For example, to install the plugin via https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM], you can run the following command:
+
+[source,bash]
+----
+kpm install_java_plugin killbill-avatax --destination=<path_to_install_plugin>
+----
+
+== Database Configuration
+
+The AvaTax plugin requires some additional database tables. To create these tables, please follow the steps given below:
+
+. Connect to the Kill Bill database.
+
+. Run the https://github.com/killbill/killbill-avatax-plugin/blob/master/src/main/resources/ddl.sql[AvaTax Plugin DDL].
+
+== Plugin Configuration
+
+In order to enable the AvaTax plugin, the following property needs to be set in the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill Configuration File]:
+
+[source,bash]
+----
+org.killbill.invoice.plugin=killbill-avatax
+----
+
+In addition, the AvaTax plugin requires the following properties:
+
+[options="header",cols="1,1,1,1"]
+|===
+|Property Name   |Description   | Required|Default Value
+//----------------------
+|org.killbill.billing.plugin.avatax.url| URL of the Avatax endpoint. Should be something like `https://sandbox-rest.avatax.com/api/v2` |Yes|-|
+org.killbill.billing.plugin.avatax.accountId   |Your AvaTax account number  | Yes | -
+|org.killbill.billing.plugin.avatax.licenseKey |Your AvaTax license key| Yes |-
+|org.killbill.billing.plugin.avatax.companyCode|Default Company code. Can be overridden via the `companyCode` plugin property|No | DEFAULT
+|org.killbill.billing.plugin.avatax.commitDocuments|Specifies whether invoices should be committed to Avalara|No|false
+|org.killbill.billing.plugin.avatax.adjustments.lenientMode|When true, the plugin skips any adjustment items from invoices for which the previousInvoiceId is not present (i.e. missing) or else leads to IllegalStateException and fails to generate invoice|No| false
+|org.killbill.billing.plugin.avatax.proxyHost|The proxy host|No|-
+|org.killbill.billing.plugin.avatax.proxyPort|The proxy port|No|-
+|org.killbill.billing.plugin.avatax.strictSSL|Whether the client will only accept connections with valid, trusted SSL/TLS certificates. |No|false
+|org.killbill.billing.plugin.avatax.connectTimeout|Specifies the maximum time in milliseconds the client can wait when connecting to a remote host|No|10000
+|org.killbill.billing.plugin.avatax.requestTimeout|Specifies the maximum time in millisecond the client waits until the response is completed|No|60000
+|===
+
+These properties can be configured globally via the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill Configuration File] or on a per-tenant basis via the https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin[Add a per-tenant configuration for a plugin] endpoint. For example, to configure these properties for the `bob/lazar` tenant, you can use the following curl:
+
+[source, bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: text/plain' \
+     -d 'org.killbill.billing.plugin.avatax.url=XXX
+org.killbill.billing.plugin.avatax.accountId=YYY
+org.killbill.billing.plugin.avatax.licenseKey=ZZZ' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-avatax
+----
+//TODO: Properties for TaxRatesAPI are not included as I can no longer find any documentation for this in the Avalara docs. Check if the TaxRates API works and if so include these properties
+
+== Kaui Integration
+
+An https://github.com/killbill/killbill-avatax-ui[Avatax Rails Mountable Engine] is available. This allows you to configure the plugin, configure the product tax codes, and set account exemptions via Kaui. The UI becomes available in Kaui once the AvaTax plugin is installed and can be accessed by clicking the plug icon in Kaui.
+
+== AvaTax Plugin Features
+
+This section explains all the features provided by the AvaTax plugin.
+
+=== Tax Calculation by Zip Code
+
+**What:**
+
+By default, taxes are calculated using the address specified on the Kill Bill account. When an account is created with a valid zip code, any invoice generated for that account will automatically include the corresponding tax item.
+
+**Why:**
+
+This ensures that taxes are computed correctly based on the customer’s
+geographic location.
+
+**How (Testing Steps):**
+
+1. Configure the plugin as explained in the <<plugin_configuration, Plugin Configuration>> section above.
+2. https://apidocs.killbill.io/account#create-an-account[Create an Account] with  zip code `92615`.
+3. https://apidocs.killbill.io/invoice#create-external-charge-s[Create an External Charge] on the account
+4. https://apidocs.killbill.io/account#retrieve-account-invoices[Retrieve Account Invoices].
+
+✅ **Expected Result:** The invoice corresponding to the external charge created at step 3 includes a tax item.
+
+//TODO
+//As per readme, You can also specify a location code per invoice line item by passing the property locationCode_<INVOICE_ITEM_ID> as a plugin property. Find out how to do this and add documentation for this here
+
+=== Tax Calculation by Product Tax Code
+
+**What:**
+
+Avalara assigns https://developer.avalara.com/avatax/dev-guide/product-taxability[tax codes] to different product types. A tax code determines whether the product is taxable, exempt, or taxed at a special rate in a given jurisdiction. If no code is set,
+the product is taxed by default.
+
+**Why:**
+
+Some jurisdictions exempt certain products or services. Or they may choose to tax certain products or services differently. Setting the correct tax code ensures accurate taxation.
+For example, in
+Washington state, beverages containing milk or milk products are not taxable.
+The Avalara tax code for such items is `PF051850`. The complete list of Avalara Tax Codes is available https://taxcode.avatax.avalara.com/[here].
+
+**How (Testing Steps):**
+
+1. Configure the plugin as explained in the <<plugin_configuration, Plugin Configuration>> section above.
+2. https://apidocs.killbill.io/catalog#upload-a-catalog-as-xml[Upload a Catalog] with two products: *p1* and *p2*
+3. Configure p1 with the `PF051850` tax code using the <<setting_tax_code, Setting Tax Code>> API or via the Kaui Avatax screen.
+4. https://apidocs.killbill.io/account#create-an-account[Create an Account] with zip code `98110`
+5. https://apidocs.killbill.io/subscription#create-a-subscription[Create a Subscription] corresponding to `p1`.
+6. https://apidocs.killbill.io/subscription#create-a-subscription[Create a Subscription] corresponding to `p2`
+
+✅ Expected Result: `p1` is **not taxed**, `p2` is taxed.
+
+//TODO Set the taxCode_<INVOICE_ITEM_ID> plugin property
+//TODO Set the taxCode custom field on the invoice item object
+
+
+=== Marking an Account as Tax Exempt
+
+**What:**
+
+The plugin allows accounts to be exempted from tax. Exemption can be defined
+either by setting a custom field on the account or by passing a plugin property.
+
+**Why:**
+
+Certain entities (e.g., government, nonprofits, resellers) may qualify for
+special tax exemptions. Avalara defines these exemptions through *exemption
+codes*. A full list is available
+link:https://knowledge.avalara.com/bundle/rpb1660904325464_rpb1660904325464/page/List_of_entity_use_codes.html[here].
+
+**How (Testing Steps):**
+
+1. Configure the plugin as explained in the <<plugin_configuration, Plugin Configuration>> section above.
+2. https://apidocs.killbill.io/account#create-an-account[Create an Account]  with zip code `92615`.
+3. https://apidocs.killbill.io/account#add-custom-fields-to-account[Add a Custom Field] on the account with `name=customerUsageType` and `value=A` or set the exemption via the Kaui AvaTax screen.
+4. https://apidocs.killbill.io/invoice#create-external-charge-s[Create an external charge] on the account
+5. https://apidocs.killbill.io/account#retrieve-account-invoices[Retrieve account invoices].
+
+✅ **Expected Result:** The invoice corresponding to the external charge created at step 4 includes a tax item.
+
+**Alternative:** You can skip Step 3 and execute Step 4 with a plugin property as follows:
+
+[source, bash]
+----
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '[ { "accountId": "51989935-8137-414d-af40-19eb352bb519", "description": "My charge", "amount": 50, "currency": "USD" }]'    \
+    "http://127.0.0.1:8080/1.0/kb/invoices/charges/51989935-8137-414d-af40-19eb352bb519?autoCommit=true&pluginProperty=customerUsageType%3DA"
+----
+
+=== Skipping Taxation
+
+**What:**
+
+The AvaTax plugin allows you to bypass tax calculation for a specific request by using
+the `AVALARA_SKIP` plugin property. When this property is set, no tax items will
+be generated for the associated invoice or charge.
+
+**Why:**
+
+This is useful in scenarios such as:
+
+* Testing without triggering tax calculations in Avalara
+* Handling special charges or adjustments that should not be taxed
+
+**How (Testing Steps):**
+
+To skip taxation while creating an external charge, include the
+`pluginProperty=AVALARA_SKIP` parameter in your request:
+
+[source, bash]
+----
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: bob" \
+    -H "X-Killbill-ApiSecret: lazar" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '[ { "accountId": "cba58bd8-b2f5-4f5b-8836-e5a9efd850f9", "description": "My charge", "amount": 50, "currency": "USD"}]'    \
+    "http://127.0.0.1:8080/1.0/kb/invoices/charges/cba58bd8-b2f5-4f5b-8836-e5a9efd850f9?autoCommit=true&pluginProperty=AVALARA_SKIP%3DA"
+----
+
+[NOTE]
+**Note:** The value of `AVALARA_SKIP` does not matter—it simply must not be blank.
+
+//TODO - Add section on Shipping Charges if required
+
+== Avarala Plugin APIs
+
+=== Tax Code APIs
+
+The AvaTax plugin provides APIs to assign, list, and delete tax codes
+for catalog products. As explained earlier, In Avalara, each product or service can be associated with a https://developer.avalara.com/avatax/dev-guide/product-taxability[tax code]. The tax code determines whether the product is taxable, exempt, or taxed at a special rate in a given jurisdiction.
+
+Kill Bill products (defined in the catalog) need to be linked to Avalara tax
+codes so that Avalara can apply the correct rules when calculating taxes.
+
+The AvaTax plugin provides several APIs that can be used to assign/list/delete product tax codes corresponding to catalog products. These are documented below.
+
+==== Setting Tax Code
+
+This API can be used to assign a tax code for a catalog product.
+
+[source, bash]
+----
+curl -v \
+-X POST \
+-u admin:password \
+-H 'X-Killbill-ApiKey: bob' \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H 'X-Killbill-CreatedBy: admin' \
+-H 'Content-Type: application/json' \
+-d '{"productName":"Super","taxCode":"DC010200"}' \
+http://127.0.0.1:8080/plugins/killbill-avatax/taxCodes
+----
+
+If successful, it returns a status code of `201`.
+
+==== Listing Tax Codes
+
+This API can be used to list all the tax codes configured in the plugin:
+
+[source, bash]
+----
+curl -v \
+-u admin:password \
+-H 'X-Killbill-ApiKey: bob' \
+-H 'X-Killbill-ApiSecret: lazar' \
+http://127.0.0.1:8080/plugins/killbill-avatax/taxCodes
+----
+
+If successful, it returns a status code of `200` and the following response:
+
+[source, bash]
+----
+[
+  {
+    "productName": "Blowdart",
+    "taxCode": "PF051850"
+  },
+  {
+    "productName": "Pistol",
+    "taxCode": "DC010200"
+  }
+]
+----
+
+==== Find Product Tax Code
+
+This API can be used to find the tax codes corresponding to a product:
+
+[source, bash]
+----
+curl -v \
+-u admin:password \
+-H 'X-Killbill-ApiKey: bob' \
+-H 'X-Killbill-ApiSecret: lazar' \
+http://127.0.0.1:8080/plugins/killbill-avatax/taxCodes/Super
+----
+
+If successful, it returns a status code of `200` and the following response:
+
+[source, bash]
+----
+{
+"productName": "Super",
+"taxCode": "PF051850"
+}
+----
+
+==== Delete Product Tax Code
+
+This API can be used to delete the tax codes for a product:
+
+[source, bash]
+----
+curl -v \
+-X DELETE \
+-u admin:password \
+-H 'X-Killbill-ApiKey: bob' \
+-H 'X-Killbill-ApiSecret: lazar' \
+-H 'X-Killbill-CreatedBy: admin' \
+http://127.0.0.1:8080/plugins/killbill-avatax/taxCodes/Super
+----
+
+If successful, it returns a status code of `200`.
+
+=== Transaction APIs
+
+The Avatax plugin offers convenient pass-through APIs to retrieve, commit, and void avalara transactions. In Avalara, a https://knowledge.avalara.com/bundle/dqa1657870670369_dqa1657870670369/page/nvt1658126303689.html[transaction] represents a document that records taxable activity. Each transaction contains line
+items, tax calculations, and jurisdictional breakdowns.
+
+By default, when Kill Bill generates an invoice, the plugin creates a matching
+transaction in Avalara.
+
+The transaction APIs are documented below.
+
+==== Retrieve Transaction by Kill Bill Invoice Id
+
+This API can be used to retrieve transaction via KB invoice id:
+
+[source, bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Accept: application/json' \
+     http://127.0.0.1:8080/plugins/killbill-avatax/transactions?kbInvoiceId=<INVOICE_ID>
+----
+
+If successful, it returns a status code of `200` and the following response:
+
+[source, bash]
+----
+[
+  {
+    "id": 85096705572097,
+    "code": "de569c1c-e8ce-4df9-b067-c0acbbaa3caf_7ea2f2cb-744",
+    "companyId": 249599,
+    "date": "2025-08-20T00:00:00.000+00:00",
+    "status": "Committed",
+    "type": "SalesInvoice",
+    "taxDate": "2025-08-20T00:00:00.000+00:00",
+    "totalAmount": 125,
+    "totalDiscount": 0,
+    "totalExempt": 0,
+    "totalTaxable": 125,
+    "totalTax": 11.51,
+    "totalTaxCalculated": 11.51,
+    "lines": [
+      {
+        "lineNumber": "3f75bc3e-4eea-48db-b37d-2ff26693b525",
+        "taxCode": "P0000000",
+        "isItemTaxable": true,
+        "taxableAmount": 125,
+        "tax": 11.51,
+        "discountAmount": 0,
+        "taxCalculated": 11.51,
+        "exemptAmount": 0,
+        "details": [
+          {
+            "id": 85096705572104,
+            "exemptAmount": 0,
+            "nonTaxableAmount": 0,
+            "rate": 0.065,
+            "tax": 8.13,
+            "taxableAmount": 125,
+            "taxName": "WA STATE TAX"
+          },
+          {
+            "id": 85096705572105,
+            "exemptAmount": 0,
+            "nonTaxableAmount": 0,
+            "rate": 0,
+            "tax": 0,
+            "taxableAmount": 125,
+            "taxName": "WA COUNTY TAX"
+          },
+          {
+            "id": 85096705572106,
+            "exemptAmount": 0,
+            "nonTaxableAmount": 0,
+            "rate": 0.027,
+            "tax": 3.38,
+            "taxableAmount": 125,
+            "taxName": "WA CITY TAX"
+          }
+        ],
+        "boundaryOverrideId": "0"
+      }
+    ],
+    "summary": [
+      {
+        "rate": 0.065,
+        "tax": 8.13,
+        "taxable": 125,
+        "country": "US",
+        "region": "WA",
+        "jurisCode": "53",
+        "jurisType": "State",
+        "jurisName": "WASHINGTON",
+        "taxName": "WA STATE TAX"
+      },
+      {
+        "rate": 0,
+        "tax": 0,
+        "taxable": 125,
+        "country": "US",
+        "region": "WA",
+        "jurisCode": "035",
+        "jurisType": "County",
+        "jurisName": "KITSAP",
+        "taxName": "WA COUNTY TAX"
+      },
+      {
+        "rate": 0.027,
+        "tax": 3.38,
+        "taxable": 125,
+        "country": "US",
+        "region": "WA",
+        "jurisCode": "03736",
+        "jurisType": "City",
+        "jurisName": "BAINBRIDGE ISLAND",
+        "taxName": "WA CITY TAX"
+      }
+    ],
+    "addresses": [
+      {
+        "id": "85096705572098",
+        "transactionId": "85096705572097",
+        "city": "",
+        "region": "WA",
+        "country": "US",
+        "postalCode": "98110",
+        "latitude": "47.639769",
+        "longitude": "-122.531149",
+        "taxRegionId": "2109716"
+      }
+    ],
+    "messages": []
+  }
+]
+----
+
+==== Retrieve Transaction by Avalara Code
+
+This API can be used to retrieve transaction via the Avalara code (also known as document code):
+
+[source, bash]
+----
+curl -v \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Accept: application/json' \
+     http://127.0.0.1:8080/plugins/killbill-avatax/transactions/<CODE>
+----
+
+If successful, it returns a status code of `200` and the following response:
+
+[source, bash]
+----
+[
+  {
+    "id": 85096705572097,
+    "code": "de569c1c-e8ce-4df9-b067-c0acbbaa3caf_7ea2f2cb-744",
+    "companyId": 249599,
+    "date": "2025-08-20T00:00:00.000+00:00",
+    "status": "Committed",
+    "type": "SalesInvoice",
+    "taxDate": "2025-08-20T00:00:00.000+00:00",
+    "totalAmount": 125,
+    "totalDiscount": 0,
+    "totalExempt": 0,
+    "totalTaxable": 125,
+    "totalTax": 11.51,
+    "totalTaxCalculated": 11.51,
+    "lines": [
+      {
+        "lineNumber": "3f75bc3e-4eea-48db-b37d-2ff26693b525",
+        "taxCode": "P0000000",
+        "isItemTaxable": true,
+        "taxableAmount": 125,
+        "tax": 11.51,
+        "discountAmount": 0,
+        "taxCalculated": 11.51,
+        "exemptAmount": 0,
+        "details": [
+          {
+            "id": 85096705572104,
+            "exemptAmount": 0,
+            "nonTaxableAmount": 0,
+            "rate": 0.065,
+            "tax": 8.13,
+            "taxableAmount": 125,
+            "taxName": "WA STATE TAX"
+          },
+          {
+            "id": 85096705572105,
+            "exemptAmount": 0,
+            "nonTaxableAmount": 0,
+            "rate": 0,
+            "tax": 0,
+            "taxableAmount": 125,
+            "taxName": "WA COUNTY TAX"
+          },
+          {
+            "id": 85096705572106,
+            "exemptAmount": 0,
+            "nonTaxableAmount": 0,
+            "rate": 0.027,
+            "tax": 3.38,
+            "taxableAmount": 125,
+            "taxName": "WA CITY TAX"
+          }
+        ],
+        "boundaryOverrideId": "0"
+      }
+    ],
+    "summary": [
+      {
+        "rate": 0.065,
+        "tax": 8.13,
+        "taxable": 125,
+        "country": "US",
+        "region": "WA",
+        "jurisCode": "53",
+        "jurisType": "State",
+        "jurisName": "WASHINGTON",
+        "taxName": "WA STATE TAX"
+      },
+      {
+        "rate": 0,
+        "tax": 0,
+        "taxable": 125,
+        "country": "US",
+        "region": "WA",
+        "jurisCode": "035",
+        "jurisType": "County",
+        "jurisName": "KITSAP",
+        "taxName": "WA COUNTY TAX"
+      },
+      {
+        "rate": 0.027,
+        "tax": 3.38,
+        "taxable": 125,
+        "country": "US",
+        "region": "WA",
+        "jurisCode": "03736",
+        "jurisType": "City",
+        "jurisName": "BAINBRIDGE ISLAND",
+        "taxName": "WA CITY TAX"
+      }
+    ],
+    "addresses": [
+      {
+        "id": "85096705572098",
+        "transactionId": "85096705572097",
+        "city": "",
+        "region": "WA",
+        "country": "US",
+        "postalCode": "98110",
+        "latitude": "47.639769",
+        "longitude": "-122.531149",
+        "taxRegionId": "2109716"
+      }
+    ],
+    "messages": []
+  }
+]
+----
+
+==== Commit Transaction
+
+This API can be used to commit the transaction in Avalara:
+
+[source, bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Accept: application/json' \
+     -H 'Content-Type: application/json' \
+     http://127.0.0.1:8080/plugins/killbill-avatax/transactions/<CODE>/commit
+----
+
+If successful, it returns a status code of `200` and the following response:
+
+[source, bash]
+----
+{
+  "id": 85096712741973,
+  "code": "de569c1c-e8ce-4df9-b067-c0acbbaa3caf_7ea2f2cb-744",
+  "companyId": 249599,
+  "date": "2025-08-20T00:00:00.000+00:00",
+  "status": "Committed",
+  "type": "SalesInvoice",
+  "taxDate": "2025-08-20T00:00:00.000+00:00",
+  "totalAmount": 125,
+  "totalDiscount": 0,
+  "totalExempt": 0,
+  "totalTaxable": 125,
+  "totalTax": 11.51,
+  "totalTaxCalculated": 11.51,
+  "lines": null,
+  "summary": [
+    {
+      "rate": 0.065,
+      "tax": 8.13,
+      "taxable": 125,
+      "country": "US",
+      "region": "WA",
+      "jurisCode": "53",
+      "jurisType": "State",
+      "jurisName": "WASHINGTON",
+      "taxName": "WA STATE TAX"
+    },
+    {
+      "rate": 0,
+      "tax": 0,
+      "taxable": 125,
+      "country": "US",
+      "region": "WA",
+      "jurisCode": "035",
+      "jurisType": "County",
+      "jurisName": "KITSAP",
+      "taxName": "WA COUNTY TAX"
+    },
+    {
+      "rate": 0.027,
+      "tax": 3.38,
+      "taxable": 125,
+      "country": "US",
+      "region": "WA",
+      "jurisCode": "03736",
+      "jurisType": "City",
+      "jurisName": "BAINBRIDGE ISLAND",
+      "taxName": "WA CITY TAX"
+    }
+  ],
+  "addresses": [
+    {
+      "id": "85096712741974",
+      "transactionId": "85096712741973",
+      "city": "",
+      "region": "WA",
+      "country": "US",
+      "postalCode": "98110",
+      "latitude": "47.6398",
+      "longitude": "-122.531149",
+      "taxRegionId": "2109716"
+    }
+  ],
+  "messages": []
+}
+----
+
+#### Void Transaction
+
+This API can be used to void a transaction in Avalara:
+
+[source, bash]
+----
+# Void transaction:
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Accept: application/json' \
+     -H 'Content-Type: application/json' \
+     http://127.0.0.1:8080/plugins/killbill-avatax/transactions/<CODE>/void
+----
+
+If successful, it returns a status code of `200` and the following response:
+
+[source, bash]
+----
+{
+  "id": 85096712741973,
+  "code": "de569c1c-e8ce-4df9-b067-c0acbbaa3caf_7ea2f2cb-744",
+  "companyId": 249599,
+  "date": "2025-08-20T00:00:00.000+00:00",
+  "status": "Committed",
+  "type": "SalesInvoice",
+  "taxDate": "2025-08-20T00:00:00.000+00:00",
+  "totalAmount": 125,
+  "totalDiscount": 0,
+  "totalExempt": 0,
+  "totalTaxable": 125,
+  "totalTax": 11.51,
+  "totalTaxCalculated": 11.51,
+  "lines": null,
+  "summary": [
+    {
+      "rate": 0.065,
+      "tax": 8.13,
+      "taxable": 125,
+      "country": "US",
+      "region": "WA",
+      "jurisCode": "53",
+      "jurisType": "State",
+      "jurisName": "WASHINGTON",
+      "taxName": "WA STATE TAX"
+    },
+    {
+      "rate": 0,
+      "tax": 0,
+      "taxable": 125,
+      "country": "US",
+      "region": "WA",
+      "jurisCode": "035",
+      "jurisType": "County",
+      "jurisName": "KITSAP",
+      "taxName": "WA COUNTY TAX"
+    },
+    {
+      "rate": 0.027,
+      "tax": 3.38,
+      "taxable": 125,
+      "country": "US",
+      "region": "WA",
+      "jurisCode": "03736",
+      "jurisType": "City",
+      "jurisName": "BAINBRIDGE ISLAND",
+      "taxName": "WA CITY TAX"
+    }
+  ],
+  "addresses": [
+    {
+      "id": "85096712741974",
+      "transactionId": "85096712741973",
+      "city": "",
+      "region": "WA",
+      "country": "US",
+      "postalCode": "98110",
+      "latitude": "47.6398",
+      "longitude": "-122.531149",
+      "taxRegionId": "2109716"
+    }
+  ],
+  "messages": []
+}
+----
