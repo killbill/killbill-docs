@@ -41,7 +41,7 @@ create table aviate_event_categories (
 , event_group varchar(256) not null
 , event_category varchar(256) not null
 );
-CREATE UNIQUE INDEX event_category_unq ON aviate_event_categories(event_category);
+CREATE UNIQUE INDEX event_category_unq ON aviate_event_categories(event_group, event_category);
 
 create table aviate_sample_kinds (
   sample_kind_id serial
@@ -76,11 +76,13 @@ create table aviate_orders (
 , po char(36) default null
 , created_at datetime not null
 , updated_at datetime not null
-, kb_tenant_id char(36) not null
+, tenant_id char(36) not null
+, account_id char(36) default null
 , primary key(record_id)
 );
 create index aviate_orders_order_id on aviate_orders(order_id);
 create index aviate_orders_billing_account_id on aviate_orders(billing_account_id);
+create index aviate_orders_tenant_account_idx on aviate_orders(tenant_id, account_id);
 
 create table aviate_order_subscriptions (
   record_id serial
@@ -91,13 +93,15 @@ create table aviate_order_subscriptions (
 , consumed_credit numeric(15,9) default null
 , created_at datetime not null
 , updated_at datetime not null
-, kb_tenant_id char(36) not null
+, tenant_id char(36) not null
+, account_id char(36) default null
 , primary key(record_id)
 );
 create index aviate_order_subscriptions_order_subscription_id on aviate_order_subscriptions(order_subscription_id);
 create index aviate_order_subscriptions_order_id on aviate_order_subscriptions(order_id);
 create index aviate_order_subscriptions_quote_item_id on aviate_order_subscriptions(quote_item_id);
 create index aviate_order_subscriptions_subscription_id on aviate_order_subscriptions(subscription_id);
+create index aviate_order_subscriptions_tenant_account_idx on aviate_order_subscriptions(tenant_id, account_id);
 
 create table aviate_quotes (
   record_id serial
@@ -113,11 +117,13 @@ create table aviate_quotes (
 , net_terms_period char(36) default null
 , created_at datetime not null
 , updated_at datetime not null
-, kb_tenant_id char(36) not null
+, tenant_id char(36) not null
+, account_id char(36) default null
 , primary key(record_id)
 );
 create index aviate_quotes_quote_id on aviate_quotes(quote_id);
 create index aviate_quotes_billing_account_id on aviate_quotes(billing_account_id);
+create index aviate_quotes_tenant_account_idx on aviate_quotes(tenant_id, account_id);
 
 create table aviate_quote_items (
   record_id serial
@@ -143,16 +149,18 @@ create table aviate_quote_items (
 , recurring_credit_term varchar(255) default null
 , created_at datetime not null
 , updated_at datetime not null
-, kb_tenant_id char(36) not null
+, tenant_id char(36) not null
+, account_id char(36) default null
 , primary key(record_id)
 );
 create index aviate_quote_items_quote_item_id on aviate_quote_items(quote_item_id);
 create index aviate_quote_items_quote_id on aviate_quote_items(quote_id);
+create index aviate_quote_items_tenant_account_idx on aviate_quote_items(tenant_id, account_id);
 
 create table aviate_billing_accounts (
   record_id serial
 , billing_account_id char(36) not null
-, kb_account_id char(36) not null
+, account_id char(36) not null
 , company_name varchar(255) default null
 , contact_name varchar(255) default null
 , email varchar(255) default null
@@ -166,11 +174,11 @@ create table aviate_billing_accounts (
 , postal_code varchar(255) default null
 , created_at datetime not null
 , updated_at datetime not null
-, kb_tenant_id char(36) not null
+, tenant_id char(36) not null
 , primary key(record_id)
 );
 create index aviate_billing_accounts_billing_account_id on aviate_billing_accounts(billing_account_id);
-create index aviate_billing_accounts_kb_account_id on aviate_billing_accounts(kb_account_id);
+create index aviate_billing_accounts_tenant_account_idx on aviate_billing_accounts(tenant_id, account_id);
 
 create table aviate_tax_registrations (
   record_id serial
@@ -187,12 +195,13 @@ create table aviate_tax_registrations (
 , postal_code varchar(255) default null
 , created_at datetime not null
 , updated_at datetime not null
-, kb_tenant_id char(36) not null
+, tenant_id char(36) not null
+, account_id char(36) default null
 , primary key(record_id)
 );
 create index aviate_tax_registrations_tax_registration_id on aviate_tax_registrations(tax_registration_id);
 create index aviate_tax_registrations_billing_account_id on aviate_tax_registrations(billing_account_id);
-
+create index aviate_tax_registrations_tenant_account_idx on aviate_tax_registrations(tenant_id, account_id);
 
 create table aviate_catalog_pricelists (
     record_id serial unique,
@@ -357,18 +366,17 @@ create table aviate_invoice_sequences (
   record_id serial
 , invoice_sequence integer not null
 , kb_invoice_id char(36) not null
-, kb_account_id char(36) not null
+, account_id char(36) not null
 , prefix varchar(255) default null
 , suffix varchar(255) default null
 , retired bool default false
 , created_at datetime not null
 , updated_at datetime not null
-, kb_tenant_id char(36) not null
+, tenant_id char(36) not null
 , primary key(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
-create index aviate_invoice_sequences_kb_tenant_id on aviate_invoice_sequences(kb_tenant_id);
-create index aviate_invoice_sequences_kb_tenant_account_id on aviate_invoice_sequences(kb_tenant_id, kb_account_id);
-create unique index aviate_invoice_sequences_kb_tenant_invoice_id on aviate_invoice_sequences(kb_tenant_id, kb_invoice_id);
+create unique index aviate_invoice_sequences_tenant_id_invoice_id_idx on aviate_invoice_sequences(tenant_id, kb_invoice_id);
+create index aviate_invoice_sequences_tenant_account_idx on aviate_invoice_sequences(tenant_id, account_id);
 
 create table aviate_wallets (
     record_id serial,
