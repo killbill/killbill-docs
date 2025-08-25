@@ -1,0 +1,83 @@
+= Aviate Tax
+
+include::{sourcedir}/aviate/includes/aviate-card.adoc[]
+
+== Introduction
+
+The Aviate Tax feature enables tax functionality within the Aviate plugin. It allows you to configure tax codes based on the country, which can then be assigned to different products. When a subscription is created for a product with an associated tax code, the system automatically generates a tax invoice item based on the configured tax rate.
+
+== Getting Started with Aviate Tax
+
+This section provides a step-by-step approach to get started with Aviate Tax.
+
+=== Installing the Aviate Plugin
+
+The Aviate plugin can be installed as documented in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] doc.
+
+=== Enabling Aviate Tax
+
+To use the tax feature provided by the Aviate plugin, ensure that KB is started with the following property:
+
+[source, bash]
+----
+com.killbill.billing.plugin.aviate.enableTax=true
+----
+
+In addition, the Aviate Tax feature requires some tenant-level configuration.  This can be done by executing the https://killbill.github.io/slate/tenant.html#add-a-per-tenant-configuration-for-a-plugin[per-tenant configuration] endpoint as follows:
+
+[source, bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: text/plain' \
+     -d '!!com.killbill.billing.plugin.aviate.AviateTenantConfig
+  taxConfig:
+  taxItemAmountPrecision: 2
+  taxationTimeZone: UTC
+   taxCodes:
+    TAX_US_std_2000_19_6:
+      description: VAT 19.6%
+      rate: 0.196
+      startingOn: 2000-04-01
+      stoppingOn: 2014-01-01
+      country: US
+    TAX_US_std_2014_20_0:
+      description: VAT 20%
+      rate: 0.200
+      startingOn: 2014-01-01
+      stoppingOn: ""
+      country: US
+  products:
+    Standard: TAX_US_std_2000_19_6, TAX_US_std_2014_20_0
+    Sport: TAX_US_std_2000_19_6, TAX_US_std_2014_20_0' \
+    http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/aviate-plugin
+----
+
+Here:
+
+* `taxItemAmountPrecision` - Defines the number of decimal places to use when calculating and storing tax amounts.
+* `taxationTimeZone` - The timezone for tax.
+* `taxCodes` - This section defines the available tax codes and their attributes.Each tax code is uniquely identified (for example `TAX_US_std_2014_20_0`). The following attributes need to be specified for each tax code:
+  ** `description` - The tax code description. This is displayed in the tax invoice item.
+  ** `rate` - The tax percentage expressed as a decimal (e.g., 0.196 = 19.6%).
+  ** `startingOn` - Date on which the tax rate starts being applicable
+  ** `stoppingOn` - Date on which the tax rate stops being applicable
+  ** `country` - The ISO country code where the tax applies (e.g., `FR = France`).
+* `products` - Association between products and their tax codes. Must include each product to be taxed and a comma separated list of the applicable tax codes.
+
+== Using Aviate Tax
+
+Once the plugin is installed and tax support is enabled and configured, you can use it to automatically generate tax.
+
+In brief, you would need to do the following:
+
+1. Ensure that the aviate plugin is installed and the tax feature is enabled and configured as explained above.
+2. Create an account.
+3. Create a billing account corresponding to the account. Ensure that the billing account includes tax registrations with the appropriate country code in the address.
+4. Create a subscription corresponding to a product configured in Step 1. The tax invoice item will automatically be generated.
+
+
