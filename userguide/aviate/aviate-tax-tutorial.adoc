@@ -1,0 +1,218 @@
+= Aviate Tax Tutorial
+
+include::{sourcedir}/aviate/includes/aviate-card.adoc[]
+
+== Introduction
+
+This document provides a tutorial on using the aviate tax feature.
+
+== Prerequisites
+
+You will need:
+
+* A running Kill Bill instance with the Aviate plugin installed.
+* A valid API access tokens for all Aviate APIs calls - referred to as `ID_TOKEN`
+
+== Setup: Configuring a Tenant
+
+=== Step 1: Create a tenant
+
+We start by creating a tenant `tax-scenario`.
+
+Use the standard https://killbill.github.io/slate/tenant.html#create-a-tenant[Create Tenant] Kill Bill API:
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "Content-Type: application/json" \
+-H "Accept: application/json" \
+-H "X-Killbill-CreatedBy: demo" \
+-d '{ "apiKey": "tax-scenario", "apiSecret": "tax-scenario" }' \
+"http://127.0.0.1:8080/1.0/kb/tenants"
+-----
+
+=== Step 2: Create a catalog
+
+Upload an XML catalog or create a plan/product via the Aviate Catalog APIs.
+
+To upload an XML catalog, you can use the standard https://apidocs.killbill.io/catalog#upload-a-catalog-as-xml[Upload Catalog API]:
+
+[source,bash]
+-----
+curl -v \
+    -X POST \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: tax-scenario" \
+    -H "X-Killbill-ApiSecret: tax-scenario" \
+    -H "Content-Type: text/xml" \
+    -H "Accept: application/json" \
+    -H "X-Killbill-CreatedBy: demo" \
+    -H "X-Killbill-Reason: demo" \
+    -H "X-Killbill-Comment: demo" \
+    -d '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><catalog> ...' \
+    "http://127.0.0.1:8080/1.0/kb/catalog/xml"
+-----
+
+Alternatively, you can create a plan/product via the Aviate Catalog https://apidocs.killbill.io/aviate-catalog#create-plan-product-pricelist[Create Plan, Product, Pricelist] API:
+
+[source, bash]
+----
+curl -X POST \
+-H'Content-Type: application/json' \
+-H"Authorization: Bearer ${ID_TOKEN}" \
+-H'X-killbill-apiKey: tax-scenario' \
+-H'X-killbill-apisecret: tax-scenario' \
+-d '{
+  "plans": [
+    {
+      "name": "premium-annual",
+      "prettyName": "Premium Annual",
+      "recurringBillingMode": "IN_ADVANCE",
+      "pricelistName": "DEFAULT",
+      "productName": "Premium",
+      "phases": [
+        {
+          "prettyName": "Premium Annual Evergreen",
+          "type": "EVERGREEN",
+          "durationUnit": "UNLIMITED",
+          "durationLength": -1,
+          "fixedPrices": [
+            {
+              "currency": "USD",
+              "value": "0.50"
+            }
+          ],
+          "recurringPrices": {
+            "billingPeriod": "ANNUAL",
+            "prices": [
+              {
+                "currency": "USD",
+                "value": "15"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "products": [
+    {
+      "name": "Premium",
+      "category": "BASE"
+    }
+  ]
+}' \
+http://127.0.0.1:8080/plugins/aviate-plugin/v1/catalog/inputData
+----
+
+
+=== Step 3: Configure the tax related properties for the product
+
+The next step would be to configure the tax related information for the product created in Step 2. Assuming that you want the "Premium" product to be taxed at a rate of 19.6% for invoices created between 2025-01-01 to 2025-03-31 and at a rate of 20% for invoices created after 2025-03-31 when country is `US`, you can configure the plugin as follows:
+
+[source, bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: tax-scenario' \
+     -H 'X-Killbill-ApiSecret: tax-scenario' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: text/plain' \
+     -d '!!com.killbill.billing.plugin.aviate.AviateTenantConfig
+  taxConfig:
+  taxItemAmountPrecision: 2
+  taxationTimeZone: UTC
+   taxCodes:
+    TAX_US_std_2025_19_6:
+      description: Sales Tax 19.6%
+      rate: 0.196
+      startingOn: 2025-01-01
+      stoppingOn: 2025-03-31
+      country: US
+    TAX_US_std_2025_20_0:
+      description: Sales Tax 20%
+      rate: 0.200
+      startingOn: 2025-04-01
+      stoppingOn: ""
+      country: US
+  products:
+    Premium: TAX_US_std_2000_19_6, TAX_US_std_2014_20_0' \
+    http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/aviate-plugin
+----
+
+== Creating a Customer Account
+
+=== Step 1: Create a new account
+
+Use the standard Kill Bill https://killbill.github.io/slate/account.html#create-an-account[Create Account] API:
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "X-Killbill-ApiKey: tax-scenario" \
+-H "X-killbill-apisecret: tax-scenario" \
+-H "X-Killbill-CreatedBy: demo" \
+-H "Content-Type: application/json" \
+-d '{ "name": "John Doe", "email": "john.doe@somewhere.com", "currency": "USD" }' \
+"http://127.0.0.1:8080/1.0/kb/accounts"
+-----
+
+=== Step 2: Create a billing account
+
+Use the Aviate Create Billing Account API to create a billing account corresponding to the account. Ensure that the appropriate country is specified as part of taxRegistration#address:
+
+[source, bash]
+----
+curl -X POST \
+     -H'Content-Type: application/json' \
+     -H'X-killbill-apiKey: tax-scenario' \
+     -H'X-killbill-apisecret: tax-scenario' \
+     -d '{ "kbAccountId":"e5d3d5b5-4415-4166-b57f-33ca00a59e88", "taxRegistrations": [{
+  "name": "John Doe",
+  "exempt": false,
+  "trn": "TRN-987654",
+  "address": {
+    "addressLine1": "123 Main Street",
+    "addressLine2": "Suite 4B",
+    "city": "Springfield",
+    "state": "Illinois",
+    "country": "US",
+    "postalCode": "62701"
+  }
+}]}' \
+     http://127.0.0.1:8080/plugins/aviate-plugin/v1/ba
+----
+
+=== Step 3: Create a subscription
+
+Create a subscription to the `premium-monthly` plan. Use the standard Kill Bill https://apidocs.killbill.io/subscription#create-a-subscription[Create Subscription] API:
+
+[source,bash]
+-----
+curl -v -X POST -u admin:password \
+-H "X-Killbill-ApiKey: tax-scenario" \
+-H "X-killbill-apisecret: tax-scenario" \
+-H "X-Killbill-CreatedBy: demo" \
+-H "Content-Type: application/json" \
+-d '{ "accountId": "{accountId}", "planName": "premium-monthly" }' \
+"http://127.0.0.1:8080/1.0/kb/subscriptions"
+-----
+
+=== Step 4: Retrieve Invoices
+
+
+Use the standard Kill Bill https://apidocs.killbill.io/account#retrieve-account-invoices[Retrieve Account Invoices] API:
+
+[source,bash]
+----
+curl -v \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: tax-scenario" \
+    -H "X-Killbill-ApiSecret: tax-scenario" \
+    -H "Accept: application/json" \
+    "http://127.0.0.1:8080/1.0/kb/accounts/{accountId}/invoices"
+----
+
+Ensure that the invoice corresponding to the subscription includes a tax item. Assuming the base subscription price is `$100`, it should be taxed at *20%*. So the tax item should be for `$20`.
+
