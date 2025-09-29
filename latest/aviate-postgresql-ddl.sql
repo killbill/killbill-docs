@@ -365,7 +365,7 @@ create unique index aviate_billing_meters_code_idx on aviate_billing_meters(tena
 create table aviate_invoice_sequences (
   record_id serial
 , invoice_sequence integer not null
-, kb_invoice_id char(36) not null
+, invoice_id char(36) not null
 , account_id char(36) not null
 , prefix varchar(255) default null
 , suffix varchar(255) default null
@@ -460,7 +460,48 @@ create table aviate_notifications_history (
 , primary key(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 
+create table aviate_coupons (
+    record_id serial,
+    redemption_code varchar(255) not null,
+    reusable boolean not null default false,
+    max_use int not null,
+    discount_type varchar(24) not null,
+    discount_price numeric(15,9) default null,
+    discount_currency varchar(3) default null,
+    discount_percentage numeric(15,9) default null,
+    expiration_date datetime default null,
+    plan_list text default null,
+    archived boolean not null default false,
+    created_date datetime not null,
+    updated_date datetime not null,
+    tenant_id varchar(36) not null,
+    PRIMARY KEY(record_id)
+);
+create unique index aviate_coupons_redemption_code_idx on aviate_coupons(tenant_id, redemption_code);
 
+create table aviate_coupon_mappings (
+    record_id serial,
+    redemption_code varchar(255) not null,
+    subscription_ext varchar(255) not null,
+    created_date datetime not null,
+    updated_date datetime not null,
+    account_id varchar(36) not null,
+    tenant_id varchar(36) not null,
+    PRIMARY KEY(record_id)
+);
+create index aviate_coupon_mappings_tenant_account_idx on aviate_coupon_mappings(tenant_id, account_id);
+create index aviate_coupon_mappings_redemption_code_idx on aviate_coupon_mappings(tenant_id, redemption_code);
+create index aviate_coupon_mappings_subscription_ext_idx on aviate_coupon_mappings(tenant_id, subscription_ext);
+
+create table aviate_health_reports (
+   record_id serial primary key,
+   creating_owner varchar(50) not null,
+   report_data_gz bytea not null,
+   created_date timestamp not null,
+   updated_date timestamp not null
+);
+
+create unique index aviate_health_reports_owner_idx on aviate_health_reports(creating_owner);
 
 create procedure create_aviate_calendar(calendar_from date, calendar_to date)
 language plpgsql as $$
