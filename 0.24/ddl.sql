@@ -1317,7 +1317,6 @@ CREATE TABLE roles_permissions (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX roles_permissions_idx ON roles_permissions(role_name, permission);
 
-
 DROP TABLE IF EXISTS node_infos;
 CREATE TABLE node_infos (
     record_id serial unique,

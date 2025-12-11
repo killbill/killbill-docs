@@ -67,6 +67,8 @@ create table aviate_timeline_chunks (
 );
 create unique index host_id_timeline_chunk_sample_kind_idx on aviate_timeline_chunks(host_id, sample_kind_id, start_time, aggregation_level);
 create index valid_agg_host_start_time on aviate_timeline_chunks(not_valid, aggregation_level, host_id, sample_kind_id, start_time);
+CREATE INDEX by_host_kind_start_end ON aviate_timeline_chunks (host_id, sample_kind_id, start_time, end_time);
+CREATE INDEX by_host_kind_end_start ON aviate_timeline_chunks (host_id, sample_kind_id, end_time, start_time);
 
 create table aviate_orders (
   record_id serial
@@ -321,6 +323,7 @@ create table aviate_catalog_usages (
     billing_mode varchar(12) not null,
     usage_type varchar(12) not null,
     billing_period varchar(50),
+    tier_block_policy varchar(12) not null default 'ALL_TIERS',
     plan_phase_record_id bigint /*! unsigned */ not null,
     created_by varchar(50) not null,
     created_date datetime not null,
@@ -375,7 +378,7 @@ create table aviate_invoice_sequences (
 , tenant_id char(36) not null
 , primary key(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
-create unique index aviate_invoice_sequences_tenant_id_invoice_id_idx on aviate_invoice_sequences(tenant_id, kb_invoice_id);
+create unique index aviate_invoice_sequences_tenant_id_invoice_id_idx on aviate_invoice_sequences(tenant_id, invoice_id);
 create index aviate_invoice_sequences_tenant_account_idx on aviate_invoice_sequences(tenant_id, account_id);
 
 create table aviate_wallets (
