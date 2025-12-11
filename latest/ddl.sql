@@ -42,7 +42,7 @@ CREATE INDEX accounts_tenant_record_id ON accounts(tenant_record_id);
 CREATE INDEX accounts_email_tenant_record_id ON accounts(email, tenant_record_id);
 CREATE INDEX accounts_company_name_tenant_record_id ON accounts(company_name, tenant_record_id);
 CREATE INDEX accounts_name_tenant_record_id ON accounts(name, tenant_record_id);
-
+CREATE INDEX idx_accounts_tenant_record ON accounts (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS account_history;
 CREATE TABLE account_history (
@@ -81,6 +81,7 @@ CREATE TABLE account_history (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX account_history_target_record_id ON account_history(target_record_id);
 CREATE INDEX account_history_tenant_record_id ON account_history(tenant_record_id);
+CREATE INDEX idx_account_history_tenant_record ON account_history (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS account_emails;
 CREATE TABLE account_emails (
@@ -422,6 +423,7 @@ CREATE UNIQUE INDEX bundles_id ON bundles(id);
 CREATE UNIQUE INDEX bundles_external_key ON bundles(external_key, tenant_record_id);
 CREATE INDEX bundles_account ON bundles(account_id);
 CREATE INDEX bundles_tenant_account_record_id ON bundles(tenant_record_id, account_record_id);
+CREATE INDEX idx_bundles_tenant_record ON bundles (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS bundle_history;
 CREATE TABLE bundle_history (
@@ -443,6 +445,7 @@ CREATE TABLE bundle_history (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX bundle_history_target_record_id ON bundle_history(target_record_id);
 CREATE INDEX bundle_history_tenant_record_id ON bundle_history(tenant_record_id);
+CREATE INDEX idx_bundle_history_tenant_record ON bundle_history (tenant_record_id, record_id);
 
 /*! SET default_storage_engine=INNODB */;
 
@@ -642,6 +645,7 @@ CREATE INDEX invoices_tenant_account_record_id ON invoices(tenant_record_id, acc
 CREATE INDEX invoice_grp_id ON invoices(grp_id ASC);
 CREATE INDEX invoice_currency ON invoices(currency ASC);
 CREATE INDEX invoice_account_record_id_record_id ON invoices(account_record_id, record_id);
+CREATE INDEX idx_invoices_tenant_record ON invoices (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS invoice_history;
 CREATE TABLE invoice_history (
@@ -667,6 +671,7 @@ CREATE INDEX invoice_history_target_record_id ON invoice_history(target_record_i
 CREATE INDEX invoice_history_tenant_record_id ON invoice_history(tenant_record_id);
 CREATE INDEX invoice_history_currency ON invoice_history(currency ASC);
 CREATE INDEX invoice_history_account_record_id_record_id ON invoice_history(account_record_id, record_id);
+CREATE INDEX idx_invoice_history_tenant_record ON invoice_history (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS invoice_payments;
 CREATE TABLE invoice_payments (
@@ -833,6 +838,7 @@ CREATE UNIQUE INDEX payment_methods_id ON payment_methods(id);
 CREATE UNIQUE INDEX payment_methods_external_key ON payment_methods(external_key, tenant_record_id);
 CREATE INDEX payment_methods_plugin_name ON payment_methods(plugin_name);
 CREATE INDEX payment_methods_tenant_account_record_id ON payment_methods(tenant_record_id, account_record_id);
+CREATE INDEX idx_payment_methods_tenant_record ON payment_methods (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS payment_method_history;
 CREATE TABLE payment_method_history (
@@ -854,7 +860,7 @@ CREATE TABLE payment_method_history (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX payment_method_history_target_record_id ON payment_method_history(target_record_id);
 CREATE INDEX payment_method_history_tenant_account_record_id ON payment_method_history(tenant_record_id, account_record_id);
-
+CREATE INDEX idx_payment_method_history_tenant_record ON payment_method_history (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS payments;
 CREATE TABLE payments (
@@ -878,7 +884,7 @@ CREATE UNIQUE INDEX payments_key ON payments(external_key, tenant_record_id);
 CREATE INDEX payments_accnt ON payments(account_id);
 CREATE INDEX payments_tenant_account_record_id ON payments(tenant_record_id, account_record_id);
 CREATE INDEX payments_tenant_record_id_state_name ON payments(tenant_record_id, state_name);
-
+CREATE INDEX idx_payments_tenant_record ON payments (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS payment_history;
 CREATE TABLE payment_history (
@@ -901,7 +907,7 @@ CREATE TABLE payment_history (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX payment_history_target_record_id ON payment_history(target_record_id);
 CREATE INDEX payment_history_tenant_account_record_id ON payment_history(tenant_record_id, account_record_id);
-
+CREATE INDEX idx_payment_history_tenant_record ON payment_history (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS payment_transactions;
 CREATE TABLE payment_transactions (
@@ -1028,7 +1034,7 @@ CREATE UNIQUE INDEX custom_fields_id ON custom_fields(id);
 CREATE INDEX custom_fields_object_id_object_type ON custom_fields(object_id, object_type);
 CREATE INDEX custom_fields_tenant_account_record_id ON custom_fields(tenant_record_id, account_record_id);
 CREATE INDEX custom_fields_name_value ON custom_fields(field_name, field_value);
-
+CREATE INDEX idx_custom_fields_tenant_record ON custom_fields (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS custom_field_history;
 CREATE TABLE custom_field_history (
@@ -1052,6 +1058,7 @@ CREATE TABLE custom_field_history (
 CREATE INDEX custom_field_history_target_record_id ON custom_field_history(target_record_id);
 CREATE INDEX custom_field_history_object_id_object_type ON custom_field_history(object_id, object_type);
 CREATE INDEX custom_field_history_tenant_account_record_id ON custom_field_history(tenant_record_id, account_record_id);
+CREATE INDEX idx_custom_field_history_tenant_record ON custom_field_history (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS tag_definitions;
 CREATE TABLE tag_definitions (
@@ -1070,6 +1077,7 @@ CREATE TABLE tag_definitions (
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE UNIQUE INDEX tag_definitions_id ON tag_definitions(id);
 CREATE INDEX tag_definitions_tenant_record_id ON tag_definitions(tenant_record_id);
+CREATE INDEX idx_tag_definitions_tenant_record ON tag_definitions (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS tag_definition_history;
 CREATE TABLE tag_definition_history (
@@ -1094,6 +1102,7 @@ CREATE INDEX tag_definition_history_id ON tag_definition_history(id);
 CREATE INDEX tag_definition_history_target_record_id ON tag_definition_history(target_record_id);
 CREATE INDEX tag_definition_history_name ON tag_definition_history(name);
 CREATE INDEX tag_definition_history_tenant_record_id ON tag_definition_history(tenant_record_id);
+CREATE INDEX idx_tag_definition_history_tenant_record ON tag_definition_history (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS tags;
 CREATE TABLE tags (
@@ -1114,6 +1123,7 @@ CREATE TABLE tags (
 CREATE UNIQUE INDEX tags_id ON tags(id);
 CREATE INDEX tags_by_object ON tags(object_id);
 CREATE INDEX tags_tenant_account_record_id ON tags(tenant_record_id, account_record_id);
+CREATE INDEX idx_tags_tenant_record ON tags (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS tag_history;
 CREATE TABLE tag_history (
@@ -1136,6 +1146,7 @@ CREATE TABLE tag_history (
 CREATE INDEX tag_history_target_record_id ON tag_history(target_record_id);
 CREATE INDEX tag_history_by_object ON tag_history(object_id);
 CREATE INDEX tag_history_tenant_account_record_id ON tag_history(tenant_record_id, account_record_id);
+CREATE INDEX idx_tag_history_tenant_record ON tag_history (tenant_record_id, record_id);
 
 DROP TABLE IF EXISTS audit_log;
 CREATE TABLE audit_log (
@@ -1305,7 +1316,6 @@ CREATE TABLE roles_permissions (
     PRIMARY KEY(record_id)
 ) /*! CHARACTER SET utf8 COLLATE utf8_bin */;
 CREATE INDEX roles_permissions_idx ON roles_permissions(role_name, permission);
-
 
 DROP TABLE IF EXISTS node_infos;
 CREATE TABLE node_infos (
