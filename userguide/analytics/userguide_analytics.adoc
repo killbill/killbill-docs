@@ -159,10 +159,16 @@ The analytics plugin supports three types of reports as explained below:
 [[installing_canned_reports]]
 === Installing Canned Reports
 
-As explained earlier, we provide a set of canned reports that can be useful as a starting point. On non-Windows machines, these can be installed by running the https://github.com/killbill/killbill-analytics-plugin/blob/59c282f97960dc59b944ca33e17353bc19d7c842/src/main/resources/seed_reports.sh[seed_reports.sh] script. On Windows machines, you can install a report by opening the desired report sub-directory from the https://github.com/killbill/killbill-analytics-plugin/tree/master/src/main/resources/reports[reports] directory and creating the _view_, _stored procedure_ and _report_ as explained in the next section.
+As explained earlier, we provide a set of canned reports that can be useful as a starting point. These reports are present in the https://github.com/killbill/killbill-analytics-plugin/tree/master/reports[reports] directory. The https://github.com/killbill/killbill-analytics-plugin/tree/master/reports/README.md#report_creation[README] provides further details and instructions on creating the reports.
 
-[NOTE]
-*Note:* The default views will use the converted amount columns when applicable, which require the `analytics_currency_conversion` table to be populated with currency conversion rates as explained in the <<currency_conversion, "Currency Conversion">> section. If you are only using one currency, use the non-converted columns instead (`next_mrr` instead of `converted_next_mrr` for example).
+In addition, we also provide a https://github.com/killbill/killbill-analytics-plugin/tree/master/reports/reports_setup.sh[reports_setup.sh] script that installs all these reports. This script can be installed as follows:
+
+[source, bash]
+----
+./setup_reports.sh
+----
+
+The https://github.com/killbill/killbill-analytics-plugin/blob/master/reports/README.md#report-script[README] provides further details about this script.
 
 [[create_custom_reports]]
 === Creating Custom Reports
@@ -347,9 +353,9 @@ The following table lists all the report creation options. A subset of these opt
 |refreshHourOfDayGmt   |Hour of the day when the procedure will be executed.    
 |===
 
-=== Other Report Operations
+=== Report APIs
 
-Once a report is created, you can perform several operations on it as explained below.
+The Analytics plugin provides some APIs that can be used to perform report CRUD operations.
 
 ==== Retrieve Report Configuration
 
@@ -364,6 +370,28 @@ curl -u admin:password \
 ----
 
 This returns the report configuration (`reportName`, `reportPrettyName`, etc. fields) for the `new_accounts_per_day` report.
+
+==== Create a Report
+
+You can create a report as follows:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey:bob" \
+     -H "X-Killbill-ApiSecret:lazar" \
+     -H 'Content-Type: application/json' \
+     -d '{"reportName": "new_accounts_per_day",
+          "reportPrettyName": "New accounts created (per day)",
+          "sourceTableName": "new_accounts_per_day",
+          "refreshProcedureName": "refresh_new_accounts_per_day",
+          "refreshFrequency": "HOURLY"}' \
+     "http://127.0.0.1:8080/plugins/killbill-analytics/reports"
+----
+
+This creates a report called `new_accounts_per_day`.
 
 ==== Update a Report
 
