@@ -97,16 +97,69 @@ The metrics exposed by the Aviate plugin can mainly be categorized in the follow
 
 Properties can be specified to configure the Kill Bill system including its plugins. The following https://docs.killbill.io/latest/userguide_configuration#configuration_properties_table[documentation] shows the main configuration properties.
 
+The values for these properties can come from multiple sources, each with a defined precedence.
 
-The values for these properties can come from a number of sources and the system will evaluate based on the following order:
+==== Property Resolution Order (Highest to Lowest)
+Kill Bill resolves property values in the following order, where higher precedence sources override lower ones:
 
-* Immutable system properties: Properties set by the Kill Bill system - e.g. `user.timezone` set to `GMT`
-* Tenant configurations: Properties that have been overridden on a per-tenant level
-* Environment variables: Environment variables that have been set using the `KB_org_*` syntax
-* Runtime configurations: Properties that can be specified as a system property using the `-D<propName>=<propValue>` syntax or through a system property file identified by the system property `-Dorg.killbill.server.properties=<propertyFile>`
-* Default property values: Default values if none of the above overrode the default value
+* Immutable System Property
 
-This flexibility is offered by default and it allows to adopt different deployment models along with a fine grained granularity at the tenant level. However, to make it easier to understand the runtime values of these properties, we have created the endpoint `/v1/health/config`: It provides the view of what the system is running along with the required information about where each property value comes from.
+Includes the `user.timezone` property, which is force set to `GMT`.
+
+This property cannot be overridden.
+
+* Environment Variables
+
+Properties prefixed with `KB_org_` (for example, `KB_org_killbill_dao_url` maps to `org.killbill.dao.url`).
+
+These are loaded only when `org.killbill.server.lookupEnvironmentVariables` is set to `true` (this is enabled by default).
+
+These properties take the highest precedence among other configurable sources.
+
+* Runtime Configuration
+
+Properties loaded from a configuration file specified via `-Dorg.killbill.server.properties=<propertyFile>`.
+
+If no file is specified, Kill Bill uses JVM system properties defined via `-Dproperty=value`.
+
+This source has the second-highest precedence among configurable sources.
+
+* Kill Bill Defaults
+
+These are default values defined within the Kill Bill codebase.
+
+They are registered dynamically by various *Config classes during application startup, covering configuration domains such as CatalogConfig, DaoConfig, LifecycleConfig, SecurityConfig, InvoiceConfig, PaymentConfig, OSGIConfig, and others.
+
+The following defaults are applied only when a property is not defined in any higher precedence source:
+
+    org.killbill.persistent.bus.external.tableName=bus_ext_events
+    org.killbill.persistent.bus.external.historyTableName=bus_ext_events_history
+    org.killbill.server.enableJasypt=false
+    org.killbill.server.lookupEnvironmentVariables=true
+    org.slf4j.simpleLogger.log.jdbc=ERROR
+
+
+
+When a property is defined in multiple sources, Kill Bill applies the value from the highest precedence source and logs a warning indicating which sources defined it and which value was chosen.
+
+Example warning:
+
+`Property conflict detected for 'org.killbill.dao.healthCheckConnectionTimeout':
+defined in sources [RuntimeConfiguration, EnvironmentVariables] -
+using value from 'EnvironmentVariables': '11s'`
+
+
+To make it easier to understand the runtime values of these properties, Kill Bill provides the https://killbill.github.io/slate/aviate-health.html#retrieve-runtime-configuration[/v1/health/config] endpoint.
+This endpoint displays the effective configuration currently in use along with information about which source each property value was derived from.
+
+
+==== Per-Tenant Configuration
+
+In addition to system-wide properties, Kill Bill supports per-tenant configuration, allowing tenants to override specific system properties for their own environment.
+
+This provides fine-grained control in multi-tenant deployments, enabling different tenants to customize selected settings while still inheriting defaults from the global configuration.
+
+For more details, see the official documentation: https://docs.killbill.io/latest/userguide_configuration#_per_tenant_properties.
 
 
 === Queue Metrics
