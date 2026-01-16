@@ -267,29 +267,110 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>Properties can be specified to configure the Kill Bill system including its plugins. The following <a href="https://docs.killbill.io/latest/userguide_configuration#configuration_properties_table">documentation</a> shows the main configuration properties.</p>
 </div>
 <div class="paragraph">
-<p>The values for these properties can come from a number of sources and the system will evaluate based on the following order:</p>
+<p>The values for these properties can come from multiple sources, each with a defined precedence.</p>
+</div>
+<div class="sect3">
+<h4 id="_property_resolution_order_highest_to_lowest">Property Resolution Order (Highest to Lowest)</h4>
+<div class="paragraph">
+<p>Kill Bill resolves property values in the following order, where higher precedence sources override lower ones:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Immutable system properties: Properties set by the Kill Bill system - e.g. <code>user.timezone</code> set to <code>GMT</code></p>
-</li>
-<li>
-<p>Tenant configurations: Properties that have been overridden on a per-tenant level</p>
-</li>
-<li>
-<p>Environment variables: Environment variables that have been set using the <code>KB_org_*</code> syntax</p>
-</li>
-<li>
-<p>Runtime configurations: Properties that can be specified as a system property using the <code>-D&lt;propName&gt;=&lt;propValue&gt;</code> syntax or through a system property file identified by the system property <code>-Dorg.killbill.server.properties=&lt;propertyFile&gt;</code></p>
-</li>
-<li>
-<p>Default property values: Default values if none of the above overrode the default value</p>
+<p>Immutable System Property</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>This flexibility is offered by default and it allows to adopt different deployment models along with a fine grained granularity at the tenant level. However, to make it easier to understand the runtime values of these properties, we have created the endpoint <code>/v1/health/config</code>: It provides the view of what the system is running along with the required information about where each property value comes from.</p>
+<p>Includes the <code>user.timezone</code> property, which is force set to <code>GMT</code>.</p>
+</div>
+<div class="paragraph">
+<p>This property cannot be overridden.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Environment Variables</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Properties prefixed with <code>KB_org_</code> (for example, <code>KB_org_killbill_dao_url</code> maps to <code>org.killbill.dao.url</code>).</p>
+</div>
+<div class="paragraph">
+<p>These are loaded only when <code>org.killbill.server.lookupEnvironmentVariables</code> is set to <code>true</code> (this is enabled by default).</p>
+</div>
+<div class="paragraph">
+<p>These properties take the highest precedence among other configurable sources.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Runtime Configuration</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Properties loaded from a configuration file specified via <code>-Dorg.killbill.server.properties=&lt;propertyFile&gt;</code>.</p>
+</div>
+<div class="paragraph">
+<p>If no file is specified, Kill Bill uses JVM system properties defined via <code>-Dproperty=value</code>.</p>
+</div>
+<div class="paragraph">
+<p>This source has the second-highest precedence among configurable sources.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Kill Bill Defaults</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>These are default values defined within the Kill Bill codebase.</p>
+</div>
+<div class="paragraph">
+<p>They are registered dynamically by various *Config classes during application startup, covering configuration domains such as CatalogConfig, DaoConfig, LifecycleConfig, SecurityConfig, InvoiceConfig, PaymentConfig, OSGIConfig, and others.</p>
+</div>
+<div class="paragraph">
+<p>The following defaults are applied only when a property is not defined in any higher precedence source:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>org.killbill.persistent.bus.external.tableName=bus_ext_events
+org.killbill.persistent.bus.external.historyTableName=bus_ext_events_history
+org.killbill.server.enableJasypt=false
+org.killbill.server.lookupEnvironmentVariables=true
+org.slf4j.simpleLogger.log.jdbc=ERROR</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When a property is defined in multiple sources, Kill Bill applies the value from the highest precedence source and logs a warning indicating which sources defined it and which value was chosen.</p>
+</div>
+<div class="paragraph">
+<p>Example warning:</p>
+</div>
+<div class="paragraph">
+<p><code>Property conflict detected for 'org.killbill.dao.healthCheckConnectionTimeout':
+defined in sources [RuntimeConfiguration, EnvironmentVariables] -
+using value from 'EnvironmentVariables': '11s'</code></p>
+</div>
+<div class="paragraph">
+<p>To make it easier to understand the runtime values of these properties, Kill Bill provides the <a href="https://killbill.github.io/slate/aviate-health.html#retrieve-runtime-configuration">/v1/health/config</a> endpoint.
+This endpoint displays the effective configuration currently in use along with information about which source each property value was derived from.</p>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_per_tenant_configuration">Per-Tenant Configuration</h4>
+<div class="paragraph">
+<p>In addition to system-wide properties, Kill Bill supports per-tenant configuration, allowing tenants to override specific system properties for their own environment.</p>
+</div>
+<div class="paragraph">
+<p>This provides fine-grained control in multi-tenant deployments, enabling different tenants to customize selected settings while still inheriting defaults from the global configuration.</p>
+</div>
+<div class="paragraph">
+<p>For more details, see the official documentation: <a href="https://docs.killbill.io/latest/userguide_configuration#_per_tenant_properties" class="bare">https://docs.killbill.io/latest/userguide_configuration#_per_tenant_properties</a>.</p>
+</div>
 </div>
 </div>
 <div class="sect2">
