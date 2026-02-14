@@ -3,65 +3,346 @@
 :card-badge: Premium
 :card-title: Aviate
 :card-link: https://aviate.killbill.io/
-:card-description: 
+:card-description:
 include::{sourcedir}/includes/premium-card.adoc[]
 
-== Introduction
+== Overview
 
-The Aviate plugin enables the management of Coupons, i.e. reusable discounts that can be applied to subscriptions using a redemption code. A coupon can be redeemed by customers when creating or updating a subscription (for example, during an upgrade). 
+As a billing administrator or marketing manager, you need to offer discounts to attract new customers, incentivize plan upgrades, or run seasonal promotions. Aviate Coupons let you create reusable discount codes — fixed-amount ($10 off) or percentage-based (20% off) — and optionally restrict them to specific plans or set expiration dates. When a customer redeems a coupon during subscription creation, the discount is automatically applied to their invoice.
 
-Coupons provide flexibility to offer fixed-amount or percentage-based discounts and can be scoped to specific plans. They are designed to improve customer acquisition, incentivize upgrades, or manage targeted promotions.
+This guide walks through creating, retrieving, listing, and archiving coupons, and shows how to apply a coupon when creating a subscription.
 
-Each coupon includes configurable attributes to control its behavior, such as reusability, discount type, and optional expiration.
+== Prerequisites
 
-== Coupon Attributes
-
-A coupon in Aviate consists of the following attributes:
-
-* `Redemption code`: A unique code that customers can use to apply the discount.
-* `Reusability`: Whether the coupon can be applied multiple times by the same customer.
-* `MaxUse`: Maximum number of times a coupon can be redeemed.
-* `Discount type`: The discount calculation method:
-** `Fixed`: Applies a fixed monetary amount.
-** `Percentage`: Applies a percentage-based discount.
-* `Discount price`: Amount and currency (valid when `Discount type = Fixed`).
-* `Discount percentage`: Percentage value (valid when `Discount type = Percentage`).
-* `Expiration date`: Optional date after which the coupon can no longer be redeemed.
-* `Plan list`: Optional list of plans for which the coupon is applicable.
-
-== Getting Started with Aviate Coupons
-
-This section provides a step-by-step guide to enable and use the Aviate Coupon functionality.
-
-=== Installing the Plugin
-
-Install the Aviate plugin as described in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] guide.
-
-=== Enabling Aviate Coupons
-
-To enable coupon functionality in the Aviate plugin, start Kill Bill with the following system property:
-
+* A running Kill Bill instance with the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[Aviate plugin installed].
+* The coupon feature flag enabled — start Kill Bill with the following system property:
++
 [source,bash]
 ----
 com.killbill.billing.plugin.aviate.enableCouponsApis=true
 ----
-
++
 For details on setting configuration properties, refer to the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide].
+* A valid JWT ID token (see link:aviate-authentication.adoc[Aviate Authentication]).
+* At least one plan in the catalog (see link:aviate-catalog-guide.adoc[Aviate Catalog Guide]).
 
-=== Using Coupon APIs
+== Coupon Attributes Reference
 
-Once the plugin is installed and coupon support is enabled, you can interact with the Aviate Coupons using its API. The API allows you to:
+Each coupon is defined by the following fields:
 
-* Create and manage coupons.
-* Define attributes such as redemption code, discount type, and expiration.
-* Redeem coupons during subscription creation or updates.
+[cols="2,1,1,1,4", options="header"]
+|===
+| Field | Type | Required? | Default | Description
 
-Full API documentation is available at:
-https://apidocs.killbill.io/aviate-coupons[our API documentation].
+| `redemptionCode`
+| string
+| Yes
+| —
+| Unique code that customers use to apply the discount.
 
-== Using the Coupon Functionality
+| `reusable`
+| boolean
+| Yes
+| —
+| Whether the same customer can redeem the coupon more than once.
 
-1. Create a coupon specifying its attributes, including the redemption code, discount type (fixed or percentage), amount or percentage, and optional expiration date.
-2. Optionally, restrict the coupon to specific plans using the `Plan list` attribute.
-3. Provide the redemption code to customers, who can apply it when creating or updating subscriptions.
-4. Monitor coupon usage via the API to track redemption patterns and performance.
+| `discountType`
+| enum
+| Yes
+| —
+| `DISCOUNT_TYPE_FIXED` or `DISCOUNT_TYPE_PERCENTAGE`.
+
+| `discountPrice`
+| string
+| If FIXED
+| —
+| Fixed discount amount (e.g., `"10.00"`).
+
+| `discountCurrency`
+| string
+| If FIXED
+| —
+| Currency for the fixed discount (e.g., `"USD"`).
+
+| `discountPercentage`
+| double
+| If PERCENTAGE
+| —
+| Percentage off (e.g., `20.0` = 20%).
+
+| `maxUse`
+| int
+| No
+| 0 (unlimited)
+| Maximum total redemptions across all customers.
+
+| `expirationDate`
+| datetime
+| No
+| null (never)
+| ISO 8601 date/time after which redemption is rejected.
+
+| `planList`
+| string[]
+| No
+| [] (all plans)
+| Restrict the coupon to specific plan names.
+|===
+
+== Create a Percentage Coupon (Step-by-Step)
+
+This section walks through the full lifecycle: create a 20%-off coupon, verify it, apply it to a new subscription, and confirm the discount appears on the invoice.
+
+=== Step 1: Create the Coupon
+
+[source,bash]
+----
+curl -v -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '{
+    "redemptionCode": "WELCOME20",
+    "reusable": false,
+    "maxUse": 100,
+    "discountType": "DISCOUNT_TYPE_PERCENTAGE",
+    "discountPercentage": 20.0,
+    "expirationDate": "2026-06-30T23:59:59Z",
+    "planList": ["starter-monthly"]
+  }' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/coupon
+----
+
+==== Expected Response (HTTP 201)
+
+[source,json]
+----
+{
+  "redemptionCode": "WELCOME20",
+  "reusable": false,
+  "maxUse": 100,
+  "useCount": 0,
+  "discountType": "DISCOUNT_TYPE_PERCENTAGE",
+  "discountPercentage": 20.0,
+  "expirationDate": "2026-06-30T23:59:59Z",
+  "planList": ["starter-monthly"],
+  "archived": false
+}
+----
+
+=== Step 2: Verify the Coupon Exists
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/coupon/redemptionCode/WELCOME20
+----
+
+==== Expected Response (HTTP 200)
+
+[source,json]
+----
+{
+  "redemptionCode": "WELCOME20",
+  "reusable": false,
+  "maxUse": 100,
+  "useCount": 0,
+  "discountType": "DISCOUNT_TYPE_PERCENTAGE",
+  "discountPercentage": 20.0,
+  "expirationDate": "2026-06-30T23:59:59Z",
+  "planList": ["starter-monthly"],
+  "archived": false
+}
+----
+
+=== Step 3: Apply During Subscription Creation
+
+To redeem a coupon, pass it as a `pluginProperty` when creating a subscription through the Kill Bill API:
+
+[source,bash]
+----
+curl -v -X POST -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+    "planName": "starter-monthly",
+    "pluginProperty": [
+      {
+        "key": "aviate-redemption-code",
+        "value": "WELCOME20"
+      }
+    ]
+  }' \
+  "http://127.0.0.1:8080/1.0/kb/subscriptions"
+----
+
+IMPORTANT: The plugin property key must be exactly `aviate-redemption-code`. The value is the coupon's `redemptionCode`.
+
+==== Expected Response (HTTP 201)
+
+The response is a standard Kill Bill subscription object. A `Location` header contains the URI of the new subscription.
+
+=== Step 4: Verify Discount on Invoice
+
+Retrieve the account's invoices to confirm the discount was applied:
+
+[source,bash]
+----
+curl -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/1.0/kb/accounts/e5d3d5b5-4415-4166-b57f-33ca00a59e88/invoices?withItems=true"
+----
+
+==== Expected Invoice Items
+
+The invoice should contain two relevant line items — the recurring charge and the coupon discount:
+
+[source,json]
+----
+[
+  {
+    "itemType": "RECURRING",
+    "planName": "starter-monthly",
+    "amount": 10.00
+  },
+  {
+    "itemType": "ITEM_ADJ",
+    "description": "Coupon: WELCOME20",
+    "amount": -2.00
+  }
+]
+----
+
+TIP: In this example the plan costs $10/month and the 20% coupon produces a $2.00 discount.
+
+== Create a Fixed-Amount Coupon
+
+For a flat discount (e.g., $10 off), use `DISCOUNT_TYPE_FIXED` and supply `discountPrice` and `discountCurrency`:
+
+[source,bash]
+----
+curl -v -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '{
+    "redemptionCode": "SAVE10",
+    "reusable": true,
+    "maxUse": 50,
+    "discountType": "DISCOUNT_TYPE_FIXED",
+    "discountPrice": "10.00",
+    "discountCurrency": "USD",
+    "expirationDate": "2026-12-31T23:59:59Z"
+  }' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/coupon
+----
+
+==== Expected Response (HTTP 201)
+
+[source,json]
+----
+{
+  "redemptionCode": "SAVE10",
+  "reusable": true,
+  "maxUse": 50,
+  "useCount": 0,
+  "discountType": "DISCOUNT_TYPE_FIXED",
+  "discountPrice": "10.00",
+  "discountCurrency": "USD",
+  "expirationDate": "2026-12-31T23:59:59Z",
+  "planList": [],
+  "archived": false
+}
+----
+
+NOTE: Because no `planList` is specified, this coupon can be applied to any plan.
+
+== List and Manage Coupons
+
+=== List Active Coupons
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/coupon
+----
+
+=== List All Coupons (Including Archived and Expired)
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/plugins/aviate-plugin/v1/coupon?includeArchived=true&includeExpired=true"
+----
+
+=== Archive a Coupon
+
+Archiving soft-deletes a coupon so it can no longer be redeemed:
+
+[source,bash]
+----
+curl -v -X PUT \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/coupon/WELCOME20/archive
+----
+
+== What to Verify
+
+After completing the steps above, confirm the following:
+
+* The invoice shows a discount line item with the correct amount (percentage or fixed).
+* The coupon's `useCount` increments after each successful redemption.
+* Archived coupons return an error when a redemption is attempted.
+* Expired coupons are rejected at redemption time.
+
+== Common Pitfalls
+
+1. **Plan-scoped coupon applied to a different plan** — the coupon is silently ignored and no discount appears on the invoice. Double-check the `planList` values match the subscription's `planName`.
+2. **Using a coupon after its `expirationDate`** — the API returns an error. Update or create a new coupon with a later expiration.
+3. **Forgetting `enableCouponsApis=true`** — all coupon endpoints return `404 Not Found`. Ensure the system property is set before starting Kill Bill.
+4. **Using `DISCOUNT_TYPE_FIXED` without `discountPrice`** — the API returns `400 Bad Request`. Both `discountPrice` and `discountCurrency` are required for fixed-amount coupons.
+5. **Applying multiple coupons** — only the first coupon is applied. If you need to stack discounts, combine them into a single coupon or use wallet credits instead.
+
+== API Reference
+
+[cols="1,3,3", options="header"]
+|===
+| Method | Path | Description
+
+| `POST`
+| `/plugins/aviate-plugin/v1/coupon`
+| Create a coupon.
+
+| `GET`
+| `/plugins/aviate-plugin/v1/coupon`
+| List coupons. Query params: `includeArchived`, `includeExpired`.
+
+| `GET`
+| `/plugins/aviate-plugin/v1/coupon/redemptionCode/{code}`
+| Get a coupon by its redemption code.
+
+| `PUT`
+| `/plugins/aviate-plugin/v1/coupon/{code}/archive`
+| Archive (soft-delete) a coupon.
+|===
+
+== Related
+
+* link:aviate-authentication.adoc[Aviate Authentication] — obtain the `ID_TOKEN` used in all examples above
+* link:aviate-billing-account.adoc[Aviate Billing Accounts] — set up accounts before creating subscriptions
+* link:aviate-catalog-guide.adoc[Aviate Catalog Guide] — create the plans referenced by coupons
+* link:aviate-wallet.adoc[Aviate Wallets] — wallet credits as an alternative to coupon discounts
