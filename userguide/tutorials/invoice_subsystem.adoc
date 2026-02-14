@@ -321,10 +321,10 @@ The notification for the phase event is processed by the subscription subsystem.
 
 The invoicing subsystem picks it up and re-compute the billing events:
 
-```
+----
 DefaultBillingEvent{type=CREATE, effectiveDate=2012-04-01T00:01:14.000Z, planPhaseName=shotgun-monthly-trial, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=1}
 DefaultBillingEvent{type=PHASE, effectiveDate=2012-05-01T00:01:14.000Z, planPhaseName=shotgun-monthly-evergreen, subscriptionId=d9c7bb57-675e-4419-a340-5f6b4fd612f4, totalOrdering=2}
-```
+----
 
 Nothing has changed but since the target date is now 2012-05-01, both events need to be taken into account. The invoice subsystem recomputes all invoice items since the beginning of time, and come up with a `FIXED` item (trial period) and a `RECURRING` item (for the service period 2012-05-01 to 2012-06-01). Because the `FIXED` item is already present in the database, only the second one is persisted on disk, on a new invoice:
 
@@ -1143,7 +1143,7 @@ For example, let's assume a subscription was billed in advance from 2012-05-01 t
 
 The tree would look like this:
 
-```
+----
   A
  /
  B
@@ -1153,13 +1153,13 @@ C
 A: [2012-05-01,2012-06-01]
 B: [2012-05-01,2012-06-01](A)
 C: [2012-05-07,2012-06-01](A,C)
-```
+----
 
 `A` is the root node, it doesn't contain any item and the service period is the largest period containing all items in the tree. Node `B` represents the initial recurring period (the node has one `ADD` -- or `A` -- invoice item). `B` has one child node -- `C` -- which has two items, the `ADD` item representing the new recurring item, and the `CANCEL` item, pointing to the `ADD` item in the node `B`, representing the repair.
 
 The next step is to build the tree: resulting invoice items for each service period are computed and item adjustments processed (if any). In this case, 2 items would be generated (one from 2012-05-01 to 2012-05-07 and one from 2012-05-07 to 2012-06-01). The original tree is then replaced (flatten phase) by a shallow one containing these items (it's really a list at this point):
 
-```
+----
  A
 /
 Bc
@@ -1167,7 +1167,7 @@ Bc
 A: [2012-05-01,2012-06-01]
 B: [2012-05-01,2012-05-07](C)
 c: [2012-05-07,2012-06-01](C)
-```
+----
 
 The items already invoiced are also reversed and labeled as `C` (`CANCEL`) before the next step.
 
@@ -1175,7 +1175,7 @@ Billing events are then processed and a list of proposed invoice items is genera
 
 For example, if a proposed `RECURRING` item from 2012-05-01 to 2012-05-07 is merged, the flattened list becomes:
 
-```
+----
  A
 /
 Bc
@@ -1183,13 +1183,13 @@ Bc
 A: [2012-05-01,2012-06-01]
 B: [2012-05-01,2012-05-07]
 c: [2012-05-07,2012-06-01](C)
-```
+----
 
 Note that node `B` is empty now, the existing item has been removed (matched).
 
 If a change plan would occur on 2012-05-08 and a proposed `RECURRING` item from 2012-05-07 to 2012-05-08 is merged, the list would become:
 
-```
+----
  A
 /
 B-c
@@ -1200,7 +1200,7 @@ A: [2012-05-01,2012-06-01]
 B: [2012-05-01,2012-05-07]
 c: [2012-05-07,2012-06-01](C)
 D: [2012-05-07,2012-05-08](A)
-```
+----
 
 A new node `D`, child of `c`, is inserted representing that period. After the `RECURRING` from 2012-05-08 to 2012-06-01 is merged, the list would be unchanged (no match found and no repair to create) and the `RECURRING` item kept on the side.
 
