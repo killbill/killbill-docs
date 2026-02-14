@@ -35,19 +35,19 @@ Once the plugin is installed and enabled, you can start using the Catalog Plugin
 
 Since the Kill Bill system internally manages catalog versions, the plugin will construct such multi-version catalog based on the entries that need to be returned.
 
-Each plan stored within the Aviate catalog plugn has an associated `effectiveDate`. The catalog versions and what they each include is based on the `plan#effectiveDate`: A new version will be created every time there is a set of changes associated with an existing Plan (e.g. price change). When this happens, a new version is created, which also includes all the previous Plans.
+Each plan stored within the Aviate catalog plugin has an associated `effectiveDate`. The catalog versions and what they each include is based on the `plan#effectiveDate`: A new catalog version is created every time a plan is modified (e.g. price change). When this happens, a new version is created with the `effectiveDate` of the modified plan, and it also includes all the previous plans.
 
-Assuming we have the following plans, Pa, Pb, Pc, and we create those at different times and modify those to allow for price changes, we get the following:
+Assuming we have plans p1, p2, p3, p4 that are created and modified at different times (using the prime notation to denote modifications, e.g. p1' is the first modification of p1), and given the following sequence of plan creations/updates: p1, p2, p3, p1', p2', p4, p2'', we get the following catalog versions:
 
 [source,bash]
 ----
-* T1: Create Pa -> 1 catalog version v1={Pa}
-* T2: Create Pb -> 1 catalog version v1={Pa, Pb}
-* T3: Modify Pa -> 2 catalog versions v1={Pa, Pb}, v2={Pa', Pb} // Pa' with the new price
-* T4: Create Pc -> 2 catalog versions v1={Pa, Pb}, v2={Pa', Pb, Pc} // Pa' with the new price
-* T5: Modify Pb -> 3 catalog versions v1={Pa, Pb}, v2={Pa', Pb, Pc}, v3={Pa', Pb', Pc} // Pa' and Pb' with the new price
-...
+v1: p1, p2, p3           # v1 effectiveDate = p1 effectiveDate
+v2: p1', p2, p3          # v2 effectiveDate = p1' effectiveDate
+v3: p1', p2', p3, p4     # v3 effectiveDate = p2' effectiveDate
+v4: p1', p2'', p3, p4    # v4 effectiveDate = p2'' effectiveDate
 ----
+
+Each plan modification triggers a new catalog version so that the `effectiveDate` of that version matches the `effectiveDate` of the modified plan. New plan creations (e.g. p4) are included in the most recent open version without creating a new one. If multiple plans are modified with the exact same `effectiveDate`, they will be grouped in the same catalog version.
 
 == FAQs
 
