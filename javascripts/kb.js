@@ -174,3 +174,141 @@ if (nextNav?.link) {
 if (document.querySelector('.landing-page')) {
   $('.bottom-nav-links').hide();
 }
+
+// ========================================
+// Insider Preview access gate
+// ========================================
+
+(function insiderPreviewGate() {
+  const INSIDER_PAGES = [
+    'aviate-approvals',
+    'aviate-contracts',
+    'aviate-error-handling',
+    'aviate-intents',
+    'aviate-product-catalog',
+    'aviate-quotes-orders',
+    'aviate-rbac',
+    'aviate-revenue-recognition',
+    'aviate-usage-rating'
+  ];
+
+  const ACCESS_KEY = 'insider-access';
+  const ACCESS_CODE = 'aviate2026';
+
+  function isInsiderPage() {
+    const path = window.location.pathname.toLowerCase();
+    return INSIDER_PAGES.some(p => path.includes(p));
+  }
+
+  function isAccessGranted() {
+    return localStorage.getItem(ACCESS_KEY) === 'granted';
+  }
+
+  function grantAccess() {
+    localStorage.setItem(ACCESS_KEY, 'granted');
+  }
+
+  function markLinksLocked() {
+    // Add a small lock icon after each insider link label
+    $('.insider-link').each(function() {
+      $(this).addClass('insider-locked');
+    });
+  }
+
+  function markLinksUnlocked() {
+    $('.insider-link').removeClass('insider-locked');
+  }
+
+  function showGateModal(onSuccess) {
+    const overlay = $(`
+      <div class="insider-gate-overlay">
+        <div class="insider-gate-modal">
+          <div class="insider-gate-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div class="insider-gate-title">Insider Preview</div>
+          <div class="insider-gate-subtitle">This content is available exclusively to select partners and customers. Enter your access code if you have been granted access.</div>
+          <div class="insider-gate-input-group">
+            <input type="password" class="insider-gate-input" placeholder="Enter access code" autocomplete="off" autofocus>
+            <button class="insider-gate-btn">Unlock</button>
+          </div>
+          <div class="insider-gate-error"></div>
+          <div class="insider-gate-back"><a href="/latest/what_is_aviate.html">&larr; Back to Aviate docs</a></div>
+        </div>
+      </div>
+    `);
+
+    $('body').append(overlay);
+
+    const input = overlay.find('.insider-gate-input');
+    const errorEl = overlay.find('.insider-gate-error');
+
+    function attemptUnlock() {
+      const code = input.val().trim();
+      if (code === ACCESS_CODE) {
+        grantAccess();
+        overlay.fadeOut(200, function() {
+          overlay.remove();
+          markLinksUnlocked();
+          if (onSuccess) onSuccess();
+        });
+      } else {
+        errorEl.text('Invalid access code. Please try again.');
+        input.addClass('error');
+        setTimeout(() => input.removeClass('error'), 500);
+      }
+    }
+
+    overlay.find('.insider-gate-btn').on('click', attemptUnlock);
+    input.on('keydown', function(e) {
+      if (e.key === 'Enter') attemptUnlock();
+    });
+
+    // Close on overlay background click
+    overlay.on('click', function(e) {
+      if ($(e.target).hasClass('insider-gate-overlay')) {
+        overlay.fadeOut(200, function() { overlay.remove(); });
+        // If we're on an insider page, go back
+        if (isInsiderPage()) {
+          window.location.href = '/latest/what_is_aviate.html';
+        }
+      }
+    });
+
+    setTimeout(() => input.focus(), 350);
+  }
+
+  // --- Sidebar: links are always visible ---
+
+  if (isAccessGranted()) {
+    // Unlocked — links work normally
+    markLinksUnlocked();
+  } else {
+    // Locked — show links but intercept clicks
+    markLinksLocked();
+
+    $('.insider-link').on('click', function(e) {
+      if (!isAccessGranted()) {
+        e.preventDefault();
+        const targetHref = $(this).attr('href');
+        showGateModal(function() {
+          // On successful unlock, navigate to the clicked page
+          window.location.href = targetHref;
+        });
+      }
+    });
+
+    // If user landed directly on an insider page, show the gate over the content
+    if (isInsiderPage()) {
+      $('.content-wrapper #content').css('visibility', 'hidden');
+      $('.bottom-nav-links').css('visibility', 'hidden');
+      showGateModal(function() {
+        $('.content-wrapper #content').css('visibility', 'visible');
+        $('.bottom-nav-links').css('visibility', 'visible');
+      });
+    }
+  }
+})();

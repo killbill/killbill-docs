@@ -1,0 +1,269 @@
+= Aviate Quotes & Orders
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+Aviate Quotes and Orders provide a structured sales workflow for enterprise billing. Quotes allow your sales team to build proposals with detailed product line items, structured pricing, and configurable characteristics. Once a customer agrees, a quote converts to an order, which in turn creates a contract and activates the underlying Kill Bill subscriptions.
+
+=== When You Need This
+
+Picture an enterprise sales cycle: a rep builds a proposal with three product lines -- a platform license, an API add-on, and a premium support package. The customer negotiates, the rep revises the quote twice, and the deal finally closes. In many billing systems, the rep hands off a PDF to an ops team who manually creates three separate subscriptions, hoping the pricing matches what was promised.
+
+With Quotes & Orders, the entire flow stays connected. The rep creates a quote with all three line items, each with its own pricing and product characteristics (region, support tier, usage limits). When the customer signs, one click converts the quote into an order, which automatically provisions the subscriptions and creates the contract. Every revision is versioned, every related party (buyer, legal, technical contact) is tracked, and if the customer needs to cancel a line item later, a cancellation order handles it cleanly.
+
+Key capabilities include:
+
+* *Structured pricing* on quote line items (recurring, one-time, and usage components)
+* *Quote versioning* -- revise and reissue quotes without losing history
+* *Related parties* -- associate contacts (buyer, approver, technical lead) with each quote
+* *Characteristic selection* -- choose specific values for configurable product attributes at the order level
+* *Cancellation orders* -- create cancellation orders for existing subscriptions
+
+include::{sourcedir}/preview/includes/diagram-quotes-orders.adoc[]
+
+== Getting Started with Quotes & Orders
+
+=== Installing the Plugin
+
+Install the Aviate plugin as described in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] guide.
+
+=== Enabling Quotes & Orders
+
+To enable the enhanced quote functionality, start Kill Bill with the following system property:
+
+[source,bash]
+----
+com.killbill.billing.plugin.aviate.enableQuoteApis=true
+----
+
+=== Using Quote APIs
+
+Full API documentation is available at https://apidocs.killbill.io/aviate-quotes[our API documentation].
+
+== Creating a Quote
+
+=== Basic Quote
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/quotes" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Acme Corp -- Q1 2026 Renewal",
+    "accountId": "a1b2c3d4-...",
+    "validUntil": "2026-03-31",
+    "quoteItems": [
+      {
+        "productOfferingId": "po-001",
+        "quantity": 5,
+        "priceOverrides": [
+          {
+            "priceType": "RECURRING",
+            "amount": 89.00,
+            "currency": "USD",
+            "billingPeriod": "MONTHLY"
+          }
+        ]
+      }
+    ],
+    "relatedParties": [
+      {
+        "name": "Jane Smith",
+        "role": "BUYER",
+        "email": "jane@acme.com"
+      },
+      {
+        "name": "Bob Johnson",
+        "role": "APPROVER",
+        "email": "bob@acme.com"
+      }
+    ]
+  }'
+----
+
+=== Quote with Characteristic Selections
+
+When a product has configurable characteristics (defined in the Product Specification), you can choose specific values at the quote level:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/quotes" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Custom Configuration Quote",
+    "accountId": "a1b2c3d4-...",
+    "quoteItems": [
+      {
+        "productOfferingId": "po-001",
+        "quantity": 1,
+        "characteristics": {
+          "region": "eu-west-1",
+          "support_tier": "premium",
+          "max_users": 500
+        }
+      }
+    ]
+  }'
+----
+
+The system validates the selected values against the allowed values defined in the Product Specification. Invalid selections are rejected with a descriptive error.
+
+== Quote Lifecycle
+
+Quotes follow a managed workflow:
+
+[cols="1,1,3", options="header"]
+|===
+| State | Transitions | Description
+
+| `DRAFT`
+| -> `SUBMITTED`
+| Initial state. Quote can be edited.
+
+| `SUBMITTED`
+| -> `APPROVED`, -> `REJECTED`
+| Submitted for internal review.
+
+| `APPROVED`
+| -> `ORDERED`
+| Ready to be sent to the customer and converted.
+
+| `REJECTED`
+| -> `DRAFT`
+| Sent back for revision. Can be edited and resubmitted.
+
+| `ORDERED`
+| (terminal)
+| Converted to an order. A contract has been created.
+
+| `CANCELLED`
+| (terminal)
+| Quote was abandoned.
+|===
+
+== Quote Versioning
+
+Each time you revise and resubmit a quote, a new version is created. All versions are retained for audit purposes:
+
+[source,bash]
+----
+# Get all versions of a quote
+curl "${KB_URL}/plugins/aviate-plugin/v1/quotes/q-001/versions" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+Response:
+
+[source,json]
+----
+[
+  { "version": 1, "status": "REJECTED", "createdAt": "2026-02-01T10:00:00Z" },
+  { "version": 2, "status": "APPROVED", "createdAt": "2026-02-05T14:30:00Z" }
+]
+----
+
+This provides a full audit trail of how the quote evolved during the sales process.
+
+== Related Parties
+
+Associate people and their roles with each quote:
+
+[cols="1,3", options="header"]
+|===
+| Role | Description
+
+| `BUYER`
+| The customer contact making the purchasing decision.
+
+| `APPROVER`
+| An internal approver who must sign off on the quote.
+
+| `TECHNICAL_CONTACT`
+| A technical contact for provisioning and configuration questions.
+
+| `BILLING_CONTACT`
+| The contact who receives invoices and payment notifications.
+|===
+
+[source,bash]
+----
+# Add a related party to an existing quote
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/quotes/q-001/relatedParties" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Alice Chen",
+    "role": "TECHNICAL_CONTACT",
+    "email": "alice@acme.com",
+    "phone": "+1-555-0123"
+  }'
+----
+
+== Converting a Quote to an Order
+
+Once a quote is approved, convert it to an order:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/orders" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{ "quoteId": "q-001" }'
+----
+
+This creates:
+
+. An *order* that records the customer's commitment
+. A *contract* with a billing schedule derived from the quote terms
+. The underlying *Kill Bill subscriptions* at the specified start date
+
+== Cancellation Orders
+
+To cancel an existing subscription through the order system, create a cancellation order:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/cancelProductOrders" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "a1b2c3d4-...",
+    "subscriptionId": "s1s2s3s4-...",
+    "cancellationDate": "2026-06-30",
+    "reason": "Customer downgrading to free tier",
+    "cancellationPolicy": "END_OF_TERM"
+  }'
+----
+
+=== Cancellation Policies
+
+[cols="1,3", options="header"]
+|===
+| Policy | Description
+
+| `IMMEDIATE`
+| Cancel right now. Prorated credits are applied.
+
+| `END_OF_TERM`
+| Cancel at the end of the current billing period.
+
+| `SPECIFIC_DATE`
+| Cancel on the date specified in `cancellationDate`.
+|===
+
+Cancellation orders are fully auditable and produce the same state-transition tracking as regular orders.

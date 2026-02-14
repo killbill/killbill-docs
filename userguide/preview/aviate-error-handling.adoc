@@ -1,0 +1,234 @@
+= Aviate Error Handling
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+All Aviate API errors use the https://www.rfc-editor.org/rfc/rfc7807[RFC 7807 Problem Details] format. This provides a consistent, machine-readable error structure across every endpoint, making it straightforward to handle errors in your client code.
+
+Every error response includes:
+
+* `type` -- a URI identifying the error category
+* `title` -- a short, human-readable summary
+* `status` -- the HTTP status code
+* `detail` -- a human-readable explanation of what went wrong
+* `instance` -- the request path that produced the error
+
+The `Content-Type` of all error responses is `application/problem+json`.
+
+== Error Response Format
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/validation-error",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "One or more fields failed validation",
+  "instance": "/plugins/aviate-plugin/v1/intents",
+  "errors": [
+    { "field": "params.account.email", "message": "must be a valid email address" },
+    { "field": "params.account.currency", "message": "must not be null" }
+  ]
+}
+----
+
+== Common Error Types
+
+[cols="1,1,3", options="header"]
+|===
+| Type | HTTP Status | Description
+
+| `validation-error`
+| 400
+| One or more request fields are invalid or missing
+
+| `invalid-state-transition`
+| 409
+| The requested operation is not allowed in the entity's current state
+
+| `not-found`
+| 404
+| The referenced entity does not exist
+
+| `conflict`
+| 409
+| A conflicting entity already exists (e.g., duplicate external key)
+
+| `forbidden`
+| 403
+| The authenticated user does not have permission for this operation
+
+| `unauthorized`
+| 401
+| Missing or invalid authentication credentials
+
+| `payment-error`
+| 402
+| A payment operation failed (e.g., card declined)
+
+| `rate-limited`
+| 429
+| Too many requests -- retry after the indicated interval
+
+| `internal-error`
+| 500
+| An unexpected server error occurred
+|===
+
+== Validation Errors
+
+Validation errors include a per-field breakdown in the `errors` array. Each entry identifies the field path and a human-readable message:
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/validation-error",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "3 validation errors",
+  "instance": "/plugins/aviate-plugin/v1/catalog/specifications",
+  "errors": [
+    { "field": "name", "message": "must not be blank" },
+    { "field": "lifecycleStatus", "message": "must be one of: DRAFT, ACTIVE, RETIRED, OBSOLETE" },
+    { "field": "validFor.startDate", "message": "must be a date in the present or future" }
+  ]
+}
+----
+
+== State Transition Errors
+
+When you attempt an operation that is invalid for the entity's current state, you receive a `409 Conflict` with details about the current and expected states:
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/invalid-state-transition",
+  "title": "Invalid State Transition",
+  "status": 409,
+  "detail": "Cannot close period '2026-03' because it is already CLOSED",
+  "instance": "/plugins/aviate-plugin/v1/revenue/periods/2026-03/close",
+  "currentState": "CLOSED",
+  "allowedTransitions": ["REOPEN"]
+}
+----
+
+Another example -- attempting to accept an already-accepted quote:
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/invalid-state-transition",
+  "title": "Invalid State Transition",
+  "status": 409,
+  "detail": "Quote 'qt-abc123' is in state ACCEPTED and cannot transition to ACCEPTED",
+  "instance": "/plugins/aviate-plugin/v1/quotes/qt-abc123/accept",
+  "currentState": "ACCEPTED",
+  "allowedTransitions": []
+}
+----
+
+== Not Found Errors
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/not-found",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "No contract found with id 'ctr-does-not-exist'",
+  "instance": "/plugins/aviate-plugin/v1/contracts/ctr-does-not-exist"
+}
+----
+
+== Handling Errors in Client Code
+
+=== Bash / curl
+
+[source,bash]
+----
+response=$(curl -s -w "\n%{http_code}" \
+  -X POST "${KB_URL}/plugins/aviate-plugin/v1/intents" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{ "type": "ONBOARD_CUSTOMER", "params": {} }')
+
+http_code=$(echo "$response" | tail -1)
+body=$(echo "$response" | sed '$d')
+
+if [ "$http_code" -ge 400 ]; then
+  echo "Error ($http_code):"
+  echo "$body" | jq '.detail'
+  # For validation errors, show per-field details
+  echo "$body" | jq -r '.errors[]? | "  \(.field): \(.message)"'
+fi
+----
+
+=== JavaScript / Node.js
+
+[source,javascript]
+----
+const response = await fetch(`${KB_URL}/plugins/aviate-plugin/v1/intents`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${idToken}`,
+    'X-Killbill-ApiKey': apiKey,
+    'X-Killbill-ApiSecret': apiSecret,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ type: 'ONBOARD_CUSTOMER', params: {} })
+});
+
+if (!response.ok) {
+  const problem = await response.json();
+  console.error(`${problem.title}: ${problem.detail}`);
+
+  if (problem.errors) {
+    for (const err of problem.errors) {
+      console.error(`  ${err.field}: ${err.message}`);
+    }
+  }
+
+  // Handle specific error types
+  switch (problem.type) {
+    case 'https://docs.killbill.io/errors/validation-error':
+      // Fix input and retry
+      break;
+    case 'https://docs.killbill.io/errors/rate-limited':
+      // Wait and retry
+      break;
+    case 'https://docs.killbill.io/errors/invalid-state-transition':
+      // Refresh entity state, adjust operation
+      break;
+  }
+}
+----
+
+== Rate Limiting
+
+When the API rate limit is exceeded, the response includes a `Retry-After` header:
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/rate-limited",
+  "title": "Too Many Requests",
+  "status": 429,
+  "detail": "Rate limit exceeded. Retry after 30 seconds.",
+  "instance": "/plugins/aviate-plugin/v1/intents"
+}
+----
+
+HTTP headers:
+
+[source]
+----
+Retry-After: 30
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1711900030
+----
+
+We recommend implementing exponential backoff in your client code when you receive a 429 response.
