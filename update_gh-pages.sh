@@ -22,7 +22,7 @@ cp -rf $BUILD/build/selfcontained/javascripts/* $BUILD/killbill-docs/$VERSION/ja
 
 mkdir -p $BUILD/killbill-docs/latest $BUILD/killbill-docs/latest/stylesheets $BUILD/killbill-docs/latest/javascripts
 # This will also copy the manually generated files (*.xsd, ddl.sql)
-cp -f $BUILD/killbill-docs/$VERSION/* $BUILD/killbill-docs/latest/
+cp -rf $BUILD/killbill-docs/$VERSION/* $BUILD/killbill-docs/latest/
 cp -rf $BUILD/killbill-docs/$VERSION/stylesheets/* $BUILD/killbill-docs/latest/stylesheets/
 cp -rf $BUILD/killbill-docs/$VERSION/javascripts/* $BUILD/killbill-docs/latest/javascripts/
 
