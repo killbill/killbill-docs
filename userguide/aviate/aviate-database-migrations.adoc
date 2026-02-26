@@ -1,0 +1,675 @@
+= Aviate Database Migrations
+
+This guide explains how Aviate manages database schema migrations and how to validate that migrations have been applied successfully.
+
+For plugin installation steps, see
+link:https://docs.killbill.io/latest/how-to-install-the-aviate-plugin[How to Install the Aviate Plugin].
+
+By default, Aviate runs database migrations automatically at startup. This behavior is controlled by the following property:
+
+----
+com.killbill.billing.plugin.aviate.enableMigrations=true
+----
+
+When enabled, Flyway initializes the Aviate schema and applies all pending migrations during plugin startup.
+
+== How Aviate Manages Database Migrations
+
+Aviate uses Flyway to version and apply database schema changes.
+
+At startup, Flyway:
+
+* Creates the `aviate_schema_history` table if it does not already exist
+* Applies migrations in version order
+* Tracks applied migrations to prevent duplicate or partial execution
+
+
+== Migration Scenarios
+
+=== Scenario 1: Fresh Install (No Existing Aviate Schema)
+
+This scenario applies to brand-new installations where Aviate has never been started against the target database.
+
+==== Symptoms
+
+* No `aviate_*` tables exist.
+* The `aviate_schema_history` table is not present.
+
+==== Expected Action
+
+Start the Aviate plugin. Flyway will automatically:
+
+* Create the schema history table
+* Apply all migrations
+* Initialize the Aviate schema
+
+No manual intervention is required.
+
+==== What to Verify
+
+After the plugin starts successfully:
+
+    1. Confirm that the schema history table exists:
+
+    ----
+    SHOW TABLES LIKE 'aviate_schema_history';
+    ----
+
+
+    2. Verify that migrations were applied:
+
+    ----
+    SELECT version, description, success
+    FROM aviate_schema_history
+    ORDER BY installed_rank DESC;
+    ----
+
+    All rows should show:
+
+    ----
+    success = 1
+    ----
+
+    3. Confirm that the expected `aviate_*` tables are present.
+
+==== Expected Logs
+
+Look for log entries similar to the following:
+
+----
+Migrations are enabled. Starting migration process...
+Schema history table `killbill`.`aviate_schema_history` does not exist yet
+Successfully validated 16 migrations (execution time 00:00.026s)
+Successfully applied 16 migrations to schema `killbill`, now at version v1.16.0 (execution time 00:07.871s)
+Migration process completed successfully
+----
+
+=== Scenario 2 — Existing Aviate Schema but No `aviate_schema_history` (Adopting into Flyway)
+
+This scenario occurs when Aviate tables already exist in the database, but Flyway has never been used to track migrations.
+
+This is common when the schema was created manually.
+
+==== Symptoms
+
+* `aviate_*` tables exist.
+* The `aviate_schema_history` table is missing.
+
+==== Failure Mode
+
+When the plugin starts, Flyway assumes the database is empty and attempts to run the initial migrations.
+
+Since the tables already exist, the migration fails with errors similar to:
+
+----
+Schema history table `killbill`.`aviate_schema_history` does not exist yet
+Creating Schema History table `killbill`.`aviate_schema_history` with baseline ...
+Migrating schema `killbill` to version "1.1.0 - Initial version"
+Error: 1050-42S01: Table 'aviate_hosts' already exists
+----
+
+Subsequent restarts continue to fail because Flyway retries the same migration.
+
+==== Root Cause
+
+Flyway has no record of previously applied migrations and cannot determine the current schema version.
+
+The database must be baselined so Flyway can begin tracking migrations from the correct version.
+
+Selecting the wrong baseline version can cause Flyway to either:
+
+* Re-run migrations against existing objects, or
+* Skip required migrations, leading to runtime failures.
+
+Always validate the baseline version before proceeding.
+
+==== Resolution — Align Flyway with the Existing Schema (Baselining)
+
+When migrations are enabled (`com.killbill.billing.plugin.aviate.enableMigrations=true`), Flyway automatically creates the `aviate_schema_history` table and attempts to apply migrations.
+If the schema already exists, Flyway must be aligned with the current database state by setting the correct baseline.
+
+===== Step 1 — Retrieve the Migration Files
+
+Download the migration scripts from the following link:
+
+MySQL migrations:
+https://docs.killbill.io/latest/aviate-migrations/mysql/
+
+PostgreSQL migrations:
+https://docs.killbill.io/latest/aviate-migrations/postgresql/
+
+Migration files follow the following format:
+
+----
+aviateV1.1.0__Initial_version.sql
+aviateV1.2.0__catalog_usage.sql
+aviateV1.3.0__catalog_meter.sql
+----
+
+After downloading, compare the migration files with your current Aviate schema to identify the latest version already reflected in your database. This version will be used as the Flyway baseline.
+
+Example:
+
+----
+aviateV1.8.0__notifications.sql
+----
+
+✅ Baseline version = **1.8.0**
+
+===== Step 2 — Check for Failed Migrations
+----
+SELECT * FROM aviate_schema_history;
+----
+If a row shows:
+----
+success = 0
+----
+
+remove **only that failed entry**:
+
+----
+DELETE FROM aviate_schema_history
+WHERE success = 0;
+----
+
+===== Step 3 — Insert the Correct Baseline
+
+Insert a row matching the schema already present in the database.
+
+Example:
+
+----
+INSERT INTO aviate_schema_history
+(installed_rank, version, description, type, script, installed_by, execution_time, success)
+VALUES
+(2, '1.8.0', '<< Flyway Baseline >>', 'BASELINE', 'aviateV1.8.0__notifications.sql', CURRENT_USER(), 0, 1);
+----
+
+===== Step 4 — Restart the Aviate Plugin
+
+On startup:
+
+* Flyway detects the baseline.
+
+* Older migrations are skipped.
+
+* Only newer migrations are applied.
+
+==== Verification
+
+----
+SELECT installed_rank, version, success
+FROM aviate_schema_history;
+----
+
+Confirm:
+
+* No rows with success = 0
+
+* Baseline version is present
+
+* New migrations complete successfully
+
+=== Scenario 3 — Upgrade Aviate Plugin When Flyway Is Already Managing the Schema
+
+==== Symptoms
+
+* The `aviate_schema_history` table exists.
+* Plugin starts without migration failures.
+* No rows in `aviate_schema_history` show success = 0.
+
+==== Action
+
+Upgrade the Aviate plugin using the standard uninstall → install workflow.
+
+Uninstalling the plugin **does not remove** any `aviate_*` tables or the schema history table.
+
+
+==== Uninstall the Existing Plugin
+
+Send a POST request to `/1.0/kb/nodesInfo`, here is a sample request to uninstall a plugin
+
+----
+curl -v \
+     -u admin:<password> \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "aviate"
+             },
+             {
+                 "key": "pluginVersion",
+                 "value": "<current-version>"
+             }
+         ],
+         "nodeCommandType": "UNINSTALL_PLUGIN",
+         "isSystemCommandType": true
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+==== Expected Logs
+
+----
+Starting uninstallation of plugin: pluginKey=aviate, version=1.0.29
+Deleted plugin directory: /var/lib/killbill/bundles/plugins/java/aviate-plugin/1.0.29
+Unregistering service='aviate-plugin'
+Successfully uninstalled plugin: pluginKey=aviate, version=1.0.29
+----
+
+==== Install the Upgraded Plugin
+
+Sample request to install an Aviate plugin
+----
+curl -v \
+     -u admin:password \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -X POST \
+     --data-binary '{
+         "nodeCommandProperties": [
+             {
+                 "key": "pluginKey",
+                 "value": "aviate"
+             },
+             {
+                 "key": "pluginVersion",
+                 "value": "<new-version>"
+             },
+             {
+                 "key": "pluginArtifactId",
+                 "value": "aviate-plugin"
+             },
+             {
+                 "key": "pluginGroupId",
+                 "value": "com.kill-bill.billing.plugin.java"
+             },
+             {
+                 "key": "pluginType",
+                 "value": "java"
+             },
+             {
+                 "key": "pluginUri",
+                 "value": "https://dl.cloudsmith.io/<token>/killbill/aviate/maven/com/kill-bill/billing/plugin/java/aviate-plugin/<new-version>/aviate-plugin-<version>.jar"
+             }
+         ],
+         "nodeCommandType": "INSTALL_PLUGIN",
+         "isSystemCommandType": "true"
+     }' \
+     "http://127.0.0.1:8080/1.0/kb/nodesInfo"
+----
+
+==== What to Verify
+
+After installation:
+
+* The plugin starts successfully.
+* Flyway appends new rows to `aviate_schema_history`.
+* No rows in `aviate_schema_history` show success = 0.
+* No migration errors appear in the logs.
+
+
+=== Scenario 4 — Failed Migration Recorded in aviate_schema_history (success = 0)
+
+==== Symptoms
+
+* Plugin startup fails with errors such as:
+
+  "Detected failed migration to version 1.7.0 (ledger)."
+  "FlywayValidateException: Validate failed: Migrations have failed validation"
+
+* The latest row in `aviate_schema_history` shows:
+
+----
+success = 0
+----
+
+==== Root Cause
+
+A Flyway migration started but did not complete successfully.
+
+Although the Aviate plugin automatically attempts a Flyway repair, the repair only fixes the schema history table -- it does not undo partially applied database changes.
+
+Manual cleanup is often required before the migration can succeed.
+
+==== Action — Correct Remediation Flow
+
+===== Step 1 — Identify the Failed Migration
+
+----
+SELECT *
+FROM aviate_schema_history
+ORDER BY installed_rank DESC;
+----
+
+Note the migration version where `success = 0`.
+
+===== Step 2 — Inspect Partial Changes
+
+Review the migration script referenced in the error logs.
+
+Download the migration scripts from the following link:
+
+MySQL migrations:
+https://docs.killbill.io/latest/aviate-migrations/mysql/
+
+PostgreSQL migrations:
+https://docs.killbill.io/latest/aviate-migrations/postgresql/
+
+Open the migration file mentioned in the logs to understand what schema changes were attempted.
+
+Example:
+
+----
+Migration aviateV1.7.0__ledger.sql failed
+Table 'aviate_wallets' already exists
+----
+
+Determine whether the migration:
+
+* Created some tables or columns
+* Added indexes
+* Modified constraints
+
+===== Step 3 — Revert or Align the Database
+
+Bring the database to the expected pre-migration state.
+
+Typical fixes include:
+
+* Dropping partially created tables
+* Removing incomplete indexes
+* Reverting schema alterations
+
+Example:
+
+----
+DROP TABLE aviate_wallets;
+----
+
+===== Step 4 — Restart the Aviate Plugin
+
+On restart:
+
+* Aviate triggers Flyway.
+* Flyway validates the schema.
+* The repaired migration is executed again.
+
+===== What to Verify
+
+After startup:
+
+* No migration errors appear in logs.
+* The previously failed migration now shows:
+
+----
+success = 1
+----
+
+* New migrations continue normally.
+
+===== Expected Logs:
+----
+FlywayValidateException: Validate failed: Migrations have failed validation
+Successfully repaired schema history table `killbill`.`aviate_schema_history` (execution time 00:00.017s).
+Flyway repair completed. Retrying migration...
+Successfully applied 2 migrations to schema `killbill`, now at version v1.8.0 (execution time 00:00.536s)
+Migration completed successfully after repair
+Migration process completed successfully
+----
+
+=== Scenario 5 — Schema Drift or Checksum Mismatch
+
+==== Symptoms
+
+* Aviate plugin fails during startup.
+* Flyway validation reports checksum mismatch or indicates that a migration was applied but differs from the current script.
+* Flyway or database errors reference missing columns, tables, or altered objects, for example:
+
+----
+Migration of schema `killbill` to version "1.10.0 - invoice sequence rename columns" failed! Please restore backups and roll back database and code!
+
+Error: 1054-42S22: Unknown column 'kb_account_id' in 'aviate_invoice_sequences'
+
+SQL State  : 42S22
+Error Code : 1054
+Message    : (conn=10) Unknown column 'kb_account_id' in 'aviate_invoice_sequences'
+Location   : db/migration/mysql/aviateV1.10.0__invoice_sequence_rename_columns.sql (/db/migration/mysql/aviateV1.10.0__invoice_sequence_rename_columns.sql)
+Line       : 7
+----
+
+==== Root Cause
+
+The database schema does not match the migration history recorded by Flyway.
+
+This typically occurs when:
+
+* Migration scripts were modified after being applied.
+* A different plugin artifact was deployed against an existing database.
+* Manual schema changes were made outside Flyway.
+* The database was restored from a snapshot that does not align with the plugin version.
+
+Flyway validates migration checksums but cannot detect all forms of schema drift, which can lead to runtime failures even when validation succeeds.
+
+==== Resolution — Realign Schema with Migration History
+
+===== Step 1 — Identify the Expected Migration
+
+Review the error logs to determine which column, table, or object is missing or inconsistent.
+
+Example:
+
+----
+Unknown column 'kb_account_id'
+----
+
+This indicates that the migration responsible for adding this column was never applied or was reverted.
+
+===== Step 2 — Check the Migration Script
+
+Download the migration scripts from the following link:
+
+MySQL migrations:
+https://docs.killbill.io/latest/aviate-migrations/mysql/
+
+PostgreSQL migrations:
+https://docs.killbill.io/latest/aviate-migrations/postgresql/
+
+Locate the migration file referenced in the error logs and review it to determine which column, table, or object is missing from the schema.
+
+===== Step 3 — Verify Schema vs Migration History
+
+Confirm whether the change exists in the database:
+
+----
+SHOW COLUMNS FROM aviate_notifications;
+----
+
+Possible outcomes:
+
+**Column missing**
+
+→ The migration was never applied, even though Flyway believes it was.
+
+**Column exists but differs**
+
+→ The schema was manually altered.
+
+===== Step 4 — Choose the Correct Remediation Path
+
+**If the migration should have run but did not:**
+
+Apply the schema change manually using the migration script, then restart the plugin.
+
+**If migration scripts were modified after deployment:**
+
+Restore the original migration files that match the recorded checksums.
+
+**If manual database changes caused the drift:**
+
+Revert the schema to match the migration.
+
+
+=== Scenario 6 — Incorrect Baseline Version (Too Low or Too High)
+
+==== Symptoms
+
+**Baseline Too Low**
+
+Flyway attempts to re-run migrations that were already applied, resulting in errors such as:
+
+----
+FlywayMigrateException: Migration aviateV1.3.0__catalog_meter.sql failed
+
+SQL State  : 42S01
+Error Code : 1050
+Message    : Table 'aviate_billing_meters' already exists
+----
+
+**Baseline Too High**
+
+Flyway skips required migrations because it assumes the schema is newer than it actually is.
+The plugin may start, but runtime failures occur due to missing objects.
+
+Example:
+
+----
+Current version of schema `killbill`: 1.15.0
+Migrating schema `killbill` to version "1.16.0"
+
+Migration process completed successfully
+
+org.jooq.exception.DataAccessException: SQL [insert into aviate_health_reports (creating_owner, report_data_gz, created_date, updated_date) values (?, ?, ?, ?) on duplicate key update aviate_health_reports.report_data_gz = ?, aviate_health_reports.updated_date = ?]; (conn=45) Table 'killbill.aviate_health_reports' doesn't exist
+
+Caused by: java.sql.SQLSyntaxErrorException: (conn=45) Table 'killbill.aviate_health_reports' doesn't exist
+----
+
+==== Root Cause
+
+The baseline version recorded in `aviate_schema_history` does not accurately represent the actual database schema.
+
+* **Too low** → Flyway replays migrations.
+* **Too high** → Flyway skips migrations that were never applied.
+
+==== Recommended Resolution (Safest Approach)
+
+Restore the database from a known good backup and repeat the baselining process using the correct migration version.
+
+This is the lowest-risk recovery strategy for production systems.
+
+==== Surgical Fix (Advanced — Use With Caution)
+
+Only perform this procedure if:
+
+* A database backup exists.
+* The schema state has been carefully verified.
+* You fully understand which migrations have actually been applied.
+
+===== Step 1 — Stop Kill Bill
+
+Prevent additional migrations or schema changes while correcting the baseline.
+
+===== Step 2 — Identify the Correct Migration Version
+
+Inspect the plugin migration scripts:
+
+----
+db/migration/mysql
+or
+db/migration/postgresql
+----
+
+Compare them with the database schema to determine the latest migration already reflected in the database.
+
+Indicators:
+
+* "already exists" → baseline is too low
+* Missing table/column → baseline is too high
+
+===== Step 3 — Correct the Baseline Entry
+
+Check the current history:
+
+----
+SELECT * FROM aviate_schema_history ORDER BY installed_rank;
+----
+
+Update the baseline by removing the incorrect entry:
+
+----
+DELETE FROM aviate_schema_history
+WHERE version = '<incorrect_version>';
+----
+
+Insert the correct baseline:
+
+----
+INSERT INTO aviate_schema_history
+(installed_rank, version, description, type, script, installed_by, execution_time, success)
+VALUES
+(<next_rank>, '<correct_version>', '<< Flyway Baseline >>', 'BASELINE',
+ 'aviateV<correct_version>__<description>.sql', CURRENT_USER(), 0, 1);
+----
+
+===== Step 4 — Restart the Aviate Plugin
+
+On startup:
+
+* Flyway validates the schema.
+* Only missing migrations are applied.
+* Duplicate migrations are skipped.
+
+
+=== Scenario 7 — Concurrent Startup (Multiple Aviate Nodes Running Migrations)
+
+==== Symptoms
+
+* Aviate plugin startup fails intermittently.
+* Flyway reports lock wait timeouts, deadlocks, or messages such as:
++
+----
+Schema history table is being modified
+----
+* One node starts successfully while others fail during migration.
+
+==== Root Cause
+
+Multiple Aviate nodes attempt to execute Flyway migrations at the same time.
+Although Flyway uses a schema history lock, certain database setups (for example, proxies or misconfigured clusters) can interfere with proper locking.
+
+==== Resolution
+
+1. **Run migrations from a single node**
++
+Ensure only one Aviate instance performs migrations during deployment.
++
+Common approaches include:
++
+* Temporarily scale the deployment to one node.
+* Disable the Aviate plugin on other nodes until migration completes.
+* Use a dedicated migration job before bringing all nodes online.
+
+2. **Verify database locking behavior**
++
+Confirm that Flyway can acquire an exclusive lock on the Aviate schema history table.
++
+Check for environments that may weaken locking, such as:
++
+* Read replicas being used unintentionally for migrations.
+* Database proxies or load balancers routing connections to different writers.
+* Cluster configurations without proper write coordination.
+
+3. **Restart remaining nodes**
++
+After migrations complete successfully, start the other Aviate nodes.
+
+==== Prevention
+
+* Execute migrations as part of a controlled deployment step before scaling services.
+* Avoid parallel application startups when schema changes are included.
+* Validate database topology so migrations always run against the primary writable instance.
+
