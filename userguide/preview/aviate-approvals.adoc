@@ -1,0 +1,287 @@
+= Aviate Approvals
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+The Aviate Approvals module adds a configurable approval layer to business operations. When an intent matches an approval policy, it pauses at `PENDING_APPROVAL` status and waits for the required approvals before proceeding. This gives your organization control over high-impact changes -- such as large contract signings, plan downgrades, or invoice adjustments -- without slowing down routine operations.
+
+=== When You Need This
+
+Imagine a customer success manager wants to apply a 40% discount to retain a churning enterprise account. Without approvals, that discount goes live immediately -- no finance review, no audit trail. Two months later, leadership discovers the margin impact during a quarterly review.
+
+With Approvals, you define a policy: _"Any discount above 20% requires sign-off from Finance."_ The discount request is created but held automatically. The finance team sees it in their approval inbox, reviews the justification, and approves or rejects it -- all tracked with timestamps and comments. The rest of your operations (new sign-ups, standard renewals, usage billing) continue flowing without any delay.
+
+This pattern applies to any operation where you need a human checkpoint: large contract signings, plan downgrades, manual credits above a threshold, or early terminations.
+
+Key features:
+
+* *Approval policies* -- define which operations need approval and from whom
+* *Condition-based rules* -- match intents by type, amount threshold, product, or custom attributes
+* *Required roles* -- specify which roles can approve each policy
+* *Timeout and escalation* -- automatic escalation if approvals are not granted within a configured time
+* *Approval inbox* -- a unified view of all pending approvals for each user
+
+include::{sourcedir}/preview/includes/diagram-approvals.adoc[]
+
+== How It Works
+
+. An intent is submitted via the API
+. During planning, the system evaluates all active approval policies
+. If any policy matches, the intent status becomes `PENDING_APPROVAL`
+. Authorized users review and approve (or reject) the intent
+. Once all required approvals are received, the intent proceeds to `EXECUTING`
+
+If no policy matches, the intent skips the approval step entirely.
+
+== Defining an Approval Policy
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/approvals/policies" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Large Upgrade Approval",
+    "description": "Requires manager approval for upgrades over $500/month",
+    "active": true,
+    "rules": [
+      {
+        "conditions": [
+          { "field": "type", "operator": "EQUALS", "value": "UPGRADE_SUBSCRIPTION" },
+          { "field": "estimatedMRR", "operator": "GREATER_THAN", "value": "500" }
+        ],
+        "requiredApprovals": 1,
+        "approverRoles": ["admin", "finance"],
+        "timeoutMinutes": 1440,
+        "escalationRoles": ["admin"]
+      }
+    ]
+  }'
+----
+
+=== Policy Fields
+
+[cols="1,1,3", options="header"]
+|===
+| Field | Type | Description
+
+| `name`
+| String
+| Human-readable policy name
+
+| `description`
+| String
+| Description of the policy's purpose
+
+| `active`
+| Boolean
+| Whether the policy is currently active
+
+| `rules`
+| Array
+| One or more rules that define when and how approval is required
+|===
+
+=== Rule Fields
+
+[cols="1,1,3", options="header"]
+|===
+| Field | Type | Description
+
+| `conditions`
+| Array
+| Conditions that must all be true for the rule to match
+
+| `requiredApprovals`
+| Integer
+| Number of approvals needed (e.g., 1 for single approval, 2 for dual)
+
+| `approverRoles`
+| Array
+| Roles that are authorized to approve (e.g., `["admin", "finance"]`)
+
+| `timeoutMinutes`
+| Integer
+| Time before escalation (null = no timeout)
+
+| `escalationRoles`
+| Array
+| Roles notified on timeout (optional)
+|===
+
+=== Available Condition Fields
+
+[cols="1,3", options="header"]
+|===
+| Condition Field | Description
+
+| `type`
+| The intent type (e.g., `UPGRADE_SUBSCRIPTION`, `CREATE_CONTRACT`)
+
+| `estimatedMRR`
+| The estimated monthly recurring revenue impact
+
+| `estimatedTCV`
+| The estimated total contract value
+
+| `productCategory`
+| The product category (e.g., `BASE`, `ADD_ON`)
+
+| `currency`
+| The currency code (e.g., `USD`, `EUR`)
+
+| `accountCountry`
+| The account's country code
+|===
+
+=== Available Condition Operators
+
+`EQUALS`, `NOT_EQUALS`, `GREATER_THAN`, `LESS_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN_OR_EQUAL`, `IN`, `NOT_IN`, `CONTAINS`
+
+== Managing Approval Policies
+
+=== List All Policies
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/approvals/policies" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+=== Activate or Deactivate a Policy
+
+[source,bash]
+----
+curl -X PUT "${KB_URL}/plugins/aviate-plugin/v1/approvals/policies/pol-abc123" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{ "active": false }'
+----
+
+== Reviewing Pending Approvals
+
+=== Approval Inbox
+
+Users with an approver role can view their pending approvals:
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/approvals/inbox" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+Response:
+
+[source,json]
+----
+[
+  {
+    "intentId": "int-a1b2c3d4",
+    "intentType": "UPGRADE_SUBSCRIPTION",
+    "submittedBy": "sales@acme.com",
+    "submittedDate": "2026-03-15T10:30:00Z",
+    "policyName": "Large Upgrade Approval",
+    "requiredApprovals": 1,
+    "currentApprovals": 0,
+    "summary": "Upgrade acme-001-pro from professional-monthly to enterprise-monthly ($45.00/mo increase)"
+  }
+]
+----
+
+=== Approving an Intent
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/approvals/int-a1b2c3d4/approve" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{ "comment": "Approved -- customer is on strategic accounts list" }'
+----
+
+Once the required number of approvals is reached, the intent automatically proceeds to execution.
+
+=== Rejecting an Intent
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/approvals/int-a1b2c3d4/reject" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "Customer has outstanding balance -- upgrade should wait" }'
+----
+
+A rejected intent moves to `CANCELLED` status and is not executed.
+
+== Approval Dashboard
+
+For a summary of all approval activity:
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/approvals/dashboard?from=2026-03-01&to=2026-03-31" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+Response:
+
+[source,json]
+----
+{
+  "pending": 3,
+  "approvedThisPeriod": 12,
+  "rejectedThisPeriod": 2,
+  "averageApprovalTimeMinutes": 47,
+  "escalatedThisPeriod": 1
+}
+----
+
+== Timeout and Escalation
+
+When a `timeoutMinutes` is configured on a rule:
+
+. After the timeout period, the system sends escalation notifications to users with the `escalationRoles`
+. The intent remains in `PENDING_APPROVAL` -- it is not auto-approved or auto-rejected
+. Escalation is logged in the intent's audit trail
+
+[NOTE]
+*Note:* Automatic approval on timeout is not supported. All approvals require an explicit human decision.
+
+== Example: Dual Approval for Large Contracts
+
+[source,json]
+----
+{
+  "name": "Large Contract Dual Approval",
+  "description": "Contracts over $50,000 TCV require two approvals from finance and legal",
+  "active": true,
+  "rules": [
+    {
+      "conditions": [
+        { "field": "type", "operator": "EQUALS", "value": "CREATE_CONTRACT" },
+        { "field": "estimatedTCV", "operator": "GREATER_THAN", "value": "50000" }
+      ],
+      "requiredApprovals": 2,
+      "approverRoles": ["finance", "admin"],
+      "timeoutMinutes": 2880,
+      "escalationRoles": ["admin"]
+    }
+  ]
+}
+----
+
+This policy requires two separate users with `finance` or `admin` roles to approve any contract creation with a total contract value exceeding $50,000.

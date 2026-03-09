@@ -1,44 +1,419 @@
 = Aviate Wallet
 
-include::{sourcedir}/aviate/includes/aviate-card.adoc[]
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description:
+include::{sourcedir}/includes/premium-card.adoc[]
 
-== Introduction
+== Overview
 
-The Aviate plugin enables the management of Account wallets — credit pools that can be replenished manually or automatically based on configurable criteria. These credits are consumed by the system to pay for usage, and the wallet mechanism is primarily intended for prepaid scenarios. This helps mitigate financial risk typically associated with billing for usage in arrears.
+Many SaaS businesses — AI platforms selling token credits, cloud providers offering compute hours, or API vendors metering calls — need prepaid billing. Customers purchase credits up front, and usage draws down the balance in real time. Aviate Wallets give you a credit pool per account that supports free and paid credits, automatic replenishment (top-off), credit expiration, and a full ledger of every transaction.
 
-Credits can be granted either for free or as part of a payment. In the latter case, a Kill Bill invoice is generated and a payment is processed using the Account’s default payment method. An optional expiration date can be assigned to credits. If the payment fails, the credit is recorded but remains inactive; it is only activated once the payment against the invoice is successfully completed.
+This guide walks through creating a wallet, checking balances, adding credits, and configuring automatic top-off — all with standalone curl examples you can run against a local Kill Bill instance.
 
-Wallets can be configured with automatic replenishment rules (top-off), which support two modes: restoring the balance to a target level or adding a fixed amount when the balance falls below a threshold. These automatically granted credits can also include an expiration date. Additionally, wallets can be initialized with a predefined amount of free or paid credits.
+== Prerequisites
 
-The wallet is implemented as a ledger that tracks all transactions, including credit additions and consumptions. It exposes two values: the `balance`, representing currently available credits, and the `live balance`, which includes credits reserved for pending invoice generation.
-
-Currently, each customer Account supports a single wallet, and the wallet must use the Account’s default currency.
-
-== Getting Started with Aviate Wallet
-
-This section provides a step-by-step guide to start using the Aviate Wallet functionality.
-
-=== Installing the Plugin
-
-Install the Aviate plugin as described in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] guide.
-
-=== Enabling Aviate Wallet
-
-To enable wallet functionality in the Aviate plugin, start Kill Bill with the following system property:
-
+* A running Kill Bill instance with the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[Aviate plugin installed].
+* The wallet feature flag enabled — start Kill Bill with the following system property:
++
 [source,bash]
 ----
 com.killbill.billing.plugin.aviate.enableWalletApis=true
 ----
-
++
 For details on setting configuration properties, refer to the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide].
+* A valid JWT ID token (see link:aviate-authentication.adoc[Aviate Authentication]).
+* A Kill Bill account with a default payment method (required for paid credits and top-off). See link:aviate-billing-account.adoc[Aviate Billing Accounts].
 
-=== Using Wallet APIs
+== Key Concepts
 
-Once the plugin is installed and wallet support is enabled, you can interact with the Aviate Wallet using its API. The API allows you to create wallets, add credits, and configure top-off rules. Full API documentation is available at https://apidocs.killbill.io/aviate-wallet[our API documentation].
+=== Balance vs. Live Balance
 
-== Using the Wallet Functionality
+The wallet exposes two balance values:
 
-1. Create a wallet for a customer Account, optionally specifying initial credits (free or paid) and top-off rules.
-2. Record usage events. The system automatically adjusts the balance and enforces top-off rules as configured.
-3. Optionally, manually add credits or update the top-off configuration to better suit your use case.
+* `balance` — the confirmed available credits. This is the amount the customer can spend right now.
+* `liveBalance` — the balance minus any credits reserved for in-progress invoice generation.
+
+Under normal operation these two values are equal. They diverge briefly while Kill Bill is generating an invoice that consumes wallet credits; once the invoice finalizes, the values converge again.
+
+TIP: If you see a difference between `balance` and `liveBalance`, it simply means an invoice is being processed. No action is required.
+
+=== Credit Types
+
+Every credit added to a wallet has one of three types:
+
+* `CREDIT_FREE` — credits given at no charge (promotional sign-up bonus, loyalty reward). No invoice or payment is generated.
+* `CREDIT_PAID` — credits purchased by the customer. Kill Bill creates an invoice for the credit amount and attempts payment via the account's default payment method.
+* `CREDIT_USED` — credits consumed by usage-based invoicing. This type is system-managed; you never create `CREDIT_USED` records directly.
+
+=== Top-Off Modes
+
+Automatic top-off replenishes the wallet when the balance drops below a threshold (`lowWatermark`). Two modes are available:
+
+* `TOP_OFF_FIXED` — adds a *fixed amount* of credits regardless of the current balance. Example: if `lowWatermark` is $10 and `amount` is $50, the system adds exactly $50 when the balance falls below $10.
+* `TOP_OFF_TARGET` — adds *enough credits* to bring the balance up to a target amount. Example: if `lowWatermark` is $10 and `amount` (the target) is $100, and the current balance is $7, the system adds $93.
+
+Both modes trigger a paid-credit cycle: an invoice is created and payment is attempted automatically.
+
+== Step-by-Step: Create a Wallet and Manage Credits
+
+=== Step 1: Create a Wallet with Free Initial Credits
+
+[source,bash]
+----
+curl -v -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '{
+    "kbAccountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+    "currency": "USD",
+    "initCredit": {
+      "creditType": "CREDIT_FREE",
+      "amount": "25.00"
+    }
+  }' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet
+----
+
+==== Expected Response (HTTP 201)
+
+[source,json]
+----
+{
+  "wallet": {
+    "walletId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "kbAccountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+    "currency": "USD",
+    "balance": 25.00,
+    "liveBalance": 25.00,
+    "records": [
+      {
+        "creditType": "CREDIT_FREE",
+        "originAmount": 25.00,
+        "remainAmount": 25.00,
+        "description": "Initial free credit"
+      }
+    ]
+  },
+  "status": "WALLET_SUCCESS"
+}
+----
+
+NOTE: Because the initial credit is `CREDIT_FREE`, no invoice or payment is generated.
+
+=== Step 2: Check Wallet Balance
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet/e5d3d5b5-4415-4166-b57f-33ca00a59e88
+----
+
+==== Expected Response (HTTP 200)
+
+[source,json]
+----
+{
+  "wallet": {
+    "walletId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "kbAccountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+    "currency": "USD",
+    "balance": 25.00,
+    "liveBalance": 25.00,
+    "records": [
+      {
+        "creditType": "CREDIT_FREE",
+        "originAmount": 25.00,
+        "remainAmount": 25.00,
+        "description": "Initial free credit"
+      }
+    ]
+  },
+  "status": "WALLET_SUCCESS"
+}
+----
+
+=== Step 3: Add Paid Credits
+
+[source,bash]
+----
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '{
+    "creditType": "CREDIT_PAID",
+    "amount": "100.00"
+  }' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet/a1b2c3d4-e5f6-7890-abcd-ef1234567890/credit
+----
+
+==== Expected Response (HTTP 200)
+
+[source,json]
+----
+{
+  "wallet": {
+    "walletId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "kbAccountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+    "currency": "USD",
+    "balance": 125.00,
+    "liveBalance": 125.00,
+    "records": [
+      {
+        "creditType": "CREDIT_FREE",
+        "originAmount": 25.00,
+        "remainAmount": 25.00,
+        "description": "Initial free credit"
+      },
+      {
+        "creditType": "CREDIT_PAID",
+        "originAmount": 100.00,
+        "remainAmount": 100.00,
+        "kbInvoiceId": "f9e8d7c6-b5a4-3210-fedc-ba9876543210",
+        "kbPaymentId": "12345678-abcd-ef01-2345-6789abcdef01"
+      }
+    ]
+  },
+  "status": "WALLET_SUCCESS"
+}
+----
+
+IMPORTANT: Adding paid credits triggers an invoice for $100 and attempts payment via the account's default payment method. If no default payment method is set, the status will be `WALLET_PAYMENT_FAILED` and the credits remain inactive until payment succeeds.
+
+=== Step 4: Configure Automatic Top-Off
+
+==== Option A: Fixed-Amount Top-Off
+
+[source,bash]
+----
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '{
+    "topOffType": "TOP_OFF_FIXED",
+    "lowWatermark": "10.00",
+    "amount": "50.00",
+    "expDurationUnit": "MONTHS",
+    "expDurationLength": 6
+  }' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet/a1b2c3d4-e5f6-7890-abcd-ef1234567890/topOffConfig
+----
+
+*How this works:* When the wallet balance drops below $10 (the `lowWatermark`), the system automatically adds $50 of paid credits. An invoice is created and payment attempted. The new credits expire 6 months after the top-off event.
+
+==== Option B: Target-Balance Top-Off
+
+[source,bash]
+----
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '{
+    "topOffType": "TOP_OFF_TARGET",
+    "lowWatermark": "10.00",
+    "amount": "100.00",
+    "expDurationUnit": "MONTHS",
+    "expDurationLength": 12
+  }' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet/a1b2c3d4-e5f6-7890-abcd-ef1234567890/topOffConfig
+----
+
+*How this works:* When the wallet balance drops below $10, the system adds enough credits to bring the balance back up to $100. If the balance is $7, it adds $93. Credits expire 12 months after each top-off.
+
+TIP: Use `TOP_OFF_TARGET` when you want a predictable credit pool size. Use `TOP_OFF_FIXED` when you want consistent, smaller recharges.
+
+=== Step 5: Observe Credit Consumption
+
+After usage-based invoicing consumes wallet credits, check the wallet to see the reduced balance:
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/wallet/e5d3d5b5-4415-4166-b57f-33ca00a59e88
+----
+
+==== Expected Response (balance reduced after usage)
+
+[source,json]
+----
+{
+  "wallet": {
+    "walletId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "kbAccountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+    "currency": "USD",
+    "balance": 105.00,
+    "liveBalance": 105.00,
+    "records": [
+      {
+        "creditType": "CREDIT_FREE",
+        "originAmount": 25.00,
+        "remainAmount": 5.00
+      },
+      {
+        "creditType": "CREDIT_PAID",
+        "originAmount": 100.00,
+        "remainAmount": 100.00,
+        "kbInvoiceId": "f9e8d7c6-b5a4-3210-fedc-ba9876543210",
+        "kbPaymentId": "12345678-abcd-ef01-2345-6789abcdef01"
+      },
+      {
+        "creditType": "CREDIT_USED",
+        "originAmount": -20.00,
+        "remainAmount": 0.00,
+        "kbInvoiceId": "aabbccdd-1122-3344-5566-778899aabbcc"
+      }
+    ]
+  },
+  "status": "WALLET_SUCCESS"
+}
+----
+
+In this example, $20 of usage was invoiced: the free-credit record decreased from 25.00 to 5.00, and a `CREDIT_USED` record was added.
+
+== Credit Expiration
+
+Credits can include an optional expiration date (`expDate`). When creating a wallet with initial credits or adding credits later, you can set an expiration:
+
+[source,json]
+----
+{
+  "creditType": "CREDIT_PAID",
+  "amount": "50.00",
+  "expDate": "2026-12-31T23:59:59Z"
+}
+----
+
+When credits expire:
+
+* The expired credit's `remainAmount` is set to zero.
+* The wallet `balance` decreases by the remaining unused amount.
+* Expired credits still appear in the wallet `records` for auditing purposes.
+
+For automatic top-off, use `expDurationUnit` (`DAYS`, `MONTHS`, `YEARS`) and `expDurationLength` to set a rolling expiration relative to each top-off event.
+
+== Failed Payments and Credit Activation
+
+When paid credits are added but payment fails, the wallet response returns a `WALLET_PAYMENT_FAILED` status. The credit record is created but remains inactive — it does not contribute to the `balance` until payment succeeds.
+
+To resolve this:
+
+1. Ensure the account has a valid default payment method (see link:aviate-billing-account.adoc[Aviate Billing Accounts]).
+2. Retry the payment against the pending invoice using the Kill Bill https://apidocs.killbill.io/invoice.html#trigger-a-payment-for-an-invoice[Trigger Payment for Invoice] API.
+3. Once payment succeeds, the credits become active and the wallet balance updates automatically.
+
+NOTE: The same behavior applies to automatic top-off: if top-off triggers but payment fails, the credits remain pending until the invoice is paid.
+
+== Wallet Records (Ledger)
+
+The wallet maintains a complete ledger in the `records` array. Each record represents a credit event and includes:
+
+[cols="2,4", options="header"]
+|===
+| Field | Description
+
+| `creditType`
+| `CREDIT_FREE`, `CREDIT_PAID`, or `CREDIT_USED`.
+
+| `originAmount`
+| The original credit amount (positive for additions, negative for consumption).
+
+| `remainAmount`
+| The remaining unused amount.
+
+| `expDate`
+| Expiration date (if set), after which the credit is no longer available.
+
+| `kbInvoiceId`
+| The Kill Bill invoice ID (present for `CREDIT_PAID` and `CREDIT_USED` records).
+
+| `kbPaymentId`
+| The Kill Bill payment ID (present for `CREDIT_PAID` records when payment succeeds).
+
+| `description`
+| Optional description for the credit entry.
+|===
+
+== WalletOpStatus Reference
+
+Every wallet API response includes a `status` field indicating the outcome:
+
+[cols="2,4", options="header"]
+|===
+| Status | Meaning
+
+| `WALLET_SUCCESS`
+| Operation completed successfully.
+
+| `WALLET_FAILED`
+| General failure (e.g., invalid request parameters).
+
+| `WALLET_INVOICE_FAILED`
+| Kill Bill failed to create the invoice for paid credits.
+
+| `WALLET_PAYMENT_FAILED`
+| Invoice was created but payment failed. Credits remain inactive.
+
+| `WALLET_PAYMENT_PENDING`
+| Payment is in progress but has not yet completed.
+|===
+
+== What to Verify
+
+After completing the steps above, confirm the following:
+
+* The wallet balance reflects added credits (free + paid).
+* Paid credits generate a Kill Bill invoice — verify via the Kill Bill `/1.0/kb/invoices` endpoint.
+* Top-off triggers automatically when balance drops below `lowWatermark`.
+* Expired credits are no longer included in the wallet `balance`.
+* `CREDIT_USED` records appear in the ledger after usage-based invoicing.
+
+== Common Pitfalls
+
+1. **No default payment method** — paid credits and top-off both require a default payment method on the account. Without one, the status will be `WALLET_PAYMENT_FAILED` and credits remain inactive.
+2. **`lowWatermark` set too close to zero** — usage spikes may drain the balance before top-off triggers. Set the watermark high enough to cover expected usage between billing cycles.
+3. **One wallet per account** — each account supports a single wallet in a single currency (the account's default currency). You cannot create multi-currency wallets.
+4. **`CREDIT_FREE` does not trigger invoices** — free credits are granted immediately with no payment flow. Do not expect an invoice for promotional credits.
+5. **`balance` vs. `liveBalance` discrepancy** — this is normal during invoice generation. The values converge once the invoice finalizes. No manual intervention is needed.
+
+== API Reference
+
+[cols="1,3,3", options="header"]
+|===
+| Method | Path | Description
+
+| `POST`
+| `/plugins/aviate-plugin/v1/wallet`
+| Create a wallet with optional initial credits and top-off configuration.
+
+| `GET`
+| `/plugins/aviate-plugin/v1/wallet/{accountId}`
+| Retrieve wallets for an account.
+
+| `PUT`
+| `/plugins/aviate-plugin/v1/wallet/{walletId}/credit`
+| Add credits (free or paid) to an existing wallet.
+
+| `PUT`
+| `/plugins/aviate-plugin/v1/wallet/{walletId}/topOffConfig`
+| Configure or update automatic top-off rules.
+|===
+
+== Related
+
+* link:aviate-authentication.adoc[Aviate Authentication] — obtain the `ID_TOKEN` used in all examples above
+* link:aviate-metering.adoc[Aviate Metering] — usage events that consume wallet credits
+* link:aviate-usage-ai-tutorial.adoc[Usage + Wallet Tutorial] — complete end-to-end tutorial combining metering, wallets, and invoicing
+* link:aviate-coupons.adoc[Aviate Coupons] — discounts vs. wallet credits

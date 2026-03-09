@@ -1,0 +1,352 @@
+= Aviate Intents
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+Intents are the primary way to perform business operations in Aviate. Rather than making many low-level API calls to create accounts, subscriptions, and invoices, you submit a single *intent* that describes what you want to achieve. The system plans the necessary steps, validates the operation, and executes it -- all in a single, trackable request.
+
+Key advantages of using intents:
+
+* *Declarative operations* -- describe the desired outcome, not the individual steps
+* *Built-in validation* -- intents are validated before execution, catching errors early
+* *Audit trail* -- every intent is recorded with its full lifecycle, including who created it, when, and what changed
+* *Approval integration* -- high-impact intents can require approval before execution
+* *Preview mode* -- see what an intent will do before committing to it
+
+== Available Intent Types
+
+[cols="1,2", options="header"]
+|===
+| Intent Type | Description
+
+| `ONBOARD_CUSTOMER`
+| Create a new customer account with optional subscriptions, payment method, and custom fields
+
+| `UPGRADE_SUBSCRIPTION`
+| Move a subscription to a higher-tier plan
+
+| `DOWNGRADE_SUBSCRIPTION`
+| Move a subscription to a lower-tier plan
+
+| `CANCEL_SUBSCRIPTION`
+| Cancel a subscription (immediate, end of term, or specific date)
+
+| `PAUSE_SUBSCRIPTION`
+| Temporarily pause a subscription and its billing
+
+| `RESUME_SUBSCRIPTION`
+| Resume a previously paused subscription
+
+| `CHANGE_PLAN`
+| Change a subscription to a different plan or billing period
+
+| `ADD_ADDON`
+| Add an add-on subscription to an existing base subscription
+
+| `REMOVE_ADDON`
+| Remove an add-on subscription
+
+| `ADD_USAGE`
+| Record usage for a metered subscription
+
+| `APPLY_COUPON`
+| Apply a coupon to an account or subscription
+
+| `APPLY_CREDIT`
+| Apply a wallet credit to an account
+
+| `CREATE_QUOTE`
+| Create a new quote for a customer
+
+| `ACCEPT_QUOTE`
+| Accept a quote (converts it to an order)
+
+| `CREATE_CONTRACT`
+| Create a new contract from a quote or order
+
+| `RENEW_CONTRACT`
+| Renew an existing contract for a new term
+
+| `TERMINATE_CONTRACT`
+| Terminate a contract
+
+| `ADJUST_INVOICE`
+| Apply an adjustment to an invoice or invoice item
+
+| `CUSTOM`
+| A custom intent type for plugin-specific operations
+|===
+
+== Intent Lifecycle
+
+Every intent follows a well-defined lifecycle:
+
+[source]
+----
+DRAFT -> VALIDATED -> PLANNED -> [PENDING_APPROVAL ->] APPROVED -> EXECUTING -> COMPLETED
+                                                                          -> FAILED
+                                                                -> CANCELLED
+----
+
+[cols="1,3", options="header"]
+|===
+| Status | Description
+
+| `DRAFT`
+| Intent has been created but not yet validated
+
+| `VALIDATED`
+| Input parameters passed validation checks
+
+| `PLANNED`
+| Execution plan has been computed (viewable via preview)
+
+| `PENDING_APPROVAL`
+| Waiting for required approvals (if approval policy matches)
+
+| `APPROVED`
+| All required approvals received (or no approval policy matched)
+
+| `EXECUTING`
+| The system is currently executing the planned steps
+
+| `COMPLETED`
+| All steps executed successfully
+
+| `FAILED`
+| One or more steps failed (partial changes may have been applied)
+
+| `CANCELLED`
+| Intent was cancelled before or during execution
+|===
+
+== Getting Started
+
+=== Submitting Your First Intent
+
+The following example onboards a new customer with a subscription:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/intents" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "ONBOARD_CUSTOMER",
+    "params": {
+      "account": {
+        "name": "Acme Corp",
+        "email": "billing@acme.com",
+        "externalKey": "acme-001",
+        "currency": "USD",
+        "locale": "en_US",
+        "timeZone": "America/Los_Angeles"
+      },
+      "subscriptions": [
+        {
+          "planName": "professional-monthly",
+          "externalKey": "acme-001-pro"
+        }
+      ],
+      "paymentMethod": {
+        "pluginName": "killbill-stripe",
+        "pluginInfo": {
+          "properties": [
+            { "key": "token", "value": "tok_visa" }
+          ]
+        }
+      }
+    }
+  }'
+----
+
+Response:
+
+[source,json]
+----
+{
+  "intentId": "int-a1b2c3d4",
+  "type": "ONBOARD_CUSTOMER",
+  "status": "COMPLETED",
+  "createdDate": "2026-03-15T10:30:00Z",
+  "completedDate": "2026-03-15T10:30:02Z",
+  "results": {
+    "accountId": "acc-x1y2z3",
+    "subscriptionIds": ["sub-m1n2o3"]
+  }
+}
+----
+
+=== Previewing an Intent
+
+Before executing an intent, you can preview what it will do:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/intents?dryRun=true" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "UPGRADE_SUBSCRIPTION",
+    "params": {
+      "subscriptionExternalKey": "acme-001-pro",
+      "newPlanName": "enterprise-monthly"
+    }
+  }'
+----
+
+The response includes the planned steps without executing them:
+
+[source,json]
+----
+{
+  "intentId": null,
+  "type": "UPGRADE_SUBSCRIPTION",
+  "status": "PLANNED",
+  "plan": {
+    "steps": [
+      { "action": "CHANGE_PLAN", "target": "subscription/acme-001-pro", "detail": "professional-monthly -> enterprise-monthly" },
+      { "action": "PRORATE_INVOICE", "target": "account/acme-001", "detail": "Credit $15.00, charge $45.00" }
+    ],
+    "estimatedInvoiceAmount": 30.00
+  }
+}
+----
+
+== Flexible Entity References
+
+Intents support multiple ways to reference existing entities, so you can use whichever identifier is most convenient:
+
+[cols="1,2,2", options="header"]
+|===
+| Reference Style | Example | When to Use
+
+| UUID
+| `"accountId": "a1b2c3d4-..."`
+| When you have the Kill Bill internal ID
+
+| External key
+| `"accountExternalKey": "acme-001"`
+| When you manage your own customer identifiers
+
+| Email
+| `"accountEmail": "billing@acme.com"`
+| When looking up by email (accounts only)
+|===
+
+Only one reference is needed. If multiple are provided, the system verifies they all resolve to the same entity.
+
+== Upgrading a Subscription
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/intents" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "UPGRADE_SUBSCRIPTION",
+    "params": {
+      "subscriptionExternalKey": "acme-001-pro",
+      "newPlanName": "enterprise-monthly",
+      "effectiveDate": "2026-04-01"
+    }
+  }'
+----
+
+If an approval policy is configured for upgrades above a certain threshold, the intent enters `PENDING_APPROVAL` status instead of executing immediately. See the https://docs.killbill.io/latest/aviate-approvals.html[Approvals] documentation for details.
+
+== Checking Intent Status
+
+=== Get a Specific Intent
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/intents/int-a1b2c3d4" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+=== List Intents for an Account
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/intents?accountExternalKey=acme-001&limit=10" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+== Status Snapshots
+
+Each intent includes a `conditions` array that provides a Kubernetes-style status summary. This is useful for monitoring and debugging:
+
+[source,json]
+----
+{
+  "intentId": "int-a1b2c3d4",
+  "status": "COMPLETED",
+  "conditions": [
+    { "type": "Validated",   "status": "True", "timestamp": "2026-03-15T10:30:00Z" },
+    { "type": "Planned",     "status": "True", "timestamp": "2026-03-15T10:30:00Z" },
+    { "type": "Approved",    "status": "True", "timestamp": "2026-03-15T10:30:01Z", "reason": "NoApprovalPolicyMatched" },
+    { "type": "Executed",    "status": "True", "timestamp": "2026-03-15T10:30:02Z" }
+  ]
+}
+----
+
+For failed intents, the conditions include error details:
+
+[source,json]
+----
+{
+  "intentId": "int-x1y2z3",
+  "status": "FAILED",
+  "conditions": [
+    { "type": "Validated",   "status": "True",  "timestamp": "2026-03-15T10:30:00Z" },
+    { "type": "Planned",     "status": "True",  "timestamp": "2026-03-15T10:30:00Z" },
+    { "type": "Executed",    "status": "False", "timestamp": "2026-03-15T10:30:02Z",
+      "reason": "PaymentDeclined", "message": "Card ending 4242 was declined" }
+  ]
+}
+----
+
+== Cancelling an Intent
+
+A `DRAFT`, `VALIDATED`, `PLANNED`, or `PENDING_APPROVAL` intent can be cancelled:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/intents/int-a1b2c3d4/cancel" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+Intents that are already `EXECUTING`, `COMPLETED`, or `FAILED` cannot be cancelled.
+
+== Audit Trail
+
+Every intent records an audit log that includes:
+
+* The authenticated user who created the intent
+* Timestamps for each lifecycle transition
+* HTTP request and response details for each step executed
+* Any approval decisions (who approved or rejected, and when)
+
+You can retrieve the full audit trail:
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/intents/int-a1b2c3d4/audit" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
