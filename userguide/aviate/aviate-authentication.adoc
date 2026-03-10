@@ -1,0 +1,175 @@
+= Aviate Authentication
+
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description:
+include::{sourcedir}/includes/premium-card.adoc[]
+
+== Overview
+
+All Aviate plugin API calls require a JWT ID token. The token is passed as a Bearer token in the `Authorization` header of every request:
+
+[source,bash]
+----
+Authorization: Bearer <JWT ID token>
+----
+
+Tokens expire after approximately *60 minutes*. When a token expires, the API returns `HTTP 401 Unauthorized` and you must re-authenticate to obtain a fresh token.
+
+This guide explains how to obtain a token, use it in API calls, and handle expiration.
+
+== Prerequisites
+
+* A running Kill Bill instance with the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[Aviate plugin installed].
+* An Aviate / Flock plan account (email and password).
+* https://curl.haxx.se/[cURL] installed (for the CLI method).
+
+== Get a Token via the Aviate Auth API
+
+The Aviate plugin exposes an authentication endpoint that exchanges your Aviate credentials for a JWT ID token.
+
+=== Step 1: Encode Your Credentials
+
+Encode your email and password as a Base64 string in the format `email:password`:
+
+[source,bash]
+----
+TOKEN=$(echo -n "user@example.com:MyPassword123" | base64)
+----
+
+=== Step 2: Exchange for an ID Token
+
+Call the auth endpoint with a `Basic` authorization header:
+
+[source,bash]
+----
+curl -s -X POST \
+  -H "Authorization: Basic ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/auth
+----
+
+==== Expected Response (HTTP 200)
+
+[source,json]
+----
+{
+  "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+----
+
+The `token` field contains the JWT ID token you will use in all subsequent API calls.
+
+== Using the Token
+
+=== Save the Token as a Shell Variable
+
+You can combine the credential encoding and token retrieval into a single command:
+
+[source,bash]
+----
+export ID_TOKEN=$(curl -s -X POST \
+  -H "Authorization: Basic $(echo -n 'user@example.com:password' | base64)" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/auth | jq -r '.token')
+
+# Verify it is set
+echo "${ID_TOKEN}" | head -c 20
+----
+
+NOTE: This pattern requires https://stedolan.github.io/jq/[jq] to be installed. If you do not have `jq`, you can extract the token manually from the JSON response.
+
+=== Standard Headers for All Subsequent Calls
+
+Every Aviate API call requires the following headers:
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+     -H "X-Killbill-ApiKey: my-tenant" \
+     -H "X-Killbill-ApiSecret: my-secret" \
+     -H "Content-Type: application/json" \
+     http://127.0.0.1:8080/plugins/aviate-plugin/v1/...
+----
+
+[cols="1,3", options="header"]
+|===
+| Header | Description
+
+| `Authorization: Bearer ${ID_TOKEN}`
+| The JWT token obtained from the auth endpoint.
+
+| `X-Killbill-ApiKey`
+| The API key of the Kill Bill tenant you are operating against.
+
+| `X-Killbill-ApiSecret`
+| The API secret of the Kill Bill tenant.
+
+| `Content-Type: application/json`
+| Required for requests that include a JSON body.
+|===
+
+== Token Expiration and Refresh
+
+Tokens expire after approximately *60 minutes*. There is no separate refresh endpoint — when a token expires, simply re-authenticate using the same auth endpoint.
+
+=== How to Detect Expiration
+
+When a token has expired, the API returns:
+
+[source,bash]
+----
+HTTP/1.1 401 Unauthorized
+----
+
+=== How to Refresh
+
+Re-run the authentication command to obtain a new token:
+
+[source,bash]
+----
+export ID_TOKEN=$(curl -s -X POST \
+  -H "Authorization: Basic $(echo -n 'user@example.com:password' | base64)" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/auth | jq -r '.token')
+----
+
+IMPORTANT: If you are scripting automated workflows, check for `HTTP 401` responses and re-authenticate before retrying the failed request.
+
+== API Reference
+
+[cols="1,2,2,3", options="header"]
+|===
+| Method | Path | Auth | Description
+
+| `POST`
+| `/plugins/aviate-plugin/v1/auth`
+| Basic (Base64 of `email:password`)
+| Returns `{ "token": "<JWT>" }`
+|===
+
+== Common Errors
+
+[cols="1,1,3", options="header"]
+|===
+| HTTP Status | Error | Resolution
+
+| `401 Unauthorized`
+| Invalid credentials
+| Verify that the email and password are correct. Ensure the Base64 encoding uses the format `email:password` with no trailing newline.
+
+| `400 Bad Request`
+| Malformed Basic auth header
+| Ensure the `Authorization` header is in the format `Basic <base64_string>`. The Base64 value must encode `email:password` exactly.
+
+| `401 Unauthorized`
+| Token expired
+| The JWT has expired. Re-authenticate by calling the auth endpoint again. See <<Token Expiration and Refresh>>.
+|===
+
+IMPORTANT: Always use `echo -n` (no newline) when encoding credentials. A trailing newline character will produce an incorrect Base64 value and result in authentication failure.
+
+== Further Reading
+
+* https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin]
+* https://docs.killbill.io/latest/aviate-billing-account.html[Aviate Billing Accounts] — set up billing accounts after authenticating
+* https://docs.killbill.io/latest/aviate-tax-tutorial.html[Aviate Tax Tutorial] — uses the `ID_TOKEN` for tax API calls

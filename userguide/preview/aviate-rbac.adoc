@@ -1,0 +1,304 @@
+= Aviate Role-Based Access Control
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+Aviate includes role-based access control (RBAC) that restricts API access based on the authenticated user's role. Each role grants permissions to specific feature areas, ensuring that users can only access the functionality relevant to their responsibilities.
+
+RBAC works with your existing Kill Bill authentication setup -- whether you use Apache Shiro or AWS Cognito JWT tokens. Aviate reads the user's role from the authentication context and enforces permissions on every API request.
+
+== Predefined Roles
+
+Aviate ships with five predefined roles:
+
+[cols="1,3", options="header"]
+|===
+| Role | Description
+
+| `admin`
+| Full access to all Aviate features, including configuration, approvals, and revenue recognition
+
+| `finance`
+| Access to billing, invoicing, revenue recognition, wallet, and financial reports
+
+| `operator`
+| Access to subscriptions, contracts, quotes, orders, intents, and day-to-day operations
+
+| `catalog_manager`
+| Access to product catalog management (specifications, offerings, prices)
+
+| `viewer`
+| Read-only access to all features (no create, update, or delete operations)
+|===
+
+== Permission Matrix
+
+The following table shows which roles have access to each feature area:
+
+[cols="2,1,1,1,1,1", options="header"]
+|===
+| Feature Area | Admin | Finance | Operator | Catalog Mgr | Viewer
+
+| Product Catalog (read)
+| Yes
+| Yes
+| Yes
+| Yes
+| Yes
+
+| Product Catalog (write)
+| Yes
+| No
+| No
+| Yes
+| No
+
+| Quotes & Orders
+| Yes
+| Yes
+| Yes
+| No
+| Read
+
+| Contracts
+| Yes
+| Yes
+| Yes
+| No
+| Read
+
+| Subscriptions
+| Yes
+| No
+| Yes
+| No
+| Read
+
+| Intents (submit)
+| Yes
+| Yes
+| Yes
+| No
+| No
+
+| Intents (view)
+| Yes
+| Yes
+| Yes
+| Yes
+| Yes
+
+| Approvals (approve/reject)
+| Yes
+| Yes
+| No
+| No
+| No
+
+| Approval Policies
+| Yes
+| No
+| No
+| No
+| No
+
+| Wallet & Credits
+| Yes
+| Yes
+| Yes
+| No
+| Read
+
+| Coupons
+| Yes
+| Yes
+| Yes
+| No
+| Read
+
+| Usage Rating
+| Yes
+| Yes
+| Yes
+| No
+| Read
+
+| Revenue Recognition
+| Yes
+| Yes
+| No
+| No
+| Read
+
+| Revenue Periods (close/reopen)
+| Yes
+| Yes
+| No
+| No
+| No
+
+| Health & Metrics
+| Yes
+| Yes
+| Yes
+| Yes
+| Yes
+
+| BI Reports
+| Yes
+| Yes
+| No
+| No
+| Read
+
+| RBAC Configuration
+| Yes
+| No
+| No
+| No
+| No
+|===
+
+[NOTE]
+*Note:* "Read" in the Viewer column means the viewer can read but not modify the resource. "No" means no access at all.
+
+== How Roles Are Assigned
+
+=== With AWS Cognito
+
+If you use AWS Cognito for authentication, assign roles via Cognito user groups:
+
+. Create a Cognito group matching the role name (e.g., `admin`, `finance`)
+. Add users to the appropriate group
+. Aviate reads the `cognito:groups` claim from the JWT token
+
+Example JWT payload:
+
+[source,json]
+----
+{
+  "sub": "a1b2c3d4-...",
+  "email": "finance-user@acme.com",
+  "cognito:groups": ["finance"],
+  "exp": 1711900000
+}
+----
+
+=== With Apache Shiro
+
+If you use Shiro for authentication, assign roles in the Shiro configuration file:
+
+[source,ini]
+----
+[users]
+admin = password123, admin
+finance-user = password456, finance
+ops-user = password789, operator
+catalog-user = passwordabc, catalog_manager
+viewer-user = passwordxyz, viewer
+----
+
+== Custom Roles
+
+You can create custom roles to match your organization's structure:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/rbac/roles" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "sales_manager",
+    "description": "Sales team with access to quotes, orders, and contracts",
+    "permissions": [
+      "quotes:read",
+      "quotes:write",
+      "orders:read",
+      "orders:write",
+      "contracts:read",
+      "contracts:write",
+      "catalog:read",
+      "intents:submit",
+      "intents:read",
+      "approvals:approve"
+    ]
+  }'
+----
+
+=== Available Permissions
+
+Permissions follow the pattern `<feature>:<action>`. Available actions are:
+
+* `read` -- view resources
+* `write` -- create and update resources
+* `delete` -- delete resources
+* `submit` -- submit intents
+* `approve` -- approve or reject pending approvals
+* `close` -- close accounting periods
+* `reopen` -- reopen closed accounting periods
+
+=== Listing Roles
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/rbac/roles" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+=== Updating a Role
+
+[source,bash]
+----
+curl -X PUT "${KB_URL}/plugins/aviate-plugin/v1/rbac/roles/sales_manager" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "permissions": [
+      "quotes:read",
+      "quotes:write",
+      "orders:read",
+      "orders:write",
+      "contracts:read",
+      "catalog:read",
+      "intents:submit",
+      "intents:read"
+    ]
+  }'
+----
+
+[NOTE]
+*Note:* Predefined roles (`admin`, `finance`, `operator`, `catalog_manager`, `viewer`) cannot be modified or deleted.
+
+== Error Responses
+
+When a user attempts an operation they are not authorized for, the API returns a `403 Forbidden` response:
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/forbidden",
+  "title": "Access Denied",
+  "status": 403,
+  "detail": "Role 'viewer' does not have permission 'contracts:write'",
+  "instance": "/plugins/aviate-plugin/v1/contracts"
+}
+----
+
+If no valid authentication token is provided, the API returns a `401 Unauthorized` response:
+
+[source,json]
+----
+{
+  "type": "https://docs.killbill.io/errors/unauthorized",
+  "title": "Authentication Required",
+  "status": 401,
+  "detail": "Missing or invalid Authorization header"
+}
+----
