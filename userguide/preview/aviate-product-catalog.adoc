@@ -1,0 +1,266 @@
+= Aviate Product Catalog
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+The Aviate Product Catalog provides a structured way to define your product portfolio using industry-standard concepts from the TM Forum (TMF) data model. It builds on top of the existing https://docs.killbill.io/latest/aviate-catalog-guide.html[Aviate Catalog] by adding three composable layers:
+
+* *Product Specifications* define the blueprint -- what a product _is_, what configurable options it has, and what constraints apply.
+* *Product Offerings* represent what you sell -- a commercially available package with specific pricing, market, and lifecycle rules.
+* *Product Offering Prices* define how you charge -- the pricing tower with tiers, discounts, and recurring/one-time/usage components.
+
+These three layers compose into a full TMF-aligned catalog that integrates with Kill Bill's subscription and invoicing engine.
+
+=== When You Need This
+
+The Aviate Catalog already lets you manage plans and pricing through an API instead of raw XML. But suppose your product lineup grows to dozens of plans across multiple regions, each with configurable options like support tier, user limits, and add-on modules. With the standard Aviate Catalog, you end up creating a separate plan for every combination -- `Standard-US-Basic`, `Standard-EU-Premium`, and so on. Each plan has its own pricing definition, and adding a new region or support tier means creating yet more plans.
+
+With the Product Catalog, you define a single _Product Specification_ called "Cloud Platform" with characteristics (region, support tier, max users) and constraints (Enterprise requires premium support). From that specification, you create _Product Offerings_ -- "Standard", "Professional", "Enterprise" -- each with its own validity dates and default characteristic values. Pricing is attached separately as _Product Offering Prices_, so your finance team can adjust rates or introduce a promotional tier without touching the product structure.
+
+The result: your product team manages a composable catalog where specifications, offerings, and prices evolve independently. Every change is versioned, characteristics are validated against constraints, and the whole model follows TMF standards -- making it ready for complex B2B scenarios where the standard Aviate Catalog runs out of room.
+
+include::{sourcedir}/preview/includes/diagram-product-catalog.adoc[]
+
+== Key Concepts
+
+=== Product Specifications
+
+A Product Specification is the master definition of a product type. It describes:
+
+* *Characteristics* -- configurable attributes with allowed values (e.g., `region` may be `us-east-1`, `eu-west-1`, or `ap-southeast-1`)
+* *Constraints* -- rules that limit valid configurations (e.g., "Enterprise plan requires `support_tier` = `premium`")
+* *Lifecycle* -- a specification moves through `DRAFT` -> `ACTIVE` -> `RETIRED`
+
+Think of a specification as the "template" from which concrete offerings are built.
+
+=== Product Offerings
+
+A Product Offering is what your customers actually see and purchase. Each offering:
+
+* References a Product Specification (inheriting its characteristics)
+* Has its own lifecycle: `DRAFT` -> `ACTIVE` -> `RETIRED` -> `OBSOLETE`
+* Can be restricted to specific markets or channels
+* Has a validity period (`valid_from` / `valid_to`)
+* Links to one or more Product Offering Prices
+
+=== Product Offering Prices
+
+Product Offering Prices define the pricing structure. Each price entry specifies:
+
+* *Price type*: `RECURRING`, `ONE_TIME`, or `USAGE`
+* *Amount and currency*
+* *Billing period* (for recurring prices): `MONTHLY`, `ANNUAL`, `QUARTERLY`, etc.
+* *Tiered pricing*: price tiers with minimum/maximum quantities
+* *Tax inclusion*: whether the price includes tax
+
+Multiple prices can be attached to a single offering to support multi-currency pricing, volume tiers, or bundled pricing models.
+
+== Getting Started with the Product Catalog
+
+=== Installing the Plugin
+
+Install the Aviate plugin as described in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] guide.
+
+=== Enabling the Product Catalog
+
+To enable the Product Catalog APIs, start Kill Bill with the following system property:
+
+[source,bash]
+----
+com.killbill.billing.plugin.aviate.enableCatalogApis=true
+----
+
+For details on setting configuration properties, refer to the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide].
+
+=== Using Catalog APIs
+
+Once enabled, you can interact with the Product Catalog using its REST API. Full API documentation is available at https://apidocs.killbill.io/aviate-catalog[our API documentation].
+
+== Creating Your First Product
+
+This walkthrough creates a SaaS product with two plans and tiered pricing.
+
+=== Step 1: Create a Product Specification
+
+Define the product blueprint with its configurable characteristics:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/productSpecifications" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Cloud Platform",
+    "description": "Multi-tenant cloud platform subscription",
+    "productType": "SERVICE",
+    "characteristics": [
+      {
+        "name": "region",
+        "valueType": "STRING",
+        "allowedValues": ["us-east-1", "eu-west-1", "ap-southeast-1"],
+        "required": true
+      },
+      {
+        "name": "support_tier",
+        "valueType": "STRING",
+        "allowedValues": ["basic", "standard", "premium"],
+        "defaultValue": "basic"
+      },
+      {
+        "name": "max_users",
+        "valueType": "INTEGER",
+        "minValue": 1,
+        "maxValue": 10000
+      }
+    ]
+  }'
+----
+
+Response:
+
+[source,json]
+----
+{
+  "id": "ps-001",
+  "name": "Cloud Platform",
+  "status": "DRAFT",
+  "characteristics": [ ... ]
+}
+----
+
+=== Step 2: Activate the Specification
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/productSpecifications/ps-001/activate" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+=== Step 3: Create a Product Offering
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/productOfferings" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Cloud Platform Standard",
+    "description": "Standard tier with basic support",
+    "productSpecificationId": "ps-001",
+    "validFrom": "2026-03-01",
+    "characteristicDefaults": {
+      "support_tier": "standard",
+      "max_users": 50
+    }
+  }'
+----
+
+=== Step 4: Attach Pricing
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/productOfferingPrices" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productOfferingId": "po-001",
+    "name": "Standard Monthly",
+    "priceType": "RECURRING",
+    "billingPeriod": "MONTHLY",
+    "amount": 99.00,
+    "currency": "USD",
+    "taxIncluded": false
+  }'
+----
+
+=== Step 5: Activate the Offering
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/productOfferings/po-001/activate" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+The offering is now available for use in quotes and subscriptions.
+
+== Lifecycle Management
+
+Both specifications and offerings follow a managed lifecycle:
+
+[cols="1,1,3", options="header"]
+|===
+| State | Transitions | Description
+
+| `DRAFT`
+| -> `ACTIVE`
+| Initial state. Can be edited freely. Not visible to customers.
+
+| `ACTIVE`
+| -> `RETIRED`
+| Live and available for new subscriptions.
+
+| `RETIRED`
+| -> `OBSOLETE`
+| No longer available for new subscriptions. Existing subscriptions continue.
+
+| `OBSOLETE`
+| (terminal)
+| Fully deprecated. Kept for historical reference.
+|===
+
+[NOTE]
+*Note:* Retiring a product offering does not affect active subscriptions -- they continue to bill normally. Only new subscriptions are prevented from using retired offerings.
+
+== Searching and Filtering
+
+[source,bash]
+----
+# List all active offerings
+curl "${KB_URL}/plugins/aviate-plugin/v1/productOfferings?status=ACTIVE" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+
+# Filter by specification
+curl "${KB_URL}/plugins/aviate-plugin/v1/productOfferings?specId=ps-001" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+== Kill Bill Catalog Integration
+
+Product Offerings automatically map to Kill Bill catalog constructs:
+
+[cols="1,1", options="header"]
+|===
+| Aviate Concept | Kill Bill Equivalent
+
+| Product Specification
+| Product (name)
+
+| Product Offering
+| Plan (product + billing period + price list)
+
+| Product Offering Price (RECURRING)
+| Recurring phase price
+
+| Product Offering Price (ONE_TIME)
+| Fixed-price phase
+
+| Product Offering Price (USAGE)
+| Usage section in plan
+|===
+
+When an offering is activated, the Aviate plugin generates the corresponding Kill Bill catalog entries automatically. You do not need to manage raw catalog XML.

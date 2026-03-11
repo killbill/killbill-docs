@@ -433,7 +433,7 @@ public void addPaymentMethod(UUID kbAccountId, UUID kbPaymentMethodId, PaymentMe
 The `purchasePayment` method is used to charge a customer against a payment method. It is invoked when:
 
 * Kill Bill triggers an automatic payment against an https://docs.killbill.io/latest/Kill-Bill-Glossary.html#invoice[invoice].
-* A https://killbill.github.io/slate/#account-trigger-a-payment-authorization-purchase-or-credit[direct payment API] is invoked.
+* A https://apidocs.killbill.io/#account-trigger-a-payment-authorization-purchase-or-credit[direct payment API] is invoked.
 
 In the case of GoCardless, it is used to trigger payments against a *mandateId*. Thus, it is implemented as follows (see https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L94[`GoCardlessPaymentPluginApi#purchasePayment`]):
 
@@ -553,7 +553,7 @@ The `getPaymentInfo` method is used to retrieve payment information. It is very 
 
 The Janitor matches the internal transactions against plugin transactions via the *transaction ID*, so make sure `PaymentTransactionInfoPlugin#getKbTransactionPaymentId` is correctly implemented.
 
-In addition to the Janitor, the `getPaymentInfo` is also invoked whenever a https://killbill.github.io/slate/#payment-retrieve-a-payment-using-paymentid[payment is retrieved] with `withPluginInfo=true`, which in turn results in triggering the https://docs.killbill.io/latest/userguide_payment.html#_on_the_fly_janitor[on-the-fly janitor] to fix the payment state before returning the payment information.
+In addition to the Janitor, the `getPaymentInfo` is also invoked whenever a https://apidocs.killbill.io/#payment-retrieve-a-payment-using-paymentid[payment is retrieved] with `withPluginInfo=true`, which in turn results in triggering the https://docs.killbill.io/latest/userguide_payment.html#_on_the_fly_janitor[on-the-fly janitor] to fix the payment state before returning the payment information.
 
 In the case of GoCardless, this method retrieves the payment information from GoCardless and populates the `PaymentTransactionInfoPlugin` based on this information. Thus, this method is implemented as follows (see https://github.com/killbill/killbill-gocardless-example-plugin/blob/9522498ecde5849c940574c598ceb5ce088d32a7/src/main/java/org/killbill/billing/plugin/gocardless/GoCardlessPaymentPluginApi.java#L211[`GoCardlessPaymentPluginApi#getPaymentInfo`]):
 [source,java,linenums]
@@ -758,7 +758,7 @@ Some Important Pointers:
 +
 ** In order to ensure that the invoice balance is adjusted after updating the payment status, you need to make sure the payment goes through the internal payment control state machine. If you are using the https://github.com/killbill/killbill-plugin-framework-java[Kill Bill Plugin framework], you can use the https://github.com/killbill/killbill-plugin-framework-java/blob/870ae40ab476a3cc2d85b89eb2d920e4504e2784/src/main/java/org/killbill/billing/plugin/api/core/PaymentApiWrapper.java#L74-L94[`PaymentApiWrapper#transitionPendingTransaction`] method, which does this for you.
 +
-** Kill Bill also provides a https://killbill.github.io/slate/#payment-transaction-mark-a-pending-payment-transaction-as-succeeded-or-failed[Mark a pending payment transaction as succeeded or failed] endpoint. This internally invokes the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentApi.java#L402[`PaymentApi#notifyPendingTransactionOfStateChanged`] method and can also be used.
+** Kill Bill also provides a https://apidocs.killbill.io/#payment-transaction-mark-a-pending-payment-transaction-as-succeeded-or-failed[Mark a pending payment transaction as succeeded or failed] endpoint. This internally invokes the https://github.com/killbill/killbill-api/blob/4ae1c343a593de937415e21feecb9f5405037fa3/src/main/java/org/killbill/billing/payment/api/PaymentApi.java#L402[`PaymentApi#notifyPendingTransactionOfStateChanged`] method and can also be used.
 
 * *Via the Janitor* - As explained earlier, the https://docs.killbill.io/latest/userguide_payment.html#_janitor[Kill Bill Janitor] attempts to fix *PENDING* and *UNKNOWN* payment states by querying the <<getPaymentInfo, `getPaymentInfo`>> method. Thus, once the plugin receives a notification from the payment gateway about the payment being processed, the `getPaymentInfo` should return the correct payment status.
 

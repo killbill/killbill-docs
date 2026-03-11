@@ -1,0 +1,334 @@
+= Aviate Billing Accounts
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Overview
+
+A billing account links to a Kill Bill account and stores company contact information, address, and tax registrations. Billing accounts are a prerequisite for:
+
+* *Tax calculation* — tax resolution uses the billing account's tax registrations to determine applicable tax rates.
+* *Quote workflows* — quotes reference a billing account for pricing and invoicing.
+* *Contract management* — contracts are associated with billing accounts.
+
+There is *one billing account per Kill Bill account* within a given tenant.
+
+== Prerequisites
+
+* The https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[Aviate plugin installed] and running.
+* A valid API token — see https://docs.killbill.io/latest/aviate-authentication.html[Aviate Authentication] to obtain an `ID_TOKEN`.
+* A Kill Bill account already created via the https://apidocs.killbill.io/account.html#create-an-account[Create Account API].
+
+== Step 1: Create a Billing Account
+
+Use the `POST /v1/ba` endpoint to create a billing account linked to an existing Kill Bill account.
+
+[source,bash]
+----
+curl -v -X POST \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "kbAccountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+    "companyName": "CloudSprout Inc.",
+    "contactName": "Jane Smith",
+    "email": "billing@cloudsprout.io",
+    "telephone": "+1-555-0100",
+    "currency": "USD",
+    "address": {
+      "addressLine1": "100 Main Street",
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "US",
+      "postalCode": "94105"
+    },
+    "taxRegistrations": [
+      {
+        "name": "US Tax Registration",
+        "exempt": false,
+        "trn": "12-3456789",
+        "address": {
+          "addressLine1": "100 Main Street",
+          "city": "San Francisco",
+          "state": "CA",
+          "country": "US",
+          "postalCode": "94105"
+        }
+      }
+    ]
+  }' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/ba
+----
+
+A successful request returns `HTTP 201 Created` with the billing account ID in the `Location` header.
+
+== Step 2: Retrieve a Billing Account by ID
+
+Use the `GET /v1/ba/{billingAccountId}` endpoint:
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/ba/{billingAccountId}
+----
+
+=== Expected Response (HTTP 200)
+
+[source,json]
+----
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "kbAccountId": "e5d3d5b5-4415-4166-b57f-33ca00a59e88",
+  "companyName": "CloudSprout Inc.",
+  "contactName": "Jane Smith",
+  "email": "billing@cloudsprout.io",
+  "telephone": "+1-555-0100",
+  "currency": "USD",
+  "address": {
+    "addressLine1": "100 Main Street",
+    "city": "San Francisco",
+    "state": "CA",
+    "country": "US",
+    "postalCode": "94105"
+  },
+  "taxRegistrations": [
+    {
+      "name": "US Tax Registration",
+      "exempt": false,
+      "trn": "12-3456789",
+      "address": {
+        "addressLine1": "100 Main Street",
+        "city": "San Francisco",
+        "state": "CA",
+        "country": "US",
+        "postalCode": "94105"
+      }
+    }
+  ]
+}
+----
+
+== Step 3: Retrieve by Kill Bill Account ID
+
+If you have the Kill Bill account ID but not the billing account ID, use the `GET /v1/ba/forKbAccountId/{kbAccountId}` endpoint:
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/ba/forKbAccountId/{kbAccountId}
+----
+
+The response format is the same as <<Step 2: Retrieve a Billing Account by ID>>.
+
+== Billing Account Fields Reference
+
+=== BillingAccount
+
+[cols="2,1,1,4", options="header"]
+|===
+| Field | Type | Required | Description
+
+| `kbAccountId`
+| UUID
+| Yes
+| The linked Kill Bill account ID.
+
+| `companyName`
+| string
+| No
+| Company or organization name.
+
+| `contactName`
+| string
+| No
+| Primary contact name.
+
+| `email`
+| string
+| No
+| Contact email address.
+
+| `telephone`
+| string
+| No
+| Contact phone number.
+
+| `currency`
+| string
+| No
+| Default currency code (e.g., `USD`, `EUR`, `GBP`).
+
+| `address`
+| Address
+| No
+| Company address. See <<Address>> below.
+
+| `taxRegistrations`
+| TaxRegistration[]
+| No
+| Tax registration entries. See <<Tax Registrations>> below.
+|===
+
+[[Address]]
+=== Address
+
+[cols="2,1,4", options="header"]
+|===
+| Field | Type | Description
+
+| `addressLine1`
+| string
+| Primary street address.
+
+| `addressLine2`
+| string
+| Secondary address line (suite, unit, etc.).
+
+| `city`
+| string
+| City name.
+
+| `state`
+| string
+| State or province.
+
+| `country`
+| string
+| ISO 3166-1 alpha-2 country code (e.g., `US`, `GB`, `FR`).
+
+| `postalCode`
+| string
+| ZIP or postal code.
+|===
+
+[[tax-registrations]]
+== Tax Registrations
+
+The `taxRegistrations` array holds one or more tax registration entries for the billing account. Each entry associates a tax identity (such as a VAT number or EIN) with a specific address and country.
+
+Tax registrations are used during tax resolution to determine which tax codes apply to invoice items. The `country` field in the registration is matched against the `country` field in configured tax codes.
+
+=== TaxRegistration Fields
+
+[cols="2,1,1,4", options="header"]
+|===
+| Field | Type | Required | Description
+
+| `name`
+| string
+| No
+| A descriptive name for the registration (e.g., "US Tax Registration").
+
+| `exempt`
+| boolean
+| No
+| Set to `true` if the entity is tax-exempt. Defaults to `false`.
+
+| `trn`
+| string
+| No
+| Tax Registration Number — e.g., EIN (US), VAT number (EU), GST number (AU).
+
+| `address`
+| Address
+| No
+| Address associated with the tax registration.
+|===
+
+=== Example: Standard Tax Registration
+
+[source,json]
+----
+{
+  "taxRegistrations": [
+    {
+      "name": "US Tax Registration",
+      "exempt": false,
+      "trn": "12-3456789",
+      "address": {
+        "addressLine1": "100 Main Street",
+        "city": "San Francisco",
+        "state": "CA",
+        "country": "US",
+        "postalCode": "94105"
+      }
+    }
+  ]
+}
+----
+
+=== Example: Tax-Exempt Entity
+
+Set `exempt` to `true` for organizations that are exempt from tax (e.g., non-profits, government entities):
+
+[source,json]
+----
+{
+  "taxRegistrations": [
+    {
+      "name": "Non-Profit Exemption",
+      "exempt": true,
+      "trn": "98-7654321",
+      "address": {
+        "addressLine1": "200 Charity Lane",
+        "city": "Boston",
+        "state": "MA",
+        "country": "US",
+        "postalCode": "02101"
+      }
+    }
+  ]
+}
+----
+
+== API Reference
+
+[cols="1,3,3,3", options="header"]
+|===
+| Method | Path | Auth | Description
+
+| `POST`
+| `/plugins/aviate-plugin/v1/ba`
+| Bearer token
+| Create a new billing account.
+
+| `GET`
+| `/plugins/aviate-plugin/v1/ba/{billingAccountId}`
+| Bearer token
+| Retrieve a billing account by its ID.
+
+| `GET`
+| `/plugins/aviate-plugin/v1/ba/forKbAccountId/{kbAccountId}`
+| Bearer token
+| Retrieve a billing account by the linked Kill Bill account ID.
+|===
+
+== Common Pitfalls
+
+[cols="1,3", options="header"]
+|===
+| Pitfall | Details
+
+| *Creating a subscription before creating a billing account*
+| If a subscription is created for a Kill Bill account that does not yet have a billing account, tax will not be calculated for that subscription's invoices. Always create the billing account first.
+
+| *Missing country in tax registration*
+| Tax resolution matches the `country` field in the tax registration against the `country` in configured tax codes. If the `country` is missing or incorrect, no tax codes will match and tax will not be applied.
+
+| *Billing accounts are per-tenant*
+| Each billing account belongs to the tenant specified by `X-Killbill-ApiKey`. Switching tenants means you are working with a different set of billing accounts. Ensure you are using the correct tenant headers.
+|===
+
+IMPORTANT: Always create the billing account *before* creating subscriptions for the corresponding Kill Bill account. Otherwise, invoices generated for those subscriptions will not include tax items.
+
+== Further Reading
+
+* https://docs.killbill.io/latest/aviate-authentication.html[Aviate Authentication] — obtain the `ID_TOKEN` required by all endpoints
+* https://docs.killbill.io/latest/aviate-tax.html[Aviate Tax] — configure tax codes and tax resolution
+* https://docs.killbill.io/latest/aviate-tax-tutorial.html[Aviate Tax Tutorial] — end-to-end tax setup walkthrough
+* https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin]

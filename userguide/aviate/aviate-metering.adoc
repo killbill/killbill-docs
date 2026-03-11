@@ -1,80 +1,215 @@
 = Aviate Metering
 
-include::{sourcedir}/aviate/includes/aviate-card.adoc[]
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description: 
+include::{sourcedir}/includes/premium-card.adoc[]
 
-== Introduction
+== Overview
 
-The Aviate plugin offers metering capabilities. The https://apidocs.killbill.io/usage[Kill Bill core usage APIs] support recording rolled-up usage data, but aggregation must be performed outside Kill Bill. With the introduction of the metering feature, aggregation can now occur directly within Kill Bill by using the metering APIs. Thus, this feature allows users to be charged based on aggregated units seamlessly.
+Usage-based billing covers scenarios like API calls, AI tokens, compute hours, storage GB, and messages. Aviate metering lets you create billing meters, record raw usage events, and connect them to usage-based plans for automatic invoice generation.
 
-The Aviate Metering feature introduces the concept of a https://killbill.github.io/slate/aviate-metering-apis.html#billingmeter[BillingMeter] and a https://killbill.github.io/slate/aviate-metering-apis.html#usageevent[UsageEvent]. A `BillingMeter` encapsulates information about how usage points should be aggregated - e.g. sum all points within a specific period. A `UsageEvent` represents a single usage point. Each `UsageEvent` has an associated `BillingMeter`. The `UsageEvents` are then aggregated based on the aggregation type specified in the associated `BillingMeter`.
+The https://apidocs.killbill.io/usage[Kill Bill core usage APIs] support recording rolled-up usage data, but aggregation must be performed outside Kill Bill. Aviate metering wraps these APIs with additional queuing, aggregation, and validation so that raw (non-aggregated) usage events can be submitted directly. Usage events submitted to Aviate are ultimately recorded in Kill Bill's usage store for invoicing.
 
-== Getting Started with Aviate Metering
+== Prerequisites
 
-This section provides a step-by-step approach to start using the Aviate Metering feature.
+Before using the metering APIs, ensure the following:
 
-=== Installing the Plugin
+* The Aviate plugin is installed (see the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] guide).
+* Kill Bill is started with the metering feature flag enabled:
++
+[source,bash]
+----
+com.killbill.billing.plugin.aviate.enableMeteringApis=true
+----
++
+Refer to the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide] for setting configuration properties.
+* You have a valid ID token for authentication (see https://docs.killbill.io/latest/aviate-authentication.html[Authentication]).
+* For invoicing: a catalog with a usage-based plan exists (see https://docs.killbill.io/latest/aviate-catalog-guide.html[Catalog Guide — Creating Usage Plans]).
 
-The Aviate plugin can be installed as documented in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] doc.
+== Key Concepts
 
-=== Enabling Aviate Metering
+=== Billing Meters
 
-To use the metering capabilities provided by the Aviate plugin, ensure that KB is started with the following property:
+A https://apidocs.killbill.io/aviate-metering-apis.html#billingmeter[BillingMeter] defines what you are measuring — API calls, tokens, minutes, etc. Each meter has:
+
+* `name` — human-readable label (e.g. "API Calls")
+* `code` — unique identifier referenced when recording events
+* `eventKey` — the event type key
+* `aggregationType` — how events are rolled up (e.g. `SUM`)
+* `eventFilters` — optional string array (reserved for future use)
+
+=== Usage Events
+
+A https://apidocs.killbill.io/aviate-metering-apis.html#usageevent[UsageEvent] represents a single usage data point. Each event contains:
+
+* `billingMeterCode` — the code of the associated billing meter
+* `subscriptionId` — the Kill Bill subscription ID
+* `trackingId` — used for idempotency; resubmitting events with the same tracking ID is safe
+* `timestamp` — ISO 8601 timestamp of the event
+* `value` — numeric quantity (e.g. 150 API calls, 10.5 minutes)
+
+[WARNING]
+Events within the same submission *must* have ascending `timestamp` values. Out-of-order events are rejected. All usage points for a specific subscription must be submitted sequentially (not concurrently).
+
+=== Aggregation
+
+The `aggregationType` on a billing meter defines how events are rolled up for billing within each billing period:
+
+* *SUM* — totals all event values in the billing period (e.g. 150 + 200 = 350 API calls)
+
+=== Relationship to Kill Bill Usage
+
+Aviate metering replaces the https://apidocs.killbill.io/usage.html#record-usage-for-a-subscription[Kill Bill usage APIs] for recording data. You should use *either* the Kill Bill usage APIs (for pre-aggregated data) *or* the Aviate metering APIs (for raw events) — not both. Usage events submitted through Aviate are aggregated and then recorded in Kill Bill's usage store, where they drive invoice generation.
+
+For complete API details, see the https://apidocs.killbill.io/aviate-metering[Aviate Metering API reference].
+
+== Step-by-Step: Create a Meter and Record Usage
+
+=== Step 1: Create a Billing Meter
+
+Use `POST /v1/metering/billingMeters` to create one or more billing meters. The request body is an *array*, so you can create multiple meters in one call.
 
 [source,bash]
 ----
-com.killbill.billing.plugin.aviate.enableUsageApis=true
+curl -v -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '[
+    {
+      "name": "API Calls",
+      "code": "api_calls",
+      "eventKey": "api_call",
+      "aggregationType": "SUM"
+    }
+  ]' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/metering/billingMeters
 ----
 
-Refer to the https://docs.killbill.io/latest/userguide_configuration.html[__Kill Bill Configuration Guide__] to know more about setting configuration properties.
+A successful response returns HTTP 200.
 
-=== Using Metering APIs
+=== Step 2: Verify the Meter Exists
 
-Once the aviate plugin has been installed and the metering feature is enabled, you can start using the Aviate Metering APIs. These APIs enable creation of billing meters and allow to record raw (non aggregated) usage points. These APIs replace the https://killbill.github.io/slate/usage.html#record-usage-for-a-subscription[Kill Bill usage APIs]: Users should either use existing Kill Bill usage APIs (to record aggregated usage points) or use the Aviate metering APIs discussed in this section. For more details about these APIs, please refer to our https://apidocs.killbill.io/aviate-metering[api docs].
+Retrieve a single meter by its code with `GET /v1/metering/{meterCode}/billingMeter`:
 
-Note that in the current implementation, the caller should ensure that all usage points for a specific subscription are submitted sequentially (i.e., must not be submitted concurrently).
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/metering/api_calls/billingMeter
+----
 
-== A Metering Example
+Expected response (JSON):
 
-This section explains how metering works with an example. We also provide a https://docs.killbill.io/latest/aviate-usage-ai-tutorial[tutorial] with step by step examples. 
-
-Assume that we would like to track the cellphone minutes consumed by a user. We can create a `BillingMeter` as follows:
-
-[source, json]
------
+[source,json]
+----
 {
-  "name": "cell-phone-minutes",
-  "code": "cell-phone-minutes",
-  "eventKey": "minutes",
+  "name": "API Calls",
+  "code": "api_calls",
+  "eventKey": "api_call",
   "aggregationType": "SUM"
 }
------
+----
 
-Note that the `SUM` aggregationType is used.
+=== Step 3: List All Billing Meters
 
-UsageEvents can then be recorded corresponding to the cellphone minutes actually consumed by the user.
+Use `GET /v1/metering/billingMeters/all` to list every meter configured for the tenant:
 
-For example, consider the following UsageEvents:
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/metering/billingMeters/all
+----
 
-[source, json]
------
-# event1 - User consumed 10.5 minutes on 2025-01-01T10:30
-{
-  "billingMeterCode": "cell-phone-minutes",
-  "subscriptionId": "8e242ddd-eff9-41d9-b8ca-b2ed77b98da3",
-  "trackingId": "t1",
-  "timestamp": "2025-01-01T10:30",
-  "value": 10.5
-}
-# event2 - User consumed 15 minutes on 2025-02-01T11:45
-{
-  "billingMeterCode": "cell-phone-minutes",
-  "subscriptionId": "8e242ddd-eff9-41d9-b8ca-b2ed77b98da3",
-  "trackingId": "t2",
-  "timestamp": "2025-02-01T11:45",
-  "value": 15
-}
------
-The above JSON snippet specifies two UsageEvents. The value of the `value` field is aggregated based on the `aggregationType` in the associated BillingMeter. In the example above, the `SUM` aggregationType is used, so the values are added and the aggregated usage comes to `10.5+15=25.5`.
+The response is a JSON array of all billing meters.
 
-[NOTE]
-*Note:* At the time of writing, the `eventType` and `eventFilters` fields in the `BillingMeter` are not implemented.
+=== Step 4: Record Usage Events
+
+Submit usage events with `POST /v1/metering/billing/{accountId}`. The request body is an array of events:
+
+[source,bash]
+----
+curl -v -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '[
+    {
+      "billingMeterCode": "api_calls",
+      "subscriptionId": "f3b2a1d4-c5e6-7890-abcd-123456789abc",
+      "trackingId": "batch-2026-02-14-001",
+      "timestamp": "2026-02-14T10:00:00Z",
+      "value": 150
+    },
+    {
+      "billingMeterCode": "api_calls",
+      "subscriptionId": "f3b2a1d4-c5e6-7890-abcd-123456789abc",
+      "trackingId": "batch-2026-02-14-002",
+      "timestamp": "2026-02-14T11:00:00Z",
+      "value": 200
+    }
+  ]' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/metering/billing/e5d3d5b5-4415-4166-b57f-33ca00a59e88
+----
+
+[IMPORTANT]
+Events within the same submission must have ascending `timestamp` values. The `trackingId` provides idempotency — resubmitting events with the same tracking ID is safe.
+
+=== Step 5: Connect to Invoicing
+
+Usage events are aggregated per billing period based on the meter's `aggregationType`. When the subscription's billing cycle runs, the aggregated value appears as a *USAGE* invoice item.
+
+To make this work end-to-end:
+
+. Create a billing meter (Step 1 above).
+. Create a catalog with a usage-based plan that references the meter's code (see https://docs.killbill.io/latest/aviate-catalog-guide.html[Catalog Guide — Creating Usage Plans]).
+. Create a subscription for the account using that plan.
+. Record usage events against the subscription.
+. When the billing period closes, Kill Bill generates an invoice with a USAGE line item reflecting the aggregated total.
+
+== Delete a Billing Meter
+
+Use `DELETE /v1/metering/{meterCode}/billingMeter` to remove a meter. If usage events already exist for the meter, you must pass `force=true`:
+
+[source,bash]
+----
+curl -v -X DELETE \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/plugins/aviate-plugin/v1/metering/api_calls/billingMeter?force=true&accountId=e5d3d5b5-4415-4166-b57f-33ca00a59e88"
+----
+
+[IMPORTANT]
+Without `force=true`, attempting to delete a meter that has associated usage events will return an error.
+
+== What to Verify
+
+After completing the steps above, confirm that:
+
+* The meter appears in the response from `GET /v1/metering/billingMeters/all`.
+* Usage events are accepted (HTTP 200 on the POST).
+* After the billing cycle runs, the invoice shows a USAGE line item with the aggregated amount.
+* The Kill Bill usage API (`/1.0/kb/usages/`) reflects the recorded events.
+
+== Common Pitfalls
+
+. *Submitting events out of chronological order* — events are rejected if timestamps are not ascending.
+. *Using a `billingMeterCode` that does not exist* — the API returns an error.
+. *Missing `subscriptionId` in usage events* — events cannot be linked to billing.
+. *Forgetting to create a usage-based plan in the catalog* — events are recorded but no invoice is generated.
+. *Deleting a meter without `force=true` when events exist* — the API returns an error.
+
+== Related
+
+* https://docs.killbill.io/latest/aviate-authentication.html[Authentication] — obtaining an ID token
+* https://docs.killbill.io/latest/aviate-catalog-guide.html[Catalog Guide] — creating usage-based plans
+* https://docs.killbill.io/latest/aviate-usage-ai-tutorial.html[AI Usage Tutorial] — full end-to-end workflow with wallet and metering
+* https://docs.killbill.io/latest/aviate-wallet.html[Wallet] — prepaid credits consumed by usage

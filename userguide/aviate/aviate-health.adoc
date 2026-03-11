@@ -1,6 +1,10 @@
 = Aviate Health
 
-include::{sourcedir}/aviate/includes/aviate-card.adoc[]
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description:
+include::{sourcedir}/includes/premium-card.adoc[]
 
 == Introduction
 
@@ -33,7 +37,7 @@ As mentioned earlier, Aviate Health exposes endpoints that allow monitoring the 
 
 == Aviate Metrics
 
-The Aviate plugin provides a https://killbill.github.io/slate/aviate-health-apis.html#retrieve-metrics[Retrieve Metrics] endpoint that can be used to assess the health of the system.
+The Aviate plugin provides a https://apidocs.killbill.io/aviate-health-apis.html#retrieve-metrics[Retrieve Metrics] endpoint that can be used to assess the health of the system.
 
 This section provides some insights into the metrics that can be retrieved via this endpoint.
 
@@ -132,24 +136,26 @@ They are registered dynamically by various *Config classes during application st
 
 The following defaults are applied only when a property is not defined in any higher precedence source:
 
-    org.killbill.persistent.bus.external.tableName=bus_ext_events
-    org.killbill.persistent.bus.external.historyTableName=bus_ext_events_history
-    org.killbill.server.enableJasypt=false
-    org.killbill.server.lookupEnvironmentVariables=true
-    org.slf4j.simpleLogger.log.jdbc=ERROR
-
-
+----
+org.killbill.persistent.bus.external.tableName=bus_ext_events
+org.killbill.persistent.bus.external.historyTableName=bus_ext_events_history
+org.killbill.server.enableJasypt=false
+org.killbill.server.lookupEnvironmentVariables=true
+org.slf4j.simpleLogger.log.jdbc=ERROR
+----
 
 When a property is defined in multiple sources, Kill Bill applies the value from the highest precedence source and logs a warning indicating which sources defined it and which value was chosen.
 
 Example warning:
 
-`Property conflict detected for 'org.killbill.dao.healthCheckConnectionTimeout':
+----
+Property conflict detected for 'org.killbill.dao.healthCheckConnectionTimeout':
 defined in sources [RuntimeConfiguration, EnvironmentVariables] -
-using value from 'EnvironmentVariables': '11s'`
+using value from 'EnvironmentVariables': '11s'
+----
 
 
-To make it easier to understand the runtime values of these properties, Kill Bill provides the https://killbill.github.io/slate/aviate-health.html#retrieve-runtime-configuration[/v1/health/config] endpoint.
+To make it easier to understand the runtime values of these properties, Kill Bill provides the https://apidocs.killbill.io/aviate-health.html#retrieve-runtime-configuration[/v1/health/config] endpoint.
 This endpoint displays the effective configuration currently in use along with information about which source each property value was derived from.
 
 
@@ -308,11 +314,194 @@ The following metrics are timer metrics and provide different data points for th
 |===
 
 
-// === Retrieve Metrics Endpoint Examples
-//TODO - Add a section with sample requests and responses
+== Sample API Requests and Responses
+
+NOTE: All API calls in this section require a valid `ID_TOKEN`. See https://docs.killbill.io/latest/aviate-authentication.html[Aviate Authentication] for instructions on how to obtain one.
+
+=== Get health data
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/data
+----
+
+Returns a comprehensive health snapshot including node info, parked accounts,
+late events, and recent activity:
+
+[source,json]
+----
+{
+  "nodeInfos": [ ... ],
+  "parkedAccounts": [],
+  "lateBusEvents": [],
+  "lateBusExtEvents": [],
+  "lateNotifications": [],
+  "recentBusEvents": [ ... ],
+  "recentBusExtEvents": [ ... ],
+  "recentNotifications": [ ... ],
+  "recentAccessLogs": [ ... ],
+  "recentStacks": []
+}
+----
+
+=== Get health metrics
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/metrics?from=2026-02-01T00:00:00&to=2026-02-14T23:59:59"
+----
+
+Optional query parameters: `nodeName[]`, `metricName[]`, `granularity`.
+
+=== Get host samples (for dashboards)
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  "http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/host_samples?from=2026-02-01T00:00:00&to=2026-02-14T23:59:59&category_and_sample_kind=queue.incoming.bus.events"
+----
+
+Optional query parameters: `host[]`, `category_and_sample_kind[]`, `granularity`.
+
+=== Get runtime configuration
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/config
+----
+
+Returns the resolved runtime configuration, useful for verifying feature flags.
+
+
+== Troubleshooting Guide
+
+=== Fix parked accounts
+
+A "parked" account is one where invoice processing failed and the account
+was taken offline to prevent cascading errors. Parked accounts stop receiving
+new invoices.
+
+To list parked accounts, check the `parkedAccounts` array in the health data response.
+
+To unpark (fix) specific accounts:
+
+[source,bash]
+----
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '["e5d3d5b5-4415-4166-b57f-33ca00a59e88", "a1b2c3d4-e5f6-7890-abcd-ef1234567890"]' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/accounts/fixup
+----
+
+IMPORTANT: After fixing, monitor the account to ensure invoicing resumes correctly.
+
+=== Fix stuck bus events
+
+Bus events are internal messages (e.g., "subscription created", "invoice generated").
+A "stuck" bus event is one that failed processing and was not automatically retried.
+
+To view failed bus events:
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/bus/failed
+----
+
+To fix stuck bus events (provide record IDs):
+
+[source,bash]
+----
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '[12345, 12346, 12347]' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/bus/fixup
+----
+
+To reinsert failed bus events for reprocessing:
+
+[source,bash]
+----
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '[12345, 12346]' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/bus/failed
+----
+
+=== Fix stuck notifications
+
+Similar to bus events, notifications can become stuck. The same pattern applies:
+
+[source,bash]
+----
+# View failed notifications
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/notifications/failed
+
+# Fix stuck notifications
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '[67890, 67891]' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/notifications/fixup
+
+# Reinsert failed notifications
+curl -v -X PUT \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -d '[67890]' \
+  http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/notifications/failed
+----
+
+=== Stream logs remotely
+
+Access Kill Bill logs without SSH:
+
+[source,bash]
+----
+curl -H "Authorization: Bearer ${ID_TOKEN}" \
+  "http://127.0.0.1:8080/plugins/aviate-plugin/v1/health/logs?from=2026-02-14T00:00:00&to=2026-02-14T23:59:59"
+----
+
+Optional: `logsDir` parameter to specify the log directory.
+
+=== When to escalate
+
+* `lateBusEvents` array is non-empty and growing -> bus processing is stalled
+* `parkedAccounts` keeps re-appearing after fixup -> underlying data issue
+* `recentStacks` shows repeated exceptions -> application bug
+* Health endpoint returns 503 -> plugin is not running
 
 
 == Retrieve Diagnostic Report Examples
+
+NOTE: All API calls in this section require a valid `ID_TOKEN`. See https://docs.killbill.io/latest/aviate-authentication.html[Aviate Authentication] for instructions on how to obtain one.
 
 The https://apidocs.killbill.io/aviate-health-apis#retrieve-diagnostic-report[Retrieve Diagnostic Report] endpoint generates a diagnostic report. Such a report, when shared with the Kill Bill team, allows the team to replicate a user's Kill Bill environment and diagnose issues.
 

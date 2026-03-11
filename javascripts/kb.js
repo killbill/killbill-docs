@@ -20,12 +20,19 @@ setTimeout(function () {
   })
 
   function copyToClipboard(text) {
-    let sampleTextarea = document.createElement("textarea");
-    document.body.appendChild(sampleTextarea);
-    sampleTextarea.value = text;
-    sampleTextarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(sampleTextarea);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {});
+    } else {
+      // Fallback for older browsers/non-HTTPS contexts
+      let textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(textarea);
+    }
   }
 
   $('.content-wrapper h2 a, .content-wrapper h3 a, .content-wrapper h4 a').on('click', function () {
@@ -36,7 +43,16 @@ setTimeout(function () {
 
   $('.content-wrapper .note td.icon').append(`<svg class="info-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M9.99984 13.3334V10.0001M9.99984 6.66675H10.0082M18.3332 10.0001C18.3332 14.6025 14.6022 18.3334 9.99984 18.3334C5.39746 18.3334 1.6665 14.6025 1.6665 10.0001C1.6665 5.39771 5.39746 1.66675 9.99984 1.66675C14.6022 1.66675 18.3332 5.39771 18.3332 10.0001Z" stroke="#2970FF" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/></svg>`);
 
-  $('.content pre').parent('.content').prepend('<div class="copy-icon"><p></p><div class="copy-icon-container"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.0835 1.5H11.0002C12.867 1.5 13.8004 1.5 14.5135 1.86331C15.1407 2.18289 15.6506 2.69282 15.9702 3.32003C16.3335 4.03307 16.3335 4.96649 16.3335 6.83333V12.75M4.00016 16.5H10.7502C11.6836 16.5 12.1503 16.5 12.5068 16.3183C12.8204 16.1586 13.0754 15.9036 13.2352 15.59C13.4168 15.2335 13.4168 14.7668 13.4168 13.8333V7.08333C13.4168 6.14991 13.4168 5.6832 13.2352 5.32668C13.0754 5.01308 12.8204 4.75811 12.5068 4.59832C12.1503 4.41667 11.6836 4.41667 10.7502 4.41667H4.00016C3.06674 4.41667 2.60003 4.41667 2.24351 4.59832C1.92991 4.75811 1.67494 5.01308 1.51515 5.32668C1.3335 5.6832 1.3335 6.14991 1.3335 7.08333V13.8333C1.3335 14.7668 1.3335 15.2335 1.51515 15.59C1.67494 15.9036 1.92991 16.1586 2.24351 16.3183C2.60003 16.5 3.06674 16.5 4.00016 16.5Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>');
+  $('.content pre').each(function () {
+    let codeEl = $(this).find('code');
+    let lang = codeEl.attr('data-lang')
+      || (codeEl.attr('class') || '').match(/language-(\w+)/)?.[1]
+      || '';
+    let label = lang ? lang.toUpperCase() : '';
+    $(this).parent('.content').prepend(
+      '<div class="copy-icon"><p>' + label + '</p><div class="copy-icon-container"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.0835 1.5H11.0002C12.867 1.5 13.8004 1.5 14.5135 1.86331C15.1407 2.18289 15.6506 2.69282 15.9702 3.32003C16.3335 4.03307 16.3335 4.96649 16.3335 6.83333V12.75M4.00016 16.5H10.7502C11.6836 16.5 12.1503 16.5 12.5068 16.3183C12.8204 16.1586 13.0754 15.9036 13.2352 15.59C13.4168 15.2335 13.4168 14.7668 13.4168 13.8333V7.08333C13.4168 6.14991 13.4168 5.6832 13.2352 5.32668C13.0754 5.01308 12.8204 4.75811 12.5068 4.59832C12.1503 4.41667 11.6836 4.41667 10.7502 4.41667H4.00016C3.06674 4.41667 2.60003 4.41667 2.24351 4.59832C1.92991 4.75811 1.67494 5.01308 1.51515 5.32668C1.3335 5.6832 1.3335 6.14991 1.3335 7.08333V13.8333C1.3335 14.7668 1.3335 15.2335 1.51515 15.59C1.67494 15.9036 1.92991 16.1586 2.24351 16.3183C2.60003 16.5 3.06674 16.5 4.00016 16.5Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>'
+    );
+  });
 
   $('.copy-icon svg').on('click', function () {
     let that = this;
@@ -153,3 +169,146 @@ if (nextNav?.link) {
 } else {
   $('#next-nav-link').css('display', 'none');
 }
+
+// Hide prev/next navigation on landing page
+if (document.querySelector('.landing-page')) {
+  $('.bottom-nav-links').hide();
+}
+
+// ========================================
+// Insider Preview access gate
+// ========================================
+
+(function insiderPreviewGate() {
+  const INSIDER_PAGES = [
+    'aviate-approvals',
+    'aviate-contracts',
+    'aviate-error-handling',
+    'aviate-intents',
+    'aviate-product-catalog',
+    'aviate-quotes-orders',
+    'aviate-rbac',
+    'aviate-revenue-recognition',
+    'aviate-usage-rating'
+  ];
+
+  const ACCESS_KEY = 'insider-access';
+  const ACCESS_CODE = 'aviate2026';
+
+  function isInsiderPage() {
+    const path = window.location.pathname.toLowerCase();
+    return INSIDER_PAGES.some(p => path.includes(p));
+  }
+
+  function isAccessGranted() {
+    return localStorage.getItem(ACCESS_KEY) === 'granted';
+  }
+
+  function grantAccess() {
+    localStorage.setItem(ACCESS_KEY, 'granted');
+  }
+
+  function markLinksLocked() {
+    // Add a small lock icon after each insider link label
+    $('.insider-link').each(function() {
+      $(this).addClass('insider-locked');
+    });
+  }
+
+  function markLinksUnlocked() {
+    $('.insider-link').removeClass('insider-locked');
+  }
+
+  function showGateModal(onSuccess) {
+    const overlay = $(`
+      <div class="insider-gate-overlay">
+        <div class="insider-gate-modal">
+          <div class="insider-gate-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div class="insider-gate-title">Insider Preview</div>
+          <div class="insider-gate-subtitle">This content is available exclusively to select partners and customers. Enter your access code if you have been granted access.</div>
+          <div class="insider-gate-input-group">
+            <input type="password" class="insider-gate-input" placeholder="Enter access code" autocomplete="off" autofocus>
+            <button class="insider-gate-btn">Unlock</button>
+          </div>
+          <div class="insider-gate-error"></div>
+          <div class="insider-gate-back"><a href="/latest/what_is_aviate.html">&larr; Back to Aviate docs</a></div>
+        </div>
+      </div>
+    `);
+
+    $('body').append(overlay);
+
+    const input = overlay.find('.insider-gate-input');
+    const errorEl = overlay.find('.insider-gate-error');
+
+    function attemptUnlock() {
+      const code = input.val().trim();
+      if (code === ACCESS_CODE) {
+        grantAccess();
+        overlay.fadeOut(200, function() {
+          overlay.remove();
+          markLinksUnlocked();
+          if (onSuccess) onSuccess();
+        });
+      } else {
+        errorEl.text('Invalid access code. Please try again.');
+        input.addClass('error');
+        setTimeout(() => input.removeClass('error'), 500);
+      }
+    }
+
+    overlay.find('.insider-gate-btn').on('click', attemptUnlock);
+    input.on('keydown', function(e) {
+      if (e.key === 'Enter') attemptUnlock();
+    });
+
+    // Close on overlay background click
+    overlay.on('click', function(e) {
+      if ($(e.target).hasClass('insider-gate-overlay')) {
+        overlay.fadeOut(200, function() { overlay.remove(); });
+        // If we're on an insider page, go back
+        if (isInsiderPage()) {
+          window.location.href = '/latest/what_is_aviate.html';
+        }
+      }
+    });
+
+    setTimeout(() => input.focus(), 350);
+  }
+
+  // --- Sidebar: links are always visible ---
+
+  if (isAccessGranted()) {
+    // Unlocked — links work normally
+    markLinksUnlocked();
+  } else {
+    // Locked — show links but intercept clicks
+    markLinksLocked();
+
+    $('.insider-link').on('click', function(e) {
+      if (!isAccessGranted()) {
+        e.preventDefault();
+        const targetHref = $(this).attr('href');
+        showGateModal(function() {
+          // On successful unlock, navigate to the clicked page
+          window.location.href = targetHref;
+        });
+      }
+    });
+
+    // If user landed directly on an insider page, show the gate over the content
+    if (isInsiderPage()) {
+      $('.content-wrapper #content').css('visibility', 'hidden');
+      $('.bottom-nav-links').css('visibility', 'hidden');
+      showGateModal(function() {
+        $('.content-wrapper #content').css('visibility', 'visible');
+        $('.bottom-nav-links').css('visibility', 'visible');
+      });
+    }
+  }
+})();

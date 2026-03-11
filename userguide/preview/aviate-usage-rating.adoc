@@ -1,0 +1,270 @@
+= Aviate Usage Rating
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+The Aviate Usage Rating engine lets you define custom pricing rules for usage-based billing. While Kill Bill provides basic usage billing out of the box, the Aviate usage rating engine adds:
+
+* *Custom rating rules* defined as expressions that transform raw usage records into billable amounts
+* *Usage catalogs* that group rating rules into versioned, reusable configurations
+* *Multi-component pricing* with volume tiers, graduated pricing, and custom formulas
+* *Automatic integration* with the Kill Bill invoice pipeline
+
+=== When You Need This
+
+Take a cloud infrastructure provider that bills customers for three things: API calls, storage, and bandwidth. API calls are priced in volume tiers (the first 10,000 are free, the next 100,000 cost $0.002 each, everything above that is $0.001). Storage is a flat $0.10 per GB. Bandwidth has a time-of-day multiplier -- peak hours cost 1.5x.
+
+Without a rating engine, you would need to build and maintain this pricing logic in your own application, compute the billable amounts externally, and push pre-calculated totals into Kill Bill. Every time pricing changes -- new tiers, a promotional rate, a per-customer override -- you are deploying code.
+
+With Usage Rating, you define these rules as expressions in a usage catalog. The engine evaluates raw usage events against your rules and feeds rated amounts directly into Kill Bill's invoice pipeline. When you need to change pricing, you publish a new catalog version -- existing subscriptions stay on their current rules, and new subscriptions pick up the latest. No code changes, no redeployments.
+
+include::{sourcedir}/preview/includes/diagram-usage-rating.adoc[]
+
+== Key Concepts
+
+=== Usage Catalogs
+
+A Usage Catalog defines a set of rating rules for a specific product or plan. Each catalog:
+
+* Has a lifecycle: `DRAFT` -> `ACTIVE` -> `RETIRED`
+* Contains one or more *components* -- individual rating rules
+* Can be linked to specific Kill Bill plans
+* Is versioned -- you can publish new versions without affecting existing subscriptions
+
+=== Rating Components
+
+Each component in a usage catalog defines how a specific type of usage is priced:
+
+* *Unit type* -- what is being measured (e.g., `api_calls`, `storage_gb`, `compute_hours`)
+* *Rating expression* -- a formula that calculates the billable amount from the raw quantity
+* *Tiers* -- optional volume-based or graduated pricing tiers
+
+=== Rating Expressions
+
+Expressions use a simple, sandboxed scripting language that supports:
+
+* Arithmetic: `quantity * 0.005` (flat per-unit rate)
+* Conditionals: `quantity > 1000 ? quantity * 0.003 : quantity * 0.005` (volume discount)
+* Built-in functions: `tier(quantity, [[0, 1000, 0.005], [1000, -1, 0.003]])` (tiered pricing)
+* Time functions: `isWeekend(timestamp) ? quantity * 0.002 : quantity * 0.005` (time-of-day pricing)
+
+Expressions run in a secure sandbox with no access to the file system, network, or host environment.
+
+== Getting Started with Usage Rating
+
+=== Installing the Plugin
+
+Install the Aviate plugin as described in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] guide.
+
+=== Enabling Usage Rating
+
+To enable the usage rating engine, start Kill Bill with the following system property:
+
+[source,bash]
+----
+com.killbill.billing.plugin.aviate.enableUsageRating=true
+----
+
+For details on setting configuration properties, refer to the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide].
+
+=== Using Usage Rating APIs
+
+Full API documentation is available at https://apidocs.killbill.io/aviate-usage-rating[our API documentation].
+
+== Defining a Usage Catalog
+
+=== Step 1: Create a Usage Catalog
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/usageCatalogs" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "API Platform Usage Pricing",
+    "description": "Rating rules for API call metering",
+    "planName": "api-platform-monthly",
+    "components": [
+      {
+        "unitType": "api_calls",
+        "name": "API Calls -- Tiered",
+        "expression": "tier(quantity, [[0, 10000, 0.0], [10000, 100000, 0.005], [100000, -1, 0.003]])"
+      },
+      {
+        "unitType": "storage_gb",
+        "name": "Storage -- Flat Rate",
+        "expression": "quantity * 0.10"
+      },
+      {
+        "unitType": "bandwidth_gb",
+        "name": "Bandwidth -- Time-of-Day",
+        "expression": "isWeekend(timestamp) ? quantity * 0.02 : quantity * 0.05"
+      }
+    ]
+  }'
+----
+
+This defines:
+
+* First 10,000 API calls free, then $0.005/call up to 100K, then $0.003/call above 100K
+* Storage at a flat $0.10/GB
+* Bandwidth at $0.05/GB on weekdays, $0.02/GB on weekends
+
+=== Step 2: Activate the Catalog
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/usageCatalogs/uc-001/activate" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+=== Step 3: Record Usage
+
+Record usage events using the standard Kill Bill usage API:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/1.0/kb/usages" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscriptionId": "s1s2s3s4-...",
+    "trackingId": "2026-02-14",
+    "unitUsageRecords": [
+      {
+        "unitType": "api_calls",
+        "usageRecords": [
+          { "recordDate": "2026-02-14T00:00:00Z", "amount": 45000 }
+        ]
+      },
+      {
+        "unitType": "storage_gb",
+        "usageRecords": [
+          { "recordDate": "2026-02-14T00:00:00Z", "amount": 250 }
+        ]
+      }
+    ]
+  }'
+----
+
+When the next invoice is generated, the Aviate rating engine automatically applies your pricing rules to calculate the billable amounts.
+
+== Expression Reference
+
+[cols="2,3,2", options="header"]
+|===
+| Function | Description | Example
+
+| `tier(qty, tiers)`
+| Graduated tiered pricing. Each tier is `[min, max, rate]`. Use `-1` for unlimited max.
+| `tier(qty, [[0, 100, 1.0], [100, -1, 0.8]])`
+
+| `flatTier(qty, tiers)`
+| Volume tiered pricing -- a single rate for all units based on total volume.
+| `flatTier(qty, [[0, 100, 1.0], [100, -1, 0.8]])`
+
+| `min(a, b)`
+| Returns the smaller value.
+| `min(quantity, 10000)`
+
+| `max(a, b)`
+| Returns the larger value.
+| `max(quantity - 1000, 0)`
+
+| `round(value, decimals)`
+| Rounds to the specified decimal places.
+| `round(quantity * 0.0033, 2)`
+
+| `isWeekend(ts)`
+| Returns `true` if the timestamp falls on Saturday or Sunday.
+| `isWeekend(timestamp) ? rate * 0.5 : rate`
+
+| `hourOf(ts)`
+| Returns the hour (0-23) of the timestamp.
+| `hourOf(timestamp) >= 18 ? rate * 0.7 : rate`
+
+| `dayOfWeek(ts)`
+| Returns the day of week (1=Monday, 7=Sunday).
+| `dayOfWeek(timestamp)`
+
+| `monthOf(ts)`
+| Returns the month (1-12).
+| `monthOf(timestamp)`
+|===
+
+== Pricing Model Examples
+
+=== Graduated Tiered Pricing
+
+Users pay a different rate for each band of usage:
+
+[source,text]
+----
+Expression: tier(quantity, [[0, 1000, 0.10], [1000, 5000, 0.08], [5000, -1, 0.05]])
+
+Usage: 7,500 units
+Calculation:
+  First 1,000  x $0.10 = $100.00
+  Next 4,000   x $0.08 = $320.00
+  Last 2,500   x $0.05 = $125.00
+  Total                 = $545.00
+----
+
+=== Volume Tiered Pricing
+
+All units are charged at the rate determined by total volume:
+
+[source,text]
+----
+Expression: flatTier(quantity, [[0, 1000, 0.10], [1000, 5000, 0.08], [5000, -1, 0.05]])
+
+Usage: 7,500 units
+Calculation:
+  7,500 x $0.05 = $375.00 (all at the highest-tier rate)
+----
+
+=== Time-of-Day Pricing
+
+Charge different rates during peak vs. off-peak hours:
+
+[source,text]
+----
+Expression: hourOf(timestamp) >= 9 && hourOf(timestamp) < 18 ? quantity * 0.10 : quantity * 0.03
+
+Weekday 2pm usage: 100 units x $0.10 = $10.00
+Weekday 10pm usage: 100 units x $0.03 = $3.00
+----
+
+=== Free Tier with Overage
+
+Include a free allowance:
+
+[source,text]
+----
+Expression: max(quantity - 1000, 0) * 0.01
+
+Usage: 3,500 units
+Calculation: max(3500 - 1000, 0) x $0.01 = $25.00
+(first 1,000 units are free)
+----
+
+== How Invoicing Works
+
+When Kill Bill generates an invoice for a subscription with usage:
+
+. The Aviate plugin intercepts the invoice generation
+. For each usage unit type, it loads the active usage catalog for that plan
+. It applies the rating expression to the recorded usage quantity
+. The resulting billable amounts appear as invoice line items
+
+You do not need to manually trigger rating -- it happens automatically as part of Kill Bill's standard invoice generation process.
+
+[NOTE]
+*Note:* The usage rating engine must be enabled via the `enableUsageRating` system property. When disabled, usage billing falls back to Kill Bill's built-in behavior.

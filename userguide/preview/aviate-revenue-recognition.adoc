@@ -1,0 +1,277 @@
+= Aviate Revenue Recognition
+
+include::{sourcedir}/includes/insider-preview-card.adoc[]
+
+== Introduction
+
+The Aviate Revenue Recognition module provides tools for managing when and how revenue is recognized from your subscriptions and contracts. It supports the standard accounting practices defined by ASC 606 (Revenue from Contracts with Customers), and it gives finance teams visibility into recognized vs. deferred revenue through managed accounting periods.
+
+Key capabilities include:
+
+* *Accounting periods* -- monthly periods that can be opened, closed, and reported on
+* *Revenue schedules* -- automatic recognition of revenue across the term of a contract
+* *Contract-aware allocation* -- revenue allocated across multiple performance obligations using relative standalone selling prices
+* *Waterfall reports* -- period-by-period view of recognized and deferred revenue
+
+== Key Concepts
+
+=== Accounting Periods
+
+An accounting period represents a calendar month during which revenue recognition entries are recorded. Each period follows a simple lifecycle:
+
+* *OPEN* -- entries can be added or modified
+* *CLOSED* -- entries are frozen; no changes allowed
+* *REOPENED* -- a closed period has been reopened by an administrator (for corrections)
+
+Periods are auto-created monthly (named `2026-01`, `2026-02`, etc.) as invoices are generated. They can be explicitly closed at month-end to freeze the financials.
+
+=== Revenue Recognition Schedules
+
+When an invoice is generated, the system creates recognition entries that spread the revenue across the appropriate periods. For example:
+
+* A $1,200 annual subscription generates $100/month recognition entries across 12 periods
+* A $500 one-time setup fee is recognized immediately (or spread, depending on your rules)
+* Usage revenue is recognized in the period it was consumed
+
+=== Contract Revenue Allocation (ASC 606)
+
+When a contract includes multiple performance obligations (e.g., a subscription + setup + support), revenue is allocated proportionally based on *standalone selling prices* (SSP). This ensures compliance with ASC 606:
+
+. Identify the performance obligations in the contract
+. Determine the standalone selling price (SSP) for each obligation
+. Allocate the total transaction price proportionally
+. Recognize revenue as each obligation is satisfied
+
+== Getting Started with Revenue Recognition
+
+=== Installing the Plugin
+
+Install the Aviate plugin as described in the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[How to Install the Aviate Plugin] guide.
+
+=== Enabling Revenue Recognition
+
+To enable revenue recognition, start Kill Bill with the following system property:
+
+[source,bash]
+----
+com.killbill.billing.plugin.aviate.enableRevenueRecognition=true
+----
+
+For details on setting configuration properties, refer to the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide].
+
+=== Using Revenue Recognition APIs
+
+Full API documentation is available at https://apidocs.killbill.io/aviate-revrec[our API documentation].
+
+== Managing Accounting Periods
+
+=== Listing Periods
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/periods" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+Response:
+
+[source,json]
+----
+[
+  { "name": "2026-01", "status": "CLOSED", "totalRecognized": 45230.00 },
+  { "name": "2026-02", "status": "OPEN",   "totalRecognized": 38100.00 }
+]
+----
+
+=== Closing a Period
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/revenue/periods/2026-01/close" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+The system validates that all invoices in the period have recognition entries before allowing the close. If unrecognized entries exist, the close is rejected with a list of the affected invoices.
+
+=== Reopening a Period (Admin Only)
+
+In exceptional cases, a closed period can be reopened for corrections:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/revenue/periods/2026-01/reopen" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "Correcting misclassified setup fee" }'
+----
+
+[NOTE]
+*Note:* Reopening a period requires administrator privileges and creates an audit trail entry.
+
+== Revenue Waterfall Report
+
+The waterfall report shows recognized revenue by period across all contracts:
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/waterfall?from=2026-01&to=2026-06" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+Response:
+
+[source,json]
+----
+{
+  "periods": ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"],
+  "rows": [
+    {
+      "contractId": "ctr-001",
+      "contractName": "Acme Corp -- Enterprise",
+      "totalValue": 12000.00,
+      "recognized": [1000.00, 1000.00, 1000.00, 1000.00, 1000.00, 1000.00],
+      "deferred": 6000.00
+    },
+    {
+      "contractId": "ctr-002",
+      "contractName": "Beta Inc -- Standard",
+      "totalValue": 2400.00,
+      "recognized": [200.00, 200.00, 200.00, 200.00, 200.00, 200.00],
+      "deferred": 1200.00
+    }
+  ],
+  "totals": {
+    "recognized": [1200.00, 1200.00, 1200.00, 1200.00, 1200.00, 1200.00],
+    "deferred": 7200.00
+  }
+}
+----
+
+This report is suitable for board-level financial reporting and can be exported for use in external accounting systems.
+
+== Contract Revenue Allocation
+
+When contracts have multiple performance obligations, Aviate uses standalone selling prices (SSP) to allocate revenue per ASC 606.
+
+=== How Allocation Works
+
+Consider a contract with three components:
+
+* Enterprise subscription: $10,000/year (SSP: $10,000)
+* Implementation services: $3,000 one-time (SSP: $5,000)
+* Premium support: $2,000/year (SSP: $2,000)
+* *Total contract price*: $15,000
+
+Using relative SSP allocation:
+
+[cols="1,1,1,1", options="header"]
+|===
+| Obligation | SSP | SSP % | Allocated Revenue
+
+| Subscription
+| $10,000
+| 58.8%
+| $8,824
+
+| Implementation
+| $5,000
+| 29.4%
+| $4,412
+
+| Support
+| $2,000
+| 11.8%
+| $1,765
+|===
+
+Note that the implementation fee ($3,000 charged) receives an allocation of $4,412 because the SSP-based allocation distributes the total contract price proportionally. This is the standard ASC 606 treatment for contracts where any individual obligation is discounted.
+
+The allocation is computed once at contract inception and frozen -- subsequent changes to SSPs do not retroactively affect existing contracts.
+
+=== Setting Standalone Selling Prices
+
+SSPs can be configured at the product offering level:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/revenue/standalonePrices" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productOfferingId": "po-impl",
+    "standaloneSellingPrice": 5000.00,
+    "currency": "USD",
+    "effectiveDate": "2026-01-01"
+  }'
+----
+
+=== SSP Fallback Order
+
+If no explicit SSP is set, the system uses the following fallback order:
+
+. The configured standalone selling price for the product offering
+. The list price of the product offering (from the pricing tower)
+. The contract line item price (as a last resort)
+
+We recommend setting explicit SSPs for all product offerings to ensure consistent and auditable allocations.
+
+== Viewing Revenue Details
+
+=== By Account
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/accounts/a1b2c3d4-..." \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+=== By Contract
+
+[source,bash]
+----
+curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/contracts/ctr-001" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+----
+
+Response:
+
+[source,json]
+----
+{
+  "contractId": "ctr-001",
+  "totalValue": 15000.00,
+  "totalRecognized": 8823.53,
+  "totalDeferred": 6176.47,
+  "obligations": [
+    {
+      "name": "Enterprise Subscription",
+      "allocatedRevenue": 8824.00,
+      "recognized": 5149.33,
+      "deferred": 3674.67,
+      "recognitionPattern": "STRAIGHT_LINE",
+      "termMonths": 12
+    },
+    {
+      "name": "Implementation Services",
+      "allocatedRevenue": 4412.00,
+      "recognized": 4412.00,
+      "deferred": 0.00,
+      "recognitionPattern": "POINT_IN_TIME"
+    }
+  ]
+}
+----
