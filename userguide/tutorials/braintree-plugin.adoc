@@ -5,7 +5,7 @@ The https://github.com/killbill/killbill-braintree[Braintree Plugin] is a Kill B
 == Prerequisites
 
 * Ensure that you have Kill Bill, Kaui, and the database set up as explained in the https://docs.killbill.io/latest/getting_started.html[__Getting Started Guide__].
-* Ensure that you have https://curl.haxx.se/[_cURL_] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[_Git Bash_] to run the `cURL` commands.
+* Ensure that you have https://curl.se/[_cURL_] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[_Git Bash_] to run the `cURL` commands.
 * Ensure that you have a Braintree account. A Braintree sandbox account may be used for testing purposes. You can sign up for a free account at https://www.braintreepayments.com/sandbox[https://www.braintreepayments.com/sandbox].
 
 == Overview
@@ -41,11 +41,10 @@ The Braintree plugin requires the following properties:
 |===
 |Property Name   |Description   | Required|Default Value
 //----------------------
-|org.killbill.billing.plugin.braintree.btEnvironment| The Braintree environment to use. |Yes|-|
-org.killbill.billing.plugin.braintree.btMerchantId   |Unique Braintree merchant identifier that tells the plugin which merchant account to process transactions under.  | Yes | -
-|org.killbill.billing.plugin.braintree.btPublicKey |The public API key from your Braintree account used to authenticate API calls.| Yes |-
-|org.killbill.billing.plugin.braintree.btPrivateKey|The private API key from your Braintree account used alongside the public key to authenticate API calls.|No | DEFAULT
-
+|org.killbill.billing.plugin.braintree.btEnvironment|The Braintree environment to use.|Yes|-
+|org.killbill.billing.plugin.braintree.btMerchantId|Unique Braintree merchant identifier that tells the plugin which merchant account to process transactions under.|Yes|-
+|org.killbill.billing.plugin.braintree.btPublicKey|The public API key from your Braintree account used to authenticate API calls.|Yes|-
+|org.killbill.billing.plugin.braintree.btPrivateKey|The private API key from your Braintree account used alongside the public key to authenticate API calls.|Yes|-
 |===
 
 These properties can be configured globally via the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill Configuration File] or on a per-tenant basis via the https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin[Add a per-tenant configuration for a plugin] endpoint. For example, to configure these properties for the `bob/lazar` tenant, you can use the following curl:
@@ -66,9 +65,11 @@ org.killbill.billing.plugin.braintree.btPrivateKey=xxx' \
  http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-braintree
 ----
 
+Expected result: HTTP `201`/`204` and no validation errors in the response.
+
 Alternatively, you can also configure these properties via the https://aviate.killbill.io/home[Aviate UI] "Plugin Configuration" tab. Refer to the <<aviate_integration, Aviate Integration>> section below for more details.
 
-// == Kaui Integration TBB
+// == Kaui Integration TBD
 
 [[aviate_integration]]
 == Aviate Integration
@@ -85,20 +86,21 @@ You can use the https://aviate.killbill.io/home[Aviate UI] to install/configure 
 ++++
 
 
+[[testing_the_plugin]]
 == Testing the Plugin
 
 Once the plugin is installed and configured, you can use it to process payments via the Braintree payment gateway. You can create a payment method, make a purchase, and view the transaction details in Kaui.
 
 You can follow the steps given below to test the plugin:
 
-1. Ensure that the plugin is installed and configured as explained above.
+. Ensure that the plugin is installed and configured as explained above.
 
-2. https://developer.paypal.com/braintree/articles/control-panel/vault/create[Create a customer] in Braintree with https://developer.paypal.com/braintree/docs/reference/general/testing#valid-card-numbers[test card details]. Save the **Customer ID** generated for future reference (it should be something like **620594365**).
+. https://developer.paypal.com/braintree/articles/control-panel/vault/create[Create a customer] in Braintree with https://developer.paypal.com/braintree/docs/reference/general/testing#valid-card-numbers[test card details]. Save the **Customer ID** generated for future reference (it should be something like **620594365**).
 
-3. https://apidocs.killbill.io/account#create-an-account[Create] a Kill Bill account. Save the **accountId** for further use.
+. https://apidocs.killbill.io/account#create-an-account[Create] a Kill Bill account. Save the **accountId** for further use.
 
-4. https://apidocs.killbill.io/account#add-a-payment-method[Create] a payment method in Kill Bill using a https://developer.paypal.com/braintree/docs/reference/general/testing#payment-method-nonces[fake valid nonce] and the braintree customer id as follows:
-
+. https://apidocs.killbill.io/account#add-a-payment-method[Create] a payment method in Kill Bill using a https://developer.paypal.com/braintree/docs/reference/general/testing#payment-method-nonces[fake valid nonce] and the Braintree customer ID as follows:
++
 [source, bash]
 ----
 curl -v \
@@ -125,19 +127,21 @@ curl -v \
      }' \
      "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?isDefault=true"
 ----
++
+Expected result: HTTP `201` and a response containing a `paymentMethodId`.
 
-5. Create an https://apidocs.killbill.io/invoice#create-external-charge-s[external charge] on the account.
+. Create an https://apidocs.killbill.io/invoice#create-external-charge-s[external charge] on the account.
 
-6. Use the `paymentMethodId` to https://apidocs.killbill.io/invoice#trigger-an-invoice-run[trigger payment] (required only if the `paymentMethodId` is not set as the default payment).
+. Use the `paymentMethodId` to https://apidocs.killbill.io/invoice#trigger-an-invoice-run[trigger payment] (required only if the `paymentMethodId` is not set as the default payment method).
 
-## Integration
+== Integration
 
-In order to use the Braintree plugin, follow the steps given below:
+In order to use the Braintree plugin in your application, follow the steps given below:
 
-1. Ensure that the plugin is installed and configured as explained above.
+. Ensure that the plugin is installed and configured as explained above.
 
-2. Invoke the `BraintreeTokenServlet` to obtain a token:
-
+. Invoke the `BraintreeTokenServlet` to obtain a token:
++
 [source, bash]
 ----
 curl -v \
@@ -151,44 +155,13 @@ curl -v \
     -H "X-Killbill-Comment: demo" \
     "http://localhost:8080/plugins/killbill-braintree/clientToken"
 ----
++
+Expected result: HTTP `200` and a client token payload.
 
-3. Use the https://developer.paypal.com/braintree/docs/start/drop-in[Braintree Drop-in] implementation to gather the customer's payment details and obtain a payment nonce.
+. Use the https://developer.paypal.com/braintree/docs/start/drop-in[Braintree Drop-in] implementation to gather the customer's payment details and obtain a payment nonce.
 
-4. https://developer.paypal.com/braintree/docs/guides/customers[Create a customer] in Braintree. Save the **Customer ID** generated for future reference (it should be something like **620594365**).
+. Complete steps 2-4 from <<testing_the_plugin, Testing the Plugin>> to create a Braintree customer, create a Kill Bill account, and add a Kill Bill payment method with the generated nonce and Braintree customer ID.
 
-5. https://apidocs.killbill.io/account#create-an-account[Create] a Kill Bill account. Save the **accountId** for further use.
-
-6. https://apidocs.killbill.io/account#add-a-payment-method[Create] a payment method in Kill Bill using the nonce and the braintree customer id as follows:
-
-[source, bash]
-----
-curl -v \
-     -u admin:password \
-     -H "X-Killbill-ApiKey: bob" \
-     -H "X-Killbill-ApiSecret: lazar" \
-     -H "Content-Type: application/json" \
-     -H "X-Killbill-CreatedBy: demo" \
-     -X POST \
-     --data-binary '{
-       "pluginName": "killbill-braintree",
-       "pluginInfo": {
-         "properties": [
-           {
-             "key": "bt_nonce",
-             "value": "xxx"
-           },
-           {
-             "key": "bt_customer_id",
-             "value": "xxx"
-           }
-         ]
-       }
-     }' \
-     "http://127.0.0.1:8080/1.0/kb/accounts/<ACCOUNT_ID>/paymentMethods?isDefault=true"
-----
-
-7. Use the `paymentMethodId` to charge the customer as required.
+. Use the `paymentMethodId` to charge the customer as required.
 
 A full end-to-end integration demo that demonstrates Braintree integration is available https://github.com/killbill/killbill-braintree-demo[here].
-
-
