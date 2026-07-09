@@ -66,17 +66,31 @@ A key identifies each entry in that repository, and that key is the `pluginKey`.
 If you have changed the default admin username or password in your `shiro.ini` file, you must also specify the corresponding values for `org.killbill.billing.plugin.kpm.adminUsername` and `org.killbill.billing.plugin.kpm.adminPassword` in your Kill Bill configuration. Otherwise, plugin installation (including via Kaui, KPM, or the API) will fail because the KPM plugin will not be able to authenticate with the correct credentials.
 ====
 
+=== Installing via Aviate Marketplace
+
+The https://aviate.killbill.io[Aviate marketplace] provides a user-friendly interface to discover, install, and manage Kill Bill plugins directly from your browser. For this, you will need to have an Aviate Flock account and add your local KB instance as a deployment. Refer to https://docs.killbill.io/latest/aviate-deployment-management[Aviate Deployment Management] documentation for more details on how add your local KB instance as a deployment.
+
+Once you have the Aviate Flock account and your local KB instance added as a deployment, you can navigate to the Aviate Marketplace by clicking the "Plugins" link in the left nav. From there, you can browse the available plugins, view their details, and install them with a single click:
+
+image::../assets/aviate/aviate-plugin-marketplace.png[Aviate Marketplace,width=50%,align=center]
+
+Refer to the following demo for a walkthrough of the plugin installation process via the Aviate marketplace:
+
+:storylane-id: gxfjy9nl7zuo
+:storylane-embed-type: inline
+include::{sourcedir}/includes/storylane-embed.adoc[]
+
 === Installing via Kaui
 
 In order to deploy a plugin via Kaui, you need to do the following:
 
 * Open Kaui.
 
-* Click on the *Plug* Icon at the top and click on kpm.
+* Click on the *Plugins* link at the bottom.
 
 * Click on *Install New Plugin*.
 
-* Click on the *Download* icon next to the plugin that you wish to install.
+* Click on the *Install* link next to the plugin that you wish to install.
 
 * Refresh the page after a while.
 
@@ -85,13 +99,30 @@ In order to deploy a plugin via Kaui, you need to do the following:
 
 === Installing via KPM
 
-The standard way to deploy plugins is to use the Kill Bill Package Manager (https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM]).
+Plugins can also be installed via the Kill Bill Package Manager (https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM]).
 
 KPM can be used for:
 
 * Deploying *custom* (plugins developed by you) plugins.
 * Deploying *Kill Bill* (plugins maintained by the Kill Bill team) plugins.
 * Deploying *Third-party* (plugins developed and maintained by a third party and not by the Kill Bill team) plugins.
+
+==== Kill Bill Plugins
+
+A Kill Bill plugin is a plugin that is maintained by the Kill Bill team. Such plugins have a key in the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_Plugin Directory_]. So, in order to install such a plugin, its key needs to be specified.
+
+To install a plugin via KPM, you need to do the following:
+
+. Install `kpm` as explained https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation[here].
+. Install the desired plugin as follows:
++
+[source,bash]
+----
+kpm install_java_plugin '<plugin-key>' --destination=<path_to_install_plugin>
+----
++
+* Replace `plugin-key` with an appropriate value from the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_Plugin Directory_]. For example, in order to install the stripe plugin, you can replace `plugin-key` with `stripe`
+* Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path needs to be configured via the `org.killbill.osgi.bundle.install.dir` property as specified in the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide])
 
 ==== Custom Plugins
 
@@ -110,20 +141,6 @@ kpm install_java_plugin '<plugin-key>' --from-source-file="<jar_path>.jar"
 * Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path should match the path specified by the `org.killbill.osgi.bundle.install.dir` property in the https://docs.killbill.io/latest/userguide_configuration.html[_Kill Bill Configuration File_].
 * If `--destination` is not specified, the plugin is installed by default in the `/var/tmp/bundles` directory
 
-==== Kill Bill Plugins
-
-A Kill Bill plugin is a plugin that is maintained by the Kill Bill team. Such plugins have a key in the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_Plugin Directory_]. So, in order to install such a plugin, its key needs to be specified.
-
-A Kill Bill Java plugin can be installed using the `kpm install_java_plugin` command as follows:
-
-[source,bash]
-----
-kpm install_java_plugin '<plugin-key>'
-----
-
-* Replace `plugin-key` with an appropriate value from the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_Plugin Directory_]. 
-* For example, in order to install the stripe plugin, you can replace `plugin-key` with `stripe`
-
 ==== Third-party Plugins
 
 Third-party plugins are plugins developed and maintained by a third party and not by the Kill Bill team.  Such plugins can be installed via KPM from their binary repositories (Maven Central, GitHub Packages and Cloudsmith).
@@ -141,15 +158,6 @@ kpm install_java_plugin '<plugin-key>'
 * Replace `plugin-key` with the plugin name.
 * Replace `<group id>`, `<artifact_id>`, `<version>` with appropriate values from the binary repository.
 
-=== Installing via Aviate Marketplace
-
-The https://aviate.killbill.io[Aviate marketplace] provides a user-friendly interface to discover, install, and manage Kill Bill plugins directly from your browser. For this, you will need to have an Aviate Flock account and add your local KB instance as a deployment. Refer to https://docs.killbill.io/latest/aviate-deployment-management[_Aviate Deployment Management documentation] for more details on how add your local KB instance as a deployment.
-
-Refer to the following demo for a walkthrough of the plugin installation process via the Aviate marketplace:
-
-:storylane-id: gxfjy9nl7zuo
-:storylane-embed-type: inline
-include::{sourcedir}/includes/storylane-embed.adoc[]
 
 === Installing via Plugin Management APIs
 
@@ -231,12 +239,15 @@ The two previous mechanisms work well for global settings, but are inadequate to
 
 At a high level, this mechanism works in the following way:
 
-1. An administrator uses the Kill Bill API (or Kaui) to upload the configuration.
+1. An administrator uses https://aviate.killbill.io[__Aviate UI__], Kill Bill API (or Kaui) to upload the configuration.
 2. Kill Bill stores the config in the `tenant_kvs` table using a `tenant_key` of `PLUGIN_CONFIG_<pluginName>` and sets the `tenant_value` with the config provided.
 3. Kill Bill broadcasts the change across the cluster of nodes and emits a configuration bus event: `TENANT_CONFIG_CHANGE` or `TENANT_CONFIG_DELETION`.
 4. The plugin code is *responsible to listen to these events* and take appropriate action to reload/delete its configuration for that specific tenant.
 
-You can use the following API endpoints to upload, retrieve and delete plugin configuration:
+Plugin configuration can easily be done via the https://aviate.killbill.io/home[Aviate UI] by clicking the "Configuration" link in the Aviate left nav.
+//TODO create a storylane demo and add a link here
+
+You can also use the following API endpoints to upload, retrieve and delete plugin configuration:
 
 
 [[upload_per_tenant_config]]
