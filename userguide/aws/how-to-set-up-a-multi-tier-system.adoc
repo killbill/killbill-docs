@@ -158,12 +158,15 @@ To configure the EC2 instances and establish their connection to the databases, 
 [source,bash]
 ----
 #!/bin/bash
+set -euo pipefail
 
 db_host="<DB endpoint writer instance>"
 db_port="<DB port>"
 db_user="<DB username>"
 db_password="<DB passwordd>"
 kb_admin_password="<Kaui admin login password>"
+
+KB_PLUGINS_TEMP_DIR="/var/lib/killbill/bundles/temp"
 
 cat << EOF >> /etc/environment
 KB_org_killbill_dao_url=jdbc:mysql://$db_host:$db_port/killbill
@@ -182,6 +185,42 @@ KAUI_DB_USERNAME=$db_user
 KAUI_DB_PASSWORD=$db_password
 KAUI_KILLBILL_URL=http://127.0.0.1:8080
 EOF
+
+echo "Waiting for plugin SQL files..."
+
+for i in {1..60}; do
+  if ls ${KB_PLUGINS_TEMP_DIR}/*/*.sql >/dev/null 2>&1; then
+    break
+  fi
+
+  sleep 10
+done
+
+echo "Installing plugin DDLs..."
+
+find "${KB_PLUGINS_TEMP_DIR}" \
+  -mindepth 2 \
+  -maxdepth 2 \
+  -name "*.sql" \
+  | sort \
+  | while read -r ddl_file; do
+
+    plugin_name=$(basename "$(dirname "$ddl_file")")
+
+    echo "Installing DDL for plugin: ${plugin_name}"
+    echo "Executing file: ${ddl_file}"
+
+    mysql \
+      --host="${db_host}" \
+      --port="${db_port}" \
+      --user="${db_user}" \
+      --password="${db_password}" \
+      killbill < "${ddl_file}"
+
+    echo "Completed plugin: ${plugin_name}"
+done
+
+echo "All plugin DDLs installed successfully"
 ----
 
 In the above script, replace the value of `db_host` with the full name of the DB writer endpoint obtained from the Connectivity and Security panel, as indicated earlier. Be sure to specify the appropriate database port number (`3306` for MySQL or `5432` for PostgreSQL) by setting `db_port`. The `kb_admin_password` value will be utilized as the admin password for Kaui login.
