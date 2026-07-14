@@ -3,30 +3,24 @@
 :card-badge: Premium
 :card-title: AWS Deployment
 :card-link: https://aws.amazon.com/marketplace/pp/prodview-jvcsq4phzaclw
-:card-description: 
+:card-description:
 include::{sourcedir}/includes/premium-card.adoc[]
 
 == Introduction
 
 This document describes the procedures for setting up Kill Bill under AWS using the *single-tier* option. This option has limited capabilities but is very easy to setup. It uses a minimum of resources and may be suitable for very simple use cases. Everything you need for this option is bundled in the Kill Bill Amazon Machine Image (AMI) and will be launched on a single virtual Linux system, which AWS calls an *EC2 instance*.
 
-The components of this system include Kill Bill, Kaui, a database manager (DBM), and a load balancer. The EC2 instance runs Ubuntu Linux. The DBM is an instance of https://mariadb.org[MariaDB], an open source version of MySQL. The load balancer is the open source package https://www.nginx.com[Nginx]. This package serves as a front end or reverse proxy, distributing the incoming traffic to either Kill Bill or Kaui based on the incoming port.
+Kill Bill, Kaui, and the database all run on this single EC2 instance. The instance runs Ubuntu Linux, and the database is an instance of https://mariadb.org[MariaDB], an open source version of MySQL. Kaui, the administrative user interface, listens on port `3000`, and the Kill Bill server listens on port `8000`.
 
-The organization of the single-tier system looks like this:
-
-image::../assets/aws/single-tier-ami_deployment.svg[width=750,align=center]
-
-In this configuration, Kill Bill and Kaui are deployed within the `tomcat` application server. Requests are handled by `nginx`. Requests received on port 443 are delivered to Kaui, and those received on port 8443 are delivered to Kill Bill. Both Kill Bill and Kaui communicate as needed with the `mysql` databases.
-
-The setup procedure includes nine steps:
+The setup procedure includes the following steps:
 
 . <<step1, Login to AWS>>
 . <<step2, Subscribe to the Kill Bill AMI>>
-. <<step3, Set up EC2 Configuration>>
+. <<step3, Launch the Instance>>
 . <<step4, Create a Key Pair>>
 . <<step5, Configure Network Settings>>
-. <<step6, Launch your Instance>>
-. <<step7, Set up Security Group>>
+. <<step6, Configure Storage>>
+. <<step7, Launch Your Instance>>
 . <<step8, Login to Your Instance>>
 . <<step9, Test Your Installation>>
 . <<step10, Add a Certificate>>
@@ -54,47 +48,83 @@ You should see the following image at the top of your screen:
 
 image::../assets/aws/single-ami-subscribe.png[align=center]
 
-Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions. Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click *Continue to Configuration*.
+Click *Continue to Subscribe*. The next page will give the AWS Terms and Conditions. Accept the terms if asked. You will then see a new message confirming that you have subscribed. Next, click *Continue to Configuration*, and select *Launch through EC2* as the launch method.
+
+You should then see the following page, which lets you pick the software version and region and start the launch:
+
+image::../assets/aws/single-ami-first-screen.png[align=center]
+
+Accept the defaults (the version dropdown always points at the latest stable release), confirm the *Region* matches the one you selected in Step 1, and click *Launch from EC2*.
 
 [[step3]]
-== Step 3: Set Up EC2 Configuration
+== Step 3: Launch the Instance
 
-The next page will give several configuration options.
+This takes you to the *Launch an Instance* page in the EC2 console. This page is organized into several sections that you will fill in one at a time. The first three sections normally need no changes:
 
-image::../assets/aws/single-ami-configuration.png[align=center]
+image::../assets/aws/single-ami-name-tags.png[align=center]
 
-Be sure to select the correct region for your account. Also be sure that your software version is 2023.3 or later. Accept the other defaults, and click *Continue to Launch*.
+*Name and tags* — Optionally give your instance a name, such as `kill-bill-single-tier`. This is only a label for your own reference in the EC2 dashboard and has no effect on the installation.
 
-The next page will give you several options for the launch method. Choose *Launch through EC2*.
+image::../assets/aws/single-ami-application-images.png[align=center]
 
-image::../assets/aws/single-ami-launch.png[align=center]
+*Application and OS Images (Amazon Machine Image)* — Because you arrived here from the AWS Marketplace subscription, the Kill Bill AMI is already selected for you. There is nothing to change here; just confirm it shows the Kill Bill AMI as a *Verified provider*.
 
-All other options will disappear. Click *Launch*.
+image::../assets/aws/single-ami-instance-type.png[align=center]
+
+*Instance type* — Defaults to `t2.medium`, which is the minimum instance type recommended for Kill Bill. You can select a larger instance type if you expect heavier load, but `t2.medium` is fine to get started.
 
 [[step4]]
 == Step 4: Create a Key Pair
 
-The next page is headed *Launch an Instance*. Scroll down to the middle of this page, to the box titled *Key Pair (login)* Here you are asked to choose or create a *key pair*.
+Scroll down to the *Key Pair (login)* section. Here you are asked to choose or create a *key pair*.
 
-image::../assets/aws/single-tier-keypair.png[align=center]
+image::../assets/aws/single-ami-key-pair.png[align=center]
 
-We will create a new key pair. Click *Create Key Pair* to display a pane to be used for the creation. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Do not change the other options on this pane. Then click *Download Key Pair*. *Important:* You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance. In addition, you must set the protection for this file so it is readable by the owner only.
+We will create a new key pair. Click *Create new key pair* to display a pane to be used for the creation. Give the key pair a simple, easy to remember name such as `My-Key-Pair`. Do not change the other options on this pane. Then click *Download Key Pair*. *Important:* You *must* save the private key that will be generated in this step. If you lose this key, you will *not* be able to login to your instance. In addition, you must set the protection for this file so it is readable by the owner only.
 
 [[step5]]
 == Step 5: Configure Network Settings
 
-Before launching the instance, configure the network settings:
+Scroll down to the *Network settings* section:
 
-* Select the VPC where you want to deploy the EC2 instance.
-* Choose a *public subnet* within that VPC.
-* Ensure *Auto-assign public IP* is *enabled*.
+image::../assets/aws/single-ami-network-settings.png[align=center]
 
-This allows the instance to receive a public IP address and be accessible from the internet. If Auto-assign public IP is disabled or a private subnet is selected, you may not be able to access the instance without additional networking configuration.
+=== 5.1. VPC and subnet
+
+Select the *VPC* where you want to deploy the EC2 instance. Every AWS account starts with a *default VPC*, and that default VPC already ships with a *public subnet* in every availability zone, so in most cases there is nothing to create here.
+
+A subnet is *public* when the route table associated with it has a route for destination `0.0.0.0/0` pointing to an *Internet Gateway* (target `igw-xxxxxxxx`) attached to the VPC, rather than to a NAT Gateway or no route at all. If you are using a custom VPC instead of the default one, use the *Subnet* dropdown to check the details shown for each subnet (availability zone, CIDR), or click *Create new subnet* if you need one. Then, in the VPC console, confirm its route table has a `0.0.0.0/0 -> igw-xxxxxxxx` route before continuing.
+
+=== 5.2. Auto-assign public IP
+
+*This defaults to Disable — you must change it to Enable.* Without a public IP, you will not be able to reach the instance from the internet in Step 9, nor log in to it in Step 8.
+
+=== 5.3. Firewall (security group)
+
+Leave *Create security group* selected. AWS pre-fills two inbound rules for you, for ports `443` and `8443`. *These are incorrect for this AMI* and must be changed to match the ports Kaui and Kill Bill actually listen on:
+
+* Edit rule 1: Type *Custom TCP*, Port range `3000`, Source `Anywhere (0.0.0.0/0)` — for Kaui.
+* Edit rule 2: Type *Custom TCP*, Port range `8000`, Source `Anywhere (0.0.0.0/0)` — for Kill Bill.
+
+While you are here, also click *Add security group rule* to add SSH access, which you will need in Step 8:
+
+* Type *SSH*, Protocol `TCP`, Port range `22`, Source `Anywhere (0.0.0.0/0)`.
+
+Your security group should now have three inbound rules: `3000`, `8000`, and `22`, all open to `0.0.0.0/0`.
 
 [[step6]]
-== Step 6: Launch Your Instance
+== Step 6: Configure Storage
 
-When the key pair is generated, click *Launch Instances*. You should see the screen below:
+Scroll down to the *Configure storage* section:
+
+image::../assets/aws/single-ami-storage.png[align=center]
+
+The default of a single 8 GiB `gp3` root volume is sufficient to get started, and no additional file systems (S3, EFS, FSx) are required. Leave *None* selected and leave the rest of this section at its defaults.
+
+[[step7]]
+== Step 7: Launch Your Instance
+
+Review the summary panel on the right, then click *Launch Instance*. You should see the screen below:
 
 image::../assets/aws/single-tier-launching.png[align=center]
 
@@ -102,27 +132,12 @@ Your instance is finally launching! To follow what is happening on the EC2 Dashb
 
 image::../assets/aws/single-ami-instances.png[align=center]
 
-
 In a short time, the *Instance State* for your instance should indicate *Running*. Select the checkbox to the left of your instance ID. An information pane should open below with details about your instance.
-
-[[step7]]
-== Step 7: Set up Security Group
-
-
-You are almost set, but there is one more thing you should do, and that is to scroll down in the menu on the left side to select *Security Groups*. You should see a list of two or more groups. Select the group whose name begins with `Kill Bill on AWS`, then scroll to the bottom and select the tab for *Inbound Rules*. You should see:
-
-image::../assets/aws/single-ami-inbound.png[align=center]
-
-These rules enable the ports that must be open to access Kaui and Kill Bill from a browser. To enable direct login to your instance using SSH, you need to add one more port. Click on *Edit Inbound Rules*. Then add a rule with the following elements: Type: SSH, Protocol: TCP, Port Range: 22, Source: 0.0.0.0/0. Your Inbound Rules should now look like this:
-
-image::../assets/aws/single-ami-inbound-new.png[align=center]
-
-Your Kill Bill installation is ready to go!
 
 [[step8]]
 == Step 8: Login to Your Instance
 
-You have setup access to port 22 in your security group. This will allow you to login directly to your instance from a terminal or command window. You may need to do this to perform some configuration and maintenance tasks that will be described below.
+You configured access to port 22 in your security group in Step 5. This will allow you to login directly to your instance from a terminal or command window. You may need to do this to perform some configuration and maintenance tasks that will be described below.
 
 To login, use the secure shell command:
 
@@ -142,11 +157,11 @@ You will now be able to explore your instance and perform various configuration 
 
 Congratulations! Your single-tier installation is ready to go!
 
-You can now try to login to Kaui from your browser using the URL `\https://INSTANCE_IP:443`, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. If all goes well, this should display the Kaui login screen. The browser may complain that your connection is not secure, but it should offer you a way to bypass the problem.
+You can now try to login to Kaui from your browser using the URL `\https://INSTANCE_IP:3000`, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. If all goes well, this should display the Kaui login screen. The browser may complain that your connection is not secure, but it should offer you a way to bypass the problem.
 
 For an introduction to Kaui, see our https://docs.killbill.io/latest/userguide_kaui.html[Kaui Guide]. The default credentials are: `admin` / `INSTANCE_ID`, where INSTANCE_ID is the Instance ID for your EC2 instance (*not* the IP!). The first few requests might be a bit slow as Kill Bill initializes itself.
 
-In addition, you can visit the Kill Bill server using the URL `\https://INSTANCE_IP:8443`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
+In addition, you can visit the Kill Bill server using the URL `\https://INSTANCE_IP:8000`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
 
 If these logins do not work correctly, review your setup steps carefully, then proceed to the https://docs.killbill.io/latest/how-to-maintain-a-single-tier-system.html[Single-Tier Maintenance Guide].
 
@@ -154,5 +169,4 @@ If these logins do not work correctly, review your setup steps carefully, then p
 == Step 10: Add a Certificate
 
 In order to make your site secure, you will need to add a valid X.509 SSL/TLS certificate. The easiest way to add this certificate is to make use of the tool `certbot`, which relies on the free Certificate Authority (CA) `Let’s Encrypt`. This method provides a simple way to obtain and install free certificates. For instructions on creating a certificate using `certbot`, see https://docs.killbill.io/latest/how-to-add-a-certificate-using-certbot.html[How to Add a Certificate Using Certbot]. Once your certificate is setup, you can login securely to Kaui using your CNAME as the URL (e.g., `\https://kaui.mydomain.com`).
-
 
