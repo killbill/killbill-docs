@@ -342,12 +342,15 @@ show<span class="tok-w"> </span>tables<span class="tok-p">;</span>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash"><span></span><span class="tok-ch">#!/bin/bash</span>
+<span class="tok-nb">set</span><span class="tok-w"> </span>-euo<span class="tok-w"> </span>pipefail
 
 <span class="tok-nv">db_host</span><span class="tok-o">=</span><span class="tok-s2">&quot;&lt;DB endpoint writer instance&gt;&quot;</span>
 <span class="tok-nv">db_port</span><span class="tok-o">=</span><span class="tok-s2">&quot;&lt;DB port&gt;&quot;</span>
 <span class="tok-nv">db_user</span><span class="tok-o">=</span><span class="tok-s2">&quot;&lt;DB username&gt;&quot;</span>
 <span class="tok-nv">db_password</span><span class="tok-o">=</span><span class="tok-s2">&quot;&lt;DB passwordd&gt;&quot;</span>
 <span class="tok-nv">kb_admin_password</span><span class="tok-o">=</span><span class="tok-s2">&quot;&lt;Kaui admin login password&gt;&quot;</span>
+
+<span class="tok-nv">KB_PLUGINS_TEMP_DIR</span><span class="tok-o">=</span><span class="tok-s2">&quot;/var/lib/killbill/bundles/temp&quot;</span>
 
 cat<span class="tok-w"> </span><span class="tok-s">&lt;&lt; EOF &gt;&gt; /etc/environment</span>
 <span class="tok-s">KB_org_killbill_dao_url=jdbc:mysql://$db_host:$db_port/killbill</span>
@@ -365,7 +368,43 @@ cat<span class="tok-w"> </span><span class="tok-s">&lt;&lt; EOF &gt;&gt; /etc/en
 <span class="tok-s">KAUI_DB_USERNAME=$db_user</span>
 <span class="tok-s">KAUI_DB_PASSWORD=$db_password</span>
 <span class="tok-s">KAUI_KILLBILL_URL=http://127.0.0.1:8080</span>
-<span class="tok-s">EOF</span></code></pre>
+<span class="tok-s">EOF</span>
+
+<span class="tok-nb">echo</span><span class="tok-w"> </span><span class="tok-s2">&quot;Waiting for plugin SQL files...&quot;</span>
+
+<span class="tok-k">for</span><span class="tok-w"> </span>i<span class="tok-w"> </span><span class="tok-k">in</span><span class="tok-w"> </span><span class="tok-o">{</span><span class="tok-m">1</span>..60<span class="tok-o">}</span><span class="tok-p">;</span><span class="tok-w"> </span><span class="tok-k">do</span>
+<span class="tok-w">  </span><span class="tok-k">if</span><span class="tok-w"> </span>ls<span class="tok-w"> </span><span class="tok-si">${</span><span class="tok-nv">KB_PLUGINS_TEMP_DIR</span><span class="tok-si">}</span>/*/*.sql<span class="tok-w"> </span>&gt;/dev/null<span class="tok-w"> </span><span class="tok-m">2</span>&gt;<span class="tok-p">&amp;</span><span class="tok-m">1</span><span class="tok-p">;</span><span class="tok-w"> </span><span class="tok-k">then</span>
+<span class="tok-w">    </span><span class="tok-k">break</span>
+<span class="tok-w">  </span><span class="tok-k">fi</span>
+
+<span class="tok-w">  </span>sleep<span class="tok-w"> </span><span class="tok-m">10</span>
+<span class="tok-k">done</span>
+
+<span class="tok-nb">echo</span><span class="tok-w"> </span><span class="tok-s2">&quot;Installing plugin DDLs...&quot;</span>
+
+find<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_PLUGINS_TEMP_DIR</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-mindepth<span class="tok-w"> </span><span class="tok-m">2</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-maxdepth<span class="tok-w"> </span><span class="tok-m">2</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-name<span class="tok-w"> </span><span class="tok-s2">&quot;*.sql&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span><span class="tok-p">|</span><span class="tok-w"> </span>sort<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span><span class="tok-p">|</span><span class="tok-w"> </span><span class="tok-k">while</span><span class="tok-w"> </span><span class="tok-nb">read</span><span class="tok-w"> </span>-r<span class="tok-w"> </span>ddl_file<span class="tok-p">;</span><span class="tok-w"> </span><span class="tok-k">do</span>
+
+<span class="tok-w">    </span><span class="tok-nv">plugin_name</span><span class="tok-o">=</span><span class="tok-k">$(</span>basename<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-k">$(</span>dirname<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-nv">$ddl_file</span><span class="tok-s2">&quot;</span><span class="tok-k">)</span><span class="tok-s2">&quot;</span><span class="tok-k">)</span>
+
+<span class="tok-w">    </span><span class="tok-nb">echo</span><span class="tok-w"> </span><span class="tok-s2">&quot;Installing DDL for plugin: </span><span class="tok-si">${</span><span class="tok-nv">plugin_name</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span>
+<span class="tok-w">    </span><span class="tok-nb">echo</span><span class="tok-w"> </span><span class="tok-s2">&quot;Executing file: </span><span class="tok-si">${</span><span class="tok-nv">ddl_file</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span>
+
+<span class="tok-w">    </span>mysql<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">      </span>--host<span class="tok-o">=</span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">db_host</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">      </span>--port<span class="tok-o">=</span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">db_port</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">      </span>--user<span class="tok-o">=</span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">db_user</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">      </span>--password<span class="tok-o">=</span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">db_password</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">      </span>killbill<span class="tok-w"> </span>&lt;<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">ddl_file</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span>
+
+<span class="tok-w">    </span><span class="tok-nb">echo</span><span class="tok-w"> </span><span class="tok-s2">&quot;Completed plugin: </span><span class="tok-si">${</span><span class="tok-nv">plugin_name</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span>
+<span class="tok-k">done</span>
+
+<span class="tok-nb">echo</span><span class="tok-w"> </span><span class="tok-s2">&quot;All plugin DDLs installed successfully&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
