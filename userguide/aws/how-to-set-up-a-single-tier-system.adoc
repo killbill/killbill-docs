@@ -27,9 +27,9 @@ The setup procedure includes the following steps:
 . <<step5, Configure Network Settings>>
 . <<step6, Configure Storage>>
 . <<step7, Launch Your Instance>>
-. <<step8, Login to Your Instance>>
-. <<step9, Test Your Installation>>
-. <<step10, Add a Certificate>>
+. <<step8, Test Your Installation>>
+
+Once your instance is up and running, see <<optional, Optional Post-Deployment Tasks>> below for logging in via SSH and replacing the default self-signed certificate.
 
 
 [[step1]]
@@ -103,17 +103,17 @@ A subnet is *public* when the route table associated with it has a route for des
 
 === 5.2. Auto-assign public IP
 
-*This defaults to Disable — you must change it to Enable.* Without a public IP, you will not be able to reach the instance from the internet in Step 9, nor log in to it in Step 8.
+*This defaults to Disable — you must change it to Enable.* Without a public IP, you will not be able to reach the instance from the internet in Step 8, nor log in to it over SSH afterward.
 
 === 5.3. Firewall (security group)
 
 Leave *Create security group* selected. AWS pre-fills two inbound rules for you, for ports `443` and `8443`. These are the correct ports for this AMI: `443` is handled by `nginx` and forwarded to Kaui, and `8443` is handled by `nginx` and forwarded to the Kill Bill server. Confirm both rules have Source set to `Anywhere (0.0.0.0/0)`.
 
-While you are here, also click *Add security group rule* to add SSH access, which you will need in Step 8:
+While you are here, you can also click *Add security group rule* to add SSH access. This is optional — it is only needed if you plan to log in to your instance directly (see <<optional, Optional Post-Deployment Tasks>> below):
 
 * Type *SSH*, Protocol `TCP`, Port range `22`, Source `Anywhere (0.0.0.0/0)`.
 
-Your security group should now have three inbound rules: `443`, `8443`, and `22`, all open to `0.0.0.0/0`.
+Your security group should now have two required inbound rules, `443` and `8443`, open to `0.0.0.0/0`, plus the optional `22` rule if you added it.
 
 [[step6]]
 == Step 6: Configure Storage
@@ -138,38 +138,30 @@ image::../assets/aws/single-ami-instances.png[align=center]
 In a short time, the *Instance State* for your instance should indicate *Running*. Select the checkbox to the left of your instance ID. An information pane should open below with details about your instance.
 
 [[step8]]
-== Step 8: Login to Your Instance
-
-You configured access to port 22 in your security group in Step 5. This will allow you to login directly to your instance from a terminal or command window. You may need to do this to perform some configuration and maintenance tasks that will be described below.
-
-To login, use the secure shell command:
-
-`ssh -i PRIVATE_KEY.pem ubuntu@INSTANCE_IP`
-
-Here PRIVATE_KEY is the pathname where you have stored the private key that was downloaded when you generated your key pair, and INSTANCE_IP is the IPV4 address described earlier. The private key will not work unless its access controls are set to readable by the owner only.
-
-On Windows versions before Windows 10, you may need to download a program called PuTTY to enable `ssh`. On Windows 10 and 11, `ssh` is available but may need to be activated through the Settings screen.
-
-The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer `yes`.
-
-You will now be able to explore your instance and perform various configuration and maintenance tasks. To exit from your login, type `exit`.
-
-
-[[step9]]
-== Step 9: Test your Installation
+== Step 8: Test your Installation
 
 Congratulations! Your single-tier installation is ready to go!
 
-You can now try to login to Kaui from your browser using the URL `\https://INSTANCE_IP:443` (or simply `\https://INSTANCE_IP`), where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. If all goes well, this should display the Kaui login screen. The browser may complain that your connection is not secure, but it should offer you a way to bypass the problem.
+You can now try to login to Kaui from your browser using the URL `\https://INSTANCE_IP:443` (or simply `\https://INSTANCE_IP`), where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. If all goes well, this should display the Kaui login screen.
+
+The AMI ships with a self-signed certificate, so your browser will warn you that the connection is not secure or private (for example, Chrome shows *"Your connection is not private"*). This is expected at this stage — it just means the certificate was not issued by a CA your browser trusts yet. You can proceed past the warning (e.g., in Chrome, click *Advanced*, then *Proceed*) to reach the login screen. See <<optional, Optional Post-Deployment Tasks>> below for how to replace it with a certificate from a trusted CA.
 
 For an introduction to Kaui, see our https://docs.killbill.io/latest/userguide_kaui.html[Kaui Guide]. The default credentials are: `admin` / `INSTANCE_ID`, where INSTANCE_ID is the Instance ID for your EC2 instance (*not* the IP!). The first few requests might be a bit slow as Kill Bill initializes itself.
 
-In addition, you can visit the Kill Bill server using the URL `\https://INSTANCE_IP:8443`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
+In addition, you can visit the Kill Bill server using the URL `\https://INSTANCE_IP:8443`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages. The same certificate warning applies here.
 
 If these logins do not work correctly, review your setup steps carefully, then proceed to the https://docs.killbill.io/latest/how-to-maintain-a-single-tier-system.html[Single-Tier Maintenance Guide].
 
-[[step10]]
-== Step 10: Add a Certificate
+[[optional]]
+== Optional Post-Deployment Tasks
 
-In order to make your site secure, you will need to add a valid X.509 SSL/TLS certificate. The easiest way to add this certificate is to make use of the tool `certbot`, which relies on the free Certificate Authority (CA) `Let’s Encrypt`. This method provides a simple way to obtain and install free certificates. For instructions on creating a certificate using `certbot`, see https://docs.killbill.io/latest/how-to-add-a-certificate-using-certbot.html[How to Add a Certificate Using Certbot]. Once your certificate is setup, you can login securely to Kaui using your CNAME as the URL (e.g., `\https://kaui.mydomain.com`).
+The tasks below are not required to run Kill Bill, but you may want to perform them once your instance is up and running.
+
+=== Login to Your Instance via SSH
+
+You may want to log in to your instance directly, for example to perform configuration or maintenance tasks. This requires the optional SSH rule from Step 5, and is described in a separate document since it is common to all of our AWS deployments: see https://docs.killbill.io/latest/how-to-login-to-your-ec2-instance.html[How to Log In to Your EC2 Instance via SSH].
+
+=== Add a Trusted Certificate
+
+The self-signed certificate that ships with the AMI is enough to get started, but browsers will always flag it as untrusted. To remove this warning, replace it with a valid X.509 SSL/TLS certificate from a trusted CA. The easiest way to do this is with the tool `certbot`, which relies on the free Certificate Authority (CA) `Let's Encrypt`. This method provides a simple way to obtain and install free certificates. For instructions on installing and using `certbot`, see https://certbot.eff.org[the Certbot documentation]. Once your certificate is setup, you can login securely to Kaui using your CNAME as the URL (e.g., `\https://kaui.mydomain.com`).
 
