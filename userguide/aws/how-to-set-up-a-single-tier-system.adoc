@@ -10,7 +10,13 @@ include::{sourcedir}/includes/premium-card.adoc[]
 
 This document describes the procedures for setting up Kill Bill under AWS using the *single-tier* option. This option has limited capabilities but is very easy to setup. It uses a minimum of resources and may be suitable for very simple use cases. Everything you need for this option is bundled in the Kill Bill Amazon Machine Image (AMI) and will be launched on a single virtual Linux system, which AWS calls an *EC2 instance*.
 
-Kill Bill, Kaui, and the database all run on this single EC2 instance. The instance runs Ubuntu Linux, and the database is an instance of https://mariadb.org[MariaDB], an open source version of MySQL. Kaui, the administrative user interface, listens on port `3000`, and the Kill Bill server listens on port `8000`.
+The components of this system include Kill Bill, Kaui, a database manager (DBM), and a load balancer, all running on this single EC2 instance. The instance runs Ubuntu Linux. The DBM is an instance of https://mariadb.org[MariaDB], an open source version of MySQL. The load balancer is the open source package https://www.nginx.com[Nginx]. This package serves as a front end or reverse proxy, distributing the incoming traffic to either Kill Bill or Kaui based on the incoming port.
+
+The organization of the single-tier system looks like this:
+
+image::../assets/aws/single-tier-ami_deployment.svg[width=750,align=center]
+
+In this configuration, Kill Bill and Kaui are deployed within the `tomcat` application server. Requests are handled by `nginx`. Requests received on port 443 are delivered to Kaui, and those received on port 8443 are delivered to Kill Bill. Both Kill Bill and Kaui communicate as needed with the `mysql` databases.
 
 The setup procedure includes the following steps:
 
@@ -101,16 +107,13 @@ A subnet is *public* when the route table associated with it has a route for des
 
 === 5.3. Firewall (security group)
 
-Leave *Create security group* selected. AWS pre-fills two inbound rules for you, for ports `443` and `8443`. *These are incorrect for this AMI* and must be changed to match the ports Kaui and Kill Bill actually listen on:
-
-* Edit rule 1: Type *Custom TCP*, Port range `3000`, Source `Anywhere (0.0.0.0/0)` — for Kaui.
-* Edit rule 2: Type *Custom TCP*, Port range `8000`, Source `Anywhere (0.0.0.0/0)` — for Kill Bill.
+Leave *Create security group* selected. AWS pre-fills two inbound rules for you, for ports `443` and `8443`. These are the correct ports for this AMI: `443` is handled by `nginx` and forwarded to Kaui, and `8443` is handled by `nginx` and forwarded to the Kill Bill server. Confirm both rules have Source set to `Anywhere (0.0.0.0/0)`.
 
 While you are here, also click *Add security group rule* to add SSH access, which you will need in Step 8:
 
 * Type *SSH*, Protocol `TCP`, Port range `22`, Source `Anywhere (0.0.0.0/0)`.
 
-Your security group should now have three inbound rules: `3000`, `8000`, and `22`, all open to `0.0.0.0/0`.
+Your security group should now have three inbound rules: `443`, `8443`, and `22`, all open to `0.0.0.0/0`.
 
 [[step6]]
 == Step 6: Configure Storage
@@ -157,11 +160,11 @@ You will now be able to explore your instance and perform various configuration 
 
 Congratulations! Your single-tier installation is ready to go!
 
-You can now try to login to Kaui from your browser using the URL `\https://INSTANCE_IP:3000`, where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. If all goes well, this should display the Kaui login screen. The browser may complain that your connection is not secure, but it should offer you a way to bypass the problem.
+You can now try to login to Kaui from your browser using the URL `\https://INSTANCE_IP:443` (or simply `\https://INSTANCE_IP`), where INSTANCE_IP is the IPV4 address for your instance, given on your dashboard as *Public IPV4 Address*. If all goes well, this should display the Kaui login screen. The browser may complain that your connection is not secure, but it should offer you a way to bypass the problem.
 
 For an introduction to Kaui, see our https://docs.killbill.io/latest/userguide_kaui.html[Kaui Guide]. The default credentials are: `admin` / `INSTANCE_ID`, where INSTANCE_ID is the Instance ID for your EC2 instance (*not* the IP!). The first few requests might be a bit slow as Kill Bill initializes itself.
 
-In addition, you can visit the Kill Bill server using the URL `\https://INSTANCE_IP:8000`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
+In addition, you can visit the Kill Bill server using the URL `\https://INSTANCE_IP:8443`. This provides access to certain detailed reports that may be needed for maintenance, including metrics, event logs, and the Swagger API pages.
 
 If these logins do not work correctly, review your setup steps carefully, then proceed to the https://docs.killbill.io/latest/how-to-maintain-a-single-tier-system.html[Single-Tier Maintenance Guide].
 
