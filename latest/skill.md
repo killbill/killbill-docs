@@ -23,7 +23,6 @@ Kill Bill is an open-source subscription billing and payments platform. It handl
 **Primary docs:** 
 - https://docs.killbill.io
 - https://apidocs.killbill.io
-- https://github.com/killbill
 
 ---
 
@@ -64,6 +63,8 @@ When answering questions:
    - Kaui
    - Payment plugins
    - Notification plugins
+   - Open source plugins (Like Stripe, Adyen, Braintree, etc.)
+   - Private/Custom plugins
 6. Use official REST API endpoints whenever applicable.
 7. For Java development, prefer the supported Kill Bill plugin APIs rather than internal implementation classes.
 
@@ -108,8 +109,10 @@ curl -X POST -u admin:password \
 ### CLI / tooling quick commands
 
 ```bash
-# Plugin manager (KPM)
+# Plugin installation via KPM
 kpm install_java_plugin killbill-stripe --destination=/var/tmp/bundles
+
+# Generating diagnostic file via kpm
 kpm diagnostic --killbill-api-credentials=bob lazar --killbill-credentials admin password --account-export=ACCOUNT_ID
 
 # Docker quick start
@@ -118,16 +121,13 @@ docker compose up
 
 ### Kill Bill setup
 
-Kill Bill itself needs a database (MySQL is the most commonly used/tested, PostgreSQL and MariaDB are also supported) and can be installed several ways depending on environment: a single-tier AWS AMI (quick trial/experimentation), a multi-tier AWS setup or CloudFormation templates (recommended for production), Docker/Docker Compose (local or cloud), or a manual Tomcat installation.
-
-See the [Getting Started guide](https://docs.killbill.io/latest/getting_started) for the install options and database DDL/setup steps. For the AWS setup options, see the [AWS doc](https://docs.killbill.io/latest/aws).
-
+Kill Bill can be installed in several ways depending on the environment: a single-tier AWS AMI (quick trial/experimentation), a multi-tier AWS setup or CloudFormation templates (recommended for production), Docker/Docker Compose (local or cloud), or a manual Tomcat installation. See the [Getting Started guide](https://docs.killbill.io/latest/getting_started) for the install options and database DDL/setup steps. For the AWS setup options, see the [AWS doc](https://docs.killbill.io/latest/aws).  
+Kill Bill needs a database, MySQL is the most commonly used/tested, PostgreSQL and MariaDB are also supported. For Docker Compose and the AWS options, this is typically handled by the provided compose file/AMI rather than done manually. For Tomcat installs, the Kill Bill schema needs to be created manually using [this DDL](https://docs.killbill.io/latest/ddl.sql) for the schema creation and table setup.
 ---
 
 ### Kaui setup
 
-Kaui runs as a separate Rails-based admin app in front of the Kill Bill server; it needs its own database (tables: `kaui_users`, `kaui_tenants`, `kaui_allowed_users`, `kaui_allowed_user_tenants`) and is pointed at the Kill Bill API URL, tenant API key/secret, and admin credentials via environment variables or `kaui.yml`.
-
+Kaui runs as a separate Rails-based admin app in front of the Kill Bill server. It needs its own database tables. For Docker Compose and the AWS options, this is typically handled by the provided compose file/AMI. In case of manul Tomcat installation, it can be created using [this DDL](https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql) . Kaui also needs to be configured to point to the Kill Bill API URL, and the Kaui database.
 See the [Getting Started guide](https://docs.killbill.io/latest/getting_started) for full install/config steps (WAR setup, database DDL, environment variables).
 
 ---
@@ -262,7 +262,7 @@ Understand these common Kill Bill concepts:
 - **Phase** — A stage within a plan's lifecycle (trial, discount, evergreen), each with its own duration and price
 - **Price List** — A named grouping of plans in the catalog, used to offer different pricing tiers for the same products
 - **Catalog** — The XML configuration defining products, plans, phases, price lists, and business rules
-- **BCD (Bill Cycle Day)** — The day of the month that invoice is created for an account
+- **BCD (Bill Cycle Day)** — The day of the month that invoice is created for an account. This is applicable only for month based billing periods (like `MONTHLY`, `QAUATERLY`, `ANNUAL`, etc.). It can be configured at the account level or overridden at the subscription level. 
 - **Invoice** — A billing document generated for an account, composed of invoice items
 - **Invoice Item** — A single line item on an invoice (recurring charge, usage charge, credit, adjustment, etc.)
 - **Payment** — A transaction record representing money collected against one or more invoices
@@ -326,4 +326,3 @@ Before submitting work:
 
 ---
 
-> For additional documentation and navigation, see: https://docs.killbill.io
