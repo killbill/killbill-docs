@@ -145,6 +145,374 @@ See the [Getting Started guide](https://docs.killbill.io/latest/getting_started)
 
 ---
 
+## Example scripts
+
+Example end-to-end script(s) an agent can adapt and run, parameterized so the same script works across local, Docker, or deployed environments. Intended as a starting point for quick demos/scaffolding — review and harden (secret handling, idempotency, error recovery) before using in any shared or production environment.
+
+### End-to-end: tenant → account → catalog plan → subscription → invoice check
+
+**Parameters:**
+- **Env**
+   - `KB_URL` — Kill Bill base URL (e.g. `http://127.0.0.1:8080`)
+   - `KB_USER` / `PASSWORD` — admin credentials for Basic Auth
+   - `API_KEY` / `API_SECRET` — tenant credentials (chosen by the caller, not pre-existing)
+- **Plan**
+   - `PRODUCT_NAME` — product name (e.g. `Standard`)
+   - `PLAN_NAME` — plan name (e.g. `gold-monthly`)
+   - `CURRENCY` — billing currency (e.g. `USD`)
+   - `PRICE` — recurring price (e.g. `10.00`)
+   - `BILLING_PERIOD` — billing frequency (e.g. `MONTHLY`)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# --- Params ---
+KB_URL="${KB_URL:-http://127.0.0.1:8080}"
+KB_USER="${KB_USER:-admin}"
+PASSWORD="${PASSWORD:-password}"
+API_KEY="${API_KEY:-demo-tenant}"
+API_SECRET="${API_SECRET:-demo-secret}"
+
+PLAN_NAME="${PLAN_NAME:-standard-monthly}"
+PRODUCT_NAME="${PRODUCT_NAME:-Standard}"
+PRICE="${PRICE:-10.00}"
+CURRENCY="${CURRENCY:-USD}"
+BILLING_PERIOD="${BILLING_PERIOD:-MONTHLY}"
+
+AUTH=(-u "${KB_USER}:${PASSWORD}")
+TENANT_HEADERS=(-H "X-Killbill-ApiKey: ${API_KEY}" -H "X-Killbill-ApiSecret: ${API_SECRET}")
+CREATED_BY=(-H "X-Killbill-CreatedBy: setup-script")
+
+echo "=== Step 1: Create tenant (${API_KEY}) ==="
+set +e
+STATUS=$(curl -s -o /tmp/tenant_response.json -w "%{http_code}" -X POST "${AUTH[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"apiKey\": \"${API_KEY}\", \"apiSecret\": \"${API_SECRET}\"}" \
+  "${KB_URL}/1.0/kb/tenants")
+CURL_EXIT=$?
+set -e
+if [[ "${CURL_EXIT}" -ne 0 ]]; then
+  echo "ERROR: curl failed to connect (exit code ${CURL_EXIT}). Is Kill Bill running and reachable at ${KB_URL}?"
+  exit 1
+fi
+echo "HTTP status: ${STATUS}"
+cat /tmp/tenant_response.json
+echo
+if [[ "${STATUS}" != "201" ]]; then
+  echo "WARNING: expected 201 Created, got ${STATUS}. Response body above may explain why (e.g. tenant already exists)."
+fi
+
+echo
+echo "=== Step 2: Create simple plan (${PLAN_NAME}) ==="
+set +e
+STATUS=$(curl -s -o /tmp/catalog_response.json -w "%{http_code}" -X POST "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d "{\"planId\": \"${PLAN_NAME}\", \"productName\": \"${PRODUCT_NAME}\", \"productCategory\": \"BASE\", \"currency\": \"${CURRENCY}\", \"amount\": ${PRICE}, \"billingPeriod\": \"${BILLING_PERIOD}\", \"trialLength\": 0, \"trialTimeUnit\": \"UNLIMITED\"}" \
+  "${KB_URL}/1.0/kb/catalog/simplePlan")
+CURL_EXIT=$?
+set -e
+if [[ "${CURL_EXIT}" -ne 0 ]]; then
+  echo "ERROR: curl failed to connect (exit code ${CURL_EXIT})."
+  exit 1
+fi
+echo "HTTP status: ${STATUS}"
+cat /tmp/catalog_response.json
+echo
+if [[ "${STATUS}" != "201" ]]; then
+  echo "WARNING: expected 201 Created, got ${STATUS}. Check the response above."
+fi
+
+echo
+echo "=== Step 3: Create account ==="
+set +e
+STATUS=$(curl -s -D /tmp/account_headers.txt -o /tmp/account_response.json -w "%{http_code}" -X POST "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\": \"Demo Customer\", \"currency\": \"${CURRENCY}\"}" \
+  "${KB_URL}/1.0/kb/accounts")
+CURL_EXIT=$?
+set -e
+if [[ "${CURL_EXIT}" -ne 0 ]]; then
+  echo "ERROR: curl failed to connect (exit code ${CURL_EXIT})."
+  exit 1
+fi
+echo "HTTP status: ${STATUS}"
+cat /tmp/account_response.json
+echo
+ACCOUNT_ID=$(grep -i "^Location:" /tmp/account_headers.txt | sed -E 's#.*/accounts/([a-f0-9-]+).*#\1#i' | tr -d '\r')
+if [[ -z "${ACCOUNT_ID}" ]]; then
+  echo "ERROR: could not extract accountId. Aborting."
+  exit 1
+fi
+echo "Created account: ${ACCOUNT_ID}"
+
+echo
+echo "=== Step 4: Create subscription (plan: ${PLAN_NAME}) ==="
+set +e
+STATUS=$(curl -s -o /tmp/sub_response.json -w "%{http_code}" -X POST "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"accountId\": \"${ACCOUNT_ID}\", \"planName\": \"${PLAN_NAME}\"}" \
+  "${KB_URL}/1.0/kb/subscriptions")
+CURL_EXIT=$?
+set -e
+if [[ "${CURL_EXIT}" -ne 0 ]]; then
+  echo "ERROR: curl failed to connect (exit code ${CURL_EXIT})."
+  exit 1
+fi
+echo "HTTP status: ${STATUS}"
+cat /tmp/sub_response.json
+echo
+if [[ "${STATUS}" != "201" ]]; then
+  echo "WARNING: expected 201 Created, got ${STATUS}. Subscription may not have been created."
+fi
+
+echo
+echo "=== Step 5: Check invoices for account ${ACCOUNT_ID} ==="
+sleep 2
+curl -s "${AUTH[@]}" "${TENANT_HEADERS[@]}" \
+  "${KB_URL}/1.0/kb/accounts/${ACCOUNT_ID}/invoices" | jq .
+
+echo
+echo "=== Done ==="
+```
+
+### Usage billing: tenant → usage-based catalog plan → account → subscription → record usage → dry-run invoice
+
+**Parameters:**
+- **Env**
+    - `KB_URL` — Kill Bill base URL (e.g. `http://127.0.0.1:8080`)
+    - `KB_USER` / `PASSWORD` — admin credentials for Basic Auth
+    - `API_KEY` / `API_SECRET` — tenant credentials (chosen by the caller, not pre-existing)
+- **Plan**
+    - `PRODUCT_NAME` — product name (e.g. `ApiAccess`)
+    - `PLAN_NAME` — plan name (e.g. `api-monthly`)
+    - `CURRENCY` — billing currency (e.g. `USD`)
+    - `BASE_PRICE` — flat recurring price charged regardless of usage (e.g. `20.00`)
+    - `BILLING_PERIOD` — billing frequency (e.g. `MONTHLY`)
+- **Usage**
+    - `UNIT_NAME` — the metered unit type
+
+````bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# --- Params: Env ---
+KB_URL="${KB_URL:-http://127.0.0.1:8080}"
+KB_USER="${KB_USER:-admin}"
+PASSWORD="${PASSWORD:-password}"
+API_KEY="${API_KEY:-demo-usage-tenant}"
+API_SECRET="${API_SECRET:-demo-secret}"
+
+# --- Params: Plan ---
+PLAN_NAME="${PLAN_NAME:-api-monthly}"
+PRODUCT_NAME="${PRODUCT_NAME:-ApiAccess}"
+CURRENCY="${CURRENCY:-USD}"
+BASE_PRICE="${BASE_PRICE:-20.00}"
+BILLING_PERIOD="${BILLING_PERIOD:-MONTHLY}"
+
+# --- Params: Usage ---
+UNIT_NAME="${UNIT_NAME:-api-calls}"
+TIER1_MAX="${TIER1_MAX:-1000}"       # units included in the cheaper tier
+TIER1_PRICE="${TIER1_PRICE:-0.01}"   # price per unit up to TIER1_MAX
+TIER2_PRICE="${TIER2_PRICE:-0.005}"  # price per unit beyond TIER1_MAX
+
+AUTH=(-u "${KB_USER}:${PASSWORD}")
+TENANT_HEADERS=(-H "X-Killbill-ApiKey: ${API_KEY}" -H "X-Killbill-ApiSecret: ${API_SECRET}")
+CREATED_BY=(-H "X-Killbill-CreatedBy: usage-demo-script")
+
+# Helper: run a curl call, capture status + body, warn if not the expected code
+run_curl() {
+  local expected_status="$1"; shift
+  local out_file="$1"; shift
+  set +e
+  local status
+  status=$(curl -s -o "${out_file}" -w "%{http_code}" "$@")
+  local exit_code=$?
+  set -e
+  if [[ "${exit_code}" -ne 0 ]]; then
+    echo "ERROR: curl failed to connect (exit code ${exit_code}). Is Kill Bill running and reachable at ${KB_URL}?"
+    exit 1
+  fi
+  echo "HTTP status: ${status}"
+  cat "${out_file}"
+  echo
+  if [[ "${status}" != "${expected_status}" ]]; then
+    echo "WARNING: expected ${expected_status}, got ${status}. See response above."
+  fi
+}
+
+echo "=== Step 1: Create tenant (${API_KEY}) ==="
+run_curl 201 /tmp/tenant_response.json \
+  -X POST "${AUTH[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"apiKey\": \"${API_KEY}\", \"apiSecret\": \"${API_SECRET}\"}" \
+  "${KB_URL}/1.0/kb/tenants"
+
+echo
+echo "=== Step 2: Upload catalog with usage plan (${PLAN_NAME}, unit: ${UNIT_NAME}) ==="
+cat > /tmp/usage_catalog.xml <<XML_EOF
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="CatalogSchema.xsd">
+  <effectiveDate>2026-01-01T00:00:00+00:00</effectiveDate>
+  <catalogName>UsageDemoCatalog</catalogName>
+   <recurringBillingMode>IN_ARREAR</recurringBillingMode>
+  <currencies>
+    <currency>${CURRENCY}</currency>
+  </currencies>
+  <units>
+    <unit name="${UNIT_NAME}"/>
+  </units>
+  <products>
+    <product name="${PRODUCT_NAME}">
+      <category>BASE</category>
+    </product>
+  </products>
+  <rules>
+    <changePolicy>
+      <changePolicyCase>
+        <policy>END_OF_TERM</policy>
+      </changePolicyCase>
+    </changePolicy>
+    <cancelPolicy>
+      <cancelPolicyCase>
+        <policy>END_OF_TERM</policy>
+      </cancelPolicyCase>
+    </cancelPolicy>
+   </rules>
+  <plans>
+    <plan name="${PLAN_NAME}">
+      <product>${PRODUCT_NAME}</product>
+	  <initialPhases></initialPhases>
+      <finalPhase type="EVERGREEN">
+        <duration>
+          <unit>UNLIMITED</unit>
+        </duration>
+        <recurring>
+          <billingPeriod>${BILLING_PERIOD}</billingPeriod>
+          <recurringPrice>
+            <price>
+              <currency>${CURRENCY}</currency>
+              <value>${BASE_PRICE}</value>
+            </price>
+          </recurringPrice>
+        </recurring>
+        <usages>
+          <usage name="${PLAN_NAME}-usage" billingMode="IN_ARREAR" usageType="CONSUMABLE">
+            <billingPeriod>${BILLING_PERIOD}</billingPeriod>
+            <tiers>
+              <tier>
+                <blocks>
+                  <tieredBlock>
+                    <unit>${UNIT_NAME}</unit>
+                    <size>1</size>
+                    <prices>
+                      <price>
+                        <currency>${CURRENCY}</currency>
+                        <value>${TIER1_PRICE}</value>
+                      </price>
+                    </prices>
+                    <max>${TIER1_MAX}</max>
+                  </tieredBlock>
+                </blocks>
+              </tier>
+              <tier>
+                <blocks>
+                  <tieredBlock>
+                    <unit>${UNIT_NAME}</unit>
+                    <size>1</size>
+                    <prices>
+                      <price>
+                        <currency>${CURRENCY}</currency>
+                        <value>${TIER2_PRICE}</value>
+                      </price>
+                    </prices>
+                    <max>10000000</max>
+                  </tieredBlock>
+                </blocks>
+              </tier>
+            </tiers>
+          </usage>
+        </usages>
+      </finalPhase>
+    </plan>
+  </plans>
+  <priceLists>
+    <defaultPriceList name="DEFAULT">
+      <plans>
+        <plan>${PLAN_NAME}</plan>
+      </plans>
+    </defaultPriceList>
+  </priceLists>
+</catalog>
+XML_EOF
+
+run_curl 201 /tmp/catalog_response.json \
+  -X POST "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: text/xml" \
+  --data-binary @/tmp/usage_catalog.xml \
+  "${KB_URL}/1.0/kb/catalog/xml"
+
+echo
+echo "=== Step 3: Create account ==="
+STATUS_TMP=/tmp/account_headers.txt
+set +e
+STATUS=$(curl -s -D "${STATUS_TMP}" -o /tmp/account_response.json -w "%{http_code}" \
+  -X POST "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\": \"Usage Demo Customer\", \"currency\": \"${CURRENCY}\"}" \
+  "${KB_URL}/1.0/kb/accounts")
+CURL_EXIT=$?
+set -e
+if [[ "${CURL_EXIT}" -ne 0 ]]; then
+  echo "ERROR: curl failed to connect (exit code ${CURL_EXIT})."
+  exit 1
+fi
+echo "HTTP status: ${STATUS}"
+cat /tmp/account_response.json
+echo
+ACCOUNT_ID=$(grep -i "^Location:" "${STATUS_TMP}" | sed -E 's#.*/accounts/([a-f0-9-]+).*#\1#i' | tr -d '\r')
+if [[ -z "${ACCOUNT_ID}" ]]; then
+  echo "ERROR: could not extract accountId. Aborting."
+  exit 1
+fi
+echo "Created account: ${ACCOUNT_ID}"
+
+echo
+echo "=== Step 4: Create subscription (plan: ${PLAN_NAME}) ==="
+run_curl 201 /tmp/sub_headers.json \
+  -D /tmp/sub_headers.txt \
+  -X POST "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"accountId\": \"${ACCOUNT_ID}\", \"planName\": \"${PLAN_NAME}\"}" \
+  "${KB_URL}/1.0/kb/subscriptions"
+SUBSCRIPTION_ID=$(grep -i "^Location:" /tmp/sub_headers.txt | sed -E 's#.*/subscriptions/([a-f0-9-]+).*#\1#i' | tr -d '\r')
+echo "Created subscription: ${SUBSCRIPTION_ID}"
+
+echo
+echo "=== Step 5: Record usage events (unit: ${UNIT_NAME}) ==="
+USAGE_AMOUNT="${USAGE_AMOUNT:-1200}"  # deliberately > TIER1_MAX to exercise both tiers
+TODAY=$(date +%F)
+run_curl 201 /tmp/usage_response.json \
+  -X POST "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"subscriptionId\": \"${SUBSCRIPTION_ID}\", \"unitUsageRecords\": [{\"unitType\": \"${UNIT_NAME}\", \"usageRecords\": [{\"recordDate\": \"${TODAY}\", \"amount\": ${USAGE_AMOUNT}}]}]}" \
+  "${KB_URL}/1.0/kb/usages"
+echo "Recorded ${USAGE_AMOUNT} units of ${UNIT_NAME} on ${TODAY}"
+
+echo
+echo "=== Step 6: Dry-run invoice preview (shows accrued usage charge) ==="
+curl -s "${AUTH[@]}" "${TENANT_HEADERS[@]}" "${CREATED_BY[@]}" \
+  "${KB_URL}/1.0/kb/invoices/dryRun?accountId=${ACCOUNT_ID}&targetDate=$(date -d '+1 month' +%F 2>/dev/null || date -v+1m +%F)" \
+  -X POST -H "Content-Type: application/json" -d "{\"dryRunType\": \"TARGET_DATE\"}" | jq .
+
+echo
+echo "=== Done ==="
+echo "Note: the dry-run above may show \$0 usage if the current billing period hasn't closed yet;"
+echo "consumable-in-arrear usage is only billed at the END of its billing period."
+````
+
 ## Decision guidance
 
 ### When to use API vs Kaui vs plugin
