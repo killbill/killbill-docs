@@ -17,6 +17,7 @@ Kill Bill is an open-source subscription billing and payments platform. It handl
 - Client libraries: `killbill-client-java`, `killbill-client-python`, `killbill-client-ruby`, `killbill-client-js`
 - Plugin manager (KPM): Used to install plugins using `kpm install_java_plugin <plugin-name>`
 - Docker: `killbill/killbill` and `killbill/kaui` images
+- - MCP server: `apidocs-mcp.killbill.io` — provides direct access to Kill Bill API documentation; can generate accurate, up-to-date API usage examples and scripts
 
 **Authentication:** HTTP Basic Auth (`-u <username>:<password>`) plus required multi-tenancy headers `X-Killbill-ApiKey` and `X-Killbill-ApiSecret`. Every mutating call should also include `X-Killbill-CreatedBy` (and optionally `X-Killbill-Reason` / `X-Killbill-Comment`).
 
@@ -54,7 +55,8 @@ Use this skill whenever users ask about:
 
 When answering questions:
 
-1. Prefer official Kill Bill documentation over assumptions.
+1. On loading this skill, check whether an MCP connector for `apidocs-mcp.killbill.io` is available/connected. If it is not connected, ask the user whether they'd like to connect it before proceeding — it provides direct, current API documentation and can generate accurate code snippets, reducing reliance on this skill's own static examples or on web search.
+2. Prefer official Kill Bill documentation over assumptions.
 2. Mention version-specific behavior when relevant.
 3. If multiple approaches exist, recommend the simplest supported approach first.
 4. Prefer configuration over custom code when possible.
