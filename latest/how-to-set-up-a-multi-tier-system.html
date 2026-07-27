@@ -92,8 +92,54 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </div>
 </div>
 <div class="paragraph">
-<p>These components will be installed in reverse order. First we setup the RDS databases. Next the EC2 instances are created. Finally, the ELB load balancer is installed to tie everything together.</p>
+<p>These components will be installed in reverse order. First we set up the RDS instance. Next the EC2 instances are launched, and the Kill Bill and Kaui databases are created on them. Finally, the ELB load balancer is installed to tie everything together.</p>
 </div>
+<div class="sect2">
+<h3 id="_what_you_will_need">What You Will Need</h3>
+<div class="paragraph">
+<p>Before you begin, it helps to have the following ready:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 42.8571%;">
+<col style="width: 28.5715%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Item</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+<th class="tableblock halign-left valign-top">Where to get it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS account</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All resources run in your account</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://aws.amazon.com" class="bare">https://aws.amazon.com</a></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">VPC + public subnet</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EC2 instances and the load balancer need internet access</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS VPC Console</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EC2 Key Pair</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SSH access to EC2 instances</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS EC2 Console (see Step 4)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">RDS database instance (MySQL/MariaDB/Aurora compatible)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Shared database for Kill Bill and Kaui</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS RDS Console (see Step 2)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TLS certificate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">HTTPS on the load balancer</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS Certificate Manager (see Step 7)</p></td>
+</tr>
+</tbody>
+</table>
 <div class="paragraph">
 <p>The setup procedure includes eight steps:</p>
 </div>
@@ -103,7 +149,7 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p><a href="#step1">Login to AWS</a></p>
 </li>
 <li>
-<p><a href="#step2">Setup the RDS</a></p>
+<p><a href="#step2">Set Up the RDS Instance</a></p>
 </li>
 <li>
 <p><a href="#step3">Edit the Configuration Script</a></p>
@@ -112,7 +158,7 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p><a href="#step4">Launch EC2 Instances</a></p>
 </li>
 <li>
-<p><a href="#step5">Create the Databases</a></p>
+<p><a href="#step5">Create the Kill Bill and Kaui Databases</a></p>
 </li>
 <li>
 <p><a href="#step6">Perform Initial Testing</a></p>
@@ -139,6 +185,7 @@ AWS user interfaces change frequently. You may see screens slightly different fr
 </div>
 </div>
 </div>
+</div>
 <div class="sect1">
 <h2 id="step1">Step 1: Login to AWS</h2>
 <div class="sectionbody">
@@ -154,10 +201,10 @@ AWS user interfaces change frequently. You may see screens slightly different fr
 </div>
 </div>
 <div class="sect1">
-<h2 id="step2">Step 2: Setup the RDS</h2>
+<h2 id="step2">Step 2: Set Up the RDS Instance</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Once you are logged in, the first step is to setup the Relational Database System. This process begins with the RDS dashboard, which should be available from the Services menu. When the dashboard appears, select <strong>Databases</strong> from the left menu, and click the red button at the top right that reads <strong>Create Database</strong>:</p>
+<p>Once you are logged in, the first step is to set up the Relational Database System. This process begins with the RDS dashboard, which should be available from the Services menu. When the dashboard appears, select <strong>Databases</strong> from the left menu, and click the red button at the top right that reads <strong>Create Database</strong>:</p>
 </div>
 <div class="imageblock text-center">
 <div class="content">
@@ -213,7 +260,7 @@ AWS user interfaces change frequently. You may see screens slightly different fr
 </div>
 </div>
 <div class="sect2">
-<h3 id="_2_2_create_the_database_manager">2.2. Create the Database Manager</h3>
+<h3 id="_2_2_create_the_rds_instance">2.2. Create the RDS Instance</h3>
 <div class="paragraph">
 <p>When the password is setup and confirmed, click <strong>Create Database</strong> in the lower right corner. You will return to the main Databases screen, which should now look like this:</p>
 </div>
@@ -223,7 +270,7 @@ AWS user interfaces change frequently. You may see screens slightly different fr
 </div>
 </div>
 <div class="paragraph">
-<p>This display shows that your database is starting. After a few minutes, the status will change to <strong>Available</strong> (You may need to reload the page to see this). You will also have a chance to see the password, in case it was autogenerated. Save this password, as you will need it later.</p>
+<p>This display shows that your database instance is starting. After a few minutes, the status will change to <strong>Available</strong> (You may need to reload the page to see this). You will also have a chance to see the password, in case it was autogenerated. Save this password, as you will need it later.</p>
 </div>
 <div class="paragraph">
 <p>At this time you can click on the database name to get more information. You should see a panel named <strong>Connectivity and Security</strong>. The left side of this panel shows the full name of the endpoint, which you will need shortly, and the port number, which is normally 3306.</p>
@@ -235,7 +282,7 @@ AWS user interfaces change frequently. You may see screens slightly different fr
 </div>
 </div>
 <div class="sect2">
-<h3 id="_2_3_setup_the_security_rules">2.3. Setup the Security Rules</h3>
+<h3 id="_2_3_set_up_the_security_rules">2.3. Set Up the Security Rules</h3>
 <div class="paragraph">
 <p>Lastly, on the <strong>Connectivity and Security</strong> panel, locate and click on the link for the default VPC security group. You will need to add an inbound security rule because the database by default does not allow external access. In the panel for this group, click on <strong>Inbound Rules</strong> and select <strong>Edit Inbound Rules</strong>. Next, click on <strong>Add rule</strong>. In the <strong>Type</strong> column select <code>MYSQL/Aurora</code>. The port will be set to 3306 automatically. In the <strong>Source</strong> column, click on the search icon and select <code>0.0.0.0/0</code>. Finally, click on <strong>Save Rules</strong> in the bottom right. Your database is ready to go.</p>
 </div>
@@ -260,81 +307,7 @@ AWS user interfaces change frequently. You may see screens slightly different fr
 </div>
 </div>
 <div class="sect1">
-<h2 id="step3">Step 3: Create the Databases</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Kill Bill requires two databases, with the names <code>killbill</code> and <code>kaui</code>. We provide predefined schemas for these databases.</p>
-</div>
-<div class="paragraph">
-<p>To create the databases, you will need to login to one of your instances as described above. Once you are logged in, you can use the <code>mysql</code> command to create the two databases <code>killbill</code> and <code>kaui</code>. The credentials required for this command are the same ones you set up for the database in step 2.1 above.</p>
-</div>
-<div class="paragraph">
-<p>Note that the host &lt;DB-Endpoint-Writer-Instance&gt; should <strong>not</strong> include the port number and there is no space after <code>-h</code> and <code>-u</code> options.</p>
-</div>
-<div class="paragraph">
-<p>The password will not be echoed when it is typed.</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p
-Enter<span class="tok-w"> </span>Password:
-mysql&gt;<span class="tok-w"> </span>create<span class="tok-w"> </span>database<span class="tok-w"> </span>killbill<span class="tok-p">;</span>
-mysql&gt;<span class="tok-w"> </span>create<span class="tok-w"> </span>database<span class="tok-w"> </span>kaui<span class="tok-p">;</span>
-mysql&gt;<span class="tok-w"> </span><span class="tok-nb">exit</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>The next step is to install the schemas. These can be found at:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>killbill schema: <code><a href="https://docs.killbill.io/latest/ddl.sql" class="bare">https://docs.killbill.io/latest/ddl.sql</a></code></p>
-</li>
-<li>
-<p>kaui schema: <code><a href="https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql" class="bare">https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql</a></code></p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>One easy way to do this is to return to your local computer (type <code>exit</code>) and download the schemas (give them distinct names), then use the <code>sftp</code> command to upload them to your EC2 instance home directory with the commands:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>sftp<span class="tok-w"> </span>-i<span class="tok-w"> </span>PRIVATE_KEY.pem<span class="tok-w"> </span>ubuntu@INSTANCE_IP
-put<span class="tok-w"> </span>killbill.ddl
-put<span class="tok-w"> </span>kaui.ddl
-<span class="tok-nb">exit</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Once the files are successfully uploaded, login again to your instance using the <code>ssh</code> command. You can now install the schemas:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p&lt;DB-Password&gt;<span class="tok-w"> </span>&lt;<span class="tok-w"> </span>killbill.ddl
-
-&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p&lt;DB-Password&gt;<span class="tok-w"> </span>&lt;<span class="tok-w"> </span>kaui.ddl</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>To ensure that the databases are setup correctly, login to <code>mysql</code> again, then try the SHOW TABLES command:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p&lt;DB-Password&gt;
-
-use<span class="tok-w"> </span>killbill<span class="tok-p">;</span>
-show<span class="tok-w"> </span>tables<span class="tok-p">;</span>
-use<span class="tok-w"> </span>kaui<span class="tok-p">;</span>
-show<span class="tok-w"> </span>tables<span class="tok-p">;</span>
-<span class="tok-nb">exit</span></code></pre>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="step4">Step 4: Edit the Configuration Script</h2>
+<h2 id="step3">Step 3: Edit the Configuration Script</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>To configure the EC2 instances and establish their connection to the databases, you&#8217;ll need to provide essential information. Fortunately, Kill Bill and Kaui are equipped to read environment variables, making the setup more straightforward. For your convenience, we have a concise configuration script available to streamline this process. Below is the template for the script:</p>
@@ -433,13 +406,13 @@ find<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="t
 </div>
 </div>
 <div class="sect1">
-<h2 id="step5">Step 5: Launch EC2 Instances</h2>
+<h2 id="step4">Step 4: Launch EC2 Instances</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>The next step is to launch the number of EC2 instances you want, all based on the Kill Bill single AMI.</p>
 </div>
 <div class="sect2">
-<h3 id="_5_1_subscribe_to_the_ami">5.1. Subscribe to the AMI</h3>
+<h3 id="_4_1_subscribe_to_the_ami">4.1. Subscribe to the AMI</h3>
 <div class="paragraph">
 <p>To start the installation process, point your browser to the
 
@@ -466,7 +439,7 @@ Kill Bill AMI at AWS Marketplace
 </div>
 </div>
 <div class="sect2">
-<h3 id="_5_2_configure_the_instances">5.2. Configure the Instances</h3>
+<h3 id="_4_2_configure_the_instances">4.2. Configure the Instances</h3>
 <div class="paragraph">
 <p>The next page will give several configuration options:</p>
 </div>
@@ -508,7 +481,7 @@ Kill Bill AMI at AWS Marketplace
 </div>
 </div>
 <div class="sect2">
-<h3 id="_5_3_setup_security_rules">5.3. Setup Security Rules</h3>
+<h3 id="_4_3_set_up_security_rules">4.3. Set Up Security Rules</h3>
 <div class="paragraph">
 <p>The next step is to scroll down in the menu on the left side to select <strong>Security Groups</strong>. You should see a list of two or more groups. Select the group whose name begins with <code>Kill Bill on AWS</code>, then scroll to the bottom and select the tab for <strong>Inbound Rules</strong>. You should see:</p>
 </div>
@@ -518,7 +491,7 @@ Kill Bill AMI at AWS Marketplace
 </div>
 </div>
 <div class="paragraph">
-<p>These rules enable the ports that must be open to access Kaui and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, you need to add one more port.</p>
+<p>These rules enable the ports that must be open to access Kaui and Kill Bill from a browser. However, for access through the ELB these ports will be different. In addition, to enable direct login to your instance using SSH, which you will need in <a href="#step5">Step 5</a> to create the databases, you need to add one more port.</p>
 </div>
 <div class="paragraph">
 <p>Click on <strong>Edit Inbound Rules</strong>. then do the following:</p>
@@ -546,35 +519,29 @@ Kill Bill AMI at AWS Marketplace
 </div>
 </div>
 <div class="sect2">
-<h3 id="_5_4_configure_network_settings">5.4. Configure Network Settings</h3>
+<h3 id="_4_4_configure_network_settings">4.4. Configure Network Settings</h3>
 <div class="paragraph">
-<p>Before launching the instance, configure the network settings:</p>
+<p>Before launching the instance, configure the network settings section:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Select the VPC where you want to deploy the EC2 instance.</p>
+<p>Select the <strong>VPC</strong> where you want to deploy the EC2 instance. Every AWS account starts with a <strong>default VPC</strong>, and that default VPC already ships with a <strong>public subnet</strong> in every availability zone, so in most cases there is nothing to create here. A subnet is <strong>public</strong> when its route table has a route for destination <code>0.0.0.0/0</code> pointing to an <strong>Internet Gateway</strong> (target <code>igw-xxxxxxxx</code>), rather than to a NAT Gateway or no route at all.</p>
 </li>
 <li>
-<p>Choose a <strong>public subnet</strong> within that VPC.</p>
-</li>
-<li>
-<p>Ensure <strong>Auto-assign public IP</strong> is <strong>enabled</strong>.</p>
+<p>Ensure <strong>Auto-assign public IP</strong> is <strong>enabled</strong>. <strong>This defaults to Disable</strong> — without a public IP, you will not be able to reach the instance from the internet, nor log in to it over SSH.</p>
 </li>
 </ul>
 </div>
+</div>
+<div class="sect2">
+<h3 id="_4_5_add_the_user_data_script">4.5. Add the User Data Script</h3>
 <div class="paragraph">
-<p>This allows the instance to receive a public IP address and be accessible from the internet. If Auto-assign public IP is disabled or a private subnet is selected, you may not be able to access the instance without additional networking configuration.</p>
+<p>Finally, scroll to the bottom and open the section labeled <strong>Advanced Details</strong>. You will see a long list of settings. At the very bottom of this list is a box headed <strong>User data</strong>. Paste the script created in Step 3 here.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_5_5_add_user_data_script">5.5. Add user data script</h3>
-<div class="paragraph">
-<p>Finally, scroll to the bottom and open the section labeled <strong>Advanced Details</strong>. You will see a long list of settings. At the very bottom of this list is a box headed <strong>User data</strong>. Paste the script created in Step 4 here.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_5_6_launch_your_instances">5.6. Launch your Instances</h3>
+<h3 id="_4_6_launch_your_instances">4.6. Launch Your Instances</h3>
 <div class="paragraph">
 <p>When the key pair is generated, click <strong>Launch Instances</strong>. You should see the screen below:</p>
 </div>
@@ -596,24 +563,9 @@ Kill Bill AMI at AWS Marketplace
 </div>
 </div>
 <div class="sect2">
-<h3 id="_5_7_login_to_an_instance">5.7. Login to an Instance</h3>
+<h3 id="_4_7_login_to_an_instance">4.7. Login to an Instance</h3>
 <div class="paragraph">
-<p>Now that your instances are set up, you need to ensure that you can login to them for configuration and maintenance when needed. To login, use the secure shell command:</p>
-</div>
-<div class="paragraph">
-<p><code>ssh -i &lt;PRIVATE_KEY&gt;.pem ubuntu@&lt;INSTANCE_IP&gt;</code></p>
-</div>
-<div class="paragraph">
-<p>Here &lt;PRIVATE_KEY&gt; is the pathname where you have stored the private key that was downloaded when you generated your key pair, and &lt;INSTANCE_IP&gt; is the IPV4 address for any one of your instances as described earlier. The private key will not work unless its access controls are set to readable by the owner only.</p>
-</div>
-<div class="paragraph">
-<p>On Windows versions before Windows 10, you may need to download a program called PuTTY to enable <code>ssh</code>. On Windows 10 <code>ssh</code> is available but may need to be activated through the Settings screen.</p>
-</div>
-<div class="paragraph">
-<p>The first time you login, you will see a warning message asking if you want to add this host to your list of hosts. You should answer <code>yes</code>.</p>
-</div>
-<div class="paragraph">
-<p>You will now be able to explore your instance and perform various configuration and maintenance tasks. To exit from your login, type <code>exit</code>.</p>
+<p>You will need to log in to one of your instances shortly, to create the Kill Bill and Kaui databases in <a href="#step5">Step 5</a>. Logging in requires the SSH rule you added in section 4.3 above, and the same procedure applies across all of our AWS deployments, so it is described in a separate document: see <a href="https://docs.killbill.io/latest/how-to-login-to-your-ec2-instance.html">How to Log In to Your EC2 Instance via SSH</a>.</p>
 </div>
 <div class="admonitionblock note">
 <table>
@@ -622,10 +574,84 @@ Kill Bill AMI at AWS Marketplace
 <div class="title">Note</div>
 </td>
 <td class="content">
-[.no-title]#We recommend that you <strong>remove</strong> the SSH rule from your security group when you are <strong>not</strong> doing configuration or maintenance.
+We recommend that you <strong>remove</strong> the SSH rule from your security group when you are <strong>not</strong> doing configuration or maintenance.
 </td>
 </tr>
 </table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="step5">Step 5: Create the Kill Bill and Kaui Databases</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Kill Bill requires two databases, with the names <code>killbill</code> and <code>kaui</code>. We provide predefined schemas for these databases.</p>
+</div>
+<div class="paragraph">
+<p>To create the databases, log in to one of your instances as described in <a href="#step4">section 4.7</a> above. Once you are logged in, you can use the <code>mysql</code> command to create the two databases <code>killbill</code> and <code>kaui</code>. The credentials required for this command are the same ones you set up for the database in step 2.1 above.</p>
+</div>
+<div class="paragraph">
+<p>Note that the host &lt;DB-Endpoint-Writer-Instance&gt; should <strong>not</strong> include the port number and there is no space after <code>-h</code> and <code>-u</code> options.</p>
+</div>
+<div class="paragraph">
+<p>The password will not be echoed when it is typed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p
+Enter<span class="tok-w"> </span>Password:
+mysql&gt;<span class="tok-w"> </span>create<span class="tok-w"> </span>database<span class="tok-w"> </span>killbill<span class="tok-p">;</span>
+mysql&gt;<span class="tok-w"> </span>create<span class="tok-w"> </span>database<span class="tok-w"> </span>kaui<span class="tok-p">;</span>
+mysql&gt;<span class="tok-w"> </span><span class="tok-nb">exit</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The next step is to install the schemas. These can be found at:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>killbill schema: <code><a href="https://docs.killbill.io/latest/ddl.sql" class="bare">https://docs.killbill.io/latest/ddl.sql</a></code></p>
+</li>
+<li>
+<p>kaui schema: <code><a href="https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql" class="bare">https://github.com/killbill/killbill-admin-ui/blob/master/db/ddl.sql</a></code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>One easy way to do this is to return to your local computer (type <code>exit</code>) and download the schemas (give them distinct names), then use the <code>sftp</code> command to upload them to your EC2 instance home directory with the commands:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>sftp<span class="tok-w"> </span>-i<span class="tok-w"> </span>PRIVATE_KEY.pem<span class="tok-w"> </span>ubuntu@INSTANCE_IP
+put<span class="tok-w"> </span>killbill.ddl
+put<span class="tok-w"> </span>kaui.ddl
+<span class="tok-nb">exit</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Once the files are successfully uploaded, login again to your instance using the <code>ssh</code> command. You can now install the schemas:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p&lt;DB-Password&gt;<span class="tok-w"> </span>&lt;<span class="tok-w"> </span>killbill.ddl
+
+&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p&lt;DB-Password&gt;<span class="tok-w"> </span>&lt;<span class="tok-w"> </span>kaui.ddl</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To ensure that the databases are setup correctly, login to <code>mysql</code> again, then try the SHOW TABLES command:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>&gt;<span class="tok-w"> </span>mysql<span class="tok-w"> </span>-h&lt;DB-Endpoint-Writer-Instance&gt;<span class="tok-w"> </span>-u&lt;DB-Username&gt;<span class="tok-w"> </span>-p&lt;DB-Password&gt;
+
+use<span class="tok-w"> </span>killbill<span class="tok-p">;</span>
+show<span class="tok-w"> </span>tables<span class="tok-p">;</span>
+use<span class="tok-w"> </span>kaui<span class="tok-p">;</span>
+show<span class="tok-w"> </span>tables<span class="tok-p">;</span>
+<span class="tok-nb">exit</span></code></pre>
 </div>
 </div>
 </div>
@@ -651,7 +677,7 @@ Kill Bill AMI at AWS Marketplace
 <p>The last major task is to setup the Elastic Load Balancer in front of the EC2 instances.</p>
 </div>
 <div class="sect2">
-<h3 id="_7_1_select_the_elb_type">7.1. Select the ELB type</h3>
+<h3 id="_7_1_select_the_elb_type">7.1. Select the ELB Type</h3>
 <div class="paragraph">
 <p>To begin, from the EC2 dashboard scroll down the left-hand menu and select <strong>Load Balancing / Load Balancers</strong>. Then click the  <strong>Create Load Balancer</strong> button at the upper left.</p>
 </div>
@@ -669,7 +695,7 @@ Kill Bill AMI at AWS Marketplace
 </div>
 </div>
 <div class="sect2">
-<h3 id="_7_3_setup_a_security_group">7.3. Setup a Security Group</h3>
+<h3 id="_7_3_set_up_a_security_group">7.3. Set Up a Security Group</h3>
 <div class="paragraph">
 <p>The next section is headed <strong>Security Groups</strong>. Click on <strong>create new security group</strong>. This will open a page headed <strong>Create security group</strong>.</p>
 </div>
@@ -705,11 +731,11 @@ Kill Bill AMI at AWS Marketplace
 <p>Here you will be required to create or provide an X.509 SSL Certificate. If you already have a certificate you can identify it or upload it here. Otherwise click on <strong>Request a New Certificate from ACM.</strong> This will enable you to create a certificate using the <strong>Amazon Certificate Manager</strong>. Follow the steps described for the ACM in <a href="https://docs.killbill.io/latest/how-to-add-a-certificate-using-ACM.html">Add a Certificate Using the Amazon Certificate Manager</a>, then return to this page. Select your new certificate from the dropdown list. You can now proceed to the next step.</p>
 </div>
 <div class="paragraph">
-<p>Next you will need to click on <strong>Add Listener</strong> to create a second Listener. This listener will use port 8443.</p>
+<p>Next you will need to click on <strong>Add Listener</strong> to create a second Listener. Just as with the first one, change its protocol to <strong>HTTPS</strong> and its port to <code>8443</code>, and select the same certificate from the dropdown list in the <strong>Secure listener settings</strong> section that opens up.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_7_5_setup_target_groups">7.5. Setup Target Groups</h3>
+<h3 id="_7_5_set_up_target_groups">7.5. Set Up Target Groups</h3>
 <div class="paragraph">
 <p>The next step is to identify the <strong>target</strong> instances for your load balancer, which are collected into a <strong>target group</strong>. Each listener will have a separate target group. Note that the display for each listener contains a link labeled <strong>Create target group</strong>. Click on this link for the first listener.  This will setup the routing for messages directed to Kaui.</p>
 </div>
