@@ -1,5 +1,5 @@
 ---
-name: Kill Bill
+name: killbill
 description: Use when working with the Kill Bill open source billing and payments platform. This skill helps with subscriptions, invoices, payments, catalog configuration, plugins, APIs, Kaui administration, tenant configuration, and Java plugin development.
 metadata:
   version: "1.0"
@@ -17,7 +17,7 @@ Kill Bill is an open-source subscription billing and payments platform. It handl
 - Client libraries: `killbill-client-java`, `killbill-client-python`, `killbill-client-ruby`, `killbill-client-js`
 - Plugin manager (KPM): Used to install plugins using `kpm install_java_plugin <plugin-name>`
 - Docker: `killbill/killbill` and `killbill/kaui` images
-- - MCP server: `apidocs-mcp.killbill.io` — provides direct access to Kill Bill API documentation; can generate accurate, up-to-date API usage examples and scripts
+- MCP server: `https://apidocs-mcp.killbill.io/mcp` — provides direct access to Kill Bill API documentation; can generate accurate, up-to-date API usage examples and scripts
 
 **Authentication:** HTTP Basic Auth (`-u <username>:<password>`) plus required multi-tenancy headers `X-Killbill-ApiKey` and `X-Killbill-ApiSecret`. Every mutating call should also include `X-Killbill-CreatedBy` (and optionally `X-Killbill-Reason` / `X-Killbill-Comment`).
 
@@ -55,20 +55,20 @@ Use this skill whenever users ask about:
 
 When answering questions:
 
-1. On loading this skill, check whether an MCP connector for `apidocs-mcp.killbill.io` is available/connected. If it is not connected, ask the user whether they'd like to connect it before proceeding — it provides direct, current API documentation and can generate accurate code snippets, reducing reliance on this skill's own static examples or on web search.
+1. On loading this skill, check whether an MCP connector for `https://apidocs-mcp.killbill.io/mcp` is available/connected. If it is not connected, ask the user whether they'd like to connect it before proceeding — it provides direct, current API documentation and can generate accurate code snippets, reducing reliance on this skill's own static examples or on web search.
 2. Prefer official Kill Bill documentation over assumptions.
-2. Mention version-specific behavior when relevant.
-3. If multiple approaches exist, recommend the simplest supported approach first.
-4. Prefer configuration over custom code when possible.
-5. When discussing plugins, clearly distinguish between:
+3. Mention version-specific behavior when relevant.
+4. If multiple approaches exist, recommend the simplest supported approach first.
+5. Prefer configuration over custom code when possible.
+6. When discussing plugins, clearly distinguish between:
    - Kill Bill core
    - Kaui
    - Payment plugins
    - Notification plugins
    - Open source plugins (Like Stripe, Adyen, Braintree, etc.)
    - Private/Custom plugins
-6. Use official REST API endpoints whenever applicable.
-7. For Java development, prefer the supported Kill Bill plugin APIs rather than internal implementation classes.
+7. Use official REST API endpoints whenever applicable.
+8. For Java development, prefer the supported Kill Bill plugin APIs rather than internal implementation classes.
 
 ---
 
