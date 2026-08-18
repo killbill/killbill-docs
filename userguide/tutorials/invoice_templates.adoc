@@ -1,153 +1,303 @@
 = Invoice Templates
 
-Kill Bill invoices can be rendered as HTML using our https://apidocs.killbill.io/#invoice-render-an-invoice-as-html[render HTML invoice API]. This can be useful, for instance, to show the invoices directly to your customer on the billing section of your website. This document explains how to configure custom invoice templates.
+Kill Bill invoices can be rendered as HTML using the https://apidocs.killbill.io/#invoice-render-an-invoice-as-html[render HTML invoice API]. This can be useful, for instance, to show the invoices directly to your customer on the billing section of your website. This document explains how to configure custom invoice templates.
 
 == Invoice Template Configuration Overview
 
 Kill Bill uses the https://mustache.github.io/[mustache] engine for generating HTML invoices.
 
-There are two main components while generating an HTML invoice:
+There are three things you can customize when generating an HTML invoice:
 
-* *A template*: This constitutes the body of the template. It includes static text as well as variables which are replaced at runtime by the https://mustache.github.io/[mustache] engine.
+- **A template**: This constitutes the body of the template. It includes static text as well as variables which are replaced at runtime by the https://mustache.github.io/[mustache] engine.
 
-* *A resource bundle*: This includes one or more files that specify translations corresponding to a locale. You can read the https://docs.killbill.io/latest/internationalization.html#_language_translations[Kill Bill Internationalization] document to know more about resource bundles.
+- **Translation files**: This includes one or more files that specify translations corresponding to a locale. Invoice translations supply the text strings used in the invoice template itself — labels like "Invoice Date" or "Balance". You can read the https://docs.killbill.io/latest/internationalization.html#_language_translations[Kill Bill Internationalization] document to know more about resource bundles.
 
-== Defaults
+- **Branding information**: Company details, appearance/style, and logo, which can be set as a tenant-wide default and optionally overridden per template.
 
-Kill Bill provides a https://github.com/killbill/killbill/blob/99f7102c83cefe892027f4ac0d1ab4da37dd517b/util/src/main/resources/org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache[default invoice template] which looks like this:
+Kill Bill ships with a default template, translations, and branding out of the box — see below for how to customize any of them.
 
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/invoice_templates/invoice_html.png[align=center]
+== Managing Templates, Translations & Branding via Aviate
 
-However, users can upload their own custom templates.
+While templates, translations, and branding information can all be uploaded directly via the Kill Bill API or Kaui, **https://aviate.killbill.io/[Aviate]** — the premium UI/plugin layer on top of Kill Bill — is the recommended way to manage all three. Aviate provides a guided experience with a live invoice preview, inheritance indicators, and inline validation.
 
-In addition, Kill Bill also provides a https://github.com/killbill/killbill-email-notifications-plugin/tree/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/resources/org/killbill/billing/plugin/notification/translations[default resource file]. This file contains translation strings corresponding to the https://github.com/killbill/killbill/blob/99f7102c83cefe892027f4ac0d1ab4da37dd517b/util/src/main/resources/org/killbill/billing/util/email/templates/HtmlInvoiceTemplate.mustache[default template] and the `en_US` locale. Users can also upload their own resource files.
+[NOTE]
+Before you can configure templates, translations, or branding via Aviate, the Kill Bill instance must first be added as a deployment. See https://docs.killbill.io/latest/aviate-deployment-management[Aviate Deployment Management] for details.
 
-== Customizing Invoice Template
+=== Organization-level branding
 
-This section explains how you can upload your own invoice template/translation resource bundle.
+1. Navigate to **Configuration → Settings** in Aviate.
+
+2. Set the tenant-wide defaults for company information and appearance (logo, primary brand color). These apply to all templates (invoices, emails, and quotes) by default, and can be overridden per template.
+
+//TODO - Add storylane demo
+
+=== Invoice-template-level template, branding, and translations
+
+Under **Configuration → Invoices**, configure the invoice template as follows:
+
+1. Override company information and appearance for this template only, if required. Fields are pre-filled from the organization-level settings, with an indicator showing which are inherited versus overridden.
+
+2. Customize style details such as text color, table heading background/text color, and table border color.
+
+3. Select the desired language from the translations drop-down and modify the translations as required.
+
+4. Use the live invoice preview panel to confirm your changes render as expected.
+
+5. Click **Save Template** to save the changes.
+
+6. Advanced users can also edit the underlying mustache template directly via **Advanced View**, instead of the structured fields in steps 1–3. This is not recommended unless you are familiar with the mustache template engine.
+
+//TODO - Add storylane demo
+
+
+
+== Managing Invoice Template, Translations & Branding via API/Kaui
+
+If you are not using Aviate, or need to script/automate these uploads, you can manage the template, translations, and branding directly through the Kill Bill API or Kaui, as described below.
 
 At a high-level, you need to execute the steps given below:
 
-. Upload the invoice template
-. Upload the translation for all the supported locales
-. Upload the catalog translation for all the locales (if required)
+1. Upload the invoice template
 
-Let us look at each step in detail.
+2. Upload the translation for all the supported locales
 
-. Upload the invoice template:
+3. Upload the catalog translation for all the locales (if required)
 
-.. Create a file `$SOME_PATH_PREFIX/HtmlInvoiceTemplate.mustache` as follows:
+4. Optionally, upload branding information via the API
 
+=== Step 1 - Upload Invoice Template
+
+1. Create a file `$SOME_PATH_PREFIX/HtmlInvoiceTemplate.mustache` as follows:
 +
-
-[source,bash]
+[source,html]
 ----
+<!doctype html>
 <html>
-    <head>
-        <style type="text/css">
-            th {align=left; width=225px; border-bottom: solid 2px black;}
-        </style>
-    </head>
-    <body>
-        <h1>{{text.invoiceTitle}}</h1>
-        <table>
-            <tr>
-                <td rowspan=3 width=350px>Insert image here</td>
-                <td width=100px/>
-                <td width=225px/>
-                <td width=225px/>
-            </tr>
-            <tr>
-                <td />
-                <td align=right>{{text.invoiceDate}}</td>
-                <td>{{invoice.formattedInvoiceDate}}</td>
-            </tr>
-            <tr>
-                <td />
-                <td align=right>{{text.invoiceNumber}}</td>
-                <td>{{invoice.invoiceNumber}}</td>
-            </tr>
-            <tr>
-                <td>{{text.companyName}}</td>
-                <td></td>
-                <td align=right>{{text.accountOwnerName}}</td>
-                <td>{{account.name}}</td>
-            </tr>
-            <tr>
-                <td>{{text.companyAddress}}</td>
-                <td />
-                <td />
-                <td>{{account.email}}</td>
-            </tr>
-            <tr>
-                <td>{{text.companyCityProvincePostalCode}}</td>
-                <td />
-                <td />
-                <td>{{account.phone}}</td>
-            </tr>
-            <tr>
-                <td>{{text.companyCountry}}</td>
-                <td />
-                <td />
-                <td />
-            </tr>
-            <tr>
-                <td><{{text.companyUrl}}</td>
-                <td />
-                <td />
-                <td />
-            </tr>
-        </table>
-        <br />
-        <br />
-        <br />
-        <table>
-            <tr>
-                <th>{{text.invoiceItemBundleName}}</td>
-                <th>{{text.invoiceItemDescription}}</td>
-                <th>{{text.invoiceItemServicePeriod}}</td>
-                <th>{{text.invoiceItemAmount}}</td>
-            </tr>
-            {{#invoice.invoiceItems}}
-            <tr>
-                <td>{{description}}</td>
-                <td>{{planName}}</td>
+<head>
+    <meta charset="utf-8">
+    <title>{{text.invoiceTitle}}</title>
+  <style>
+     /*!
+      * Base layout adapted from sparksuite/invoice.css
+      */
+
+     /* ===========================
+        CSS VARIABLES (editable)
+        =========================== */
+     :root {
+       --text-color: {{brand.textColor}};
+       --table-heading-bg-color: {{brand.tableHeadingBgColor}};
+       --table-heading-text-color: {{brand.tableHeadingTextColor}};
+       --container-border-color: #dddddd;
+       --table-border-color: {{brand.tableBorderColor}};
+       --logo-max-width: 220px;
+     }
+
+     body {
+       margin: 0;
+       padding: 24px 8px;
+       background: #f5f7fa;
+     }
+
+     /* ===========================
+        INVOICE BASE STYLES
+        =========================== */
+     .invoice-box {
+       max-width: 640px;
+       margin: auto;
+       padding: 30px;
+       background: #ffffff;
+       border: 1px solid var(--container-border-color);
+       box-shadow: none;
+       font-size: 15px;
+       line-height: 24px;
+       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+       color: var(--text-color);
+     }
+
+     .invoice-box table {
+       width: 100%;
+       line-height: inherit;
+       text-align: left;
+       border-collapse: collapse;
+       border-spacing: 0;
+     }
+
+     .invoice-box table td {
+       padding: 6px 8px;
+       vertical-align: top;
+     }
+
+     .invoice-box table tr td:nth-child(3) {
+       text-align: right;
+     }
+
+     .invoice-box table tr.top table td.title {
+       padding-right: 20px;
+     }
+
+     .invoice-box table tr.top table td.title img {
+       display: block;
+       max-width: var(--logo-max-width);
+       height: auto;
+     }
+
+     .invoice-box table tr.top table td:last-child {
+       font-size: 14px;
+       line-height: 20px;
+       text-align: right;
+       padding-top: 2px;
+     }
+
+     .invoice-box table tr.heading td {
+       background: var(--table-heading-bg-color);
+       color: var(--table-heading-text-color);
+       border-top: 1px solid var(--table-border-color);
+       border-bottom: 1px solid var(--table-border-color);
+       font-weight: 700;
+       padding: 10px 12px;
+     }
+     .invoice-box table tr.heading td:first-child {
+       border-left: 1px solid var(--table-border-color);
+     }
+     .invoice-box table tr.heading td:last-child {
+       border-right: 1px solid var(--table-border-color);
+     }
+
+     .invoice-box table tr.item td {
+       border-bottom: 1px solid var(--table-border-color);
+       padding: 10px 12px;
+       margin: 0;
+     }
+     .invoice-box table tr.item td:first-child {
+       border-left: 1px solid var(--table-border-color);
+     }
+     .invoice-box table tr.item td:last-child {
+       border-right: 1px solid var(--table-border-color);
+     }
+
+     .invoice-box table tr.item.last td {
+       border-bottom: 1px solid var(--table-border-color);
+     }
+
+     .invoice-box table tr.total td:nth-child(3) {
+       padding-top: 6px;
+       margin: 0;
+     }
+
+     #notes,
+     #tnc {
+       font-size: 12px;
+       line-height: 18px;
+       color: #666666;
+       margin-top: 0;
+       margin-bottom: 0;
+     }
+     #notes {
+       font-weight: 700;
+       padding-top: 14px;
+     }
+
+     #tnc {
+       padding-top: 6px;
+     }
+
+     @media only screen and (max-width: 600px) {
+       .invoice-box table tr.top table td {
+         width: 100%;
+         display: block;
+         text-align: center;
+       }
+       .invoice-box table tr.information table td {
+         width: 100%;
+         display: block;
+         text-align: center;
+       }
+     }
+   </style>
+</head>
+<body>
+<div class="invoice-box">
+    <!-- {{#text.properties}}customKey{{/text.properties}} -->
+    <table cellpadding="0" cellspacing="0">
+        <tr class="top">
+            <td colspan="3">
+                <table>
+                    <tr>
+                        <td class="title">
+                            <img src="{{{logo.logo}}}" style="width:100%; max-width:300px;">
+                        </td>
+                        <td></td>
+                        <td>
+                            {{text.invoiceTitle}} INV#{{invoice.invoiceNumber}}<br>
+                            {{text.invoiceDate}}{{invoice.formattedInvoiceDate}}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr class="information">
+            <td colspan="3">
+                <table>
+                    <tr>
+                        <td>
+                            {{company.companyName}}<br>
+                            {{company.companyAddress}}<br>
+                            {{company.companyCityProvincePostalCode}}<br>
+                            {{company.companyCountry}}
+                        </td>
+                        <td></td>
+                        <td>
+                            {{#account.name}}{{account.name}}<br>{{/account.name}}
+                            {{#account.companyName}}{{account.companyName}}<br>{{/account.companyName}}
+                            {{#account.address1}}{{account.address1}}<br>{{/account.address1}}
+                            {{#account.city}}{{account.city}}{{#account.stateOrProvince}}, {{account.stateOrProvince}}{{/account.stateOrProvince}} {{account.postalCode}}<br>{{/account.city}}
+                            {{account.country}}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr class="heading">
+            <td>{{text.invoiceItemServicePeriod}}</td>
+            <td>{{text.invoiceItemDescription}}</td>
+            <td>{{text.invoiceItemAmount}}</td>
+        </tr>
+        {{#invoice.invoiceItems}}
+            <tr class="item last">
                 <td>{{formattedStartDate}}{{#formattedEndDate}} - {{formattedEndDate}}{{/formattedEndDate}}</td>
-                <td>{{invoice.currency}} {{amount}}</td>
+                <td>{{prettyPlanName}}</td>
+                <td>{{formattedAmount}}</td>
             </tr>
-            {{/invoice.invoiceItems}}
-            <tr>
-                <td colspan=4 />
-            </tr>
-            <tr>
-                <td colspan=2 />
-                <td align=right><strong>{{text.invoiceAmount}}</strong></td>
-                <td align=right><strong>{{invoice.chargedAmount}}</strong></td>
-            </tr>
-            <tr>
-                <td colspan=2 />
-                <td align=right><strong>{{text.invoiceAmountPaid}}</strong></td>
-                <td align=right><strong>{{invoice.paidAmount}}</strong></td>
-            </tr>
-            <tr>
-                <td colspan=2 />
-                <td align=right><strong>{{text.invoiceBalance}}</strong></td>
-                <td align=right><strong>{{invoice.balance}}</strong></td>
-            </tr>
-        </table>
-    </body>
+        {{/invoice.invoiceItems}}
+        <tr class="total">
+            <td></td>
+            <td></td>
+            <td>{{text.invoiceAmount}}{{invoice.formattedChargedAmount}}</td>
+        </tr>
+        <tr class="total">
+            <td></td>
+            <td></td>
+            <td>{{text.invoiceAmountPaid}}{{invoice.formattedPaidAmount}}</td>
+        </tr>
+        <tr class="total">
+            <td></td>
+            <td></td>
+            <td>{{text.invoiceBalance}}{{invoice.formattedBalance}}</td>
+        </tr>
+    </table>
+</div>
+</body>
 </html>
 ----
-
 +
-
-.. Upload the file via the following `cURL` command:
-
+2. Upload the file either via API call or Kaui.
 +
-
+a. To upload via API, execute the following `cURL` command:
++
 [source,bash]
 ----
-curl -v \
+    curl -v \
      -u admin:password \
      -H "X-Killbill-ApiKey: bob" \
      -H "X-Killbill-ApiSecret: lazar" \
@@ -157,26 +307,16 @@ curl -v \
      --data-binary @$SOME_PATH_PREFIX/HtmlInvoiceTemplate.mustache \
      http://127.0.0.1:8080/1.0/kb/invoices/template
 ----
-
 +
-
-.. Alternatively, you can upload this file via Kaui by going to your admin tenant page (`InvoiceTemplate`) tab:
-
+b. To upload via Kaui, go to `InvoiceTemplate` tab on the admin tenant page:
 +
-
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/invoice_templates/custom_invoice_template.png[align=center]
 
+=== Step 2- Upload Invoice Translations
+
+1. Create a properties file for the desired locale (for example `fr_FR`) as follows:
 +
-
-. Upload the invoice translation for the desired locale. For instance, in order to upload the translation for the locale `fr_FR`:
-
-+
-
-.. Create a file `$SOME_PATH_PREFIX/InvoiceTranslation_fr_FR.properties` as follows:
-
-+
-  
-[source,bash]
+[source,properties]
 ----
 invoiceEmailSubject=Nouvelle Facture
 invoiceTitle=FACTURE
@@ -185,14 +325,7 @@ invoiceNumber=Facture #
 invoiceAmount=Montant à payer
 invoiceAmountPaid=Montant payé
 invoiceBalance=Nouveau montant
-
 accountOwnerName=Chauffeur
-
-companyName=Killbill, Inc.
-companyAddress=P.O. Box 1234
-companyCityProvincePostalCode=Springfield
-companyCountry=USA
-companyUrl=http://kill-bill.org
 
 invoiceItemBundleName=Armes
 invoiceItemDescription=Description
@@ -202,13 +335,11 @@ invoiceItemAmount=Montant
 processedPaymentCurrency=(*) Le payment à été payé en
 processedPaymentRate=Le taux de conversion est
 ----
-
 +
-
-.. Upload the file via the following `cURL` command:
-
+2. Upload the file either via API call or Kaui.
 +
-
+a. To upload via API, execute the following `cURL` command:
++
 [source,bash]
 ----
 curl -v \
@@ -221,40 +352,31 @@ curl -v \
      --data-binary @$SOME_PATH_PREFIX/InvoiceTranslation_fr_FR.properties \
      http://127.0.0.1:8080/1.0/kb/invoices/translation/fr_FR
 ----
-
++
+b. To upload via Kaui go to the `InvoiceTranslation` tab on the admin tenant page:
 +
 
-.. Alternatively, you can upload this file via Kaui by going to your admin tenant page (`InvoiceTranslation`) tab:
-
+image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/invoice_templates/custom_invoice_translation.png[align=center]
 +
-
-image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/invoice_templates/invoice_html_config.png[align=center]
-
-+
-
 Additional resource files can be uploaded for different locales as required.
 
+=== Step 3 - Upload Catalog Translations
+
+Catalog translations are different from invoice translations covered above. While invoice translations supply the text strings used in the invoice template itself, catalog translations supply the localized names of catalog entities, such as plan names (e.g. `Gold plan` translated as `Plan Or` in French), which are then substituted into the rendered invoice.
+
+Catalog translations are optional. If you don't upload one for a given locale, the invoice falls back to the plan names as defined in the catalog.
+
+1. Create a catalog translation for the desired locale (for example `fr_FR`) as follows:
 +
-
-. In addition to the invoice template translation, you can also upload a catalog translation file. 
-
-+
-
-.. Create a catalog translation for locale `fr_FR` as follows:
-
-+
-
-[source,bash]
+[source, properties]
 ----
 gold-monthly = plan Or mensuel
 ----
-
 +
-
-.. Upload the file via the following `cURL` command:
-
+2. Upload the file via API call or Kaui.
 +
-
+a. To upload via API, execute the following `cURL` command:
++
 [source,bash]
 ----
 curl -v \
@@ -267,25 +389,114 @@ curl -v \
      --data-binary @$SOME_PATH_PREFIX/CatalogTranslation_fr_FR.properties \
      http://127.0.0.1:8080/1.0/kb/invoices/catalogTranslation/fr_FR
 ----
-
 +
-
-.. Alternatively, you can upload this file via Kaui by going to your admin tenant page (`CatalogTranslation`) tab:
-
+b. Alternatively, you can upload this file via Kaui by going to your admin tenant page (`CatalogTranslation`) tab:
 +
-
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/invoice_templates/catalog_translation.png[align=center]
 
+=== Step 4 - Upload Branding Information
+
+Branding fields (company info, style, logo) can be set directly using the https://apidocs.killbill.io/tenant.html#add-a-per-tenant-user-key-value[per-tenant user key/value endpoint].
+
+Refer to the following table for the keys:
+
+| Key | Description |
+|---|---|
+| `COMPANY_INFO` | Organization-level (global default) company information |
+| `LOGO_INFO` | Organization-level (global default) logo |
+| `BRAND_INFO` | 	Organization-level (global default) style/brand information. Only accepts the `tableHeadingBgColor` field. |
+| `INVOICE_TEMPLATE_COMPANY_INFO` | Invoice-template-level company information (overrides `COMPANY_INFO`) |
+| `INVOICE_TEMPLATE_LOGO_INFO` | Invoice-template-level logo (overrides `LOGO_INFO`) |
+| `INVOICE_TEMPLATE_BRAND_INFO` | 	Invoice-template-level style/brand information (overrides `BRAND_INFO`). Accepts all 4 fields: `textColor`, `tableBorderColor`, `tableHeadingBgColor`, `tableHeadingTextColor`. |
+
+
+Each type of information is sent as a JSON payload. To override any of the three at the invoice-template level instead of organization-wide, use the corresponding `INVOICE_TEMPLATE_*` key instead.
+
+1. Company information is uploaded to the `COMPANY_INFO` key (or `INVOICE_TEMPLATE_COMPANY_INFO` for a template-level override) as follows:
 +
-
-. Generate an HTML invoice.
-
+a. Define the JSON payload:
 +
-
-.. Execute the following `cURL` command:
-
+[source, json]
+----
+{"companyName":"CloudSprout","companyAddress":"East Street","companyCityProvincePostalCode":"New York","companyCountry":"United States","companyUrl":"cloudsprout.com"}
+----
 +
+b. Upload the payload via the following `cURL` command:
++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"companyName":"CloudSprout","companyAddress":"East Street","companyCityProvincePostalCode":"New York","companyCountry":"United States","companyUrl":"cloudsprout.com"}' \
+     http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/COMPANY_INFO
+----
++
+2. Style/brand information is uploaded to the `BRAND_INFO` key (or `INVOICE_TEMPLATE_BRAND_INFO` for a template-level override) as follows:
++
+a. Define the JSON payload:
++
+[source, json]
+----
+{"textColor":"red","tableBorderColor":"blue","tableHeadingBgColor":"yellow","tableHeadingTextColor":"green"}
+----
++
+b. Upload the payload via the following `cURL` command:
++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"textColor":"red","tableBorderColor":"blue","tableHeadingBgColor":"yellow","tableHeadingTextColor":"green"}' \
+     http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/INVOICE_TEMPLATE_BRAND_INFO
+----
++
+[NOTE]
+Note:  `BRAND_INFO` only accepts the `tableHeadingBgColor` field — the other style fields (`textColor`, `tableBorderColor`, `tableHeadingTextColor`) are only available at the invoice-template level, via `INVOICE_TEMPLATE_BRAND_INFO`.
++
+3. The logo is uploaded to the `LOGO_INFO` key (or `INVOICE_TEMPLATE_LOGO_INFO` for a template-level override) as a base64-encoded data URI:
++
+a. Define the JSON payload:
++
+[source, json]
+----
+{"logo":"data:image/png;base64,/9j/4AAQSk..."}
+----
++
+b. Upload the payload via the following `cURL` command:
++
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"logo":"data:image/png;base64,/9j/4AAQSk..."}' \
+     http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/LOGO_INFO
+----
 
+== Testing Your Changes
+
+No matter how you configure your template, translations, or branding, you'll want to confirm the changes render as expected before using them in production.
+
+If you configured things via Aviate, use the live invoice preview panel in the template editor — it reflects your changes as you make them, without needing to generate a separate invoice.
+
+If you configured things via the API or Kaui, generate an HTML invoice to verify the result:
+
+1. Execute the following `cURL` command:
++
 [source,bash]
 ----
 curl -v \
@@ -296,14 +507,14 @@ curl -v \
      -H 'X-Killbill-CreatedBy: admin' \
      "http://127.0.0.1:8080/1.0/kb/invoices/1785b3d5-24b3-4d17-94ce-310aeb74bc63/html"
 ----
-
 +
-
-.. Alternatively, you can generate the HTML invoice via `Invoices` tab in Kaui:
-
+2. Alternatively, you can generate the HTML invoice via the `Invoices` tab in Kaui:
 +
-
 image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/invoice_templates/view_html_invoice.png[align=center]
++
+This displays the invoice in a new browser tab, which you can then inspect to confirm your changes.
++
+image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/invoice_templates/html_invoice.png[align=center]
 
 == Customizing Invoice Data
 
@@ -311,13 +522,8 @@ Sometimes, you may need to customize the data in the invoice (add additional fie
 
 == Further Information
 
-* https://docs.killbill.io/latest/internationalization.html[_Kill Bill Internationalization_]
+- https://docs.killbill.io/latest/internationalization.html[*Kill Bill Internationalization*]
 
-* https://apidocs.killbill.io/#invoice-translation[_Invoice Translation Slate Documentation_]
+- https://apidocs.killbill.io/#invoice-translation[*Invoice Translation Slate Documentation*]
 
-* https://apidocs.killbill.io/#invoice-render-an-invoice-as-html[_Invoice Generation Slate Documentation_]
-
-
-
-
-
+- https://apidocs.killbill.io/#invoice-render-an-invoice-as-html[*Invoice Generation Slate Documentation*]
