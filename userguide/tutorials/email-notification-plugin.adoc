@@ -263,10 +263,18 @@ curl -v \
 
 Note that you can also use https://docs.killbill.io/latest/userguide_kaui.html[_Kaui_] for executing steps 2-9 above.
 
-[[template_and_resource_configuration]]   
+[[template_and_resource_configuration]]
 == Template and Resource Configuration  
 
-The email notification plugin uses https://mustache.github.io/[_Mustache_] templates for generating emails. This section explains how custom email templates can be configured.
+The email notification plugin uses https://mustache.github.io/[*Mustache*] templates for generating emails. This section explains how custom email templates can be configured.
+
+There are three things you can customize for a given email:
+
+- **A template**: This constitutes the body of the email. It includes static text as well as variables which are replaced at runtime by the [*mustache*](https://mustache.github.io/) engine.
+
+- **A resource file**: This contains key-value pairs used to replace translation variables in a template, corresponding to a locale. See "Resources Overview" below.
+
+- **Branding information**: Company details, appearance/style, and logo, which can be set as a tenant-wide default (shared with invoice templates) and optionally overridden per email template type. See "Branding Overview" below.
 
 [[email-templates]]
 === Templates Overview
@@ -277,7 +285,6 @@ The email notification plugin comes with some https://github.com/killbill/killbi
 
 The email notification plugin uses *one template per locale and per type* (as opposed to one template per type with an additional set of translation string bundles for each locale). So, for example, the *INVOICE_CREATION* event can have templates like `INVOICE_CREATION_en_US`, `INVOICE_CREATION_fr_FR`, and so on. When an *INVOICE CREATION* email needs to be sent for a user, the user's `locale` is checked and the corresponding template is used. The https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/templates[default templates] are available only for the *en_US* locale, however, users can upload templates for other locales if required.
 
-
 === Resources Overview
 
 In addition to templates, the email notification plugin requires a resource file. This resource file contains *key-value pairs* which can be used to replace variables in a template. The email notification plugin comes with a https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/translations[default resource file] that contains key-value pairs for the variables in the default templates.
@@ -285,6 +292,56 @@ In addition to templates, the email notification plugin requires a resource file
 Unlike email templates, all the events have a single resource file. However, different locales can have different resource files. This allows having string translations in different languages, (like different translations for the catalog product names). So for example, you can have different resource files like `Translation_en_US.properties`, `Translation_fr_FR.properties`, and so on. When an email needs to be sent for a user, the user's `locale` is checked and the corresponding resource file is used to replace the variables in the template.
 
 The https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/translations/Translation_en.properties[default resource file] is available only for the *en_US* locale. Users can add additional key-value pairs to this resource file as well as add new resource files for different locales.
+
+=== Branding Overview
+
+In addition to the template and resource file, branding information — company details, appearance/style, and logo — can also be customized. This is read from the `tenant_kvs` table and can be set as a tenant-wide default shared across invoices and emails, and optionally overridden per email template type. See "Managing Templates, Translations & Branding via Aviate" and "Upload Branding Information" below.
+
+== Managing Templates, Translations & Branding via Aviate
+
+While templates, translations, and branding information can all be uploaded directly via the Kill Bill API, *https://aviate.killbill.io/[Aviate]* — the premium UI/plugin layer on top of Kill Bill — is the recommended way to manage all three, since it provides a guided experience with a live email preview, inheritance indicators, and inline validation.
+
+[NOTE]
+Before you can configure templates, translations, or branding via Aviate, the Kill Bill instance must first be added as a deployment. See https://docs.killbill.io/latest/aviate-deployment-management[Aviate Deployment Management] for details.
+
+=== Organization-level branding
+
+Organization-level branding (company information and appearance) is shared between invoice and email templates, and is configured once. See https://docs.killbill.io/latest/invoice_templates.html#organization-level-branding[Organization-level branding] in the Invoice Templates document.
+
+=== Email-template-level template and branding
+
+Under **Configuration → Email → Templates**, configure a given email template (e.g. Invoice Creation) as follows:
+
+1. Select the desired template type from the drop-down (e.g. **Invoice Creation**).
+
+2. Override company information and appearance for this template only, if required. Fields are pre-filled from the organization-level settings, with an indicator showing which are inherited versus overridden.
+
+3. Customize style details such as text color, table heading background/text color, and table border color.
+
+4. Use the live email preview panel to confirm your changes render as expected.
+
+5. Click **Save Template** to save the changes.
+
+6. Advanced users can also edit the underlying mustache template directly via **Advanced View**, instead of the structured fields in steps 2–3. This is not recommended unless you are familiar with the mustache template engine.
+
+Repeat this for each email template type you want to customize.
+
+=== Translations
+
+Under **Configuration → Email → Translation**, configure translations as follows:
+
+1. Select the desired language from the drop-down.
+
+2. Modify the translation strings, organized by category (e.g. Invoice, Payment).
+
+3. Use the **Preview** drop-down to see how the translations render for a specific email template type.
+
+4. Click **Save Translation** to save the changes.
+
+[[managing_templates_translations_branding_via_api]]
+== Managing Templates, Translations & Branding via API
+
+If you are not using Aviate, or need to script/automate these uploads, you can manage the template, resource file, and branding directly through the Kill Bill API, as described below.
 
 === Template/Translation Resource Keys
 
@@ -377,6 +434,38 @@ curl -v \
 --data-binary @/<template-name>.properties \
 http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/killbill-email-notifications:<translation_key>
 
+=== Upload Branding Information
+
+Branding fields (company info, style, logo) can be set directly using the [per-tenant user key/value endpoint](https://apidocs.killbill.io/tenant.html#add-a-per-tenant-user-key-value), the same mechanism used for invoice template branding.
+
+Organization-level branding (`COMPANY_INFO`, `LOGO_INFO`, `BRAND_INFO`) is shared across invoices and emails — see ["Upload Branding Information"](https://docs.killbill.io/latest/invoice_templates.html#upload-branding-information) in the Invoice Templates document for those keys and example payloads.
+
+To override branding for a specific email template type, use the corresponding `EMAIL_TEMPLATE_*` key instead:
+
+[cols="1,3", options="header"]
+|===
+| Key | Description |
+|---|---|
+| `EMAIL_TEMPLATE_COMPANY_INFO` | Email-template-level company information (overrides `COMPANY_INFO`) |
+| `EMAIL_TEMPLATE_LOGO_INFO` | Email-template-level logo (overrides `LOGO_INFO`) |
+| `EMAIL_TEMPLATE_BRAND_INFO` | Email-template-level style/brand information (overrides `BRAND_INFO`). Accepts all 4 fields: `textColor`, `tableBorderColor`, `tableHeadingBgColor`, `tableHeadingTextColor`. |
+|===
+
+For example, to override the logo for a specific email template:
+
+[source, bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: bob" \
+     -H "X-Killbill-ApiSecret: lazar" \
+     -H "Content-Type: application/json" \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -d '{"logo":"data:image/png;base64,/9j/4AAQSk..."}' \
+     http://127.0.0.1:8080/1.0/kb/tenants/userKeyValue/EMAIL_TEMPLATE_LOGO_INFO
+----
+
 === Default Templates
 
 As mentioned earlier, the email notification plugin comes with some https://github.com/killbill/killbill-email-notifications-plugin/tree/master/src/main/resources/org/killbill/billing/plugin/notification/templates[default templates]. 
@@ -406,7 +495,7 @@ In order to configure the plugin to send emails for other events, you will need 
 
 .. Add a method corresponding to the email that you would like to send similar to the https://github.com/killbill/killbill-email-notifications-plugin/blob/6fc76403233fd5be290841ee6fc9d728028892f0/src/main/java/org/killbill/billing/plugin/notification/setup/EmailNotificationListener.java#L213[EmailNotificationListener#sendEmailForUpComingInvoice] method.
 
-. Upload email templates and translation resource file corresponding to the email that you would like to send as explained in the <<template_and_resource_configuration, "Template and Resource Configuration">> section.
+. Upload email templates and translation resource file corresponding to the email that you would like to send as explained in the <<managing_templates_translations_branding_via_api, "Managing Templates, Translations and Branding via API">> section.
 
 == Customizing the Invoice Sent in an Email
 
