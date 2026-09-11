@@ -14,6 +14,17 @@ This document explains plugin layout, installation and plugin configuration.
 
 Kill Bill scans the file system on startup and starts all the plugins that were detected. Kill Bill uses the value of the `org.killbill.osgi.bundle.install.dir` property to determine the root of the plugin directory structure. (See https://docs.killbill.io/latest/userguide_configuration.html#configuration_properties_table[Kill Bill Configuration Properties]). By default, this value is set to `/var/tmp/bundles`.
 
+[NOTE]
+====
+The `/var/tmp/bundles` default applies to standalone (Tomcat/WAR) installations only. The official Kill Bill Docker images override this property to `/var/lib/killbill/bundles` (via the `KB_org_killbill_osgi_bundle_install_dir` environment variable). If you are running Kill Bill via Docker, always use `/var/lib/killbill/bundles` as the plugin installation path. You can verify the effective value for your container by running:
+
+[source,bash]
+----
+docker exec <container_name> env | grep -i bundle
+----
+
+====
+
 The directory structure looks like the following:
 
 ----
@@ -41,6 +52,8 @@ For instance, if we had installed two versions for the `stripe` plugin, we would
    |_ 3.0.2
    |_ 3.0.1
    |_ SET_DEFAULT
+
+When multiple versions of a plugin are installed, Kill Bill loads the version that the `SET_DEFAULT` symbolic link points to; if the link does not exist, the highest version number is loaded. KPM updates this link automatically on install, pointing it at the version just installed. If a newly installed version does not appear to take effect (or an older one keeps running), verify where this link points, e.g. `ls -l <bundles_dir>/plugins/java/<plugin-name>/SET_DEFAULT`.
 
 ** A `plugin_identifiers.json` file which is used to keep a mapping between the `pluginKey` (the user visible plugin identifer), and the `pluginName` (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.
 
@@ -113,7 +126,7 @@ A Kill Bill plugin is a plugin that is maintained by the Kill Bill team. Such pl
 
 To install a plugin via KPM, you need to do the following:
 
-. Install `kpm` as explained https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation[here].
+. Ensure `kpm` is available. If you are using the official Kill Bill Docker images, `kpm` is pre-installed inside the container - run it from within the container (`docker exec -it <container_name> bash`), not from the host. For standalone installations, install `kpm` as explained https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation[here].
 . Install the desired plugin as follows:
 +
 [source,bash]
@@ -123,6 +136,11 @@ kpm install_java_plugin '<plugin-key>' --destination=<path_to_install_plugin>
 +
 * Replace `plugin-key` with an appropriate value from the Kill Bill https://github.com/killbill/killbill-cloud/blob/master/kpm/lib/kpm/plugins_directory.yml[_Plugin Directory_]. For example, in order to install the stripe plugin, you can replace `plugin-key` with `stripe`
 * Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path needs to be configured via the `org.killbill.osgi.bundle.install.dir` property as specified in the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide])
+
+[NOTE]
+====
+After installation, Kill Bill must be restarted to detect and load the plugin (plugins are scanned at startup). Alternatively, use the `RESTART_PLUGIN` node command described in the <<Installing via Plugin Management APIs>> section.
+====
 
 ==== Custom Plugins
 
@@ -139,7 +157,7 @@ kpm install_java_plugin '<plugin-key>' --from-source-file="<jar_path>.jar"
 * Replace `plugin-key` with an appropriate value. We suggest that you specify a plugin_key with a namespace *dev:* to make it clear this is not a released version. So, you can use a plugin-key called `dev:pluginname`.
 * Replace `<jar_path>` by the full path of the JAR file.
 * Replace `<path_to_install_plugin>` with the path where you want to install the plugin. This path should match the path specified by the `org.killbill.osgi.bundle.install.dir` property in the https://docs.killbill.io/latest/userguide_configuration.html[_Kill Bill Configuration File_].
-* If `--destination` is not specified, the plugin is installed by default in the `/var/tmp/bundles` directory
+* If `--destination` is not specified, the plugin is installed by default in the `/var/tmp/bundles` directory. Note that this KPM default does not match the plugin directory used by the official Docker images (`/var/lib/killbill/bundles`), so on Docker always pass `--destination=/var/lib/killbill/bundles` explicitly.
 
 ==== Third-party Plugins
 
@@ -209,14 +227,37 @@ If you want to deploy 3rd party or your own plugins, you need to:
 3. Copy your plugin JAR file into the folder you've created in step 2. It is recommended that your plugin jar is named in the following format: `<plugin-name>-<semver-plugin-version>.jar`.
 4. Start Kill Bill server.
 
-For example, the `adyen` plugin with version `0.3.2` would show up as the following:
+For example, the `adyen` plugin with version `0.10.1` would show up as the following:
 
 ----
 java
 |_adyen-plugin
-  |_ 0.3.2
-    |_ adyen-plugin-0.3.2.jar
+  |_ 0.10.1
+    |_ adyen-plugin-0.10.1.jar
 ----
+
+=== Troubleshooting Plugin Installation
+
+If a plugin was installed successfully but does not appear in Kaui or in the Kill Bill logs, work through the following checks:
+
+. *Verify the installation directory matches what Kill Bill scans.* The most common cause: the plugin was installed to a directory (e.g. `/var/tmp/bundles`) that differs from the value of `org.killbill.osgi.bundle.install.dir` (on Docker: `/var/lib/killbill/bundles`). Confirm the effective value and reinstall with the correct `--destination` if needed.
+
+. *Confirm the JAR is in the expected layout*, e.g. `<bundles_dir>/plugins/java/<plugin-name>/<version>/<plugin-name>-<version>.jar`, and that `<bundles_dir>/plugins/plugin_identifiers.json` contains a matching entry for the pluginKey.
+
+. *Restart Kill Bill.* Plugins are detected only during startup (or via the `RESTART_PLUGIN` node command). A KPM install alone does not load the plugin into a running server.
+
+. *Check the logs without filtering by plugin name.* Search for OSGI-level messages, e.g.:
++
+[source,bash]
+----
+docker logs <container_name> 2>&1 | grep -i -E "osgi|plugin"
+----
++
+A complete absence of any log lines referencing the plugin usually confirms the directory mismatch in step 1, since Kill Bill never saw the files.
+
+. *Check multiple installed versions.* If more than one version of a plugin is present, verify the `SET_DEFAULT` symbolic link points to the version you expect.
+
+. *Check file permissions.* The user running the Kill Bill process must have read access to the plugin directory and JAR.
 
 [[plugin_configuration]]
 == Plugin Configuration
