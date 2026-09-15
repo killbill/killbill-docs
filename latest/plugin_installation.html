@@ -96,6 +96,25 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <div class="paragraph">
 <p>Kill Bill scans the file system on startup and starts all the plugins that were detected. Kill Bill uses the value of the <code>org.killbill.osgi.bundle.install.dir</code> property to determine the root of the plugin directory structure. (See <a href="https://docs.killbill.io/latest/userguide_configuration.html#configuration_properties_table">Kill Bill Configuration Properties</a>). By default, this value is set to <code>/var/tmp/bundles</code>.</p>
 </div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>The <code>/var/tmp/bundles</code> default applies to standalone (Tomcat/WAR) installations only. The official Kill Bill Docker images override this property to <code>/var/lib/killbill/bundles</code> (via the <code>KB_org_killbill_osgi_bundle_install_dir</code> environment variable). If you are running Kill Bill via Docker, always use <code>/var/lib/killbill/bundles</code> as the plugin installation path. You can verify the effective value for your container by running:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>docker<span class="tok-w"> </span><span class="tok-nb">exec</span><span class="tok-w"> </span>&lt;container_name&gt;<span class="tok-w"> </span>env<span class="tok-w"> </span><span class="tok-p">|</span><span class="tok-w"> </span>grep<span class="tok-w"> </span>-i<span class="tok-w"> </span>bundle</code></pre>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
 <div class="paragraph">
 <p>The directory structure looks like the following:</p>
 </div>
@@ -137,11 +156,18 @@ For instance, if we had installed two versions for the <code>stripe</code> plugi
 </div>
 </div>
 </li>
-<li>
-<p>A <code>plugin_identifiers.json</code> file which is used to keep a mapping between the <code>pluginKey</code> (the user visible plugin identifer), and the <code>pluginName</code> (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.</p>
+</ul>
+</div>
 </li>
 </ul>
 </div>
+<div class="paragraph">
+<p>When multiple versions of a plugin are installed, Kill Bill loads the version that the <code>SET_DEFAULT</code> symbolic link points to; if the link does not exist, the highest version number is loaded. KPM updates this link automatically on install, pointing it at the version just installed. If a newly installed version does not appear to take effect (or an older one keeps running), verify where this link points, e.g. <code>ls -l &lt;bundles_dir&gt;/plugins/java/&lt;plugin-name&gt;/SET_DEFAULT</code>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A <code>plugin_identifiers.json</code> file which is used to keep a mapping between the <code>pluginKey</code> (the user visible plugin identifer), and the <code>pluginName</code> (runtime identifier used by Kill Bill when scanning the filesystem). The next section provides more details about those.</p>
 </li>
 </ul>
 </div>
@@ -275,7 +301,7 @@ A key identifies each entry in that repository, and that key is the <code>plugin
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Install <code>kpm</code> as explained <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation">here</a>.</p>
+<p>Ensure <code>kpm</code> is available. If you are using the official Kill Bill Docker images, <code>kpm</code> is pre-installed inside the container - run it from within the container (<code>docker exec -it &lt;container_name&gt; bash</code>), not from the host. For standalone installations, install <code>kpm</code> as explained <a href="https://github.com/killbill/killbill-cloud/tree/master/kpm#kpm-installation">here</a>.</p>
 </li>
 <li>
 <p>Install the desired plugin as follows:</p>
@@ -296,6 +322,20 @@ A key identifies each entry in that repository, and that key is the <code>plugin
 </div>
 </li>
 </ol>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>After installation, Kill Bill must be restarted to detect and load the plugin (plugins are scanned at startup). Alternatively, use the <code>RESTART_PLUGIN</code> node command described in the <a href="#_installing_via_plugin_management_apis">Installing via Plugin Management APIs</a> section.</p>
+</div>
+</td>
+</tr>
+</table>
 </div>
 </div>
 <div class="sect3">
@@ -324,7 +364,7 @@ A key identifies each entry in that repository, and that key is the <code>plugin
 <p>Replace <code>&lt;path_to_install_plugin&gt;</code> with the path where you want to install the plugin. This path should match the path specified by the <code>org.killbill.osgi.bundle.install.dir</code> property in the <a href="https://docs.killbill.io/latest/userguide_configuration.html"><em>Kill Bill Configuration File</em></a>.</p>
 </li>
 <li>
-<p>If <code>--destination</code> is not specified, the plugin is installed by default in the <code>/var/tmp/bundles</code> directory</p>
+<p>If <code>--destination</code> is not specified, the plugin is installed by default in the <code>/var/tmp/bundles</code> directory. Note that this KPM default does not match the plugin directory used by the official Docker images (<code>/var/lib/killbill/bundles</code>), so on Docker always pass <code>--destination=/var/lib/killbill/bundles</code> explicitly.</p>
 </li>
 </ul>
 </div>
@@ -442,15 +482,51 @@ A key identifies each entry in that repository, and that key is the <code>plugin
 </ol>
 </div>
 <div class="paragraph">
-<p>For example, the <code>adyen</code> plugin with version <code>0.3.2</code> would show up as the following:</p>
+<p>For example, the <code>adyen</code> plugin with version <code>0.10.1</code> would show up as the following:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre>java
 |_adyen-plugin
-  |_ 0.3.2
-    |_ adyen-plugin-0.3.2.jar</pre>
+  |_ 0.10.1
+    |_ adyen-plugin-0.10.1.jar</pre>
 </div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_troubleshooting_plugin_installation">Troubleshooting Plugin Installation</h3>
+<div class="paragraph">
+<p>If a plugin was installed successfully but does not appear in Kaui or in the Kill Bill logs, work through the following checks:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>Verify the installation directory matches what Kill Bill scans.</strong> The most common cause: the plugin was installed to a directory (e.g. <code>/var/tmp/bundles</code>) that differs from the value of <code>org.killbill.osgi.bundle.install.dir</code> (on Docker: <code>/var/lib/killbill/bundles</code>). Confirm the effective value and reinstall with the correct <code>--destination</code> if needed.</p>
+</li>
+<li>
+<p><strong>Confirm the JAR is in the expected layout</strong>, e.g. <code>&lt;bundles_dir&gt;/plugins/java/&lt;plugin-name&gt;/&lt;version&gt;/&lt;plugin-name&gt;-&lt;version&gt;.jar</code>, and that <code>&lt;bundles_dir&gt;/plugins/plugin_identifiers.json</code> contains a matching entry for the pluginKey.</p>
+</li>
+<li>
+<p><strong>Restart Kill Bill.</strong> Plugins are detected only during startup (or via the <code>RESTART_PLUGIN</code> node command). A KPM install alone does not load the plugin into a running server.</p>
+</li>
+<li>
+<p><strong>Check the logs without filtering by plugin name.</strong> Search for OSGI-level messages, e.g.:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>docker<span class="tok-w"> </span>logs<span class="tok-w"> </span>&lt;container_name&gt;<span class="tok-w"> </span><span class="tok-m">2</span>&gt;<span class="tok-p">&amp;</span><span class="tok-m">1</span><span class="tok-w"> </span><span class="tok-p">|</span><span class="tok-w"> </span>grep<span class="tok-w"> </span>-i<span class="tok-w"> </span>-E<span class="tok-w"> </span><span class="tok-s2">&quot;osgi|plugin&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A complete absence of any log lines referencing the plugin usually confirms the directory mismatch in step 1, since Kill Bill never saw the files.</p>
+</div>
+</li>
+<li>
+<p><strong>Check multiple installed versions.</strong> If more than one version of a plugin is present, verify the <code>SET_DEFAULT</code> symbolic link points to the version you expect.</p>
+</li>
+<li>
+<p><strong>Check file permissions.</strong> The user running the Kill Bill process must have read access to the plugin directory and JAR.</p>
+</li>
+</ol>
 </div>
 </div>
 </div>
