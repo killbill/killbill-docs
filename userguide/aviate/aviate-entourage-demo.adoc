@@ -1,0 +1,387 @@
+= Entourage demo: Kill Bill billing operations with Kaui and Aviate Admin
+
+:toc: left
+:toclevels: 2
+:sectanchors:
+
+This page documents the Entourage demo environment: what it contains, what each demo account is
+for, and how to run through the demo end to end. Everything described here is reproducible against
+a Kill Bill deployment.
+
+[[overview]]
+== Overview
+
+Entourage is the admin and billing-operations layer for a Kill Bill deployment. It is made up of
+three components, each answering a different kind of question.
+
+image::entourage/entourage-components.svg[Entourage components and the questions each one answers,align="center"]
+
+[cols="1,3", options="header"]
+|===
+| Component | Role
+
+| *Kill Bill*
+| The billing engine and system of record. Subscriptions, invoices, payments and audit history
+  all live here.
+
+| *Kaui*
+| The account-level operations console. Used to search accounts, inspect subscriptions, read
+  invoices and act on payments.
+
+| *Aviate Admin*
+| The tenant, catalog and configuration visibility layer. Used to see which tenant is live, what
+  the catalog contains and how the environment is configured.
+|===
+
+Kaui and Aviate Admin are complementary rather than alternatives. Aviate Admin answers
+environment-level questions; Kaui answers account-level questions. Kill Bill remains the source of
+truth behind both.
+
+NOTE: Entourage covers these three components — Kill Bill, Kaui and Aviate Admin. Aviate plugin
+capabilities such as API-driven catalog management, metering, coupons, wallet and CPQ belong to the
+Growth and Flock tiers and are not used anywhere in this demo. See
+https://killbill.io/pricing[Aviate plans and pricing] for a full comparison of what each tier includes.
+
+[[demo-scenario]]
+== Demo scenario
+
+The demo uses a fictional B2B SaaS company, *Acme Cloud Analytics*, selling an analytics platform on
+a subscription basis. Its billing and support team needs to:
+
+. Understand which tenant and catalog are live
+. Investigate a customer billing question
+. Review invoices, subscriptions, payments and account history
+. Resolve or explain common operational issues
+. Confirm the system is auditable and production-grade
+
+The demo is built to show that each of these is achievable by a billing, support or finance operator
+without engineering involvement.
+
+Tenant: `acme-cloud-analytics`
+
+[[demo-catalog]]
+== Demo catalog
+
+The catalog is a single base product with four plans and three add-ons, uploaded through Aviate Admin.
+
+=== Products and plans
+
+[cols="1,1,2,1,1,1", options="header"]
+|===
+| Product | Plan | Plan name in catalog | Billing period | Price | Notes
+
+| Cloud Analytics | Starter Monthly | `cloud-analytics-starter-monthly` | Monthly | $99/month | Small teams
+| Cloud Analytics | Business Monthly | `cloud-analytics-business-monthly` | Monthly | $499/month | Main target plan
+| Cloud Analytics | Business Annual | `cloud-analytics-business-annual` | Annual | $5,000/year | Discounted annual
+| Cloud Analytics | Enterprise Annual | `cloud-analytics-enterprise-annual` | Annual | $18,000/year | Higher-touch customer
+|===
+
+=== Add-ons
+
+[cols="1,2,1,1", options="header"]
+|===
+| Add-on | Plan name in catalog | Billing period | Price
+
+| Premium Support | `premium-support-annual` | Annual | $1,000/year
+| Extra Seats | `extra-seats-monthly` | Monthly | $20/seat/month
+| Data Retention Pack | `data-retention-annual` | Annual | $2,000/year
+|===
+
+=== Catalog settings
+
+[cols="1,1", options="header"]
+|===
+| Setting | Value
+
+| Catalog name | `AcmeCloudAnalytics`
+| Currency | USD
+| Recurring billing mode | `IN_ADVANCE`
+| Change policy | `IMMEDIATE`
+| Change alignment | `START_OF_BUNDLE`
+| Cancel policy | `IMMEDIATE`
+| Billing alignment | `ACCOUNT`
+| Price list | `DEFAULT`
+|===
+
+TIP: The `IMMEDIATE` change policy is what produces the prorated invoice in the BrightBee Ltd
+scenario below. A plan change takes effect on the change date rather than at the next billing period
+boundary, so Kill Bill credits the unused portion of the old plan and charges for the new one from
+that date forward.
+
+[[demo-accounts]]
+== Demo accounts
+
+Four accounts are seeded, each representing a different operational situation.
+
+=== BrightBee Ltd — main support investigation
+
+[cols="1,3"]
+|===
+| External key | `brightbee-ltd`
+| Purpose | The primary investigation scenario
+| Subscription state | Started on Starter Monthly, changed to Business Monthly mid-cycle
+| Invoice state | A prorated invoice covering the plan change
+| Payment state | Paid
+|===
+
+*What this account demonstrates:* the subscription timeline containing the plan change, then the resulting invoice
+broken down line by line — the credit for the unused portion of Starter, and the charge for Business
+from the change date forward. This is the screen that answers the customer's question, and it is the
+centre of the demo.
+
+=== Northwind Media — payment issue
+
+[cols="1,3"]
+|===
+| External key | `northwind-media`
+| Purpose | Payment investigation and resolution
+| Subscription state | Business Annual, active
+| Invoice state | One unpaid invoice, $5,000 outstanding
+| Payment state | Unpaid; a payment method is on file so the invoice can be settled during the demo
+|===
+
+*What this account demonstrates:* the account balance, the unpaid invoice and the payment state. Then the resolution
+path — triggering a payment against the invoice, or recording an external payment — and the account
+returning to good standing.
+
+=== Apex Robotics — clean happy-path customer
+
+[cols="1,3"]
+|===
+| External key | `apex-robotics`
+| Purpose | Reference account showing a healthy state
+| Subscription state | Enterprise Annual, active
+| Invoice state | One invoice, $18,000, paid
+| Payment state | Successful
+|===
+
+*What this account demonstrates:* what a healthy account looks like — an invoice raised and settled with no
+outstanding balance and no intervention required. Most useful as a direct contrast to Northwind Media, so an
+operator learns to recognise a problem account at a glance.
+
+=== Delta Health — lifecycle example
+
+[cols="1,3"]
+|===
+| External key | `delta-health`
+| Purpose | Subscription lifecycle
+| Subscription state | Business Monthly, cancelled
+| Invoice state | Invoice history retained after cancellation
+| Payment state | Historical payments retained
+|===
+
+*What this account demonstrates:* that a cancelled subscription remains fully visible — the cancellation date, the
+subscription history and the invoices raised while it was active. Useful when a prospect asks what
+happens to billing data after churn.
+
+[[running-the-demo]]
+== Running the demo
+
+The demo runs in five chapters. Chapters 1 and 2 are in Aviate Admin, chapters 3 and 4 are in Kaui,
+and chapter 5 uses both. Each chapter has its own Storylane walkthrough.
+
+[cols="1,2,2,2", options="header"]
+|===
+| Chapter | Focus | Tool | Account
+
+| 1 | Environment overview | Aviate Admin | —
+| 2 | Catalog visibility | Aviate Admin | —
+| 3 | Customer investigation | Kaui | BrightBee Ltd
+| 4 | Payment or invoice issue | Kaui | Northwind Media
+| 5 | Auditability and trust | Kaui and Aviate Admin | Any
+|===
+
+[[chapter-1]]
+=== Chapter 1 — Environment overview
+
+*Tool:* Aviate Admin
+
+. Open Aviate Admin.
+. Open the tenant selector and confirm you are on the *Acme Cloud Analytics* tenant.
+. Review the tenant details — tenant identity, and the Kill Bill version the environment is running.
+. Review the basic Kill Bill configuration visible on this screen.
+. Note the entry points from here into the catalog and into account operations.
+
+// image::entourage/01-aviate-admin-home.png[Aviate Admin home]
+// image::entourage/02-tenant-details.png[Tenant details]
+
+An operator can establish what environment they are working in before touching anything, without
+reading configuration files or asking an engineer.
+
+Walk through this chapter interactively:
+
+++++
+<div>
+  <script async src="https://js.storylane.io/js/v2/storylane.js" data-verify-origin=""></script>
+  <div class="sl-embed" style="position:relative;padding-bottom:calc(47.03% + 25px);width:100%;height:0;transform:scale(1)">
+    <iframe loading="lazy" class="sl-demo" src="https://app.storylane.io/demo/pvc7wotvwmpr?embed=inline" name="sl-embed" allow="fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%!important;height:100%!important;border:1px solid rgba(63,95,172,0.35);box-shadow: 0px 0px 18px rgba(26, 19, 72, 0.15);border-radius:10px;box-sizing:border-box;"></iframe>
+  </div>
+</div>
+++++
+
+[[chapter-2]]
+=== Chapter 2 — Catalog visibility
+
+*Tool:* Aviate Admin
+
+. Open the catalog view.
+. Review the product list — Cloud Analytics, plus the three add-on products.
+. Open the plan details and confirm billing periods and prices against the tables in <<demo-catalog>>.
+. Review the add-ons.
+. Note the catalog effective date and version.
+
+// image::entourage/03-catalog-overview.png[Catalog overview]
+// image::entourage/04-plan-detail.png[Plan detail]
+
+Catalogs in Kill Bill are versioned and dated. The effective date shown here determines which plan
+definition a subscription binds to, which is directly relevant to the proration explained in the
+next chapter.
+
+Walk through this chapter interactively:
+
+++++
+<div>
+  <script async src="https://js.storylane.io/js/v2/storylane.js" data-verify-origin=""></script>
+  <div class="sl-embed" style="position:relative;padding-bottom:calc(47.03% + 25px);width:100%;height:0;transform:scale(1)">
+    <iframe loading="lazy" class="sl-demo" src="https://app.storylane.io/demo/wuddsblyytbu?embed=inline" name="sl-embed" allow="fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%!important;height:100%!important;border:1px solid rgba(63,95,172,0.35);box-shadow: 0px 0px 18px rgba(26, 19, 72, 0.15);border-radius:10px;box-sizing:border-box;"></iframe>
+  </div>
+</div>
+++++
+
+[[chapter-3]]
+=== Chapter 3 — Customer investigation
+
+*Tool:* Kaui +
+*Account:* BrightBee Ltd
+
+The scenario: the customer has written in saying _"We upgraded from Starter to Business and received
+an invoice we do not understand."_
+
+. Search for *BrightBee* in Kaui.
+. Open the account overview — subscriptions, balance and recent activity.
+. Open the active subscription and confirm it is now on Business Monthly.
+. Open the subscription timeline and locate the change from Starter Monthly to Business Monthly,
+  with its effective date.
+. Open the invoice list and find the invoice raised on that date.
+. Open the invoice detail and read the line items — the credit for the unused remainder of the
+  Starter Monthly period, and the charge for Business Monthly from the change date to the end of the
+  period.
+. Confirm the payment status on that invoice.
+
+// image::entourage/05-brightbee-account-overview.png[BrightBee account overview]
+// image::entourage/06-brightbee-subscription-timeline.png[BrightBee subscription timeline]
+// image::entourage/07-brightbee-prorated-invoice.png[BrightBee prorated invoice]
+
+Steps 4 to 6 are the substance of this chapter. The invoice is not an opaque number: every line
+traces back to a subscription event with a date attached, and the operator can explain the charge to
+the customer directly from this screen.
+
+Walk through this chapter interactively:
+
+++++
+<div>
+  <script async src="https://js.storylane.io/js/v2/storylane.js" data-verify-origin=""></script>
+  <div class="sl-embed" style="position:relative;padding-bottom:calc(47.03% + 25px);width:100%;height:0;transform:scale(1)">
+    <iframe loading="lazy" class="sl-demo" src="https://app.storylane.io/demo/xdyxjqji4mgg?embed=inline" name="sl-embed" allow="fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%!important;height:100%!important;border:1px solid rgba(63,95,172,0.35);box-shadow: 0px 0px 18px rgba(26, 19, 72, 0.15);border-radius:10px;box-sizing:border-box;"></iframe>
+  </div>
+</div>
+++++
+
+[[chapter-4]]
+=== Chapter 4 — Payment or invoice issue
+
+*Tool:* Kaui +
+*Account:* Northwind Media
+
+The scenario: an annual invoice has not been paid.
+
+. Search for *Northwind* in Kaui.
+. Open the account overview and note the outstanding balance.
+. Open the unpaid invoice and confirm its status and amount.
+. Review the payment state on the account.
+. Resolve it — either trigger a payment against the invoice, or record an external payment if the
+  money was received outside the system.
+. Confirm the invoice balance and the account state have updated.
+
+// image::entourage/08-northwind-account-overview.png[Northwind account overview]
+// image::entourage/09-northwind-unpaid-invoice.png[Northwind unpaid invoice]
+// image::entourage/10-northwind-payment-state.png[Northwind payment state]
+
+This chapter is deliberately about resolution rather than inspection. Step 5 is an operational
+action taken by the billing team, against the system of record, without an engineering ticket.
+
+Walk through this chapter interactively:
+
+++++
+<div>
+  <script async src="https://js.storylane.io/js/v2/storylane.js" data-verify-origin=""></script>
+  <div class="sl-embed" style="position:relative;padding-bottom:calc(47.03% + 25px);width:100%;height:0;transform:scale(1)">
+    <iframe loading="lazy" class="sl-demo" src="https://app.storylane.io/demo/ha4fttth1pkk?embed=inline" name="sl-embed" allow="fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%!important;height:100%!important;border:1px solid rgba(63,95,172,0.35);box-shadow: 0px 0px 18px rgba(26, 19, 72, 0.15);border-radius:10px;box-sizing:border-box;"></iframe>
+  </div>
+</div>
+++++
+
+[[chapter-5]]
+=== Chapter 5 — Auditability and trust
+
+*Tool:* Kaui and Aviate Admin
+
+. On any of the demo accounts, open the account history.
+. Open the invoice history.
+. Open the payment history.
+. Open the audit trail entries and note that each records who made the change and when.
+
+// image::entourage/11-account-history.png[Account history]
+// image::entourage/12-audit-trail.png[Audit trail]
+
+Kill Bill records an audit entry for every state change, and the operations console exposes it. This
+is what makes the previous four chapters safe to hand to a non-engineering team: actions are
+attributable, and decisions are explainable after the fact.
+
+Walk through this chapter interactively:
+
+++++
+<div>
+  <script async src="https://js.storylane.io/js/v2/storylane.js" data-verify-origin=""></script>
+  <div class="sl-embed" style="position:relative;padding-bottom:calc(47.03% + 25px);width:100%;height:0;transform:scale(1)">
+    <iframe loading="lazy" class="sl-demo" src="https://app.storylane.io/demo/0xswyuc9a2ut?embed=inline" name="sl-embed" allow="fullscreen" allowfullscreen style="position:absolute;top:0;left:0;width:100%!important;height:100%!important;border:1px solid rgba(63,95,172,0.35);box-shadow: 0px 0px 18px rgba(26, 19, 72, 0.15);border-radius:10px;box-sizing:border-box;"></iframe>
+  </div>
+</div>
+++++
+
+[[reproducing]]
+== Reproducing the demo environment
+
+To rebuild the environment from scratch:
+
+. Create a tenant for *Acme Cloud Analytics*.
+. Upload the catalog described in <<demo-catalog>> through Aviate Admin.
+. Seed the four accounts and their subscriptions, then advance to a mid-cycle date and perform the
+  BrightBee plan change and the Delta Health cancellation.
+
+The resulting account states depend on ordering. Two details matter:
+
+IMPORTANT: *BrightBee's prorated invoice* requires the plan change to happen mid-period. If the
+change lands on a period boundary there is nothing to prorate, and the invoice will not demonstrate
+the scenario.
+
+IMPORTANT: *Northwind's unpaid invoice* requires the subscription to be created _before_ a default
+payment method exists on the account. Adding the payment method afterwards leaves the invoice unpaid
+while still allowing it to be settled during <<chapter-4>>.
+
+[[related-links]]
+== Related links
+
+Kill Bill and Kaui:
+
+* https://docs.killbill.io/latest/userguide_kaui.html[Kaui User Guide] — the operations console used in chapters 3, 4 and 5
+* https://docs.killbill.io/latest/quick_start_with_kaui.html[Quick Start with Kaui]
+* https://docs.killbill.io/latest/userguide_subscription.html[Subscription Billing] — how plan changes and proration work
+* https://docs.killbill.io/latest/userguide_payment.html[Payment Processing] — payment states and retries
+
+Aviate:
+
+* https://docs.killbill.io/latest/what_is_aviate.html[What is Aviate?]
+* https://docs.killbill.io/latest/aviate-getting-started.html[Aviate: Getting Started]
+* https://docs.killbill.io/latest/aviate-deployment-management.html[Aviate Deployment Management] — adding and managing the deployment behind this demo
+* https://killbill.io/pricing[Aviate plans and pricing] — how Entourage compares to Growth and Flock
