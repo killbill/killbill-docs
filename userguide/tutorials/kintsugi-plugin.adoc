@@ -1,0 +1,297 @@
+= Kintsugi Tax Plugin Tutorial
+
+== Prerequisites
+
+You will need:
+
+* A running Kill Bill instance (0.24.x) and Kaui, set up as explained in the
+getting_started.html[Getting Started Guide].
+* https://curl.haxx.se/[cURL] installed. On Windows, we recommend
+https://git-scm.com/download/win[Git Bash] to run the `curl` commands.
+* A Kintsugi account, with Kill Bill connected as described in <<step_5,Step 5>>.
+
+== Overview
+
+The https://github.com/killbill/killbill-kintsugi-plugin[Kintsugi Tax Plugin] is a Kill Bill invoice plugin that delegates sales tax calculation to https://trykintsugi.com[Kintsugi] during invoice generation. On each invoice (dry-run or commit), the plugin invokes the Kintsugi API and maps the returned tax lines to `TAX` invoice items linked to the taxable lines.
+
+This tutorial walks through a full end-to-end scenario: installing the plugin, configuring a tenant, syncing the catalog with Kintsugi, registering a jurisdiction, and verifying that an invoice picks up the correct tax.
+
+== How It Works
+
+For developers, the Kintsugi plugin is implemented as an https://docs.killbill.io/latest/invoice_plugin[Kill Bill Invoice Plugin]. It implements the
+https://github.com/killbill/killbill-plugin-api/blob/a20776687fc61ce4ca94d84e2b117e4cce0a255c/invoice/src/main/java/org/killbill/billing/invoice/plugin/api/InvoicePluginApi.java#L39[getAdditionalInvoiceItems]
+method. On each invoice (dry-run or commit), it:
+
+. Maps Kill Bill invoice line items and the account's ship-to address to a tax estimate request.
+. Calls `POST /killbill/tax/estimate` or `/commit` on the Kintsugi API.
+. Maps the returned tax lines to Kill Bill `TAX` invoice items linked to the taxable lines.
+
+Every call to Kintsugi API authenticated with two headers:
+
+|===
+|Header |Value
+
+|`X-Killbill-ApiKey`
+|Kill Bill tenant API key (must match the Kintsugi Kill Bill connection).
+
+|`X-Killbill-Kintsugi-Signature`
+|HMAC-SHA256 hex digest of the raw JSON request body, signed with the shared `hmacSecret`.
+|===
+
+=== Behavior Notes
+
+* *Dual deployment*: for Aviate tenants, the Aviate plugin passes plugin properties on invoice generation; the optional `aviateIdToken` fills gaps via billing-account HTTP lookups.Non-Aviate tenants use custom fields only.
+* *HTTP/1.1*: outbound calls to Kintsugi use HTTP/1.1 so request bodies match HMAC signatures reliably.
+* *External charges*: line items without a plan name use a default product category.
+* *Retries*: transient failures raise `InvoicePluginApiRetryException`, retried after 1, 5, and 15 minutes.
+* *Zero tax*: `$0` tax lines are not added to the invoice.
+
+[[plugin_installation]]
+== Plugin Installation
+
+//Add Aviate installation steps once the plugin is available in the Aviate marketplace
+
+Install the plugin using https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM]:
+
+[source,bash]
+----
+kpm install_java_plugin kintsugi --from-source-<source_file_path>/kintsugi-plugin-0.1.0.jar --destination=<path_to_install_plugin>
+----
+
+Confirm the plugin is `RUNNING` with `InvoicePluginApi` listed:
+
+[source,bash]
+----
+curl -v \
+     -u admin:password \
+     http://127.0.0.1:8080/1.0/kb/nodesInfo
+----
+
+== Plugin Configuration
+
+In order to enable the Kintsugi plugin, the following property needs to be set in the
+https://docs.killbill.io/latest/userguide_configuration#global_configuration_properties[Kill Bill Configuration File],
+or at a https://docs.killbill.io/latest/userguide_configuration#_per_tenant_properties[per-tenant level]:
+
+[source,bash]
+----
+org.killbill.invoice.plugin=killbill-kintsugi
+----
+
+In addition, the Kintsugi plugin requires the following properties, uploaded via
+`uploadPluginConfig/killbill-kintsugi`:
+
+|===
+|Property |Required |Description
+
+|`kintsugiUrl`
+|Yes
+|Kintsugi API base URL (no trailing slash), reachable from the Kill Bill JVM.
+
+|`hmacSecret`
+|Yes
+|Shared secret; must match the HMAC secret on the Kintsugi Kill Bill connection.
+
+|`killbillUrl`
+|No
+|Kill Bill base URL for optional Aviate billing-account lookup (default `+http://127.0.0.1:8080+`).
+
+|`aviateIdToken`
+|No
+|Aviate JWT. When set, the plugin reads Aviate billing accounts before falling back to custom
+fields. Omit for non-Aviate deployments.
+|===
+
+These properties can be configured on a per-tenant basis via the https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin[Add a per-tenant configuration for a plugin] endpoint. For example, to configure these properties for the `bob/lazar` tenant, you can use the following curl:
+
+[source, bash]
+----
+curl -u 'admin:password' \
+  -H 'X-Killbill-ApiKey: bob' \
+  -H 'X-Killbill-ApiSecret: lazar' \
+  -H 'Content-Type: text/plain' \
+  -H 'X-Killbill-CreatedBy: setup' \
+  -d 'kintsugiUrl: https://api.trykintsugi.com
+hmacSecret: <shared-hmac-secret>' \
+  'https://<killbill-host>/1.0/kb/tenants/uploadPluginConfig/killbill-kintsugi'
+----
+
+== Testing the Plugin
+
+Once the plugin is installed and configured, you can use it to generate tax items. This section provides an end to end tutorial.
+
+=== Step 1: Install the Plugin
+
+Ensure that the plugin is installed as explained in the <<plugin_installation, "Plugin Installation">> section.
+
+=== Step 2: Create a Tenant
+
+We start by creating a tenant `tax-scenario`, using the standard https://apidocs.killbill.io/tenant.html#create-a-tenant[Create Tenant] API:
+
+[source,bash]
+----
+curl -v -X POST -u admin:password \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -d '{ "apiKey": "tax-scenario", "apiSecret": "tax-scenario" }' \
+     "http://127.0.0.1:8080/1.0/kb/tenants"
+----
+
+[[step_3]]
+=== Step 3: Enable the Kintsugi Invoice Plugin
+
+Enable the kintsugi plugin for the tenant created above:
+
+[source,bash]
+----
+curl -u admin:password \
+     -H "X-Killbill-ApiKey: tax-scenario" \
+     -H "X-Killbill-ApiSecret: tax-scenario" \
+     -H "Content-Type: text/plain" \
+     -H "X-Killbill-CreatedBy: setup" \
+     -d '{"org.killbill.invoice.plugin":"killbill-kintsugi"}' \
+     "http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig"
+----
+
+[[step_4]]
+=== Step 4: Set up the Catalog
+
+Configure the catalog for the tenant. You can do this easily via the
+https://docs.killbill.io/latest/aviate-catalog-guide[Aviate UI].
+
+Alternatively, you can also upload an XML catalog via the
+https://apidocs.killbill.io/catalog#upload-a-catalog-as-xml[Upload Catalog] API:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H "X-Killbill-ApiKey: tax-scenario" \
+     -H "X-Killbill-ApiSecret: tax-scenario" \
+     -H "Content-Type: text/xml" \
+     -H "Accept: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -H "X-Killbill-Reason: demo" \
+     -H "X-Killbill-Comment: demo" \
+     -d '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><catalog> ... </catalog>' \
+     "http://127.0.0.1:8080/1.0/kb/catalog/xml"
+----
+
+[[step_5]]
+=== Step 5: Add the Tenant in Kintsugi
+
+In the Kintsugi app, click on "Data Sources" in the left nav, select "Kill Bill" as the integration and enter the following details:
+
+- Kill Bill base URL ( for example `https://api.killbill.dev`). The URL must use HTTPS.
+- Tenant API key (`tax-scenario`)
+- Tenant API secret (`tax-scenario`)
+- Admin username (`admin`)
+- Admin password (`password`)
+
+Kintsugi then syncs the catalog from Kill Bill. This sync typically takes *10 to 15 minutes* to complete.
+
+[[step_6]]
+=== Step 6: Categorize the Synced Products
+
+Once the sync completes, click on the "Products" link in the left nav. The products from the catalog configured in <<step_4, Step 4>> appear in the Kintsugi app. Assign a tax category to each product from the Kintsugi products screen so that Kintsugi knows how to tax it.
+
+=== Step 7: Enable Tax Collection
+
+In the Kintsugi app, click on "Data Sources" in the left nav. Click the "Enable tax collection" button for the integration added in <<step_5, Step 5>> above.
+
+This step adds the kintsugi plugin configuration for the tenant and can be verified as follows:
+
+[source,bash]
+----
+curl -v \
+    -u admin:password \
+    -H "X-Killbill-ApiKey: tax-scenario" \
+    -H "X-Killbill-ApiSecret: tax-scenario" \
+    -H "Accept: application/json" \
+    "http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-kintsugi"
+----
+
+
+[[step_8]]
+=== Step 8: Create a Jurisdiction
+
+In the Kintsugi app, click on "Data Sources" in the left nav. Create a jurisdiction for each region you want to collect tax in. For this tutorial, create a jurisdiction for *California*.
+
+=== Step 9: Create an Account
+
+Open the `tax-scenario` tenant in Kaui and create an account with a zip code that falls within
+the jurisdiction registered in <<step_8, Step 8>>. For California, use zip code `94101`.
+
+Alternatively, you can also create an account via the
+https://apidocs.killbill.io/account#create-an-account[Create Account] API:
+
+[source,bash]
+----
+curl -v -X POST -u admin:password \
+     -H "X-Killbill-ApiKey: tax-scenario" \
+     -H "X-Killbill-ApiSecret: tax-scenario" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -d '{ "name": "John Doe", "email": "john@example.com", "currency": "USD", "address1": "123 Main Street", "city": "San Francisco", "state": "CA", "country": "US", "postalCode": "94101" }' \
+     "http://127.0.0.1:8080/1.0/kb/accounts"
+----
+
+=== Step 10: Create a Subscription
+
+Create a subscription for the account either via Kaui or via the
+https://apidocs.killbill.io/subscription#create-a-subscription[Create Subscription] API:
+
+[source,bash]
+----
+curl -v -X POST -u admin:password \
+     -H "X-Killbill-ApiKey: tax-scenario" \
+     -H "X-Killbill-ApiSecret: tax-scenario" \
+     -H "Content-Type: application/json" \
+     -H "X-Killbill-CreatedBy: demo" \
+     -d '{ "accountId": "{accountId}", "planName": "{planName}" }' \
+     "http://127.0.0.1:8080/1.0/kb/subscriptions"
+----
+
+=== Step 11: Verify the Invoice
+
+Check the invoices either via Kaui. Alternatively, you can retrieve the account's invoices, using the standard
+link:https://apidocs.killbill.io/account#retrieve-account-invoices[Retrieve Account Invoices] API:
+
+[source,bash]
+----
+curl -v -u admin:password \
+     -H "X-Killbill-ApiKey: tax-scenario" \
+     -H "X-Killbill-ApiSecret: tax-scenario" \
+     -H "Accept: application/json" \
+     "http://127.0.0.1:8080/1.0/kb/accounts/{accountId}/invoices"
+----
+
+*Expected result:* the invoice generated for the subscription includes a `TAX` line item linked
+to the subscription line, computed by Kintsugi for the California jurisdiction.
+
+If no `TAX` line appears, check the Kill Bill logs for `Kintsugi returned N tax line(s)` from
+`KintsugiInvoicePluginApi`, and see the Troubleshooting section below.
+
+== Troubleshooting
+
+|===
+|Symptom |Likely cause
+
+|No `TAX` lines on invoice
+|Tax collection not enabled in Kintsugi (<<step_3, Step 3>>), the product isn't
+categorized (<<step_6, Step 6>>), or the account's zip code falls
+outside a registered jurisdiction (<<step_8, Step 8>>).
+
+|`Kintsugi plugin not configured` in logs
+|Tax collection not enabled in Kintsugi (<<step_3, Step 3>>).
+
+|Connection timeout
+|Kill Bill cannot reach `kintsugiUrl` (DNS, firewall, or Docker networking).
+
+|Products not showing up in Kintsugi
+|The catalog sync (<<step_5, Step 5>>) hasn't completed yet — it can take 10 to 15 minutes.
+|===
+
+
