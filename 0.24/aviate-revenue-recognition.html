@@ -77,13 +77,28 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
     <a class="insider-preview-cta" href="https://killbill.io/contact-us" target="_blank">Join the waitlist &rarr;</a>
   </div>
 </div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<strong>Beta.</strong> Revenue Recognition is an Insider Preview (beta) feature. Its behavior, API and screens can change between releases. The amounts, identifiers and screens on this page are examples, some of them produced with sample data. Always check revenue figures against your own invoices before you use them to close a month, and send your feedback through Kill Bill support.
+</td>
+</tr>
+</table>
+</div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_introduction">Introduction</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The Aviate Revenue Recognition module provides tools for managing when and how revenue is recognized from your subscriptions and contracts. It supports the standard accounting practices defined by ASC 606 (Revenue from Contracts with Customers), and it gives finance teams visibility into recognized vs. deferred revenue through managed accounting periods.</p>
+<p>The Aviate Revenue Recognition module manages when revenue is recognized from the invoices that Kill Bill generates. It spreads each invoiced amount over the period in which the service is delivered, and tracks how much of it has been recognized and how much is still deferred. Finance teams get visibility into recognized vs. deferred revenue through monthly accounting periods that they can close and reopen.</p>
+</div>
+<div class="paragraph">
+<p>Your accounting policy remains the responsibility of your finance team. Using this module does not by itself make your accounting compliant with a revenue standard such as ASC 606 or IFRS 15.</p>
 </div>
 <div class="paragraph">
 <p>Key capabilities include:</p>
@@ -91,16 +106,22 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Accounting periods</strong>&#8201;&#8212;&#8201;monthly periods that can be opened, closed, and reported on</p>
+<p><strong>Automatic revenue schedules</strong>&#8201;&#8212;&#8201;every eligible invoice item gets a schedule that spreads its amount over the item&#8217;s service period</p>
 </li>
 <li>
-<p><strong>Revenue schedules</strong>&#8201;&#8212;&#8201;automatic recognition of revenue across the term of a contract</p>
+<p><strong>Daily recognition</strong>&#8201;&#8212;&#8201;a background process recognizes revenue as each day of service is delivered</p>
 </li>
 <li>
-<p><strong>Contract-aware allocation</strong>&#8201;&#8212;&#8201;revenue allocated across multiple performance obligations using relative standalone selling prices</p>
+<p><strong>Accounting periods</strong>&#8201;&#8212;&#8201;monthly periods that are created automatically and can be closed, reopened and reported on</p>
 </li>
 <li>
-<p><strong>Waterfall reports</strong>&#8201;&#8212;&#8201;period-by-period view of recognized and deferred revenue</p>
+<p><strong>Contract-aware allocation</strong>&#8201;&#8212;&#8201;revenue allocated across the subscriptions of a contract using relative standalone selling prices</p>
+</li>
+<li>
+<p><strong>Reports</strong>&#8201;&#8212;&#8201;period summaries, a period-by-period waterfall of recognized and deferred revenue, revenue by plan and recognition rate</p>
+</li>
+<li>
+<p><strong>Schedule lookups</strong>&#8201;&#8212;&#8201;schedules and their daily entries by invoice item, account, subscription, plan, currency or contract</p>
 </li>
 </ul>
 </div>
@@ -110,66 +131,180 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <h2 id="_key_concepts">Key Concepts</h2>
 <div class="sectionbody">
 <div class="sect2">
+<h3 id="_revenue_schedules_and_entries">Revenue Schedules and Entries</h3>
+<div class="paragraph">
+<p>When Kill Bill generates an invoice, Aviate creates one <strong>revenue schedule</strong> for each eligible invoice item. The schedule records the invoice, invoice item, account, subscription, plan and phase it came from, together with its currency, total amount, service period and recognition method. It also keeps running <strong>recognized</strong> and <strong>deferred</strong> amounts. At creation, the full amount is deferred.</p>
+</div>
+<div class="paragraph">
+<p>Each schedule is split into dated <strong>revenue entries</strong>. An entry is recognized once its date is reached. When the full amount of a schedule has been recognized, the schedule is closed.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="revrec-recognition-methods">Recognition Methods</h3>
+<div class="paragraph">
+<p>The recognition method depends only on the type of the invoice item. In this release it cannot be set per plan, product or customer.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Invoice item type</th>
+<th class="tableblock halign-left valign-top">Recognition method</th>
+<th class="tableblock halign-left valign-top">How the amount is spread</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recurring</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Straight-line</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Evenly, one entry per day of the service period</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Usage</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Straight-line</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Evenly, one entry per day of the item&#8217;s service period</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Fixed (for example a setup fee)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Immediate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One entry for the full amount on the service start date</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">External charge</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Immediate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One entry for the full amount on the service start date</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Items with a zero or negative amount, and other item types such as taxes and credits, do not get a schedule. Each invoice item has at most one schedule.</p>
+</div>
+<div class="paragraph">
+<p>For straight-line schedules:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The service period runs from the item&#8217;s start date up to, but <strong>not including</strong>, its end date. A 1 January to 1 February period covers the 31 days of January.</p>
+</li>
+<li>
+<p>The daily amount is the total divided by the number of days, rounded to nine decimal places. Monthly amounts therefore follow the number of days in each month.</p>
+</li>
+<li>
+<p>The last day takes any rounding difference, so the entries always add up exactly to the schedule total.</p>
+</li>
+<li>
+<p>When a contract allocation applies (see <a href="#revrec-allocation-details">Contract Revenue Allocation</a>), the schedule total is the allocated amount instead of the invoice item amount.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>For example, an annual subscription of $1,200.00 for the period from 1 January 2026 to 1 January 2027 (365 days) gives about $3.29 per day:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Month</th>
+<th class="tableblock halign-left valign-top">Days</th>
+<th class="tableblock halign-left valign-top">Recognized</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">January 2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">31</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$101.92</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">February 2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">28</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$92.05</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">April 2026</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">30</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$98.63</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Full year</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">365</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$1,200.00</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Monthly amounts are rounded to the cent, so the sum of the twelve rounded months can differ from the total by one cent.</p>
+</div>
+<div class="paragraph">
+<p>A $500 one-time setup fee is recognized in full on its service start date.</p>
+</div>
+</div>
+<div class="sect2">
 <h3 id="_accounting_periods">Accounting Periods</h3>
 <div class="paragraph">
-<p>An accounting period represents a calendar month during which revenue recognition entries are recorded. Each period follows a simple lifecycle:</p>
+<p>An accounting period groups revenue entries by calendar month. The system identifies each period by a name in the format <code>YYYY-MM</code> (for example, <code>2026-04</code>). The system assigns each revenue entry to the accounting period corresponding to the month of its date. For example, the system assigns an entry dated <code>2026-04-17</code> to the period <code>2026-04</code>.</p>
+</div>
+<div class="paragraph">
+<p>A period is either <strong>open</strong> or <strong>closed</strong>:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>OPEN</strong>&#8201;&#8212;&#8201;entries can be added or modified</p>
+<p><strong>Open</strong>&#8201;&#8212;&#8201;the daily recognition process recognizes the period&#8217;s entries as their dates are reached.</p>
 </li>
 <li>
-<p><strong>CLOSED</strong>&#8201;&#8212;&#8201;entries are frozen; no changes allowed</p>
-</li>
-<li>
-<p><strong>REOPENED</strong>&#8201;&#8212;&#8201;a closed period has been reopened by an administrator (for corrections)</p>
+<p><strong>Closed</strong>&#8201;&#8212;&#8201;the daily recognition process no longer recognizes the period&#8217;s remaining entries, and the date and user that closed it are recorded. A closed period can be reopened, which makes it open again.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>Periods are auto-created monthly (named <code>2026-01</code>, <code>2026-02</code>, etc.) as invoices are generated. They can be explicitly closed at month-end to freeze the financials.</p>
+<p>Periods are created automatically, one per calendar month, as invoices are generated. You can also create a period ahead of time. Close a period at month-end once its revenue has been recognized.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<strong>Note:</strong> Closing a period does not block billing. Kill Bill still accepts invoices, credits, adjustments and payments dated in a closed period. See <a href="#revrec-adjustments">Invoice Adjustments, Credits and Cancellations</a>.
+</td>
+</tr>
+</table>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_revenue_recognition_schedules">Revenue Recognition Schedules</h3>
+<h3 id="_contract_revenue_allocation">Contract Revenue Allocation</h3>
 <div class="paragraph">
-<p>When an invoice is generated, the system creates recognition entries that spread the revenue across the appropriate periods. For example:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>A $1,200 annual subscription generates $100/month recognition entries across 12 periods</p>
-</li>
-<li>
-<p>A $500 one-time setup fee is recognized immediately (or spread, depending on your rules)</p>
-</li>
-<li>
-<p>Usage revenue is recognized in the period it was consumed</p>
-</li>
-</ul>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_contract_revenue_allocation_asc_606">Contract Revenue Allocation (ASC 606)</h3>
-<div class="paragraph">
-<p>When a contract includes multiple performance obligations (e.g., a subscription + setup + support), revenue is allocated proportionally based on <strong>standalone selling prices</strong> (SSP). This ensures compliance with ASC 606:</p>
+<p>When a contract covers several subscriptions (for example a subscription, an implementation service and a support plan), Aviate allocates the contract&#8217;s transaction price across them in proportion to their <strong>standalone selling prices</strong> (SSP):</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Identify the performance obligations in the contract</p>
+<p>Each subscription in the contract (a <em>contract term</em>) is treated as a performance obligation.</p>
 </li>
 <li>
-<p>Determine the standalone selling price (SSP) for each obligation</p>
+<p>The SSP for each term is looked up from the SSPs you configure for its plan, phase and currency.</p>
 </li>
 <li>
-<p>Allocate the total transaction price proportionally</p>
+<p>The transaction price is allocated across the terms in proportion to their SSPs.</p>
 </li>
 <li>
-<p>Recognize revenue as each obligation is satisfied</p>
+<p>Each allocated amount is recognized using the recognition method of its invoice items.</p>
 </li>
 </ol>
+</div>
+<div class="paragraph">
+<p>See <a href="#revrec-allocation-details">Contract Revenue Allocation</a> for details.</p>
 </div>
 </div>
 </div>
@@ -186,12 +321,44 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <div class="sect2">
 <h3 id="_enabling_revenue_recognition">Enabling Revenue Recognition</h3>
 <div class="paragraph">
-<p>To enable revenue recognition, start Kill Bill with the following system property:</p>
+<p>Revenue recognition is disabled by default. To enable it, start Kill Bill with the following system property:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="pygments highlight"><code data-lang="bash"><span></span>com.killbill.billing.plugin.aviate.enableRevenueRecognition<span class="tok-o">=</span><span class="tok-nb">true</span></code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>The following properties control revenue recognition:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 16.6666%;">
+<col style="width: 50.0001%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Property</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>com.killbill.billing.plugin.aviate.enableRevenueRecognition</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Set to <code>true</code> to create revenue schedules for new invoices and to start the daily recognition process.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>com.killbill.billing.plugin.aviate.revenueRecognition.delaySeconds</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>86400</code> (one day)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">How often the recognition process runs, in seconds.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Revenue schedules are created as invoices are generated. Enable the feature before you start billing the customers whose revenue you want to track.</p>
 </div>
 <div class="paragraph">
 <p>For details on setting configuration properties, refer to the <a href="https://docs.killbill.io/latest/userguide_configuration.html">Kill Bill Configuration Guide</a>.</p>
@@ -202,6 +369,221 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <div class="paragraph">
 <p>Full API documentation is available at <a href="https://apidocs.killbill.io/aviate-revrec">our API documentation</a>.</p>
 </div>
+<div class="paragraph">
+<p>All revenue recognition endpoints are under <code>${KB_URL}/plugins/aviate-plugin/v1/revenue</code>. Every request needs your Aviate token (<code>Authorization: Bearer &#8230;&#8203;</code>) and your tenant&#8217;s Kill Bill API key and secret. Parameters are passed in the query string. Send <code>POST</code> requests with <code>Content-Type: application/json</code> and an empty JSON body (<code>{}</code>).</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_using_revenue_recognition_in_aviate">Using Revenue Recognition in Aviate</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Insider Preview participants get access to the Revenue Recognition screens in Aviate. The screenshots below were taken with sample data: plans, amounts, accounts and email addresses are examples. The layout can change during the preview.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Screen</th>
+<th class="tableblock halign-left valign-top">What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Dashboard</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recognized and deferred revenue, recent accounting periods, and the plans with the most revenue</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Waterfall</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recognized and deferred revenue per accounting period, filtered by period range and currency</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Periods</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Accounting periods, with their status and the close and reopen actions</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedules</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One row per revenue schedule, filtered by method, period, account, plan or dates. Open a schedule to see its invoice, invoice item, item type, method, service period and entries</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">By Plan</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Total, recognized and deferred revenue per plan</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Rates</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The share of revenue already recognized, per method (straight line or immediate)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SSP</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Standalone selling prices per plan, phase and currency, with their source and validity dates</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Allocations</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Contract allocations: number of terms, transaction price and allocation method</p></td>
+</tr>
+</tbody>
+</table>
+<div class="sect2">
+<h3 id="_accounting_periods_screen">Accounting Periods Screen</h3>
+<div class="imageblock text-center">
+<div class="content">
+<img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aviate/revenue-recognition/accounting-periods.png" alt="Accounting periods screen" width="example with sample data">
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A period is either <strong>Open</strong> or <strong>Closed</strong>.</p>
+</li>
+<li>
+<p>An open period whose end date has passed is flagged <strong>Overdue</strong>. This is a reminder to close it, not a separate status.</p>
+</li>
+<li>
+<p>The <strong>Close</strong> action is offered on the oldest open period whose end date has passed, so months are closed in order.</p>
+</li>
+<li>
+<p>The <strong>Reopen</strong> action is offered on closed periods.</p>
+</li>
+<li>
+<p><strong>Closed By</strong> shows who closed the period.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_recognition_rates_screen">Recognition Rates Screen</h3>
+<div class="imageblock text-center">
+<div class="content">
+<img src="https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aviate/revenue-recognition/recognition-rates.png" alt="Recognition rates screen" width="example with sample data">
+</div>
+</div>
+<div class="paragraph">
+<p>This screen compares straight-line and immediate revenue: number of schedules, total, recognized and deferred amounts, and the average number of days since invoicing.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_revenue_is_recognized">How Revenue Is Recognized</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_schedule_creation">Schedule Creation</h3>
+<div class="paragraph">
+<p>When Kill Bill generates an invoice, Aviate creates a revenue schedule for each eligible invoice item and generates its entries (see <a href="#revrec-recognition-methods">Recognition Methods</a>). It also creates the monthly accounting periods those entries fall into, if they do not exist yet. Creating a schedule does not recognize any revenue.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_daily_recognition">Daily Recognition</h3>
+<div class="paragraph">
+<p>A background process runs at the configured interval, once a day by default. Each run:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Recognizes every unrecognized entry dated <strong>on or before the current date (UTC)</strong> in an open period, including entries dated today.</p>
+</li>
+<li>
+<p>Updates each affected schedule&#8217;s recognized and deferred amounts.</p>
+</li>
+<li>
+<p>Closes a schedule once its full amount has been recognized.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Revenue belongs to the accounting period of its service date, not to the date the process ran. Revenue for April recognized by a run in May stays in April.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_recognizing_revenue_for_a_specific_month">Recognizing Revenue for a Specific Month</h3>
+<div class="paragraph">
+<p>In production, regular runs recognize revenue for each day of the month as it passes. Once a run executes on or after the last day of the month, the system has processed all revenue entries for that month.</p>
+</div>
+<div class="paragraph">
+<p>The month-end workflow is:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Wait for a recognition run on or after the last day of the month.</p>
+</li>
+<li>
+<p>Review the month with the period summary and the waterfall report.</p>
+</li>
+<li>
+<p>Close the period.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>See <a href="#revrec-closing-period">Closing a Period</a> for the steps.</p>
+</div>
+<div class="sect3">
+<h4 id="_running_recognition_on_demand">Running Recognition On Demand</h4>
+<div class="paragraph">
+<p>The <code>triggerRevenueRecognition</code> endpoint runs recognition immediately, up to a date that you choose:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/triggerRevenueRecognition?recognitionDate=2026-04-30&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Content-Type: application/json&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{}&#39;</span></code></pre>
+</div>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Parameter</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>recognitionDate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recognize entries dated on or before this date (<code>YYYY-MM-DD</code>)</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>A successful request returns <code>204 No Content</code>. A missing <code>recognitionDate</code> is rejected with <code>recognitionDate is required</code>.</p>
+</div>
+<div class="paragraph">
+<p>The run works like a daily run, except that it uses <code>recognitionDate</code> instead of the current date:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It recognizes every unrecognized entry dated on or before <code>recognitionDate</code> in an open period, and updates and closes schedules in the same way.</p>
+</li>
+<li>
+<p>It applies to <strong>all accounts of the tenant</strong>. It cannot be limited to an account, a contract or a single month.</p>
+</li>
+<li>
+<p>A <code>recognitionDate</code> in the future recognizes revenue for service that has not been delivered yet.</p>
+</li>
+<li>
+<p>Recognized entries cannot be reverted. Reopening a period does not change entries that were already recognized.</p>
+</li>
+<li>
+<p>Do not run it at the same time as the scheduled recognition run.</p>
+</li>
+</ul>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -209,54 +591,18 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <h2 id="_managing_accounting_periods">Managing Accounting Periods</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_listing_periods">Listing Periods</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
-</div>
-</div>
+<h3 id="_creating_a_period">Creating a Period</h3>
 <div class="paragraph">
-<p>Response:</p>
+<p>Periods are created automatically, but you can create one ahead of time. All three parameters are required. The name must be unique, and the end date cannot be before the start date. A successful request returns <code>201 Created</code>.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="json"><span></span><span class="tok-p">[</span>
-<span class="tok-w">  </span><span class="tok-p">{</span><span class="tok-w"> </span><span class="tok-nt">&quot;name&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;2026-01&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-nt">&quot;status&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;CLOSED&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-nt">&quot;totalRecognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">45230.00</span><span class="tok-w"> </span><span class="tok-p">},</span>
-<span class="tok-w">  </span><span class="tok-p">{</span><span class="tok-w"> </span><span class="tok-nt">&quot;name&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;2026-02&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-nt">&quot;status&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;OPEN&quot;</span><span class="tok-p">,</span><span class="tok-w">   </span><span class="tok-nt">&quot;totalRecognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">38100.00</span><span class="tok-w"> </span><span class="tok-p">}</span>
-<span class="tok-p">]</span></code></pre>
-</div>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_closing_a_period">Closing a Period</h3>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods/2026-01/close&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>The system validates that all invoices in the period have recognition entries before allowing the close. If unrecognized entries exist, the close is rejected with a list of the affected invoices.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="_reopening_a_period_admin_only">Reopening a Period (Admin Only)</h3>
-<div class="paragraph">
-<p>In exceptional cases, a closed period can be reopened for corrections:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods/2026-01/reopen&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods?periodName=2026-05&amp;startDate=2026-05-01&amp;endDate=2026-05-31&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Content-Type: application/json&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{ &quot;reason&quot;: &quot;Correcting misclassified setup fee&quot; }&#39;</span></code></pre>
+<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{}&#39;</span></code></pre>
 </div>
 </div>
 <div class="admonitionblock note">
@@ -266,73 +612,298 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <div class="title">Note</div>
 </td>
 <td class="content">
-<strong>Note:</strong> Reopening a period requires administrator privileges and creates an audit trail entry.
+<strong>Note:</strong> Revenue entries are assigned to periods by name. Use the <code>YYYY-MM</code> format with the first and last day of the month. A period with any other name receives no revenue entries.
 </td>
 </tr>
 </table>
 </div>
 </div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="_revenue_waterfall_report">Revenue Waterfall Report</h2>
-<div class="sectionbody">
+<div class="sect2">
+<h3 id="_listing_periods">Listing Periods</h3>
 <div class="paragraph">
-<p>The waterfall report shows recognized revenue by period across all contracts:</p>
+<p>Add <code>closed=true</code> or <code>closed=false</code> to list only closed or only open periods.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/waterfall?from=2026-01&amp;to=2026-06&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods?closed=false&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Response:</p>
+<p>To view a single period, use <code>GET /v1/revenue/periods/{name}</code>, for example <code>/v1/revenue/periods/2026-04</code>.</p>
+</div>
+<div class="paragraph">
+<p>Each period includes:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Field</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>periodName</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The period name, for example <code>2026-04</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>startDate</code>, <code>endDate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The first and last day of the period</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>closed</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> if the period is closed</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>closedDate</code>, <code>closedBy</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">When and by whom the period was closed. Empty for open periods.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="_viewing_a_period_summary">Viewing a Period Summary</h3>
+<div class="paragraph">
+<p>The period summary returns the recognized amount, the deferred (not yet recognized) amount and the number of entries in the period, for all currencies combined:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="json"><span></span><span class="tok-p">{</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;periods&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-p">[</span><span class="tok-s2">&quot;2026-01&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-s2">&quot;2026-02&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-s2">&quot;2026-03&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-s2">&quot;2026-04&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-s2">&quot;2026-05&quot;</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-s2">&quot;2026-06&quot;</span><span class="tok-p">],</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;rows&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-p">[</span>
-<span class="tok-w">    </span><span class="tok-p">{</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;contractId&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;ctr-001&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;contractName&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;Acme Corp -- Enterprise&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;totalValue&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">12000.00</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;recognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-p">[</span><span class="tok-mf">1000.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1000.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1000.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1000.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1000.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1000.00</span><span class="tok-p">],</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;deferred&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">6000.00</span>
-<span class="tok-w">    </span><span class="tok-p">},</span>
-<span class="tok-w">    </span><span class="tok-p">{</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;contractId&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;ctr-002&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;contractName&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;Beta Inc -- Standard&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;totalValue&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">2400.00</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;recognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-p">[</span><span class="tok-mf">200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">200.00</span><span class="tok-p">],</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;deferred&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">1200.00</span>
-<span class="tok-w">    </span><span class="tok-p">}</span>
-<span class="tok-w">  </span><span class="tok-p">],</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;totals&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-p">{</span>
-<span class="tok-w">    </span><span class="tok-nt">&quot;recognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-p">[</span><span class="tok-mf">1200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1200.00</span><span class="tok-p">,</span><span class="tok-w"> </span><span class="tok-mf">1200.00</span><span class="tok-p">],</span>
-<span class="tok-w">    </span><span class="tok-nt">&quot;deferred&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">7200.00</span>
-<span class="tok-w">  </span><span class="tok-p">}</span>
-<span class="tok-p">}</span></code></pre>
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods/2026-04/summary&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>This report is suitable for board-level financial reporting and can be exported for use in external accounting systems.</p>
+<p>For one row per currency, use <code>currencySummary</code> instead:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods/2026-04/currencySummary&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>If you bill in more than one currency, use the currency summary. The plain summary adds amounts in different currencies together.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="revrec-closing-period">Closing a Period</h3>
+<div class="paragraph">
+<p>To close a month:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Check that a recognition run has taken place on or after the last day of the month.</p>
+</li>
+<li>
+<p>Review the period summary and the waterfall report for that month.</p>
+</li>
+<li>
+<p>Close the period. A successful close returns <code>204 No Content</code>.</p>
+</li>
+</ol>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods/2026-01/close&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Content-Type: application/json&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{}&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The close is rejected if the period does not exist, is already closed, or still contains unrecognized revenue entries. In the last case the error reports how many entries remain, for example <code>Cannot close period 2026-01: 12 unrecognized entries remain</code>.</p>
+</div>
+<div class="paragraph">
+<p>If the close is still rejected after a recognition run has taken place on or after the last day of the month, review the remaining entries (see <a href="#revrec-adjustments">Invoice Adjustments, Credits and Cancellations</a>). You can then override this check with <code>force=true</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods/2026-01/close?force=true&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Content-Type: application/json&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{}&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Closing a period does not block new invoices, credits or adjustments for that month. See <a href="#revrec-adjustments">Invoice Adjustments, Credits and Cancellations</a>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_reopening_a_period">Reopening a Period</h3>
+<div class="paragraph">
+<p>In exceptional cases, a closed period can be reopened for corrections. A successful reopen returns <code>204 No Content</code>. The request is rejected if the period does not exist or is not closed.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/periods/2026-01/reopen&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Content-Type: application/json&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{}&#39;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Reopening clears the closed date and closed-by user. Entries in the period that were not yet recognized become eligible again, and the next recognition run can pick them up. Entries that were already recognized are not changed.</p>
+</div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_contract_revenue_allocation">Contract Revenue Allocation</h2>
+<h2 id="_revenue_reports">Revenue Reports</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_revenue_waterfall">Revenue Waterfall</h3>
+<div class="paragraph">
+<p>The waterfall report shows recognized and deferred revenue for each accounting period, with one row per period and currency:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/reports/waterfall?startPeriod=2026-01&amp;endPeriod=2026-06&amp;currency=USD&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>All parameters are optional:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Parameter</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>startPeriod</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">First period to include (<code>YYYY-MM</code>, inclusive)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>endPeriod</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Last period to include (<code>YYYY-MM</code>, inclusive)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>currency</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Only include revenue in this currency, for example <code>USD</code></p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Each row contains the accounting period, the currency, the recognized amount, the deferred (not yet recognized) amount and the number of entries. The report is returned as JSON, so you can load it into a spreadsheet or another reporting tool.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_revenue_by_plan">Revenue by Plan</h3>
+<div class="paragraph">
+<p>Total, recognized and deferred amounts and the number of schedules for each plan, across the whole tenant. Takes no parameters.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/reports/by-plan&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_recognition_rate">Recognition Rate</h3>
+<div class="paragraph">
+<p>For each recognition method (straight-line or immediate): total amount, recognized amount, the share recognized so far and the number of schedules, across the whole tenant. Takes no parameters.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/reports/recognition-rate&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_how_reports_are_calculated">How Reports Are Calculated</h3>
+<div class="paragraph">
+<p>Reports are built from two different sources. Their figures can differ after adjustments, credits or cancellations.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 40%;">
+<col style="width: 40%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Report</th>
+<th class="tableblock halign-left valign-top">Built from</th>
+<th class="tableblock halign-left valign-top">Currency handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Period summary</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Revenue entries in the period</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All currencies added together</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Period currency summary</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Revenue entries in the period</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One row per currency</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Revenue waterfall</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Revenue entries, by period</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One row per period and currency</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Revenue by plan</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedule totals</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All currencies added together</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recognition rate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedule totals, by recognition method</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All currencies added together</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>In entry-based reports, "deferred" is the total of entries <strong>not yet recognized</strong>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="revrec-allocation-details">Contract Revenue Allocation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>When contracts have multiple performance obligations, Aviate uses standalone selling prices (SSP) to allocate revenue per ASC 606.</p>
+<p>When a contract covers several subscriptions, Aviate uses standalone selling prices (SSP) to allocate the contract&#8217;s transaction price across them.</p>
 </div>
 <div class="sect2">
 <h3 id="_how_allocation_works">How Allocation Works</h3>
 <div class="paragraph">
-<p>Consider a contract with three components:</p>
+<p>Each subscription in the contract is a contract term. Consider a contract with three subscriptions whose first invoice totals $15,000:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -346,7 +917,7 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>Premium support: $2,000/year (SSP: $2,000)</p>
 </li>
 <li>
-<p><strong>Total contract price</strong>: $15,000</p>
+<p><strong>Transaction price</strong>: $15,000</p>
 </li>
 </ul>
 </div>
@@ -362,7 +933,7 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </colgroup>
 <thead>
 <tr>
-<th class="tableblock halign-left valign-top">Obligation</th>
+<th class="tableblock halign-left valign-top">Contract term</th>
 <th class="tableblock halign-left valign-top">SSP</th>
 <th class="tableblock halign-left valign-top">SSP %</th>
 <th class="tableblock halign-left valign-top">Allocated Revenue</th>
@@ -373,70 +944,141 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <td class="tableblock halign-left valign-top"><p class="tableblock">Subscription</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">$10,000</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">58.8%</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">$8,824</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$8,823.53</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Implementation</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">$5,000</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">29.4%</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">$4,412</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$4,411.76</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Support</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">$2,000</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">11.8%</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">$1,765</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$1,764.71</p></td>
 </tr>
 </tbody>
 </table>
 <div class="paragraph">
-<p>Note that the implementation fee ($3,000 charged) receives an allocation of $4,412 because the SSP-based allocation distributes the total contract price proportionally. This is the standard ASC 606 treatment for contracts where any individual obligation is discounted.</p>
+<p>The implementation fee ($3,000 charged) receives an allocation of $4,411.76 because relative-SSP allocation distributes the total transaction price proportionally. Any rounding difference is assigned to the last term, so the allocations add up exactly to the transaction price.</p>
 </div>
 <div class="paragraph">
-<p>The allocation is computed once at contract inception and frozen&#8201;&#8212;&#8201;subsequent changes to SSPs do not retroactively affect existing contracts.</p>
+<p>The following rules apply:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>When allocation happens.</strong> A contract is allocated automatically when its first invoice is generated. The transaction price is the total of that invoice&#8217;s positive charges for the contract&#8217;s subscriptions. Once a contract has allocations, later invoices do not recalculate them, so later changes to SSPs do not affect it.</p>
+</li>
+<li>
+<p><strong>Which SSP is used.</strong> For each term, Aviate uses the most recent SSP for the term&#8217;s plan, phase and currency that is in effect on the allocation date.</p>
+</li>
+<li>
+<p><strong>Missing SSPs.</strong> If a term has no SSP in effect, its SSP is taken as an equal share of the transaction price (the transaction price divided by the number of terms).</p>
+</li>
+<li>
+<p><strong>How allocations are used.</strong> Once a contract term has an allocation, Aviate uses the allocated amount as the total of every revenue schedule created for that subscription&#8217;s invoice items, instead of the invoice item amount.</p>
+</li>
+<li>
+<p><strong>Allocating explicitly.</strong> You can run the allocation yourself with a transaction price of your choice (see below). Doing so replaces any existing allocation for the contract&#8217;s terms. Schedules that already exist are not recalculated.</p>
+</li>
+<li>
+<p><strong>Subscriptions without a contract.</strong> Subscriptions that are not part of a contract, such as self-service sign-ups, get revenue schedules and daily recognition, but no allocation.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We recommend setting explicit SSPs for every plan and phase used in contracts, so that allocations are consistent and auditable.</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="_setting_standalone_selling_prices">Setting Standalone Selling Prices</h3>
 <div class="paragraph">
-<p>SSPs can be configured at the product offering level:</p>
+<p>SSPs are set per plan, phase and currency, with a validity period. You can manage them on the SSP screen in Aviate, or through the API:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/standalonePrices&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/ssp?planName=implementation-services&amp;phaseName=implementation-services-fixedterm&amp;currency=USD&amp;amount=5000.00&amp;effectiveDate=2026-01-01&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Content-Type: application/json&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
-<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{</span>
-<span class="tok-s1">    &quot;productOfferingId&quot;: &quot;po-impl&quot;,</span>
-<span class="tok-s1">    &quot;standaloneSellingPrice&quot;: 5000.00,</span>
-<span class="tok-s1">    &quot;currency&quot;: &quot;USD&quot;,</span>
-<span class="tok-s1">    &quot;effectiveDate&quot;: &quot;2026-01-01&quot;</span>
-<span class="tok-s1">  }&#39;</span></code></pre>
+<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{}&#39;</span></code></pre>
 </div>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Parameter</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>planName</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kill Bill plan name</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>phaseName</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kill Bill phase name of the plan</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>currency</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Currency of the SSP, for example <code>USD</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>amount</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Standalone selling price</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>effectiveDate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">First day the SSP applies (<code>YYYY-MM-DD</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>expirationDate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Last day the SSP applies. Leave empty for no end date.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>source</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Free-text label for where the price comes from. Defaults to <code>LIST_PRICE</code>.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>A successful request returns <code>201 Created</code>. To list all SSPs, use <code>GET /v1/revenue/ssp</code>. To delete one, use <code>DELETE /v1/revenue/ssp/{id}</code>. Deleting an SSP removes it permanently and does not change allocations that were already made.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_ssp_fallback_order">SSP Fallback Order</h3>
+<h3 id="_allocating_a_contract_explicitly">Allocating a Contract Explicitly</h3>
 <div class="paragraph">
-<p>If no explicit SSP is set, the system uses the following fallback order:</p>
+<p><code>currency</code> and <code>transactionPrice</code> are required. The response lists the resulting allocation for each contract term.</p>
 </div>
-<div class="olist arabic">
-<ol class="arabic">
-<li>
-<p>The configured standalone selling price for the product offering</p>
-</li>
-<li>
-<p>The list price of the product offering (from the pricing tower)</p>
-</li>
-<li>
-<p>The contract line item price (as a last resort)</p>
-</li>
-</ol>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/contracts/</span><span class="tok-si">${</span><span class="tok-nv">CONTRACT_ID</span><span class="tok-si">}</span><span class="tok-s2">/allocations?currency=USD&amp;transactionPrice=15000.00&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Content-Type: application/json&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{}&#39;</span></code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p>We recommend setting explicit SSPs for all product offerings to ensure consistent and auditable allocations.</p>
+<p>To view a contract&#8217;s allocations without changing them, send a <code>GET</code> request to the same path. For each term, the result shows the plan, phase, list price, SSP, SSP ratio, allocated amount, transaction price, currency and allocation method.</p>
 </div>
 </div>
 </div>
@@ -445,10 +1087,58 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <h2 id="_viewing_revenue_details">Viewing Revenue Details</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_by_account">By Account</h3>
+<h3 id="_by_account_subscription_or_plan">By Account, Subscription or Plan</h3>
+<div class="paragraph">
+<p>List revenue schedules with any combination of these filters:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Parameter</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>accountId</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedules of one account</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>subscriptionId</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedules of one subscription</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>planName</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedules for one plan</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>currency</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedules in one currency</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>closed</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> for closed schedules, <code>false</code> for open ones</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>servicePeriodStart</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Schedules whose service period starts on or after this date (<code>YYYY-MM-DD</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>offset</code>, <code>limit</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Paging. <code>limit</code> defaults to and cannot exceed 1000.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>Results are returned newest first.</p>
+</div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/accounts/a1b2c3d4-...&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/schedules?accountId=</span><span class="tok-si">${</span><span class="tok-nv">ACCOUNT_ID</span><span class="tok-si">}</span><span class="tok-s2">&amp;closed=false&amp;limit=50&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
@@ -457,43 +1147,238 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </div>
 <div class="sect2">
 <h3 id="_by_contract">By Contract</h3>
+<div class="paragraph">
+<p>Contract allocations and the revenue schedules of a contract are available through two calls. The contract ID is a UUID.</p>
+</div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/contracts/ctr-001&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/contracts/</span><span class="tok-si">${</span><span class="tok-nv">CONTRACT_ID</span><span class="tok-si">}</span><span class="tok-s2">/allocations&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span>
+
+curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/contracts/</span><span class="tok-si">${</span><span class="tok-nv">CONTRACT_ID</span><span class="tok-si">}</span><span class="tok-s2">/schedules&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_by_invoice_item_or_schedule">By Invoice Item or Schedule</h3>
+<div class="paragraph">
+<p>Get the schedule of an invoice item, using its Kill Bill invoice item ID:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/</span><span class="tok-si">${</span><span class="tok-nv">INVOICE_ITEM_ID</span><span class="tok-si">}</span><span class="tok-s2">/schedule&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
 <span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Response:</p>
+<p>Get a schedule by its ID. Schedule IDs are numbers and are returned in the schedule details.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="pygments highlight"><code data-lang="json"><span></span><span class="tok-p">{</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;contractId&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;ctr-001&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;totalValue&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">15000.00</span><span class="tok-p">,</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;totalRecognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">8823.53</span><span class="tok-p">,</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;totalDeferred&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">6176.47</span><span class="tok-p">,</span>
-<span class="tok-w">  </span><span class="tok-nt">&quot;obligations&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-p">[</span>
-<span class="tok-w">    </span><span class="tok-p">{</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;name&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;Enterprise Subscription&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;allocatedRevenue&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">8824.00</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;recognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">5149.33</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;deferred&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">3674.67</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;recognitionPattern&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;STRAIGHT_LINE&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;termMonths&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mi">12</span>
-<span class="tok-w">    </span><span class="tok-p">},</span>
-<span class="tok-w">    </span><span class="tok-p">{</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;name&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;Implementation Services&quot;</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;allocatedRevenue&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">4412.00</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;recognized&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">4412.00</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;deferred&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-mf">0.00</span><span class="tok-p">,</span>
-<span class="tok-w">      </span><span class="tok-nt">&quot;recognitionPattern&quot;</span><span class="tok-p">:</span><span class="tok-w"> </span><span class="tok-s2">&quot;POINT_IN_TIME&quot;</span>
-<span class="tok-w">    </span><span class="tok-p">}</span>
-<span class="tok-w">  </span><span class="tok-p">]</span>
-<span class="tok-p">}</span></code></pre>
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/schedules/</span><span class="tok-si">${</span><span class="tok-nv">SCHEDULE_ID</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>List the revenue entries of a schedule, showing each entry&#8217;s date, amount, accounting period and whether it has been recognized:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span><span class="tok-s2">&quot;</span><span class="tok-si">${</span><span class="tok-nv">KB_URL</span><span class="tok-si">}</span><span class="tok-s2">/plugins/aviate-plugin/v1/revenue/</span><span class="tok-si">${</span><span class="tok-nv">SCHEDULE_ID</span><span class="tok-si">}</span><span class="tok-s2">/entriesPerSchedule&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;Authorization: Bearer </span><span class="tok-si">${</span><span class="tok-nv">ID_TOKEN</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiKey: </span><span class="tok-si">${</span><span class="tok-nv">API_KEY</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">  </span>-H<span class="tok-w"> </span><span class="tok-s2">&quot;X-Killbill-ApiSecret: </span><span class="tok-si">${</span><span class="tok-nv">API_SECRET</span><span class="tok-si">}</span><span class="tok-s2">&quot;</span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_business_rules_and_constraints">Business Rules and Constraints</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_recognition">Recognition</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Recognition follows the service dates on the invoice item, not the invoice date or the payment date. Revenue is recognized whether or not the invoice has been paid.</p>
+</li>
+<li>
+<p>Revenue is always assigned to calendar months. Custom fiscal calendars (for example 4-4-5 periods) are not supported.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_closed_periods">Closed Periods</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Closing a period does not block billing. Kill Bill still accepts invoices, credits, adjustments and payments dated in a closed period.</p>
+</li>
+<li>
+<p>If a new invoice item has service dates in a closed period, Aviate does not create its revenue entries. If you expect back-dated invoices, reopen the affected period <strong>before</strong> the invoice is generated.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_data_you_cannot_edit">Data You Cannot Edit</h3>
+<div class="paragraph">
+<p>Revenue schedules and entries are derived from invoices. You cannot create, edit or delete them directly.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="revrec-adjustments">Invoice Adjustments, Credits and Cancellations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Adjustments, credits and cancellations can change revenue schedules. How these changes affect recognized and deferred revenue, and how they interact with closed periods, is still being finalized in this preview. During the preview, review revenue for any month that contains an adjustment, a credit or a mid-period cancellation before you close it. If you are testing this module, tell us which treatment your accounting policy requires.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_not_included_in_this_preview">Not Included in This Preview</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Accounting journal entries, or an export to an ERP or general ledger</p>
+</li>
+<li>
+<p>A recognition method set per plan or per product</p>
+</li>
+<li>
+<p>Equal monthly amounts with prorated first and last months. Straight-line revenue is calculated per day</p>
+</li>
+<li>
+<p>Editing or reversing a revenue entry by hand. Schedules are created from invoices</p>
+</li>
+<li>
+<p>Approval of a schedule before recognition</p>
+</li>
+<li>
+<p>Blocking invoices, credits or adjustments in a closed period</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_examples">Examples</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_monthly_subscription">Monthly Subscription</h3>
+<div class="paragraph">
+<p>A customer is invoiced <strong>$31.00</strong> for a monthly plan covering <code>2026-01-01</code> to <code>2026-02-01</code>.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Aviate creates a straight-line schedule with a total of $31.00, all deferred.</p>
+</li>
+<li>
+<p>The service period is 31 days, so Aviate creates 31 entries of $1.00, dated <code>2026-01-01</code> to <code>2026-01-31</code>, all in period <code>2026-01</code>.</p>
+</li>
+<li>
+<p>After the run on <code>2026-01-10</code>, $10.00 is recognized and $21.00 is deferred.</p>
+</li>
+<li>
+<p>After the run on <code>2026-01-31</code>, the full $31.00 is recognized and the schedule is closed.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_quarterly_subscription_spanning_three_months">Quarterly Subscription Spanning Three Months</h3>
+<div class="paragraph">
+<p>A customer is invoiced <strong>$90.00</strong> for a quarterly plan covering <code>2026-01-01</code> to <code>2026-04-01</code>, which is 90 days. The daily amount is $1.00:</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Period</th>
+<th class="tableblock halign-left valign-top">Days</th>
+<th class="tableblock halign-left valign-top">Revenue</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>2026-01</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">31</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$31.00</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>2026-02</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">28</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$28.00</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>2026-03</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">31</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$31.00</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Total</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>90</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>$90.00</strong></p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>At the end of January, $31.00 is recognized and $59.00 is still deferred.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_rounding">Rounding</h3>
+<div class="paragraph">
+<p>A customer is invoiced <strong>$100.00</strong> for <code>2026-04-01</code> to <code>2026-05-01</code> (30 days). Each of the first 29 entries is $3.333333333 (100 ÷ 30, rounded to nine decimals). The last entry, on <code>2026-04-30</code>, is $3.333333343, so that the 30 entries add up to exactly $100.00.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_one_time_setup_fee">One-Time Setup Fee</h3>
+<div class="paragraph">
+<p>A customer is invoiced a fixed <strong>$250.00</strong> setup fee with a service start date of <code>2026-04-15</code>. Aviate creates an immediate schedule with one entry of $250.00 in period <code>2026-04</code>. The first run on or after <code>2026-04-15</code> recognizes the full amount and closes the schedule.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_month_end_close">Month-End Close</h3>
+<div class="paragraph">
+<p>On <code>2026-05-02</code>, the finance team closes April:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The daily run on <code>2026-04-30</code> or later has recognized all April entries.</p>
+</li>
+<li>
+<p><code>GET /v1/revenue/periods/2026-04/summary</code> shows the recognized total for April with a deferred amount of 0.</p>
+</li>
+<li>
+<p><code>POST /v1/revenue/periods/2026-04/close</code> returns <code>204 No Content</code>.</p>
+</li>
+<li>
+<p><code>GET /v1/revenue/periods?closed=true</code> now lists <code>2026-04</code> with the closing date and user.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>If unrecognized entries had remained in April, step 3 would have been rejected with <code>Cannot close period 2026-04: N unrecognized entries remain</code>. After reviewing them, the team could close the month with <code>force=true</code>.</p>
 </div>
 </div>
 </div>
