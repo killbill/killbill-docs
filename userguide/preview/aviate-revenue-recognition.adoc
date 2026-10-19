@@ -2,14 +2,19 @@
 
 include::{sourcedir}/includes/insider-preview-card.adoc[]
 
+[NOTE]
+*Beta.* Revenue Recognition is an Insider Preview (beta) feature. Its behavior, API and screens can change between releases. The amounts, identifiers and screens on this page are examples, some of them produced with sample data. Always check revenue figures against your own invoices before you use them to close a month, and send your feedback through Kill Bill support.
+
 == Introduction
 
-The Aviate Revenue Recognition module provides tools for managing when and how revenue is recognized from your subscriptions and contracts. It supports the standard accounting practices defined by ASC 606 (Revenue from Contracts with Customers), and it gives finance teams visibility into recognized vs. deferred revenue through managed accounting periods.
+The Aviate Revenue Recognition module provides tools for managing when and how revenue is recognized from your invoices. It gives finance teams visibility into recognized vs. deferred revenue through managed accounting periods.
+
+Your accounting policy remains the responsibility of your finance team. Using this module does not by itself make your accounting compliant with a revenue standard such as ASC 606 or IFRS 15.
 
 Key capabilities include:
 
 * *Accounting periods* -- monthly periods that can be opened, closed, and reported on
-* *Revenue schedules* -- automatic recognition of revenue across the term of a contract
+* *Revenue schedules* -- automatic recognition of revenue across the service period of each invoice item
 * *Contract-aware allocation* -- revenue allocated across multiple performance obligations using relative standalone selling prices
 * *Waterfall reports* -- period-by-period view of recognized and deferred revenue
 
@@ -17,30 +22,85 @@ Key capabilities include:
 
 === Accounting Periods
 
-An accounting period represents a calendar month during which revenue recognition entries are recorded. Each period follows a simple lifecycle:
+An accounting period represents a calendar month during which revenue recognition entries are recorded. A period is in one of two states:
 
-* *OPEN* -- entries can be added or modified
-* *CLOSED* -- entries are frozen; no changes allowed
-* *REOPENED* -- a closed period has been reopened by an administrator (for corrections)
+* *OPEN*: revenue can be recognized in the period
+* *CLOSED*: normal recognition into the period stops
 
-Periods are auto-created monthly (named `2026-01`, `2026-02`, etc.) as invoices are generated. They can be explicitly closed at month-end to freeze the financials.
+Reopening a closed period sets it back to OPEN.
+
+Periods are auto-created monthly (named `2026-01`, `2026-02`, etc.) as invoices are generated. They can be closed at month-end.
 
 === Revenue Recognition Schedules
 
-When an invoice is generated, the system creates recognition entries that spread the revenue across the appropriate periods. For example:
+Aviate creates one revenue schedule for each recurring, usage, fixed or external charge invoice item with an amount above zero. Other invoice items, such as tax and credits, get no schedule.
 
-* A $1,200 annual subscription generates $100/month recognition entries across 12 periods
-* A $500 one-time setup fee is recognized immediately (or spread, depending on your rules)
-* Usage revenue is recognized in the period it was consumed
+The recognition method depends on the type of invoice item. In this release it cannot be set per plan or per product.
 
-=== Contract Revenue Allocation (ASC 606)
+[cols="1,1,2", options="header"]
+|===
+| Invoice item type | Method | What happens
 
-When a contract includes multiple performance obligations (e.g., a subscription + setup + support), revenue is allocated proportionally based on *standalone selling prices* (SSP). This ensures compliance with ASC 606:
+| Recurring
+| Straight line
+| The amount is spread evenly over each day of the service period
+
+| Usage
+| Straight line
+| The amount is spread evenly over each day of the usage period on the invoice
+
+| Fixed (for example a setup fee)
+| Immediate
+| The full amount is recognized on the service start date
+
+| External charge
+| Immediate
+| The full amount is recognized on the service start date
+|===
+
+The service period of an invoice item ends the day before its end date. A period from January 1 to February 1 covers the 31 days of January.
+
+Straight-line revenue is calculated per day, then added up per month. Monthly amounts therefore follow the number of days in each month. The last day takes any rounding difference, so the daily amounts add up exactly to the schedule amount. When a contract allocation applies (see <<Contract Revenue Allocation>>), the schedule amount is the allocated amount.
+
+For example, an annual subscription of $1,200.00 for the period from January 1, 2026 to January 1, 2027 (365 days) gives about $3.29 per day:
+
+[cols="2,1,1", options="header"]
+|===
+| Month | Days | Recognized
+
+| January 2026
+| 31
+| $101.92
+
+| February 2026
+| 28
+| $92.05
+
+| April 2026
+| 30
+| $98.63
+
+| Full year
+| 365
+| $1,200.00
+|===
+
+Monthly amounts are rounded to the cent, so the sum of the twelve rounded months can differ from the total by one cent.
+
+=== When Revenue Is Recognized
+
+Creating a schedule does not recognize revenue. A recognition job runs about every 24 hours by default. Each run recognizes the scheduled amounts dated on or before the current date (UTC). A month is fully recognized after the first run on or after its last day.
+
+Scheduled revenue belongs to the accounting period of its service date, not to the date the job ran. Revenue for April recognized by a run in May stays in April.
+
+=== Contract Revenue Allocation (Relative SSP)
+
+When a contract includes multiple performance obligations (e.g., a subscription + setup + support), revenue is allocated proportionally based on *standalone selling prices* (SSP):
 
 . Identify the performance obligations in the contract
 . Determine the standalone selling price (SSP) for each obligation
 . Allocate the total transaction price proportionally
-. Recognize revenue as each obligation is satisfied
+. Recognize each allocated amount with the method of its invoice item
 
 == Getting Started with Revenue Recognition
 
@@ -63,6 +123,55 @@ For details on setting configuration properties, refer to the https://docs.killb
 
 Full API documentation is available at https://apidocs.killbill.io/aviate-revrec[our API documentation].
 
+== Using Revenue Recognition in Aviate
+
+Insider Preview participants get access to the Revenue Recognition screens in Aviate. The screenshots below were taken with sample data: plans, amounts, accounts and email addresses are examples. The layout can change during the preview.
+
+[cols="1,3", options="header"]
+|===
+| Screen | What it shows
+
+| Dashboard
+| Recognized and deferred revenue, recent accounting periods, and the plans with the most revenue
+
+| Waterfall
+| Recognized and deferred revenue per accounting period, filtered by period range and currency
+
+| Periods
+| Accounting periods, with their status and the close and reopen actions
+
+| Schedules
+| One row per revenue schedule, filtered by method, period, account, plan or dates. Open a schedule to see its invoice, invoice item, item type, method, service period and entries
+
+| By Plan
+| Total, recognized and deferred revenue per plan
+
+| Rates
+| The share of revenue already recognized, per method (straight line or immediate)
+
+| SSP
+| Standalone selling prices per plan, phase and currency, with their source and validity dates
+
+| Allocations
+| Contract allocations: number of terms, transaction price and allocation method
+|===
+
+=== Accounting Periods Screen
+
+image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aviate/revenue-recognition/accounting-periods.png[Accounting periods screen, example with sample data,align=center]
+
+* A period is either *Open* or *Closed*.
+* An open period whose end date has passed is flagged *Overdue*. This is a reminder to close it, not a separate status.
+* The *Close* action is offered on the oldest open period whose end date has passed, so months are closed in order.
+* The *Reopen* action is offered on closed periods.
+* *Closed By* shows who closed the period.
+
+=== Recognition Rates Screen
+
+image::https://github.com/killbill/killbill-docs/raw/v3/userguide/assets/img/aviate/revenue-recognition/recognition-rates.png[Recognition rates screen, example with sample data,align=center]
+
+This screen compares straight-line and immediate revenue: number of schedules, total, recognized and deferred amounts, and the average number of days since invoicing.
+
 == Managing Accounting Periods
 
 === Listing Periods
@@ -75,15 +184,7 @@ curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/periods" \
   -H "X-Killbill-ApiSecret: ${API_SECRET}"
 ----
 
-Response:
-
-[source,json]
-----
-[
-  { "name": "2026-01", "status": "CLOSED", "totalRecognized": 45230.00 },
-  { "name": "2026-02", "status": "OPEN",   "totalRecognized": 38100.00 }
-]
-----
+The response lists each period with its name, its start and end dates, and whether it is closed. Add `?closed=true` or `?closed=false` to filter.
 
 === Closing a Period
 
@@ -95,71 +196,48 @@ curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/revenue/periods/2026-01/close" 
   -H "X-Killbill-ApiSecret: ${API_SECRET}"
 ----
 
-The system validates that all invoices in the period have recognition entries before allowing the close. If unrecognized entries exist, the close is rejected with a list of the affected invoices.
+If entries in the period are still unrecognized, the close is rejected and the response gives the number of unrecognized entries.
 
-=== Reopening a Period (Admin Only)
+A typical month-end close:
 
-In exceptional cases, a closed period can be reopened for corrections:
+. Wait until the recognition job has run on or after the last day of the month.
+. Check the period summary and the waterfall report for that month.
+. Close the period. If the close is still rejected after the job has run, contact Kill Bill support.
+
+Closing a period does not block new invoices, credits or adjustments for that month. See <<Invoice Adjustments, Credits and Cancellations>>.
+
+=== Reopening a Period
+
+A closed period can be reopened:
 
 [source,bash]
 ----
 curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/revenue/periods/2026-01/reopen" \
   -H "Authorization: Bearer ${ID_TOKEN}" \
   -H "X-Killbill-ApiKey: ${API_KEY}" \
-  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
-  -H "Content-Type: application/json" \
-  -d '{ "reason": "Correcting misclassified setup fee" }'
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
 ----
 
 [NOTE]
-*Note:* Reopening a period requires administrator privileges and creates an audit trail entry.
+*Note:* In this preview, reopening a period does not keep a record of the earlier close. To review a closed month again, reopen it, check it after the next recognition run, then close it again.
 
 == Revenue Waterfall Report
 
-The waterfall report shows recognized revenue by period across all contracts:
+The waterfall report shows recognized and deferred revenue per accounting period and currency:
 
 [source,bash]
 ----
-curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/waterfall?from=2026-01&to=2026-06" \
+curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/reports/waterfall?startPeriod=2026-01&endPeriod=2026-06&currency=USD" \
   -H "Authorization: Bearer ${ID_TOKEN}" \
   -H "X-Killbill-ApiKey: ${API_KEY}" \
   -H "X-Killbill-ApiSecret: ${API_SECRET}"
 ----
 
-Response:
-
-[source,json]
-----
-{
-  "periods": ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"],
-  "rows": [
-    {
-      "contractId": "ctr-001",
-      "contractName": "Acme Corp -- Enterprise",
-      "totalValue": 12000.00,
-      "recognized": [1000.00, 1000.00, 1000.00, 1000.00, 1000.00, 1000.00],
-      "deferred": 6000.00
-    },
-    {
-      "contractId": "ctr-002",
-      "contractName": "Beta Inc -- Standard",
-      "totalValue": 2400.00,
-      "recognized": [200.00, 200.00, 200.00, 200.00, 200.00, 200.00],
-      "deferred": 1200.00
-    }
-  ],
-  "totals": {
-    "recognized": [1200.00, 1200.00, 1200.00, 1200.00, 1200.00, 1200.00],
-    "deferred": 7200.00
-  }
-}
-----
-
-This report is suitable for board-level financial reporting and can be exported for use in external accounting systems.
+All three query parameters are optional. The report is returned as JSON, so you can load it into a spreadsheet or another reporting tool.
 
 == Contract Revenue Allocation
 
-When contracts have multiple performance obligations, Aviate uses standalone selling prices (SSP) to allocate revenue per ASC 606.
+When contracts have multiple performance obligations, Aviate uses standalone selling prices (SSP) to allocate revenue.
 
 === How Allocation Works
 
@@ -192,38 +270,15 @@ Using relative SSP allocation:
 | $1,765
 |===
 
-Note that the implementation fee ($3,000 charged) receives an allocation of $4,412 because the SSP-based allocation distributes the total contract price proportionally. This is the standard ASC 606 treatment for contracts where any individual obligation is discounted.
+Note that the implementation fee ($3,000 charged) receives an allocation of $4,412 because the SSP-based allocation distributes the total contract price proportionally.
 
-The allocation is computed once at contract inception and frozen -- subsequent changes to SSPs do not retroactively affect existing contracts.
+The allocation is computed when the first invoice for the contract is generated. Later SSP changes do not change it.
 
 === Setting Standalone Selling Prices
 
-SSPs can be configured at the product offering level:
+Standalone selling prices are set per plan, phase and currency, with a validity period. You can manage them on the SSP screen in Aviate, or through the API (`POST ${KB_URL}/plugins/aviate-plugin/v1/revenue/ssp`). See the https://apidocs.killbill.io/aviate-revrec[API documentation] for the parameters.
 
-[source,bash]
-----
-curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/revenue/standalonePrices" \
-  -H "Authorization: Bearer ${ID_TOKEN}" \
-  -H "X-Killbill-ApiKey: ${API_KEY}" \
-  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "productOfferingId": "po-impl",
-    "standaloneSellingPrice": 5000.00,
-    "currency": "USD",
-    "effectiveDate": "2026-01-01"
-  }'
-----
-
-=== SSP Fallback Order
-
-If no explicit SSP is set, the system uses the following fallback order:
-
-. The configured standalone selling price for the product offering
-. The list price of the product offering (from the pricing tower)
-. The contract line item price (as a last resort)
-
-We recommend setting explicit SSPs for all product offerings to ensure consistent and auditable allocations.
+We recommend setting explicit SSPs for every plan used in a contract to ensure consistent and auditable allocations.
 
 == Viewing Revenue Details
 
@@ -239,39 +294,30 @@ curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/accounts/a1b2c3d4-..." \
 
 === By Contract
 
+Contract allocations and the revenue schedules of a contract are available through two calls. The contract ID is a UUID.
+
 [source,bash]
 ----
-curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/contracts/ctr-001" \
+curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/contracts/${CONTRACT_ID}/allocations" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}"
+
+curl "${KB_URL}/plugins/aviate-plugin/v1/revenue/contracts/${CONTRACT_ID}/schedules" \
   -H "Authorization: Bearer ${ID_TOKEN}" \
   -H "X-Killbill-ApiKey: ${API_KEY}" \
   -H "X-Killbill-ApiSecret: ${API_SECRET}"
 ----
 
-Response:
+== Invoice Adjustments, Credits and Cancellations
 
-[source,json]
-----
-{
-  "contractId": "ctr-001",
-  "totalValue": 15000.00,
-  "totalRecognized": 8823.53,
-  "totalDeferred": 6176.47,
-  "obligations": [
-    {
-      "name": "Enterprise Subscription",
-      "allocatedRevenue": 8824.00,
-      "recognized": 5149.33,
-      "deferred": 3674.67,
-      "recognitionPattern": "STRAIGHT_LINE",
-      "termMonths": 12
-    },
-    {
-      "name": "Implementation Services",
-      "allocatedRevenue": 4412.00,
-      "recognized": 4412.00,
-      "deferred": 0.00,
-      "recognitionPattern": "POINT_IN_TIME"
-    }
-  ]
-}
-----
+Adjustments, credits and cancellations can change revenue schedules. How these changes affect recognized and deferred revenue, and how they interact with closed periods, is still being finalized in this preview. During the preview, review revenue for any month that contains an adjustment, a credit or a mid-period cancellation before you close it. If you are testing this module, tell us which treatment your accounting policy requires.
+
+== Not Included in This Preview
+
+* Accounting journal entries, or an export to an ERP or general ledger
+* A recognition method set per plan or per product
+* Equal monthly amounts with prorated first and last months. Straight-line revenue is calculated per day
+* Editing or reversing a revenue entry by hand. Schedules are created from invoices
+* Approval of a schedule before recognition
+* Blocking invoices, credits or adjustments in a closed period
