@@ -36,4 +36,6 @@ cp -f $DIR/static/robots.txt $DIR/static/_headers $DIR/static/_redirects $ROOT_B
 # Cloudflare Pages serves the closest 404.html for any missing path, so the root copy uses absolute asset paths
 sed -e "s#\(href=[\"']\)stylesheets/#\1/latest/stylesheets/#g" -e "s#\(src=[\"']\)javascripts/#\1/latest/javascripts/#g" \
   $SELFCONTAINED_BUILD_DIR/404.html > $ROOT_BUILD_DIR/404.html
+# The /latest/ and /<version>/ copies of 404.html are published too: give them the same absolute asset paths
+cp -f $ROOT_BUILD_DIR/404.html $SELFCONTAINED_BUILD_DIR/404.html
 ruby $DIR/scripts/generate_sitemap.rb $SELFCONTAINED_BUILD_DIR $USERGUIDE_INPUT_DIR $ROOT_BUILD_DIR/sitemap.xml
