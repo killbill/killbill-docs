@@ -6,6 +6,9 @@ then
     ./make.sh
     cp -fr build/selfcontained/* build/
     mv build/selfcontained build/latest
+    # Site-root files (see make.sh); the root 404.html replaces the copy from selfcontained
+    cp -fr build/root/* build/
+    rm -rf build/root
 else
     rm -f .gitignore latest.txt *.sh
 

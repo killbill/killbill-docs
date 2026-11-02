@@ -1,4 +1,6 @@
 #!/bin/bash -e
+# CI runs "bash make.sh", which ignores the -e in the shebang line
+set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -25,3 +27,13 @@ for doc in `find $USERGUIDE_INPUT_DIR -maxdepth 2 -type f -name '*.adoc'`; do
   echo "Building $doc"
   $SELFCONTAINED_BUILD $doc
 done
+
+# Site-root files (robots.txt, sitemap.xml, _headers, _redirects, 404.html).
+# update_gh-pages.sh and cloudflare_deploy.sh copy them to the root of the site.
+ROOT_BUILD_DIR=$BUILD_DIR/root
+mkdir -p $ROOT_BUILD_DIR
+cp -f $DIR/static/robots.txt $DIR/static/_headers $DIR/static/_redirects $ROOT_BUILD_DIR/
+# Cloudflare Pages serves the closest 404.html for any missing path, so the root copy uses absolute asset paths
+sed -e "s#\(href=[\"']\)stylesheets/#\1/latest/stylesheets/#g" -e "s#\(src=[\"']\)javascripts/#\1/latest/javascripts/#g" \
+  $SELFCONTAINED_BUILD_DIR/404.html > $ROOT_BUILD_DIR/404.html
+ruby $DIR/scripts/generate_sitemap.rb $SELFCONTAINED_BUILD_DIR $USERGUIDE_INPUT_DIR $ROOT_BUILD_DIR/sitemap.xml
