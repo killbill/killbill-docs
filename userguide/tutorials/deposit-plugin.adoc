@@ -1,0 +1,203 @@
+= Deposit Plugin
+
+The https://github.com/killbill/killbill-deposit-plugin[Deposit Plugin] is a Kill Bill payment plugin that lets you record offline payments, such as wire transfers or checks, against specific Kill Bill invoices.
+
+== Prerequisites
+
+* Ensure that you have Kill Bill, Kaui, and the database set up as explained in the https://docs.killbill.io/latest/getting_started.html[__Getting Started Guide__].
+
+* Ensure that you have https://curl.se/[_cURL_] installed. If you are on Windows, we recommend that you use https://git-scm.com/download/win[_Git Bash_] to run the `cURL` commands.
+
+== Overview
+
+The Deposit plugin allows you to record payments that are received outside a payment gateway, for example a bank wire or a check. When a deposit is recorded, the plugin creates a payment in Kill Bill for each invoice it covers, which reduces the invoice balance just like any other payment.
+
+The plugin provides the following features:
+
+- An API to record a single deposit against one or more invoices
+- Storage of the deposit details (reference number, deposit type and effective date) along with each payment
+- An optional minimum payment amount per currency
+
+== How it Works
+
+For developers, the Deposit plugin is implemented as both a
+https://docs.killbill.io/latest/payment_plugin[Kill Bill Payment Plugin] and a
+https://docs.killbill.io/latest/payment_control_plugin[Kill Bill Payment Control Plugin].
+
+**Execution Flow**
+
+1. The client invokes the plugin's `/record` endpoint with the account, the deposit details, and the list of invoices to pay.
+2. The plugin looks up the account and its `killbill-deposit` payment method. If the account does not have one, the plugin creates it. This payment method is not set as the account's default.
+3. For each invoice in the request, the plugin creates a purchase payment against the invoice using the `killbill-deposit` payment method, with the deposit effective date as the payment date.
+4. Kill Bill runs its standard invoice payment checks. If enabled, the Deposit payment control plugin also checks the payment against the configured minimum amount.
+5. The plugin saves the deposit details and marks the payment as processed. Kill Bill then applies the payment to the invoice.
+
+**Field Mapping**
+
+Here is how the deposit fields map to Kill Bill:
+
+- **paymentReferenceNumber** → Payment transaction `firstPaymentReferenceId` (also stored as the `depositPaymentReferenceNumber` plugin property)
+- **depositType** → `depositType` plugin property on the payment transaction
+- **effectiveDate** → Payment effective date (also stored as the `depositEffectiveDate` plugin property)
+
+== Plugin Installation
+
+The Deposit plugin can easily be installed via the https://aviate.killbill.io[__Aviate UI__]. Refer to https://docs.killbill.io/latest/plugin_installation#_installing_via_aviate_marketplace[this doc] for a detailed demo.
+
+Alternatively, the plugin can also be installed via https://docs.killbill.io/latest/userguide_kaui.html[__Kaui__] or https://github.com/killbill/killbill-cloud/blob/master/kpm[_KPM_] as explained in the https://docs.killbill.io/latest/plugin_installation#_plugin_installation[Plugin Installation Guide].
+
+For example, to install the plugin via https://github.com/killbill/killbill-cloud/blob/master/kpm[KPM], you can run the following command:
+
+[source,bash]
+----
+kpm install_java_plugin deposit --destination=<path_to_install_plugin>
+----
+
+== Database Configuration
+
+The Deposit plugin requires some additional database tables. To create these tables, please follow the steps given below:
+
+. Connect to the Kill Bill database.
+
+. Run the https://github.com/killbill/killbill-deposit-plugin/blob/master/src/main/resources/ddl.sql[Deposit Plugin DDL]. If you are using PostgreSQL, run the https://github.com/killbill/killbill-deposit-plugin/blob/master/src/main/resources/ddl-postgresql.sql[PostgreSQL DDL] instead.
+
+[[plugin_configuration]]
+== Plugin Configuration
+
+The Deposit plugin does not require any configuration to record deposits.
+
+Optionally, you can configure a minimum payment amount per currency. Deposits below the minimum amount are rejected. In order to enforce the minimum amount, the Deposit payment control plugin needs to be enabled by setting the following property in the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill Configuration File]:
+
+[source,bash]
+----
+org.killbill.payment.invoice.plugin=killbill-deposit
+----
+
+This property can also be set on a per-tenant or per-request basis.
+
+The minimum amounts are configured via the following property:
+
+[options="header",cols="1,1,1,1"]
+|===
+|Property Name   |Description   | Required|Default Value
+//----------------------
+|minAmounts|Minimum payment amount for each currency, specified as `<CURRENCY>: <AMOUNT>` pairs. Currencies that are not listed have no minimum.|No|-
+|===
+
+This configuration can easily be done via the https://aviate.killbill.io/home[Aviate UI]. Refer to https://docs.killbill.io/latest/plugin_installation#_configuring_via_aviate_ui[this doc] for a detailed demo.
+
+Alternatively, these properties can be configured on a per-tenant basis via the https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin[Add a per-tenant configuration for a plugin] endpoint. For example, to set a minimum amount of `0.5` USD for the `bob/lazar` tenant, you can use the following curl:
+
+[source, bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: text/plain' \
+     -d '!!org.killbill.billing.plugin.deposit.DepositConfiguration
+  minAmounts:
+    USD: 0.5' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPluginConfig/killbill-deposit
+----
+
+Expected result: HTTP `201`/`204` and no validation errors in the response.
+
+== Kaui Integration
+
+A Deposit UI is available in Kaui once the Deposit plugin is installed. It allows you to record deposits against the invoices of an account and can be accessed by clicking the "Create Deposit" button on the account page. Refer to the https://docs.killbill.io/latest/userguide_kaui#deposit[Kaui Guide] for further details.
+
+[[recording_a_deposit]]
+== Recording a Deposit
+
+This API can be used to record a deposit against one or more invoices of an account. It accepts the following fields:
+
+[options="header",cols="1,2,1"]
+|===
+|Field   |Description   | Required
+//----------------------
+|accountId|Id of the Kill Bill account that made the deposit.|Yes
+|effectiveDate|Date on which the deposit was received, for example `2026-11-05`. It is used as the payment date.|Yes
+|paymentReferenceNumber|Reference of the deposit, for example the wire or check number.|Yes
+|depositType|Type of the deposit, for example `wire` or `check`.|Yes
+|payments|List of invoices to pay. Each entry specifies the `invoiceNumber` (the invoice number, not the invoice id) and the `paymentAmount` to apply to that invoice.|Yes
+|===
+
+For example:
+
+[source, bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: application/json' \
+     -H 'Accept: application/json' \
+     -d '{
+  "accountId": "<ACCOUNT_ID>",
+  "effectiveDate": "2026-11-05",
+  "paymentReferenceNumber": "WIRE-12345",
+  "depositType": "wire",
+  "payments": [
+    {
+      "invoiceNumber": 824,
+      "paymentAmount": 100.00
+    }
+  ]
+}' \
+     http://127.0.0.1:8080/plugins/killbill-deposit/record
+----
+
+If successful, it returns a status code of `201`. Otherwise, it returns one of the following status codes:
+
+[options="header",cols="1,3"]
+|===
+|Status Code   |Reason
+//----------------------
+|`400`|The `effectiveDate`, `paymentReferenceNumber` or `depositType` field is missing.
+|`404`|The account or one of the invoices does not exist.
+|`422`|Kill Bill or the Deposit payment control plugin aborted the payment. For example, the invoice is not committed, the invoice is already paid, or the amount is below the configured minimum amount.
+|`500`|Any other error, for example a payment amount that is greater than the invoice balance.
+|===
+
+NOTE: Entries with a missing or zero `paymentAmount` are skipped. Invoices are processed in the order specified in the request, and processing stops at the first error. Payments recorded for the invoices before the failing invoice are not rolled back.
+
+== Partial Payments and Overpayments
+
+**Partial Payments:**
+
+If the `paymentAmount` is less than the invoice balance, the payment is applied and the invoice remains unpaid with the remaining balance. Subsequent deposits can be recorded against the same invoice until it is fully paid.
+
+**Overpayments:**
+
+Kill Bill does not allow a payment greater than the invoice balance. In order to record an overpayment, follow the steps given below:
+
+. https://apidocs.killbill.io/invoice#retrieve-an-invoice-by-id[Retrieve the invoice] to obtain its balance.
+. Record a deposit for the invoice balance as explained in the <<recording_a_deposit, Recording a Deposit>> section above.
+. https://apidocs.killbill.io/credit#create-credits[Create a credit] on the account for the remaining amount. The credit is automatically applied to future invoices.
+
+**Refunds:**
+
+The Deposit plugin only supports purchase payments. Refunds, credits and voids are not supported by the plugin and need to be handled outside Kill Bill.
+
+== Testing the Plugin
+
+Once the plugin is installed, you can use it to record offline payments against Kill Bill invoices. You can follow the steps given below to test the plugin:
+
+. Ensure that the plugin is installed as explained above.
+
+. https://apidocs.killbill.io/account#create-an-account[Create] a Kill Bill account. Save the **accountId** for further use.
+
+. Create an https://apidocs.killbill.io/invoice#create-external-charge-s[external charge] of `500` USD on the account. Save the **invoiceNumber** of the generated invoice for further use.
+
+. Record a deposit of `100` USD against the invoice as explained in the <<recording_a_deposit, Recording a Deposit>> section above.
++
+Expected result: HTTP `201`.
+
+. https://apidocs.killbill.io/account#retrieve-account-invoices[Retrieve Account Invoices].
++
+✅ **Expected Result:** The invoice balance is reduced to `400` USD. In Kaui, the account's payments include a payment for `100` USD made with the `killbill-deposit` payment method.
