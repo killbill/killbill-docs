@@ -66,14 +66,47 @@ The Deposit plugin requires some additional database tables. To create these tab
 
 The Deposit plugin does not require any configuration to record deposits.
 
-Optionally, you can configure a minimum payment amount per currency. The minimum is checked separately for each invoice payment, not against the total deposit amount. In order to enforce the minimum amount, enable the Deposit payment control plugin by setting the following property in the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill Configuration File]:
+Optionally, the plugin can enforce a minimum payment amount per currency. The minimum is checked separately for each invoice payment, not against the total deposit amount. Setting this up involves two steps:
+
+. <<enabling_the_payment_control_plugin, Enable the Deposit payment control plugin>>.
+. <<configuring_minimum_amounts, Configure the minimum amounts>>.
+
+[[enabling_the_payment_control_plugin]]
+=== Enabling the Payment Control Plugin
+
+The minimum amount is enforced by the Deposit payment control plugin, which is enabled via the `org.killbill.payment.invoice.plugin` property. This property can be set globally or on a per-tenant basis.
+
+To enable the plugin globally (for all tenants), set the following property in the https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties[Kill Bill Configuration File]:
 
 [source,bash]
 ----
 org.killbill.payment.invoice.plugin=killbill-deposit
 ----
 
-This property can also be set on a per-tenant basis.
+To enable the plugin for a specific tenant, set the property as a https://docs.killbill.io/latest/userguide_configuration.html#_per_tenant_properties[per-tenant property]. This can easily be done via the https://aviate.killbill.io[Aviate UI] by navigating to the `Settings` tab in the left nav. Alternatively, you can invoke the https://apidocs.killbill.io/#tenant-add-a-per-tenant-system-properties-configuration[uploadPerTenantConfig] endpoint. For example, to enable the plugin for the `bob/lazar` tenant, you can use the following curl:
+
+[source,bash]
+----
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: text/plain' \
+     -d '{"org.killbill.payment.invoice.plugin":"killbill-deposit"}' \
+     http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig
+----
+
+[NOTE]
+====
+* The `org.killbill.payment.invoice.plugin` property accepts a comma-separated list of payment control plugins. If other payment control plugins are already configured, add `killbill-deposit` to the existing list instead of replacing it.
+* Each call to the `uploadPerTenantConfig` endpoint overwrites the previous per-tenant properties, so the full list of properties must be specified for the tenant.
+* Once enabled, the minimum amount is checked for all invoice payments in the tenant, not only for deposits.
+====
+
+[[configuring_minimum_amounts]]
+=== Configuring Minimum Amounts
 
 The minimum amounts are configured via the following property:
 
@@ -86,9 +119,9 @@ The minimum amounts are configured via the following property:
 
 This configuration can easily be done via the https://aviate.killbill.io/home[Aviate UI]. Refer to https://docs.killbill.io/latest/plugin_installation#_configuring_via_aviate_ui[this doc] for a detailed demo.
 
-Alternatively, these properties can be configured on a per-tenant basis via the https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin[Add a per-tenant configuration for a plugin] endpoint. For example, to set a minimum amount of `0.5` USD for the `bob/lazar` tenant, you can use the following curl:
+Alternatively, the minimum amounts can be configured via the https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin[Add a per-tenant configuration for a plugin] endpoint. For example, to set a minimum amount of `0.5` USD for the `bob/lazar` tenant, you can use the following curl:
 
-[source, bash]
+[source,bash]
 ----
 curl -v \
      -X POST \
@@ -182,7 +215,7 @@ Kill Bill does not allow a payment greater than the invoice balance. In order to
 
 **Refunds:**
 
- The Deposit plugin only supports purchase payment transactions. The plugin does not support refund, credit and void payment transactions, so you must handle any associated movement of funds externally. Account credits, such as those described in the overpayment workflow above, can still be created in Kill Bill.
+The Deposit plugin only supports purchase payment transactions. The plugin does not support refund, credit and void payment transactions, so you must handle any associated movement of funds externally. Account credits, such as those described in the overpayment workflow above, can still be created in Kill Bill.
 
 == Testing the Plugin
 
