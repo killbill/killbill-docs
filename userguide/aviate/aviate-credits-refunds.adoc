@@ -1,0 +1,253 @@
+= Credits, Refunds & Invoice Adjustments
+
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description:
+include::{sourcedir}/includes/premium-card.adoc[]
+
+== Overview
+
+Billing corrections are a routine part of operations — handling disputes, issuing goodwill credits, correcting invoice errors, and processing refunds. This guide covers Kill Bill account credits, invoice adjustments, invoice voiding, and payment refunds, with Aviate-specific context on how these operations interact with wallets, tax, and revenue recognition.
+
+NOTE: These operations use *Kill Bill core APIs* (base path `/1.0/kb/`) with *Basic authentication* (`-u admin:password`) and tenant headers. Aviate's wallet credits (`CREDIT_FREE`, `CREDIT_PAID`) are *separate* from Kill Bill's native account credits. For Aviate wallet credits, see https://docs.killbill.io/latest/aviate-wallet.html[Wallet Guide].
+
+== Prerequisites
+
+* A running Kill Bill instance with the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[Aviate plugin installed].
+* Kill Bill admin credentials (Basic auth — `admin:password` by default).
+* Tenant API key and secret (`X-Killbill-ApiKey` / `X-Killbill-ApiSecret`).
+* The target account ID, invoice ID, or payment ID depending on the operation.
+
+== Aviate Wallet Credits vs. Kill Bill Account Credits
+
+Aviate wallet credits and Kill Bill account credits are two distinct mechanisms. Understanding the difference is important to avoid confusion.
+
+[cols="2,3,3", options="header"]
+|===
+| Feature | Aviate Wallet Credits | Kill Bill Account Credits
+
+| Created via
+| `POST /plugins/aviate-plugin/v1/wallet/\{id}/credit` (Bearer token)
+| `POST /1.0/kb/credits` (Basic auth)
+
+| Scope
+| Wallet-level (tied to a specific wallet)
+| Account-level (applied to any invoice)
+
+| Expiration
+| Configurable per credit
+| No expiration
+
+| Top-off
+| Automatic (via `TOP_OFF_FIXED` or `TOP_OFF_TARGET`)
+| Manual only
+
+| Invoicing
+| Paid credits trigger an invoice; free credits do not
+| Generates a credit memo (CBA) invoice
+
+| Usage
+| Consumed by usage-based invoicing against the wallet
+| Applied as credit-balance-adjustment to the next invoice
+
+| Authentication
+| Bearer token (Aviate plugin API)
+| Basic auth (Kill Bill core API)
+|===
+
+IMPORTANT: Adding a Kill Bill account credit does *not* increase the Aviate wallet balance, and vice versa. They are independent systems.
+
+== Add Account Credit
+
+Account credits create a credit-balance-adjustment (CBA) that is automatically applied to the next invoice. Use this for goodwill credits, billing error corrections, or service outage compensation.
+
+[source,bash]
+----
+curl -v -X POST \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "{accountId}",
+    "creditAmount": 15.00,
+    "currency": "USD",
+    "description": "Customer goodwill credit"
+  }' \
+  "http://127.0.0.1:8080/1.0/kb/credits"
+----
+
+*Expected result:* A credit memo invoice is generated for the specified amount. The credit is automatically applied to offset the next invoice balance on the account.
+
+== Adjust an Invoice Item
+
+Invoice item adjustments reduce the amount of a specific line item on an existing invoice. This is useful for partial credits — for example, compensating a customer for a partial service outage without voiding the entire invoice.
+
+[source,bash]
+----
+curl -v -X POST \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "{accountId}",
+    "invoiceItemId": "{invoiceItemId}",
+    "amount": 5.00,
+    "description": "Partial service outage credit"
+  }' \
+  "http://127.0.0.1:8080/1.0/kb/invoices/{invoiceId}"
+----
+
+*Expected result:* An adjustment item is added to the invoice, reducing the balance by the specified amount. The invoice total is updated accordingly. If the invoice was already paid, the adjustment creates an account credit (CBA) for the adjusted amount.
+
+== Void an Invoice
+
+Voiding an invoice reverses all its items and sets the invoice status to `VOID`. This is a full reversal — use it when the entire invoice was generated in error.
+
+[source,bash]
+----
+curl -v -X PUT \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  "http://127.0.0.1:8080/1.0/kb/invoices/{invoiceId}/voidInvoice"
+----
+
+*Expected result:* All invoice items are reversed. The account balance is adjusted accordingly.
+
+IMPORTANT: You *cannot* void an invoice that has payments associated with it. You must refund the payments first, then void the invoice.
+
+== Refund a Payment
+
+Refunds return money to the customer for a previous payment. Kill Bill supports two refund modes depending on the `isAdjusted` flag.
+
+=== Refund with Invoice Adjustment
+
+When `isAdjusted` is `true`, the refund also adjusts the invoice — the invoice balance is reduced by the refund amount. Use this when you want to both return money and correct the invoice.
+
+[source,bash]
+----
+curl -v -X POST \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 29.99,
+    "isAdjusted": true
+  }' \
+  "http://127.0.0.1:8080/1.0/kb/payments/{paymentId}/refunds"
+----
+
+*Expected result:* The payment gateway processes the refund. Kill Bill adjusts the corresponding invoice by the refund amount.
+
+=== Refund without Invoice Adjustment
+
+When `isAdjusted` is `false`, only the payment is refunded — the invoice balance remains unchanged. This creates an account balance that needs to be settled.
+
+[source,bash]
+----
+curl -v -X POST \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 29.99,
+    "isAdjusted": false
+  }' \
+  "http://127.0.0.1:8080/1.0/kb/payments/{paymentId}/refunds"
+----
+
+*Expected result:* The payment gateway processes the refund. The invoice balance is not changed — the account shows an outstanding balance equal to the refund amount.
+
+== Impact on Aviate Features
+
+=== Tax
+
+Refunded or voided invoice items may require tax adjustment. If the original invoice included tax items generated by Aviate Tax, the adjustment or void reverses the charge but does *not* automatically reverse the tax item. Check your tax logic configuration to determine whether a separate tax adjustment is needed. See https://docs.killbill.io/latest/aviate-tax.html[Tax Configuration].
+
+=== Revenue Recognition
+
+Credits and refunds trigger revenue reversals in the recognition schedule. If Aviate revenue recognition is enabled, invoice adjustments and voids will create corresponding reversal entries in the revenue recognition report.
+
+=== Wallet
+
+Kill Bill account credits are *completely separate* from Aviate wallet credits:
+
+* Adding a KB account credit does *not* increase the wallet balance.
+* Refunding a payment does *not* restore wallet credits that were consumed.
+* Voiding an invoice that consumed wallet credits does *not* automatically return credits to the wallet.
+
+If you need to restore wallet credits, you must manually add credits back to the wallet via the Aviate wallet API. See https://docs.killbill.io/latest/aviate-wallet.html[Wallet Guide].
+
+=== Metering
+
+Adjusting a `USAGE` invoice item corrects the financial record but does *not* reverse the underlying metering events. The usage events remain in Kill Bill's usage store. If you need to correct metering data, use the Aviate metering APIs separately. See https://docs.killbill.io/latest/aviate-metering.html[Metering].
+
+== What to Verify
+
+After performing credit, refund, or adjustment operations, verify the results:
+
+=== Check Account Balance
+
+[source,bash]
+----
+curl -v \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/1.0/kb/accounts/{accountId}"
+----
+
+Look for the `accountBalance` and `accountCBA` (credit balance adjustment) fields.
+
+=== Check Invoice Details
+
+[source,bash]
+----
+curl -v \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/1.0/kb/invoices/{invoiceId}?withItems=true"
+----
+
+Verify that adjustment items appear and the invoice balance is correct.
+
+=== Check Payment Status
+
+[source,bash]
+----
+curl -v \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/1.0/kb/payments/{paymentId}"
+----
+
+Verify that the refund transaction appears in the payment's transaction list with status `SUCCESS`.
+
+== Common Pitfalls
+
+1. **Confusing Aviate wallet credits with KB account credits** — they are independent systems with different APIs, authentication methods, and behaviors. Review the comparison table above.
+2. **Refunding more than the payment amount** — returns an error. The refund amount cannot exceed the original payment amount minus any previous refunds.
+3. **Voiding an invoice that has payments** — returns an error. You must refund all payments on the invoice before voiding it.
+4. **Adjusting a USAGE invoice item** — corrects the financial record but does not reverse the underlying metering events. Usage data must be corrected separately via Aviate metering APIs.
+5. **Credit applied to wrong currency** — returns a `400 Bad Request` error. The credit currency must match the account's currency.
+6. **Large credit amounts without approval** — there is no built-in approval workflow for credits. Consider implementing business process controls outside Kill Bill for large credit amounts.
+
+== Related
+
+* https://docs.killbill.io/latest/aviate-wallet.html[Wallet] — Aviate-managed prepaid credits
+* https://docs.killbill.io/latest/aviate-subscription-lifecycle.html[Subscription Lifecycle] — plan changes, cancellations, pauses
+* https://docs.killbill.io/latest/aviate-tax.html[Tax Configuration] — tax implications of adjustments
+* https://docs.killbill.io/latest/aviate-metering.html[Metering] — usage event handling and corrections
+* https://docs.killbill.io/latest/aviate-coupons.html[Coupons] — discount behavior with credits
