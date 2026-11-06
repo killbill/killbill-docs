@@ -207,7 +207,25 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>The Deposit plugin does not require any configuration to record deposits.</p>
 </div>
 <div class="paragraph">
-<p>Optionally, you can configure a minimum payment amount per currency. The minimum is checked separately for each invoice payment, not against the total deposit amount. In order to enforce the minimum amount, enable the Deposit payment control plugin by setting the following property in the <a href="https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties">Kill Bill Configuration File</a>:</p>
+<p>Optionally, the plugin can enforce a minimum payment amount per currency. The minimum is checked separately for each invoice payment, not against the total deposit amount. Setting this up involves two steps:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><a href="#enabling_the_payment_control_plugin">Enable the Deposit payment control plugin</a>.</p>
+</li>
+<li>
+<p><a href="#configuring_minimum_amounts">Configure the minimum amounts</a>.</p>
+</li>
+</ol>
+</div>
+<div class="sect2">
+<h3 id="enabling_the_payment_control_plugin">Enabling the Payment Control Plugin</h3>
+<div class="paragraph">
+<p>The minimum amount is enforced by the Deposit payment control plugin, which is enabled via the <code>org.killbill.payment.invoice.plugin</code> property. This property can be set globally or on a per-tenant basis.</p>
+</div>
+<div class="paragraph">
+<p>To enable the plugin globally (for all tenants), set the following property in the <a href="https://docs.killbill.io/latest/userguide_configuration.html#global_configuration_properties">Kill Bill Configuration File</a>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -215,8 +233,48 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </div>
 </div>
 <div class="paragraph">
-<p>This property can also be set on a per-tenant basis.</p>
+<p>To enable the plugin for a specific tenant, set the property as a <a href="https://docs.killbill.io/latest/userguide_configuration.html#_per_tenant_properties">per-tenant property</a>. This can easily be done via the <a href="https://aviate.killbill.io">Aviate UI</a> by navigating to the <code>Settings</code> tab in the left nav. Alternatively, you can invoke the <a href="https://apidocs.killbill.io/#tenant-add-a-per-tenant-system-properties-configuration">uploadPerTenantConfig</a> endpoint. For example, to enable the plugin for the <code>bob/lazar</code> tenant, you can use the following curl:</p>
 </div>
+<div class="listingblock">
+<div class="content">
+<pre class="pygments highlight"><code data-lang="bash"><span></span>curl<span class="tok-w"> </span>-v<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>-X<span class="tok-w"> </span>POST<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>-u<span class="tok-w"> </span>admin:password<span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>-H<span class="tok-w"> </span><span class="tok-s1">&#39;X-Killbill-ApiKey: bob&#39;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>-H<span class="tok-w"> </span><span class="tok-s1">&#39;X-Killbill-ApiSecret: lazar&#39;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>-H<span class="tok-w"> </span><span class="tok-s1">&#39;X-Killbill-CreatedBy: admin&#39;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>-H<span class="tok-w"> </span><span class="tok-s1">&#39;Content-Type: text/plain&#39;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>-d<span class="tok-w"> </span><span class="tok-s1">&#39;{&quot;org.killbill.payment.invoice.plugin&quot;:&quot;killbill-deposit&quot;}&#39;</span><span class="tok-w"> </span><span class="tok-se">\</span>
+<span class="tok-w">     </span>http://127.0.0.1:8080/1.0/kb/tenants/uploadPerTenantConfig</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+<div class="ulist">
+<ul>
+<li>
+<p>The <code>org.killbill.payment.invoice.plugin</code> property accepts a comma-separated list of payment control plugins. If other payment control plugins are already configured, add <code>killbill-deposit</code> to the existing list instead of replacing it.</p>
+</li>
+<li>
+<p>Each call to the <code>uploadPerTenantConfig</code> endpoint overwrites the previous per-tenant properties, so the full list of properties must be specified for the tenant.</p>
+</li>
+<li>
+<p>Once enabled, the minimum amount is checked for all invoice payments in the tenant, not only for deposits.</p>
+</li>
+</ul>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="configuring_minimum_amounts">Configuring Minimum Amounts</h3>
 <div class="paragraph">
 <p>The minimum amounts are configured via the following property:</p>
 </div>
@@ -248,7 +306,7 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 <p>This configuration can easily be done via the <a href="https://aviate.killbill.io/home">Aviate UI</a>. Refer to <a href="https://docs.killbill.io/latest/plugin_installation#_configuring_via_aviate_ui">this doc</a> for a detailed demo.</p>
 </div>
 <div class="paragraph">
-<p>Alternatively, these properties can be configured on a per-tenant basis via the <a href="https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin">Add a per-tenant configuration for a plugin</a> endpoint. For example, to set a minimum amount of <code>0.5</code> USD for the <code>bob/lazar</code> tenant, you can use the following curl:</p>
+<p>Alternatively, the minimum amounts can be configured via the <a href="https://apidocs.killbill.io/tenant#add-a-per-tenant-configuration-for-a-plugin">Add a per-tenant configuration for a plugin</a> endpoint. For example, to set a minimum amount of <code>0.5</code> USD for the <code>bob/lazar</code> tenant, you can use the following curl:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -267,6 +325,7 @@ pre.pygments .tok-il { color: #666666 } /* Literal.Number.Integer.Long */</style
 </div>
 <div class="paragraph">
 <p>Expected result: HTTP <code>201</code>/<code>204</code> and no validation errors in the response.</p>
+</div>
 </div>
 </div>
 </div>
@@ -431,10 +490,8 @@ Entries with a missing or zero <code>paymentAmount</code> are skipped. Invoices 
 <div class="paragraph">
 <p><strong>Refunds:</strong></p>
 </div>
-<div class="literalblock">
-<div class="content">
-<pre>The Deposit plugin only supports purchase payment transactions. The plugin does not support refund, credit and void payment transactions, so you must handle any associated movement of funds externally. Account credits, such as those described in the overpayment workflow above, can still be created in Kill Bill.</pre>
-</div>
+<div class="paragraph">
+<p>The Deposit plugin only supports purchase payment transactions. The plugin does not support refund, credit and void payment transactions, so you must handle any associated movement of funds externally. Account credits, such as those described in the overpayment workflow above, can still be created in Kill Bill.</p>
 </div>
 </div>
 </div>
