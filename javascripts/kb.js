@@ -187,7 +187,6 @@ if (document.querySelector('.landing-page')) {
     'aviate-intents',
     'aviate-product-catalog',
     'aviate-quotes-orders',
-    'aviate-rbac',
     'aviate-revenue-recognition',
     'aviate-usage-rating'
   ];

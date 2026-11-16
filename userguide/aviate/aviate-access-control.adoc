@@ -1,0 +1,634 @@
+= Aviate Access Control
+
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description:
+include::{sourcedir}/includes/premium-card.adoc[]
+
+== Overview
+
+Aviate access control decides what each person, or each application, can do through the Aviate APIs and the Aviate UI. It is built on the Kill Bill security model rather than next to it:
+
+* A *role* is a regular Kill Bill role, created with the Kill Bill https://apidocs.killbill.io/security[security APIs].
+* A role holds Kill Bill permissions (`account:create`, `entitlement:cancel`, ...) *and* Aviate permissions (`aviate_quote:submit`, `aviate_revenue:close`, ...). There is a single place to define what a role can do.
+* Each Aviate user has one role per organization. The role travels in the user's Aviate token, and Kill Bill and Aviate both enforce it.
+
+Roles are assigned to people from the Aviate UI (see https://docs.killbill.io/latest/aviate-members.html[Aviate Members]). When your organization signs in with its own identity provider, new users get a default role (see https://docs.killbill.io/latest/aviate-sso.html[Aviate Single Sign-On]).
+
+== Key Concepts
+
+=== Who Calls Aviate
+
+[cols="1,2,2", options="header"]
+|===
+| Caller | Authentication | Permissions come from
+
+| The *owner* of the Aviate subscription
+| Aviate token (`Authorization: Bearer <ID token>`)
+| The `aviate_owner` role, which the owner always has
+
+| A *member* of the organization
+| Aviate token (`Authorization: Bearer <ID token>`)
+| The role the owner gave the member (`aviate_read` by default)
+
+| A *Kill Bill user*, for example an application calling Aviate on behalf of your customers
+| Kill Bill credentials (`Authorization: Basic ...`)
+| The Kill Bill roles of that user, exactly as for the Kill Bill APIs
+|===
+
+The role of an Aviate user is carried in the `aviate_role` claim of the ID token. Kill Bill reads it through its Cognito realm, and looks up the permissions of that role in its own role definitions. Kill Bill users authenticated with `Basic` are unchanged: their roles come from the Kill Bill realms you already use (database users or `shiro.ini`).
+
+=== How a Request Is Checked
+
+Every Aviate endpoint declares the permissions it requires:
+
+. *The Aviate permission* for the action, for example `aviate_quote:submit`.
+. *The Kill Bill permissions* for the Kill Bill operations the action performs. Submitting a quote creates, changes and cancels subscriptions, so it also requires `entitlement:create`, `entitlement:change_plan` and `entitlement:cancel`.
+
+The caller needs all of them. A role can therefore never do through Aviate what it could not do with the Kill Bill APIs directly. Aviate then calls Kill Bill *as the caller*, so Kill Bill applies its own checks as well.
+
+A few more rules:
+
+* *Default deny.* A permission that is not granted is refused, and an endpoint that does not declare its permissions is refused for everyone.
+* *Reads.* Kill Bill has no read permissions: any authenticated user can read Kill Bill data. Reads of Aviate data are controlled by the `<area>:view` permissions (`aviate_quote:view`, `aviate_revenue:view`, ...).
+* *Background work.* Some actions run later, in the background: scheduled contract changes, future cancellations, wallet top-offs, workflow steps. They are authorized when they are requested, and then run with the plugin's own credentials.
+
+=== Permission Names
+
+Aviate permissions follow the Kill Bill `<group>:<action>` convention. Each group starts with `aviate_`, for example `aviate_contract:activate`. The full list is in <<permission-reference>>.
+
+Kill Bill wildcards apply on the action: `aviate_quote:*` grants every quote action. A wildcard on the group name (`aviate_*`) does not work: list each group instead. `*:*` grants everything, Kill Bill and Aviate.
+
+== Built-In Roles
+
+Two role names have a fixed meaning in Aviate. They must exist on every Kill Bill deployment your organization uses.
+
+[cols="1,3", options="header"]
+|===
+| Role | Meaning
+
+| `aviate_owner`
+| The owner of the Aviate subscription always has this role, whether or not the organization uses single sign-on. It cannot be given to members. Define it with `*:*`.
+
+| `aviate_read`
+| The default role of new members: every `:view` permission, plus `invoice:dry_run` (invoice previews).
+|===
+
+When access control is enabled (mode `log` or `enforce`, see <<Enabling Access Control>>), the Aviate plugin creates both roles on startup if they don't exist on that Kill Bill. It never changes a role that already exists: you can adjust `aviate_read` to your needs.
+
+For reference, this is how to create `aviate_read` yourself, with a Kill Bill user allowed to manage roles (for example the Kill Bill admin):
+
+[source,bash]
+----
+curl -v -X POST \
+  -u admin:password \
+  -H "Content-Type: application/json" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -d '{
+        "role": "aviate_read",
+        "permissions": [
+          "aviate_ba:view", "aviate_quote:view", "aviate_quote_template:view",
+          "aviate_related_party:view", "aviate_order:view", "aviate_contract:view",
+          "aviate_catalog:view", "aviate_rating:view", "aviate_metering:view",
+          "aviate_coupon:view", "aviate_policy:view", "aviate_approval:view",
+          "aviate_intent:view", "aviate_workflow:view", "aviate_wallet:view",
+          "aviate_revenue:view", "aviate_bi:view", "aviate_health:view",
+          "invoice:dry_run"
+        ]
+      }' \
+  http://127.0.0.1:8080/1.0/kb/security/roles
+----
+
+[NOTE]
+If a member's role is not defined on a deployment, the member gets no permissions there: they can still read Kill Bill data, but cannot read Aviate data or change anything.
+
+== Your Own Roles
+
+You decide which roles your organization needs. Each member has *one* role, and Kill Bill roles do not inherit from each other: a role that should also read everything repeats the `aviate_read` permissions.
+
+The following roles are an example of how an organization could split the work. Aviate does not create them. Each person role below is `aviate_read` *plus* the listed permissions.
+
+[cols="1,2,3", options="header"]
+|===
+| Role | Aviate permissions | Kill Bill permissions
+
+| `aviate_sales` +
+Owns quotes, from draft to submit
+| `aviate_quote:*`, `aviate_ba:create`, `aviate_ba:update`, `aviate_related_party:update`, `aviate_intent:update`
+| `entitlement:create`, `entitlement:change_plan`, `entitlement:cancel`, `account:create`, `account:update`, `account:add_emails`
+
+| `aviate_sales_manager` +
+`aviate_sales` plus approvals
+| Same as `aviate_sales`, plus `aviate_approval:decide`, `aviate_intent:approve`
+| Same as `aviate_sales`
+
+| `aviate_finance` +
+Revenue recognition and reporting
+| `aviate_revenue:*`
+|
+
+| `aviate_support` +
+Adjustments, subscription and contract changes
+| `aviate_contract:update`, `aviate_contract:activate`, `aviate_contract:terminate`, `aviate_order:cancel`, `aviate_wallet:create`, `aviate_wallet:update`, `aviate_wallet:credit`, `aviate_rating:charge`, `aviate_ba:update`
+| `entitlement:*`, `invoice:*`, `payment:trigger`, `payment:refund`, `payment:chargeback`, `payment_method:*`, `account:update`, `account:add_emails`, `account:delete_emails`, `account:charge`, `account:credit`, `tag:add`, `tag:delete`, `custom_field:*`
+
+| `aviate_product` +
+Catalog and configuration
+| `aviate_catalog:*`, `aviate_rating:update`, `aviate_rating:delete`, `aviate_metering:update`, `aviate_coupon:*`, `aviate_policy:*`, `aviate_quote_template:update`, `aviate_workflow:define`
+| `catalog:config_upload`, `catalog:delete`, `tenant_kvs:add`, `tenant_kvs:delete`, `overdue:config_upload`, `tag:create_tag_definition`, `tag:delete_tag_definition`
+
+| `aviate_ops` +
+Operations and troubleshooting
+| `aviate_health:*`
+| `admin:*`, `invoice:trigger`, `payment:transition`
+|===
+
+An application that calls Kill Bill and Aviate on behalf of your customers (a signup flow, a storefront) is not a person: give it its own Kill Bill user, with `Basic` authentication and only the permissions it calls. For example:
+
+[source,bash]
+----
+curl -v -X POST \
+  -u admin:password \
+  -H "Content-Type: application/json" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -d '{
+        "role": "storefront",
+        "permissions": [
+          "aviate_catalog:view", "aviate_ba:view", "aviate_ba:create",
+          "aviate_metering:view", "aviate_metering:record",
+          "account:create", "account:update", "account:add_emails",
+          "payment_method:*", "payment:trigger",
+          "entitlement:create", "entitlement:change_plan", "entitlement:pause_resume", "entitlement:cancel",
+          "usage:record", "invoice:dry_run"
+        ]
+      }' \
+  http://127.0.0.1:8080/1.0/kb/security/roles
+----
+
+Permissions are tenant-wide: such a user can act on any account of the tenant. Making sure each of your customers only reaches their own account is the application's job.
+
+[NOTE]
+Kill Bill permissions cannot express limits on amounts: a role with `invoice:credit` can credit any amount.
+
+== Enabling Access Control
+
+Aviate access control is turned off by default: existing installations keep working unchanged. Enabling it takes three steps.
+
+=== Step 1: Accept Aviate Tokens in Kill Bill
+
+Kill Bill must validate Aviate ID tokens and read the role they carry. Enable the Cognito realm with the following Kill Bill properties:
+
+[source,properties]
+----
+killbill.server.cognito=true
+org.killbill.security.cognito.issuer=<Aviate token issuer>
+org.killbill.security.cognito.audiences=<Aviate client ids>
+org.killbill.security.cognito.roleClaim=aviate_role
+----
+
+Contact the Aviate support team (support@killbill.io) for the issuer and audience values. Kill Bill deployments hosted by Aviate are already configured.
+
+Refer to the https://docs.killbill.io/latest/userguide_configuration.html[Kill Bill Configuration Guide] to know more about setting configuration properties.
+
+=== Step 2: Define the Roles
+
+On every Kill Bill deployment your organization uses, define the roles you give to members (see <<Your Own Roles>>). `aviate_owner` and `aviate_read` are created by the Aviate plugin in the next step (see <<Built-In Roles>>).
+
+=== Step 3: Turn On the Checks
+
+Set the `com.killbill.billing.plugin.aviate.auth.permissions.mode` property of the Aviate plugin:
+
+[cols="1,4", options="header"]
+|===
+| Mode | Behavior
+
+| `off` (default)
+| No permission checks. Aviate calls Kill Bill with the plugin's own credentials.
+
+| `log`
+| Requests that would be refused are logged with the missing permission, but are not blocked. Aviate still calls Kill Bill with the plugin's own credentials.
+
+| `enforce`
+| Requests without the required permissions are refused with `403 Forbidden`. Aviate calls Kill Bill as the caller, so Kill Bill checks the caller's permissions too. Requires step 1.
+|===
+
+We recommend running in `log` mode first, then switching to `enforce` once the logs show that your roles match how your teams work.
+
+The plugin caches role definitions for 60 seconds (`com.killbill.billing.plugin.aviate.auth.permissions.roleCacheTtlSeconds`). A change to a role's permissions applies within that delay. A change to a member's role applies the next time the member's session is refreshed.
+
+== Error Responses
+
+A caller without the required permissions gets `403 Forbidden`. With `Accept: application/problem+json`, the response body is:
+
+[source,json]
+----
+{
+  "status": 403,
+  "detail": "Missing Aviate permission"
+}
+----
+
+The Aviate plugin log names the missing Aviate or Kill Bill permission.
+
+A request without valid credentials gets `401 Unauthorized`. In `enforce` mode, Aviate never falls back to its own credentials for a caller Kill Bill could not authenticate.
+
+[[permission-reference]]
+== Permission Reference
+
+Paths are relative to `/plugins/aviate-plugin`. The *Kill Bill* column lists the Kill Bill permissions the endpoint also requires.
+
+The following endpoints need no permission: `POST /v1/auth` (issues the token) and `GET /healthcheck` (any authenticated caller).
+
+=== Billing Accounts
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/ba`, `GET /v1/ba/search`, `GET /v1/ba/{id}`, `GET /v1/ba/forKbAccountId/{id}`
+| `aviate_ba:view`
+|
+
+| `POST /v1/ba`
+| `aviate_ba:create`
+| `account:create`
+
+| `PUT /v1/ba/{id}`
+| `aviate_ba:update`
+|
+
+| `DELETE /v1/ba/{id}`
+| `aviate_ba:delete`
+|
+|===
+
+=== Quotes
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/quote`, `GET /v1/quote/all`, `GET /v1/quote/{id}`, `POST /v1/quote/{id}/proposal`
+| `aviate_quote:view`
+|
+
+| `POST /v1/quote`, `POST /v1/quote/{id}/clone`, `POST /v1/quote/{id}/versions`
+| `aviate_quote:create`
+|
+
+| `POST /v1/quote/{id}`, `DELETE /v1/quote/{id}/items/{itemId}`
+| `aviate_quote:update`
+|
+
+| `POST /v1/quote/{id}/sent`, `POST /v1/quote/{id}/accepted`, `POST /v1/quote/{id}/status`
+| `aviate_quote:transition`
+|
+
+| `DELETE /v1/quote/{id}` (cancels the quote)
+| `aviate_quote:cancel`
+|
+
+| `POST /v1/quote/{id}/submit`
+| `aviate_quote:submit`
+| `entitlement:create`, `entitlement:change_plan`, `entitlement:cancel`
+
+| `POST /v1/quote/{id}/submit/repair`
+| `aviate_quote:repair`
+| `entitlement:create`, `entitlement:change_plan`, `entitlement:cancel`
+|===
+
+=== Quote Template
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/quote/template/*` (body, translations, company, brand and logo information)
+| `aviate_quote_template:view`
+|
+
+| `PUT /v1/quote/template/*`
+| `aviate_quote_template:update`
+| `tenant_kvs:add`, `tenant_kvs:delete`
+|===
+
+=== Related Parties
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/{entityType}/{entityId}/relatedParties`
+| `aviate_related_party:view`
+|
+
+| `POST /v1/{entityType}/{entityId}/relatedParties`, `DELETE /v1/relatedParties/{id}`
+| `aviate_related_party:update`
+|
+|===
+
+=== Orders
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/order`, `GET /v1/order/quote/{quoteId}`, `GET /v1/order/{id}`, `GET /v1/order/{id}/snapshots`, `GET /v1/cancelOrder`, `GET /v1/cancelOrder/{id}`
+| `aviate_order:view`
+|
+
+| `POST /v1/cancelOrder`
+| `aviate_order:cancel`
+| `entitlement:cancel`
+|===
+
+=== Contracts
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/contracts/**` (contracts, terms, schedules)
+| `aviate_contract:view`
+|
+
+| `POST /v1/contracts` (always created as a draft)
+| `aviate_contract:create`
+|
+
+| `PUT /v1/contracts/{id}`, `PUT` a term, `DELETE /v1/contracts/{id}/schedules/{scheduleId}`
+| `aviate_contract:update`
+|
+
+| `POST /v1/contracts/{id}/schedules`, `PUT /v1/contracts/{id}/schedules/{scheduleId}`
+| `aviate_contract:update`
+| `entitlement:change_plan`, `entitlement:cancel`
+
+| `POST /v1/contracts/{id}/activate`, `POST /v1/contracts/{id}/renew`
+| `aviate_contract:activate`
+|
+
+| `POST /v1/contracts/{id}/terminate`
+| `aviate_contract:terminate`
+|
+|===
+
+=== Catalog, Pricing and Tax
+
+Applies to `/v1/catalog/**`: plans, products, input data, product specifications, offerings and prices.
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| Every `GET`; `POST /v1/catalog/productOfferingPrice/compute`; `POST /v1/pricing/compute`; `GET /v1/tax/codes`
+| `aviate_catalog:view`
+|
+
+| `POST`, `PUT`; `DELETE /v1/catalog/{planName}/retirePlan`
+| `aviate_catalog:update`
+| `catalog:config_upload`
+
+| `DELETE` a product, plan, specification, characteristic, offering or price
+| `aviate_catalog:delete`
+| `catalog:delete`
+|===
+
+=== Usage Rating
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/ratingCatalog/{id}`, `GET /v1/ratingCatalog/all`, `POST /v1/rating/quote`
+| `aviate_rating:view`
+|
+
+| `POST /v1/ratingCatalog`, `POST /v1/ratingCatalog/{id}/activate`, `POST /v1/ratingCatalog/{id}/retire`
+| `aviate_rating:update`
+|
+
+| `DELETE /v1/ratingCatalog/{id}`
+| `aviate_rating:delete`
+| `catalog:delete`
+
+| `POST /v1/rating/charge`
+| `aviate_rating:charge`
+| `account:charge`
+|===
+
+=== Metering
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/metering/{meterCode}/billingMeter`, `GET /v1/metering/billingMeters/all`
+| `aviate_metering:view`
+|
+
+| `POST /v1/metering/billingMeters`, `DELETE /v1/metering/{meterCode}/billingMeter`
+| `aviate_metering:update`
+|
+
+| `POST /v1/metering/billing/{accountId}` (record usage)
+| `aviate_metering:record`
+| `usage:record`
+|===
+
+=== Coupons
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/coupon`, `GET /v1/coupon/redemptionCode/{code}`
+| `aviate_coupon:view`
+|
+
+| `POST /v1/coupon`
+| `aviate_coupon:create`
+|
+
+| `PUT /v1/coupon/{code}/archive`
+| `aviate_coupon:update`
+|
+|===
+
+=== Discount and Approval Policies
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/discountPolicy`, `GET /v1/approvalPolicy`, `GET /v1/approvalPolicy/intentKinds`
+| `aviate_policy:view`
+|
+
+| `PUT` a policy; `POST`, `PUT`, `DELETE` its rules
+| `aviate_policy:update`
+|
+|===
+
+=== Approvals
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/approvals`, `GET /v1/approvals/{approvalId}`
+| `aviate_approval:view`
+|
+
+| `POST /v1/approvals/{approvalId}/approve`, `/reject`, `/requestChanges`
+| `aviate_approval:decide`
+|
+|===
+
+=== Intents
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/intents`, `GET /v1/intents/{id}`, `GET /v1/intents/{id}/history`, `GET /v1/intents/types`
+| `aviate_intent:view`
+|
+
+| `POST /v1/intents`, `PUT /v1/intents/{id}`, `DELETE /v1/intents/{id}`, `POST /v1/intents/{id}/validate`
+| `aviate_intent:update`
+|
+
+| `POST /v1/intents/{id}/approve`
+| `aviate_intent:approve`
+|
+|===
+
+=== Workflows
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/workflows/**` (definitions, executions, audit, snapshots); `POST /v1/workflows/definitions/validate`
+| `aviate_workflow:view`
+|
+
+| `POST /v1/workflows/definitions`, `DELETE /v1/workflows/definitions/{id}`
+| `aviate_workflow:define`
+|
+
+| `POST /v1/workflows/executions`, `/{id}/resume`, `/{id}/cancel`, `/{id}/steps/{step}/complete`
+| `aviate_workflow:execute`
+| The Kill Bill permissions of the workflow's steps
+|===
+
+=== Wallets
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/wallet/{accountId}`
+| `aviate_wallet:view`
+|
+
+| `POST /v1/wallet`
+| `aviate_wallet:create`
+| `account:charge`
+
+| `PUT /v1/wallet/{walletId}/topOffConfig`
+| `aviate_wallet:update`
+| `account:charge`
+
+| `PUT /v1/wallet/{walletId}/credit`
+| `aviate_wallet:credit`
+| `account:charge`
+|===
+
+=== Revenue Recognition
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| Every `GET /v1/revenue/**` except extracts (schedules, entries, periods, summaries, reports, ledger, SSP, allocations)
+| `aviate_revenue:view`
+|
+
+| `GET /v1/revenue/periods/{name}/extract/*`
+| `aviate_revenue:export`
+|
+
+| `POST /v1/revenue/{itemId}/schedule/regenerate`, `/triggerRevenueRecognition`, `POST /v1/revenue/periods`, `POST /v1/revenue/ssp`, `POST /v1/revenue/ssp/{id}/delete`, `DELETE /v1/revenue/ssp/{id}`, `POST /v1/revenue/contracts/{id}/allocations`
+| `aviate_revenue:update`
+|
+
+| `POST /v1/revenue/periods/{name}/close`, `/reopen`, `/recognize`
+| `aviate_revenue:close`
+|
+|===
+
+=== BI Reports
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/bi/reports`
+| `aviate_bi:view`
+|
+|===
+
+=== Health
+
+[cols="3,2,2", options="header"]
+|===
+| Endpoint | Aviate | Kill Bill
+
+| `GET /v1/health/**` (data, nodes, config, metrics, host samples, invoicing failures, failed bus events and notifications)
+| `aviate_health:view`
+|
+
+| `GET /v1/health/logs`, `GET /v1/health/diagnostic`
+| `aviate_health:diagnose`
+| `admin:export`
+
+| `PUT /v1/health/accounts/fixup`, `PUT /v1/health/bus/fixup`, `PUT /v1/health/notifications/fixup`, `PUT /v1/health/bus/failed`, `PUT /v1/health/notifications/failed`
+| `aviate_health:fix`
+| `admin:update`
+|===
+
+=== Summary
+
+[cols="1,3", options="header"]
+|===
+| Group | Actions
+
+| `aviate_ba` | `view`, `create`, `update`, `delete`
+| `aviate_quote` | `view`, `create`, `update`, `transition`, `cancel`, `submit`, `repair`
+| `aviate_quote_template` | `view`, `update`
+| `aviate_related_party` | `view`, `update`
+| `aviate_order` | `view`, `cancel`
+| `aviate_contract` | `view`, `create`, `update`, `activate`, `terminate`
+| `aviate_catalog` | `view`, `update`, `delete`
+| `aviate_rating` | `view`, `update`, `delete`, `charge`
+| `aviate_metering` | `view`, `update`, `record`
+| `aviate_coupon` | `view`, `create`, `update`
+| `aviate_policy` | `view`, `update`
+| `aviate_approval` | `view`, `decide`
+| `aviate_intent` | `view`, `update`, `approve`
+| `aviate_workflow` | `view`, `define`, `execute`
+| `aviate_wallet` | `view`, `create`, `update`, `credit`
+| `aviate_revenue` | `view`, `export`, `update`, `close`
+| `aviate_bi` | `view`
+| `aviate_health` | `view`, `diagnose`, `fix`
+|===
+
+== Related
+
+* https://docs.killbill.io/latest/aviate-members.html[Aviate Members] — invite members and give them a role
+* https://docs.killbill.io/latest/aviate-sso.html[Aviate Single Sign-On] — sign in with your organization's identity provider
+* https://docs.killbill.io/latest/aviate-authentication.html[Aviate Authentication] — obtain an ID token
+* https://apidocs.killbill.io/security[Kill Bill Security APIs] — create and update roles
