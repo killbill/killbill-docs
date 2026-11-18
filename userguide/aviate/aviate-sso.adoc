@@ -1,0 +1,162 @@
+= Aviate Single Sign-On
+
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description:
+include::{sourcedir}/includes/premium-card.adoc[]
+
+== Overview
+
+With single sign-on (SSO), the people of your organization sign in to Aviate with the identity provider (IdP) your company already uses, such as Okta, Microsoft Entra ID, Google Workspace, Auth0 or Keycloak. Aviate supports any IdP that speaks *OpenID Connect (OIDC)* or *SAML 2.0*.
+
+With SSO:
+
+* People sign in with their company login: there is no separate Aviate password to create or remember.
+* Your IdP stays in charge of who can sign in: someone you remove from your IdP can no longer sign in to Aviate.
+* Every email address on your company domain must sign in through your IdP. Aviate password sign-up is refused for that domain.
+* Members still get a role, which decides what they can do (see https://docs.killbill.io/latest/aviate-access-control.html[Aviate Access Control]).
+
+The Aviate support team sets up SSO on behalf of your organization, including the organization itself and its owner: nobody needs to create an Aviate login first. You provide the details, configure Aviate in your IdP, and prove that you own your email domain.
+
+== Join Modes
+
+You choose how people from your company become members of your Aviate organization.
+
+[cols="1,3", options="header"]
+|===
+| Mode | Behavior
+
+| Auto-join (default)
+| Anyone your IdP authenticates with an email on your domain becomes a member on their first sign-in, with the organization's *default role*. You then change each member's role as needed.
+
+| Invite-only
+| Only people you invite can sign in. You invite them by email from the *Members* tab, with a role, as described in https://docs.killbill.io/latest/aviate-members.html[Aviate Members]. Their first sign-in through your IdP accepts the invitation. Anyone else is refused, even if your IdP authenticates them.
+|===
+
+The *default role* is `aviate_read` unless you ask for another one. In auto-join mode, keep it narrow: anyone in your IdP gets it. It only applies to people who join without an invitation. People you invited get the role you picked for them, in both modes.
+
+== Before You Start
+
+* You know who will be the *owner* of your organization in Aviate: the person who manages members and their roles. The Aviate support team creates the organization and makes this person its owner; they don't need an Aviate login beforehand.
+* You can add a DNS record to your email domain, or you know who can.
+* You can create an application in your IdP, or you know who can.
+* The default role, and any role you plan to give members, is defined on each Kill Bill deployment your organization uses (see https://docs.killbill.io/latest/aviate-access-control.html#_built_in_roles[Built-In Roles]).
+
+== Step 1: Contact the Aviate Support Team
+
+Write to the Aviate support team at support@killbill.io: tell them you want to set up SSO for your organization, and which kind of IdP you use (OIDC or SAML). The team sends you what your IdP needs to know about Aviate:
+
+* For *OIDC*: the redirect (callback) URL.
+* For *SAML*: the Assertion Consumer Service (ACS) URL and the audience (SP entity ID).
+
+== Step 2: Configure Aviate in Your IdP
+
+Create an application for Aviate in your IdP, using the values from step 1, and assign it to the people who should use Aviate.
+
+Your IdP must send each user's email address:
+
+* For *OIDC*, through the `email` claim, and mark it as verified (`email_verified` set to `true`). Aviate requests the `openid email profile` scopes.
+* For *SAML*, through an attribute of your choice, for example `email` or `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`.
+
+== Step 3: Send Your Details
+
+Send the Aviate support team:
+
+[cols="1,3", options="header"]
+|===
+| Detail | Example
+
+| The name of your organization
+| `acme-corp`
+
+| The owner's work email
+| `jane@acme.com`
+
+| Your email domain(s)
+| `acme.com`
+
+| Your IdP settings, for *OIDC*
+| Issuer URL (`https://acme.okta.com`), client ID and client secret. Send the secret through a secure channel.
+
+| Your IdP settings, for *SAML*
+| Metadata URL (or metadata XML file), name of the email attribute, and whether Aviate should sign its requests, expect encrypted responses, or sign users out of your IdP when they sign out of Aviate.
+
+| The name of the sign-in button
+| `Acme Okta`
+
+| The join mode
+| Auto-join or invite-only
+
+| The default role
+| `aviate_read`
+|===
+
+== Step 4: Verify Your Domain
+
+The Aviate support team sends you a DNS TXT record for each domain, for example:
+
+[cols="1,3", options="header"]
+|===
+| Name | Value
+
+| `_aviate-sso.acme.com`
+| `aviate-sso-verification=<token>`
+|===
+
+Publish the record in your DNS and tell the team. Aviate checks it once, to confirm that your organization controls the domain. You can remove the record afterwards.
+
+== Step 5: Test and Go Live
+
+Once the domain is verified and your IdP settings are in place, the Aviate support team asks you to test a sign-in through your IdP. When the test succeeds, SSO is turned on for your organization.
+
+From then on, people sign in by entering their work email on the https://aviate.killbill.io[Aviate] sign-in page. Aviate sends them to your IdP and back. The owner signs in the same way, and gets the `aviate_owner` role on their first sign-in.
+
+== Managing Members With SSO
+
+Members who sign in through your IdP appear on the *Members* tab like any other member:
+
+* In *auto-join* mode, a person appears as *Active*, with the default role, after their first sign-in. Change their role from the *Role* column.
+* In *invite-only* mode, invite people from the *Members* tab before they sign in.
+* In both modes, *revoking* a member refuses their sign-ins, even if your IdP authenticates them.
+* Removing someone from your IdP, or from the Aviate application in your IdP, stops their sign-ins. A session already open stays valid until it expires.
+
+To change the join mode, the default role or your IdP settings, contact the Aviate support team. Switching from auto-join to invite-only keeps the members who already joined; revoke the ones who should no longer have access. Changing the default role does not change the role of existing members.
+
+[NOTE]
+A person who already has an Aviate password login with their work email cannot sign in through your IdP. Contact the Aviate support team if this happens.
+
+== Sign-In Errors
+
+When Aviate refuses an SSO sign-in, the sign-in page shows one of the following codes:
+
+[cols="1,3", options="header"]
+|===
+| Code | Meaning
+
+| `SSO_NOT_INVITED`
+| Your organization is invite-only, and this person has not been invited. Invite them from the *Members* tab.
+
+| `SSO_MEMBER_DEACTIVATED`
+| This person's access was revoked, or they declined the invitation.
+
+| `SSO_DOMAIN_MISMATCH`
+| The email address sent by your IdP is not on one of your verified domains.
+
+| `SSO_EMAIL_NOT_VERIFIED`
+| Your OIDC IdP did not mark the email address as verified (`email_verified`).
+
+| `SSO_PASSWORD_ACCOUNT_EXISTS`
+| This email address already has an Aviate password login. Contact the Aviate support team.
+
+| `SSO_NOT_ACTIVE`
+| SSO is not turned on for your organization yet.
+
+| `SSO_REQUIRED`
+| Someone tried to sign up to Aviate with a password using an email address on your domain. They must sign in through your IdP instead.
+|===
+
+== Related
+
+* https://docs.killbill.io/latest/aviate-members.html[Aviate Members] — invite members, change their role, revoke access
+* https://docs.killbill.io/latest/aviate-access-control.html[Aviate Access Control] — roles and permissions
