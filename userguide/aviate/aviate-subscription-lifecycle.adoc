@@ -1,0 +1,239 @@
+= Subscription Lifecycle Management
+
+:card-badge: Premium
+:card-title: Aviate
+:card-link: https://aviate.killbill.io/
+:card-description:
+include::{sourcedir}/includes/premium-card.adoc[]
+
+== Overview
+
+After a subscription is created — either manually via the Kill Bill API, through the Aviate UI, or through a https://docs.killbill.io/latest/aviate-quotes-orders.html[quote/order] — billing administrators need to manage ongoing changes: plan upgrades and downgrades, cancellations, and pauses. This guide covers these operations with Aviate-specific context.
+
+NOTE: The operations in this guide use *Kill Bill core APIs* (base path `/1.0/kb/`). They use *Basic authentication* (`-u admin:password`) with tenant headers, not Bearer tokens. This guide adds Aviate-specific context around how these changes interact with the Aviate catalog, wallets, coupons, tax, and metering.
+
+== Prerequisites
+
+* A running Kill Bill instance with the https://docs.killbill.io/latest/how-to-install-the-aviate-plugin.html[Aviate plugin installed].
+* An active subscription exists on the target account.
+* Kill Bill admin credentials (Basic auth — `admin:password` by default).
+* Tenant API key and secret (`X-Killbill-ApiKey` / `X-Killbill-ApiSecret`).
+* For Aviate-specific behavior (coupon carryover, tax recalculation, wallet interaction), the relevant Aviate feature flags must be enabled. See the individual feature guides for details.
+
+== Change Plan (Upgrade / Downgrade)
+
+Changing a subscription's plan lets you move a customer between tiers — for example from a `standard-monthly` plan to a `premium-monthly` plan. Kill Bill supports two timing policies: *immediate* and *end-of-term*.
+
+=== Immediate Change
+
+An immediate change takes effect right away. Kill Bill generates a prorated credit for the unused portion of the current plan and a new charge for the remaining portion of the billing period on the new plan.
+
+[source,bash]
+----
+curl -v -X PUT \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "planName": "premium-monthly",
+    "billingPolicy": "IMMEDIATE",
+    "priceList": "DEFAULT"
+  }' \
+  "http://127.0.0.1:8080/1.0/kb/subscriptions/{subscriptionId}"
+----
+
+*Expected result:* A new invoice is generated containing a credit item for the unused portion of the old plan and a charge item for the prorated amount of the new plan.
+
+=== Change at End of Billing Period
+
+An end-of-term change delays the switch until the current billing period ends. No proration is involved — the customer continues on the old plan until the period boundary, then transitions to the new plan.
+
+[source,bash]
+----
+curl -v -X PUT \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "planName": "premium-monthly",
+    "billingPolicy": "END_OF_TERM",
+    "priceList": "DEFAULT"
+  }' \
+  "http://127.0.0.1:8080/1.0/kb/subscriptions/{subscriptionId}"
+----
+
+*Expected result:* No immediate invoice change. The next invoice at the billing period boundary reflects the new plan pricing.
+
+=== Aviate Considerations for Plan Changes
+
+* **Coupons** — if a coupon was applied to the subscription, the discount carries over to the new plan _unless_ the new plan is not included in the coupon's `planList`. In that case the coupon stops applying. See https://docs.killbill.io/latest/aviate-coupons.html[Coupons].
+* **Tax** — tax is recalculated based on the new plan's product tax code. If the new product has a different tax code (or no tax code), the tax amount on subsequent invoices changes accordingly. See https://docs.killbill.io/latest/aviate-tax.html[Tax Configuration].
+* **Wallet** — wallet credits continue to apply to the new plan. The wallet balance is unaffected by the plan change itself. See https://docs.killbill.io/latest/aviate-wallet.html[Wallet].
+* **Quotes & Orders** — if the subscription was originally created via a quote or order, the plan change is independent of the original order. No updates are made to the order record.
+* **Metering** — usage events continue to be recorded against the same subscription ID. If the new plan has a different usage unit or billing meter, ensure the metering configuration matches.
+
+== Cancel Subscription
+
+Cancellation ends a subscription. Like plan changes, cancellation supports *immediate* and *end-of-term* policies.
+
+=== Cancel Immediately
+
+[source,bash]
+----
+curl -v -X DELETE \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  "http://127.0.0.1:8080/1.0/kb/subscriptions/{subscriptionId}?billingPolicy=IMMEDIATE"
+----
+
+*Expected result:* The entitlement ends immediately. A prorated credit is issued for the unused portion of the current billing period.
+
+=== Cancel at End of Term
+
+[source,bash]
+----
+curl -v -X DELETE \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  "http://127.0.0.1:8080/1.0/kb/subscriptions/{subscriptionId}?billingPolicy=END_OF_TERM"
+----
+
+*Expected result:* The customer retains service until the end of the current billing period. No prorated credit is generated. No further invoices are created after the effective cancellation date.
+
+=== What Happens After Cancellation
+
+* *Entitlement ends* — the customer loses access to the service as of the effective cancellation date.
+* *Prorated credit* — if `IMMEDIATE`, a credit is issued for the unused portion of the billing period. If `END_OF_TERM`, no proration occurs.
+* *No future invoices* — Kill Bill stops generating invoices for this subscription after the effective date.
+* *Wallet balance is not automatically refunded* — any remaining wallet credits stay on the wallet. They can be consumed by other subscriptions on the same account or manually adjusted. See https://docs.killbill.io/latest/aviate-wallet.html[Wallet].
+* *Metering stops* — Aviate metering no longer records usage events against the cancelled subscription. Any events submitted after cancellation for this subscription are rejected.
+* *Coupons* — active coupon redemptions linked to the cancelled subscription become inactive.
+
+== Pause / Resume
+
+Pausing suspends billing and entitlement for all subscriptions in a bundle. This is useful for temporary service holds (e.g., customer vacation, seasonal business).
+
+NOTE: Pause and resume operate at the *bundle* level, not the individual subscription level. All subscriptions within the bundle are affected.
+
+=== Pause a Subscription Bundle
+
+[source,bash]
+----
+curl -v -X PUT \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  "http://127.0.0.1:8080/1.0/kb/bundles/{bundleId}/pause"
+----
+
+*Expected result:* Billing and entitlement are suspended. No invoices are generated for the paused bundle until it is resumed.
+
+=== Resume a Subscription Bundle
+
+[source,bash]
+----
+curl -v -X PUT \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  "http://127.0.0.1:8080/1.0/kb/bundles/{bundleId}/resume"
+----
+
+*Expected result:* Billing and entitlement restart. The next invoice covers the period from the resume date forward.
+
+=== Aviate Considerations for Pause/Resume
+
+* *Wallet* — wallet credits are not consumed during the pause period. Automatic top-off is not triggered while the bundle is paused.
+* *Metering* — usage events submitted during the pause period are not invoiced. Depending on your configuration, they may be queued or rejected.
+* *Coupons* — coupon duration continues to tick during a pause. If a coupon expires while the bundle is paused, it will not apply when the bundle resumes.
+
+== Entitlement vs. Billing Dates
+
+Kill Bill distinguishes between two dates for every subscription lifecycle event:
+
+* **Entitlement date** — when service access starts or stops for the customer.
+* **Billing date** — when charges start or stop being generated.
+
+These dates can differ. For example, you can cancel a customer's entitlement today (they lose access immediately) but continue billing through the end of the month:
+
+[source,bash]
+----
+curl -v -X DELETE \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  -H "X-Killbill-CreatedBy: admin" \
+  "http://127.0.0.1:8080/1.0/kb/subscriptions/{subscriptionId}?entitlementPolicy=IMMEDIATE&billingPolicy=END_OF_TERM"
+----
+
+This combination is useful when you want to cut off service right away but avoid proration complexity, or when contractual terms require billing through the end of the period.
+
+== What to Verify
+
+After performing lifecycle operations, verify the results using these API calls:
+
+=== Check Subscription Status
+
+[source,bash]
+----
+curl -v \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/1.0/kb/subscriptions/{subscriptionId}"
+----
+
+Look for:
+
+* `state` — should be `ACTIVE`, `CANCELLED`, or `BLOCKED` (paused).
+* `planName` — should reflect the new plan after a change.
+* `billingStartDate` / `billingEndDate` — confirm the effective dates.
+
+=== Check Invoices
+
+[source,bash]
+----
+curl -v \
+  -u admin:password \
+  -H "X-Killbill-ApiKey: my-tenant" \
+  -H "X-Killbill-ApiSecret: my-secret" \
+  "http://127.0.0.1:8080/1.0/kb/accounts/{accountId}/invoices?withItems=true"
+----
+
+* After a plan change: the latest invoice should contain a credit for the old plan and a charge for the new plan.
+* After cancellation: no invoices should appear after the effective cancellation date.
+* After pause: no invoices should be generated during the pause window.
+* After resume: the next invoice should cover the period starting from the resume date.
+
+== Common Pitfalls
+
+1. **Cancelling with `IMMEDIATE` on day 1 of a billing period** — generates a large credit for the nearly unused period. Consider `END_OF_TERM` if this is undesirable.
+2. **Pausing without resuming** — the bundle remains permanently paused with no billing and no alerts by default. Set a reminder or use Kill Bill's tag system to track paused bundles.
+3. **Changing to a plan not in the catalog** — returns a `400 Bad Request` error. Verify the plan exists in the Aviate catalog first. See https://docs.killbill.io/latest/aviate-catalog-guide.html[Catalog Guide].
+4. **Cancelling a subscription managed by a contract** — may conflict with contract terms. Check whether the subscription is governed by an Aviate contract before cancelling. See https://docs.killbill.io/latest/aviate-contracts.html[Contracts].
+5. **Mixing entitlement and billing policies incorrectly** — setting `entitlementPolicy=END_OF_TERM` and `billingPolicy=IMMEDIATE` stops charges before the customer loses access, which can be confusing. Ensure the policy combination matches your business intent.
+6. **Ignoring coupon plan restrictions during plan change** — if the new plan is not in the coupon's `planList`, the discount silently stops applying. Verify coupon compatibility before changing plans.
+
+== Related
+
+* https://docs.killbill.io/latest/aviate-catalog-guide.html[Catalog Guide] — available plans and plan management
+* https://docs.killbill.io/latest/aviate-quotes-orders.html[Quotes & Orders] — creating subscriptions via orders
+* https://docs.killbill.io/latest/aviate-coupons.html[Coupons] — coupon behavior during plan changes
+* https://docs.killbill.io/latest/aviate-wallet.html[Wallet] — credit behavior after cancellation
+* https://docs.killbill.io/latest/aviate-tax.html[Tax Configuration] — tax recalculation on plan changes
+* https://docs.killbill.io/latest/aviate-metering.html[Metering] — usage event handling during lifecycle changes
+* https://docs.killbill.io/latest/aviate-credits-refunds.html[Credits, Refunds & Invoice Adjustments] — financial corrections
