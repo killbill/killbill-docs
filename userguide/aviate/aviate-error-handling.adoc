@@ -1,0 +1,257 @@
+= Aviate Error Handling
+
+== Introduction
+
+Aviate can return errors in the https://www.rfc-editor.org/rfc/rfc7807[RFC 7807 Problem Details] format. This gives you a machine-readable error structure that you can handle consistently in your client code.
+
+A Problem Details response can include these fields:
+
+* `type` -- a URI identifying the error category
+* `title` -- a short, human-readable summary of the error category
+* `status` -- the HTTP status code
+* `detail` -- a human-readable explanation of what went wrong
+* `instance` -- the request path that produced the error (only included by some endpoints)
+
+Fields without a value are left out of the response. Problem Details responses use the `application/problem+json` content type.
+
+[NOTE]
+====
+Problem Details support is being rolled out across the Aviate APIs. At the time of writing, it is available for the catalog (`/v1/catalog`), metering (`/v1/metering`), billing account (`/v1/ba`), rating (`/v1/rating`) and revenue (`/v1/revenue`) APIs. Other Aviate APIs return the HTTP status code with either an empty body, a plain-text message or a JSON body specific to that endpoint.
+====
+
+== Requesting Problem Details
+
+Problem Details are returned only when the client asks for them, by including `application/problem+json` in the `Accept` header:
+
+[source,bash]
+----
+curl -X POST "${KB_URL}/plugins/aviate-plugin/v1/metering/billingMeters" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/problem+json" \
+  -d '[{ "code": "api.calls", "name": "API Calls", "aggregationType": "COUNT", "unitType": "request" }]'
+----
+
+Response (`400 Bad Request`):
+
+[source,json]
+----
+{
+  "type": "https://aviate.killbill.io/problems/metering-validation-error",
+  "title": "Metering Validation Error",
+  "status": 400,
+  "detail": "Special characters not allowed in meter code api.calls",
+  "instance": "/v1/metering/billingMeters"
+}
+----
+
+If the `Accept` header does not include `application/problem+json`, the same request returns only the HTTP status code. Some errors also include a short plain-text message in the body.
+
+The one exception is a request that fails authentication: it always gets a Problem Details response (see <<Authentication and Permission Errors>>).
+
+== Error Types
+
+All `type` URIs start with `https://aviate.killbill.io/problems/`.
+
+[cols="2,1,3", options="header"]
+|===
+| Type | HTTP Status | Description
+
+| `validation-error`
+| 400
+| The request is invalid, for example a missing or incorrect field
+
+| `metering-validation-error`
+| 400
+| A billing meter in the request is invalid
+
+| `catalog-validation-error`
+| 400
+| A catalog entity in the request is invalid
+
+| `quote-error`
+| 400
+| A quote or quote item in the request is invalid
+
+| `unauthorized`
+| 401
+| Missing or invalid authentication credentials
+
+| `forbidden`
+| 403
+| The caller does not have the permission needed for this operation
+
+| `not-found`
+| 404
+| The referenced entity does not exist
+
+| `conflict`
+| 409
+| The operation conflicts with existing data, for example an entity that already exists or an accounting period that is already closed
+
+| `internal-error`
+| 500
+| An unexpected server error occurred
+|===
+
+Some validation errors are reported with the generic `validation-error` type even when a more specific type exists. For example, catalog validation errors currently use `validation-error`. If your client needs to tell errors apart, check `status` first and use `type` only for extra detail.
+
+== Validation Errors
+
+Validation errors return `400 Bad Request`. The `detail` field describes the first problem found. For example, uploading catalog data without any plan (`POST /v1/catalog/inputData`) returns:
+
+[source,json]
+----
+{
+  "type": "https://aviate.killbill.io/problems/validation-error",
+  "title": "Validation Error",
+  "status": 400,
+  "detail": "Need to specify at least one plan"
+}
+----
+
+== Not Found Errors
+
+Requesting a billing meter that does not exist (`GET /v1/metering/api-calls/billingMeter`) returns:
+
+[source,json]
+----
+{
+  "type": "https://aviate.killbill.io/problems/not-found",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Billing meter not found: api-calls"
+}
+----
+
+== Conflict Errors
+
+A `409 Conflict` is returned when the operation clashes with the current data. For example, closing an accounting period that is already closed (`POST /v1/revenue/periods/2026-03/close`) returns:
+
+[source,json]
+----
+{
+  "type": "https://aviate.killbill.io/problems/conflict",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Accounting period already closed: 2026-03"
+}
+----
+
+To recover, fetch the latest state of the entity and decide whether the operation is still needed.
+
+== Authentication and Permission Errors
+
+A request with missing or invalid credentials returns `401 Unauthorized`. This response always uses the Problem Details format, whatever the `Accept` header:
+
+[source,json]
+----
+{
+  "type": "https://aviate.killbill.io/problems/unauthorized",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Unauthorized"
+}
+----
+
+A request from a user who lacks the required permission returns `403 Forbidden`. The `detail` says whether an Aviate permission or a Kill Bill permission is missing:
+
+[source,json]
+----
+{
+  "type": "https://aviate.killbill.io/problems/forbidden",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "Missing Aviate permission"
+}
+----
+
+Without `application/problem+json` in the `Accept` header, the `403` response body contains only the plain-text message (for example `Missing Aviate permission`).
+
+== Discount Policy Violations
+
+When a quote is updated (`POST /v1/quote/{id}`) or submitted (`POST /v1/quote/{id}/submit`) with a discount above the maximum allowed by the discount policy, Aviate returns `422 Unprocessable Entity`. This response is always returned as JSON, whatever the `Accept` header, and lists every violation in a `violations` array:
+
+[source,json]
+----
+{
+  "type": "https://developer.killbill.io/errors/discount-policy-violation",
+  "title": "Discount policy violation",
+  "status": 422,
+  "detail": "Item 0: 30% discount exceeds the 20% maximum for your role.",
+  "violations": [
+    { "itemIndex": 0, "ruleId": "sales-rep-limit", "effectiveDiscountPct": 30.0, "maxDiscountPct": 20.0 }
+  ]
+}
+----
+
+== Handling Errors in Client Code
+
+Since not every endpoint returns Problem Details yet, check the `Content-Type` of an error response before parsing it.
+
+=== Bash / curl
+
+[source,bash]
+----
+response=$(curl -s -w "\n%{http_code}" \
+  -X POST "${KB_URL}/plugins/aviate-plugin/v1/metering/billingMeters" \
+  -H "Authorization: Bearer ${ID_TOKEN}" \
+  -H "X-Killbill-ApiKey: ${API_KEY}" \
+  -H "X-Killbill-ApiSecret: ${API_SECRET}" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/problem+json" \
+  -d '[{ "code": "api.calls", "name": "API Calls", "aggregationType": "COUNT", "unitType": "request" }]')
+
+http_code=$(echo "$response" | tail -1)
+body=$(echo "$response" | sed '$d')
+
+if [ "$http_code" -ge 400 ]; then
+  echo "Error ($http_code):"
+  # Print the detail if the body is Problem Details JSON, otherwise the raw body
+  echo "$body" | jq -r '.detail' 2>/dev/null || echo "$body"
+fi
+----
+
+=== JavaScript / Node.js
+
+[source,javascript]
+----
+const response = await fetch(`${KB_URL}/plugins/aviate-plugin/v1/metering/billingMeters`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${idToken}`,
+    'X-Killbill-ApiKey': apiKey,
+    'X-Killbill-ApiSecret': apiSecret,
+    'Content-Type': 'application/json',
+    'Accept': 'application/problem+json'
+  },
+  body: JSON.stringify([{ code: 'api-calls', name: 'API Calls', aggregationType: 'COUNT', unitType: 'request' }])
+});
+
+if (!response.ok) {
+  const contentType = response.headers.get('Content-Type') || '';
+
+  if (contentType.includes('json')) {
+    const problem = await response.json();
+    console.error(`${problem.title}: ${problem.detail}`);
+  } else {
+    console.error(`HTTP ${response.status}: ${await response.text()}`);
+  }
+
+  // Handle specific cases by status code
+  switch (response.status) {
+    case 400:
+      // Fix the input and retry
+      break;
+    case 401:
+    case 403:
+      // Check the credentials and the user's permissions
+      break;
+    case 409:
+      // Refresh the entity state and adjust the operation
+      break;
+  }
+}
+----
