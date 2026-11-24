@@ -209,8 +209,8 @@ body=$(echo "$response" | sed '$d')
 
 if [ "$http_code" -ge 400 ]; then
   echo "Error ($http_code):"
-  # Print the detail if the body is Problem Details JSON, otherwise the raw body
-  echo "$body" | jq -r '.detail' 2>/dev/null || echo "$body"
+  # Print the detail if the body has one; otherwise (plain text or other JSON) print the raw body
+  echo "$body" | jq -er '.detail // empty' 2>/dev/null || echo "$body"
 fi
 ----
 
@@ -232,12 +232,16 @@ const response = await fetch(`${KB_URL}/plugins/aviate-plugin/v1/metering/billin
 
 if (!response.ok) {
   const contentType = response.headers.get('Content-Type') || '';
+  const body = await response.text();
 
-  if (contentType.includes('json')) {
-    const problem = await response.json();
-    console.error(`${problem.title}: ${problem.detail}`);
+  if (contentType.includes('application/problem+json')) {
+    // Problem Details: every field is optional, so fall back to the status code
+    const problem = JSON.parse(body);
+    const title = problem.title || `HTTP ${response.status}`;
+    console.error(problem.detail ? `${title}: ${problem.detail}` : title);
   } else {
-    console.error(`HTTP ${response.status}: ${await response.text()}`);
+    // Plain text or endpoint-specific JSON: print the server's message as-is
+    console.error(`HTTP ${response.status}: ${body}`);
   }
 
   // Handle specific cases by status code
